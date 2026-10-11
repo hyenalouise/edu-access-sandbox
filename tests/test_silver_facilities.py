@@ -276,13 +276,38 @@ def test_a_clean_load_passes_every_check(env):
         "one_timestamp_per_run"))
 
 
-def test_a_school_missing_from_enrollment_fails_the_gate(env):
-    env.deliver(facility_rows(3), enrollment_rows=make_rows(columns("v1"), n_rows=2))   # 900003 has no enrollment row
+def test_a_school_missing_from_enrollment_is_quarantined_and_the_rest_published(env):
+    env.deliver(facility_rows(250), enrollment_rows=make_rows(columns("v1"), n_rows=249))   # 900250 has no enrollment row
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded"                                         # 1 of 250: WARN, not above 1%
+    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE}") == [("900250", ["school_id_not_in_enrollment"])]
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN}") == 249
+    checks = env.checks(summary.run_id)
+    assert checks["quarantine_reason_school_id_not_in_enrollment"]["status"] == "WARN"
+    assert checks["school_id_in_enrollment"]["actual"] == "0"                  # no clean row is missing
+
+
+def test_a_facilities_year_mostly_missing_from_enrollment_fails(env):
+    """A wrong file, or a facilities year delivered before its enrollment year: above 1%, nothing is published."""
+    env.deliver(facility_rows(3), enrollment_rows=make_rows(columns("v1"), n_rows=2))
     env.bronze()
     summary = env.silver()
     assert summary.status == "failed"
-    assert env.checks(summary.run_id)["school_id_in_enrollment"]["actual"] == "1"
+    assert env.checks(summary.run_id, "FAIL")["quarantine_rate"]["actual"] == "1"
     assert not env.q("SELECT * FROM information_schema.tables WHERE table_name = 'deped_facilities_clean'")
+
+
+def test_a_school_enrollment_set_aside_is_set_aside_here_too(env):
+    """Enrollment may quarantine up to 1% and still publish; facilities follows instead of failing."""
+    enrollment = make_rows(columns("v1"), n_rows=250)
+    enrollment[0] = with_values(columns("v1"), enrollment[0], {"g1_male": "-1"})
+    env.deliver(facility_rows(250), enrollment_rows=enrollment)
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded"
+    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE}") == [("900001", ["school_id_not_in_enrollment"])]
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN}") == 249
 
 
 @pytest.mark.parametrize("change, check", [

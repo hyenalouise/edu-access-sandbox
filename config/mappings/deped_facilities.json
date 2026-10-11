@@ -129,6 +129,6 @@
     "source_id": "deped_enrollment",
     "finding": "O-2",
     "evidence": "SY 2023-24: 60,167 school IDs in both files; 0 only in facilities; 0 only in enrollment.",
-    "rule": "Every clean row's (school_year, school_id) is in the published deped_enrollment_clean (school_id_in_enrollment, FAIL). Location comes from enrollment, so a school missing there cannot be placed. The facilities gate runs after the enrollment Silver gate."
+    "rule": "A row whose (school_year, school_id) is not in the published deped_enrollment_clean is quarantined (school_id_not_in_enrollment): location comes from enrollment, so the school cannot be placed. Like every quarantine reason it is WARN, and FAIL above 1% of the school year's rows, which catches a wrong file or a facilities year delivered before its enrollment year. The gate re-checks that no clean row is missing (school_id_in_enrollment). The facilities build runs after the enrollment Silver gate."
   }
 }

@@ -33,6 +33,8 @@ from src.silver.sql import (
 
 SOURCE_ID = "deped_facilities"
 FLAGS = (("is_overseas", "boolean"), ("has_facility_data", "boolean"), ("es_classrooms_missing", "boolean"))
+# Enrollment's reasons, then one of its own: a school enrollment Silver cannot place (O-2, D-037).
+REASONS = (*QUARANTINE_REASONS, "school_id_not_in_enrollment")
 
 
 def _error(message):
@@ -258,7 +260,8 @@ def build_sql(spec):
     ident = f"n.{spec.identifier}"
 
     normalized = ["r.school_year", f"r.{bq(spec.identifier)}",
-                  f"COUNT(*) OVER (PARTITION BY r.school_year, r.{bq(spec.identifier)}) AS {spec.identifier}_rows"]
+                  f"COUNT(*) OVER (PARTITION BY r.school_year, r.{bq(spec.identifier)}) AS {spec.identifier}_rows",
+                  "r.in_enrollment"]
     normalized += [f"{cleaned_text(spec, c, 'r.' + bq(c.source))} AS {c.name}" for c in spec.text]
     normalized += [f"r.{bq(c.source)} AS {c.name}" for c in counts]
     normalized += [f"r.{name}" for name in lineage]
@@ -285,7 +288,8 @@ def build_sql(spec):
         f"      CASE WHEN {ident} <> '' AND n.{spec.identifier}_rows > 1 THEN 'school_id_duplicated' END,\n"
         f"      CASE WHEN {negative}\n      THEN 'count_negative' END,\n"
         f"      CASE WHEN {uncastable}\n      THEN 'count_uncastable' END,\n"
-        f"      CASE WHEN {implausible}\n      THEN 'count_above_plausible_max' END\n"
+        f"      CASE WHEN {implausible}\n      THEN 'count_above_plausible_max' END,\n"
+        "      CASE WHEN NOT n.in_enrollment THEN 'school_id_not_in_enrollment' END\n"
         "    ) AS quarantine_reasons")
     typed += [f"n.{name}" for name in lineage]
 
@@ -310,7 +314,9 @@ def build_sql(spec):
         f"--   {spec.clean_candidate}       one row per school per school year, typed and standardized;",
         f"--   {spec.quarantine_candidate}  rows that cannot be trusted, with their reasons.",
         "-- Every school is kept, public or not: facility measures exist for public schools only (O-3), and",
-        "-- Gold scopes to them. Location is not in this file; it comes from enrollment through school_id.",
+        "-- Gold scopes to them. Location is not in this file; it comes from enrollment through school_id, so",
+        f"-- a school missing from the published {spec.enrollment_table} for its school year is quarantined",
+        "-- (O-2, D-037). This task therefore runs after the enrollment Silver gate.",
         f"-- The Silver tables ({spec.clean_table}, {spec.quarantine_table}) are never written here:",
         "-- the gate (the next task) checks the candidates and publishes them only if every check passes,",
         "-- so a failed build never replaces the last good one. It rebuilds on every run (D-025).",
@@ -350,10 +356,14 @@ def build_sql(spec):
         "-- A reason is decided with explicit NULL handling, and concat_ws never returns NULL, so",
         "-- quarantine_reasons = '' and <> '' split the rows without losing any.",
         f"CREATE OR REPLACE TEMPORARY VIEW {view} AS",
-        "WITH bronze AS (",
-        "  SELECT r.*",
+        "WITH enrollment AS (",
+        f"  SELECT DISTINCT school_year, school_id FROM {silver_ref(spec.enrollment_table)}",
+        "),",
+        "bronze AS (",
+        "  SELECT r.*, e.school_id IS NOT NULL AS in_enrollment",
         f"  FROM {bronze_ref(spec)} AS r",
         f"  JOIN {CONTROL}.current_batches AS c ON r.batch_id = c.batch_id",
+        "  LEFT JOIN enrollment AS e ON e.school_year = r.school_year AND e.school_id = r.school_id",
         f"  WHERE c.source_id = {lit(source)}",
         "),",
         "-- Labels: whitespace normalized, blank to NULL. Counts stay as published here.",
@@ -408,7 +418,7 @@ def gate_checks(spec):
              "counts_within_plausible_max", "counts_reconcile", "missing_counts_stay_null", "true_values_reconcile",
              "missing_booleans_stay_null", "school_id_in_enrollment", *labels, "labels_mapped_facility_booleans",
              "facility_data_public_only", "facility_values_within_offered_levels", "quarantine_rate"]
-            + [f"quarantine_reason_{r}" for r in QUARANTINE_REASONS]
+            + [f"quarantine_reason_{r}" for r in REASONS]
             + ["rule_whitespace_normalized", "rule_blank_counts_to_null", "rule_blank_booleans_to_null",
                "rule_labels_standardized", "flag_is_overseas", "flag_has_facility_data",
                "flag_public_without_facility_data", "flag_es_classrooms_missing"])
@@ -491,7 +501,7 @@ def gate_sql(spec):
         "COUNT_IF(e.school_id IS NULL) AS orphan_rows",
     ]
     quarantine_years = ["q.school_year", "COUNT(*) AS quarantined_rows"] + [
-        f"COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})) AS reason_{r}" for r in QUARANTINE_REASONS]
+        f"COUNT_IF(array_contains(q.quarantine_reasons, {lit(r)})) AS reason_{r}" for r in REASONS]
 
     year_columns = ["y.school_year", "y.batch_id", "COALESCE(bronze_rows, 0) AS bronze_rows",
                     "COALESCE(clean_rows, 0) AS clean_rows", "COALESCE(clean_ids, 0) AS clean_ids",
@@ -501,7 +511,7 @@ def gate_sql(spec):
                    "blank_count_rows", "blank_boolean_rows", "invalid_ids", "negative_rows", "implausible_rows",
                    "non_public_facility_rows", "outside_level_rows", "overseas_rows", "facility_data_rows",
                    "public_without_data_rows", "classrooms_missing_rows", "relabelled_rows", "orphan_rows",
-                   *[f"reason_{r}" for r in QUARANTINE_REASONS]]
+                   *[f"reason_{r}" for r in REASONS]]
     year_columns += [f"COALESCE({name}, 0) AS {name}" for name in passthrough]
     # Unmapped labels: clean rows by what the build made of them, quarantined rows against the mapping itself.
     year_columns += [f"COALESCE(unmapped_{x}, 0) + COALESCE(quarantined_unmapped_{x}, 0) AS unmapped_{x}"
@@ -545,7 +555,7 @@ def gate_sql(spec):
         must_equal("missing_counts_stay_null", clean_name, "kept_missing_counts", "clean_missing_counts"),
         must_equal("true_values_reconcile", clean_name, "kept_true_values", "clean_true_values"),
         must_equal("missing_booleans_stay_null", clean_name, "kept_blank_booleans", "clean_blank_booleans"),
-        "-- Each school year: every clean school is in the published enrollment Silver, which places it (O-2)",
+        "-- Each school year: every clean school is in the published enrollment Silver (the build quarantines the rest)",
         must_be_zero("school_id_in_enrollment", clean_name, "orphan_rows"),
         "-- Each school year: every label is in the reviewed mapping",
         *[must_be_zero(f"labels_mapped_{x.name}", clean_name, f"unmapped_{x.name}") for x in named],
@@ -558,7 +568,7 @@ def gate_sql(spec):
               "CASE WHEN quarantined_rows = 0 THEN 'PASS' WHEN quarantined_rows * 100 > bronze_rows THEN 'FAIL' ELSE 'WARN' END",
               # No ';' inside a string: store.split_statements splits files on it.
               "'0 (FAIL above 1% of ' || CAST(bronze_rows AS STRING) || ')'", "CAST(quarantined_rows AS STRING)"),
-        *[warn_if_any(f"quarantine_reason_{r}", quarantine_name, f"reason_{r}") for r in QUARANTINE_REASONS],
+        *[warn_if_any(f"quarantine_reason_{r}", quarantine_name, f"reason_{r}") for r in REASONS],
         "-- Each school year: how many rows each cleaning rule changed or flagged (records, always PASS)",
         record("rule_whitespace_normalized", "whitespace_rows"),
         record("rule_blank_counts_to_null", "blank_count_rows"),
@@ -581,9 +591,9 @@ def gate_sql(spec):
     missing_lineage = " OR ".join(f"{name} IS NULL" for name in ["school_year", *lineage, *stamp])
     lines = header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [
         "--",
-        "-- The job task after the Silver build and after the enrollment Silver gate, whose published table",
-        "-- it reads. It checks the candidate tables the build wrote, one row per check in",
-        "-- data_quality_results. On any FAIL it records the run 'failed' and stops the task before",
+        "-- The job task after the Silver build, which runs after the enrollment Silver gate. It checks the",
+        "-- candidate tables the build wrote, one row per check in data_quality_results, and reads the",
+        "-- published enrollment Silver to confirm every clean school is there. On any FAIL it records the run 'failed' and stops the task before",
         "-- publishing, so the Silver tables keep the last build that passed and nothing downstream runs.",
         "-- Otherwise it copies the candidates to the Silver tables and records the run 'succeeded'.",
         "-- PASS: as expected. WARN: recorded, the build is published (quarantined rows, or a scope change).",
@@ -753,6 +763,8 @@ QUARANTINE_MEANING = {
     "count_negative": "a count is a negative whole number",
     "count_uncastable": "a count is not blank and not a whole number of at most nine digits (e.g. `5.0`, `abc`)",
     "count_above_plausible_max": "a count is above its group's reviewed plausible maximum, e.g. a count with an extra digit",
+    "school_id_not_in_enrollment": "the school is not in the published enrollment Silver for its school year, so it cannot be placed "
+                                   "(it is missing from enrollment, or enrollment set it aside)",
 }
 
 
@@ -793,7 +805,7 @@ def dictionary_markdown(spec):
     groups = ["| Group | Plausible maximum | Columns | Evidence |", "|---|---|---|---|"]
     groups += [f"| {g.name} | {g.plausible_max:,} | {', '.join(f'`{c}`' for c in g.columns)} | "
                f"{m['count_groups']['groups'][g.name]['evidence']} |" for g in spec.groups]
-    reasons = [f"- `{r}`: {QUARANTINE_MEANING[r]}" for r in QUARANTINE_REASONS]
+    reasons = [f"- `{r}`: {QUARANTINE_MEANING[r]}" for r in REASONS]
     return "\n".join([
         f"# `{spec.clean_table}`: Silver data dictionary",
         "",
@@ -805,7 +817,7 @@ def dictionary_markdown(spec):
         f"`` edu_access.`{SCHEMA}`.{spec.clean_table} ``: one row per school per school year, for the current delivery "
         "of each school year only (`01-control`.current_batches). Key: (`school_id`, `school_year`). Every school in "
         "the file is kept, public or not; facility measures exist for public schools only. Location is not here: "
-        f"join `{spec.enrollment_table}` on (`school_id`, `school_year`); the gate checks every school is there. Every "
+        f"join `{spec.enrollment_table}` on (`school_id`, `school_year`); a school missing there is quarantined. Every "
         "row names the Bronze row it came from (`source_sha256`, `source_row_number`). Rules, counts, and the gate: "
         "[docs/operations/silver.md](../../operations/silver.md#deped-facilities).",
         "",
