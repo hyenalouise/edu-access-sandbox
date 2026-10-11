@@ -46,7 +46,7 @@ On the SQL warehouse after the run:
 | `silver_build` runs in this job run | deped_enrollment succeeded, psa_poverty_stat succeeded | the same | OK |
 
 ### Fan-in results: two PASS rows
-<img width="884" height="225" alt="image" src="https://github.com/user-attachments/assets/28919555-3965-46c6-b5e1-cd13d49ca379" />
+<img width="881" height="225" alt="image" src="https://github.com/user-attachments/assets/5105f494-5de5-4934-acfc-01968d22a4b8" />
 
 What this run confirms that the local runs could not (D-017): Spark runs the generated SQL as DuckDB does, including `VALUES … AS l(source_id)` joined to `pipeline_runs`, the session variable that limits the check to this execution, and `raise_error` in a `CASE` that does not fire. Databricks also runs an `ALL_DONE` task after every Silver gate, disabled ones included.
 
