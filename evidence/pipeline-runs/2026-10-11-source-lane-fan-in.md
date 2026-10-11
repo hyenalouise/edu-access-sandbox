@@ -15,7 +15,7 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 
 CI ("Repository checks") passed on that commit. The job was run once with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8).
 
-### Job details: the three maps with one arrow each, from 90_validate_control
+### Run graph: 90_validate_control green, and each map disabled with one arrow, from it
 <img width="1262" height="660" alt="image" src="https://github.com/user-attachments/assets/e782efe8-c78f-4bc6-ac00-6753c1895c6d" />
 
 | | Job run `43200517535648` |
@@ -29,7 +29,7 @@ CI ("Repository checks") passed on that commit. The job was run once with `datab
 
 The Silver lanes switched on at this commit are `deped_enrollment` and `psa_poverty_stat`. The other four Silver gates (facilities, personnel, PSGC, HDX) are disabled on `main`, so the fan-in waited for them as finished and did not check them.
 
-### Run timeline: 90_validate_control after the Silver gates, the maps disabled
+### Run timeline: the Silver lanes, enrollment and PSA poverty on, the others disabled
 <img width="1263" height="629" alt="image" src="https://github.com/user-attachments/assets/9878756d-d14f-49a4-b6ff-ca25dea64c54" />
 
 ## Results
@@ -45,7 +45,7 @@ On the SQL warehouse after the run:
 | commit on the results | `1962bce…` | `1962bce…` | OK |
 | `silver_build` runs in this job run | deped_enrollment succeeded, psa_poverty_stat succeeded | the same | OK |
 
-### Fan-in results: two PASS rows
+### Fan-in results: 6 rows, every actual equal to expected
 <img width="881" height="225" alt="image" src="https://github.com/user-attachments/assets/5105f494-5de5-4934-acfc-01968d22a4b8" />
 
 What this run confirms that the local runs could not (D-017): Spark runs the generated SQL as DuckDB does, including `VALUES … AS l(source_id)` joined to `pipeline_runs`, the session variable that limits the check to this execution, and `raise_error` in a `CASE` that does not fire. Databricks also runs an `ALL_DONE` task after every Silver gate, disabled ones included.
