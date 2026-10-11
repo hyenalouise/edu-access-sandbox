@@ -78,10 +78,10 @@ The query from [How to reproduce](#how-to-reproduce), with this job run id and t
 Facilities Silver, rebuilt in the same run, has 60,167 rows and the content SHA-256 `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c`, the same as every run in #126's evidence.
 
 ### Re-run graph: facilities Silver on, 90_validate_control green, each map with one arrow from it
-<!-- Screenshot: run 1059177807653368 graph view -->
+<img width="1455" height="638" alt="image" src="https://github.com/user-attachments/assets/a51e1ce7-bd22-498c-af77-42f42e4dea87" />
 
 ### Re-run fan-in results: 3 rows, all PASS
-<!-- Screenshot: the How to reproduce query with job run id 1059177807653368, expecting 3 lanes -->
+<img width="1017" height="223" alt="image" src="https://github.com/user-attachments/assets/29c1334b-137c-482d-9423-5e5211d5fd08" />
 
 ## Limitations
 
