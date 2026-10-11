@@ -11,7 +11,7 @@
 -- Every school is kept, public or not: facility measures exist for public schools only (O-3), and
 -- Gold scopes to them. Location is not in this file; it comes from enrollment through school_id, so
 -- a school missing from the published deped_enrollment_clean for its school year is quarantined
--- (O-2, D-037). This task therefore runs after the enrollment Silver gate.
+-- (O-2, D-038). This task therefore runs after the enrollment Silver gate.
 -- The Silver tables (deped_facilities_clean, deped_facilities_quarantine) are never written here:
 -- the gate (the next task) checks the candidates and publishes them only if every check passes,
 -- so a failed build never replaces the last good one. It rebuilds on every run (D-025).

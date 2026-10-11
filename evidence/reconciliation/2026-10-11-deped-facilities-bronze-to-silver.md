@@ -53,7 +53,7 @@ Identical after run 1 and run 2:
 
 ## Re-run at `1c2317b`: a missing school is quarantined
 
-At commit `1c2317b79fbcf8811c140d5c3948f2023014c894`, a school missing from enrollment Silver is quarantined (`school_id_not_in_enrollment`) instead of failing the gate, and the build, not the gate, waits for the enrollment Silver gate (D-037). The same steps as above, from a clean detached checkout and a fresh database, run twice; `python -m pytest tests -q` at that commit: 618 passed.
+At commit `1c2317b79fbcf8811c140d5c3948f2023014c894`, a school missing from enrollment Silver is quarantined (`school_id_not_in_enrollment`) instead of failing the gate, and the build, not the gate, waits for the enrollment Silver gate (D-038). The same steps as above, from a clean detached checkout and a fresh database, run twice; `python -m pytest tests -q` at that commit: 618 passed.
 
 | Check | Result |
 |---|---|

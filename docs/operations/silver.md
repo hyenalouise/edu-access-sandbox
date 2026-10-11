@@ -1,6 +1,6 @@
 # Silver: Bronze → clean, typed, standardized
 
-How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85); `psa_poverty_stat` ([PSA Poverty Stat](#psa-poverty-stat), D-034) and `deped_facilities` ([DepEd facilities](#deped-facilities), D-037) follow the same task, run, and publishing design with their own shape and rules.
+How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85); `psa_poverty_stat` ([PSA Poverty Stat](#psa-poverty-stat), D-034) and `deped_facilities` ([DepEd facilities](#deped-facilities), D-038) follow the same task, run, and publishing design with their own shape and rules.
 
 **Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run by the job on the real Bronze data of all three school years (2026-10-09, [evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md)). Run on Databricks `dev` on 2026-10-09 at `7d93d8e`: two job runs, every check OK, identical rows ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)); and with publishing after the gate at `acd6416`, with the same rows ([evidence](../../evidence/pipeline-runs/2026-10-09-silver-publish-after-gate.md)).
 
@@ -410,9 +410,9 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 
 ## DepEd facilities
 
-`deped_facilities` uses the design above (two SQL tasks, candidates, publish after the gate, `pipeline_runs`; D-020, D-025) with its own generator, `src/silver/deped_facilities.py`, and [Silver mapping](../../config/mappings/deped_facilities.json) (D-037); columns: [data dictionary](../data/silver/deped-facilities-clean.md).
+`deped_facilities` uses the design above (two SQL tasks, candidates, publish after the gate, `pipeline_runs`; D-020, D-025) with its own generator, `src/silver/deped_facilities.py`, and [Silver mapping](../../config/mappings/deped_facilities.json) (D-038); columns: [data dictionary](../data/silver/deped-facilities-clean.md).
 
-**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). **Run twice on Databricks `dev`** on 2026-10-11 at `6b2844d` (job runs `1045250185878076` and `700607904560713`, both succeeded): the same rows and checks as locally, all 38 checks PASS, and identical content in both runs ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md)). Since then, a school missing from enrollment Silver is quarantined instead of failing the gate (D-037): rerun locally on the real file at `1c2317b` with the same rows and content, 39 checks all PASS; **the `dev` confirmation run at the new commit is still to do**. The query in that evidence is the facilities check for a new confirmation run, following [Running on Databricks](#running-on-databricks).
+**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). **Run twice on Databricks `dev`** on 2026-10-11 at `6b2844d` (job runs `1045250185878076` and `700607904560713`, both succeeded): the same rows and checks as locally, all 38 checks PASS, and identical content in both runs ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md)). Since then, a school missing from enrollment Silver is quarantined instead of failing the gate (D-038): rerun locally on the real file at `1c2317b` with the same rows and content, 39 checks all PASS; **the `dev` confirmation run at the new commit is still to do**. The query in that evidence is the facilities check for a new confirmation run, following [Running on Databricks](#running-on-databricks).
 
 ### The flow (facilities)
 
@@ -445,11 +445,11 @@ One wide row per school per school year, key (`school_id`, `school_year`), every
 | Current batches only | Reads Bronze rows whose `batch_id` is in `current_batches` | D-015 | 60,167 rows |
 | Labels | `sector`, `school_management`: whitespace normalized, mapped to enrollment's standard sets; an unmapped label fails the gate | D-022 | 0 relabelled |
 | Yes/no | `offers_*` and the 60 `es_has_*`, `hs_has_*`, `*_accessible_*` columns: `True` → TRUE, `False` → FALSE, blank → NULL; any other label fails the gate | O-7 | 57,820 rows with a blank yes/no |
-| Counts | The 21 counts: whole number → INT, blank → NULL, never 0; negative, not a whole number, or above the group's maximum (buildings 200; classrooms 1,000; temporary and makeshift 1,000) quarantines the row | O-6, D-037 | 59,622 rows with a blank count; largest 52 / 231 / 445 |
+| Counts | The 21 counts: whole number → INT, blank → NULL, never 0; negative, not a whole number, or above the group's maximum (buildings 200; classrooms 1,000; temporary and makeshift 1,000) quarantines the row | O-6, D-038 | 59,622 rows with a blank count; largest 52 / 231 / 445 |
 | `is_overseas` | `sector` or `school_management` is `PSO` | O-3 | 33 |
 | `has_facility_data` | Any count or facility yes/no is published | O-3 | 47,817 (every public school but one) |
 | `es_classrooms_missing` | A public school offering elementary with a blank `es_classrooms_instructional`; kept NULL, never 0 | O-4, O-5, S-2 | 669 |
-| Missing from enrollment | A school not in the published `deped_enrollment_clean` for its school year is quarantined (`school_id_not_in_enrollment`); WARN, FAIL above 1% | O-2, D-037 | 0 |
+| Missing from enrollment | A school not in the published `deped_enrollment_clean` for its school year is quarantined (`school_id_not_in_enrollment`); WARN, FAIL above 1% | O-2, D-038 | 0 |
 
 ### The gate (facilities)
 
@@ -501,8 +501,8 @@ A new schema version also needs a reviewed change to `src/silver/deped_facilitie
 | PSA: should a `partial_estimate` row (some measures blank) be quarantined rather than kept with a WARN? | Kept, WARN | D-034 |
 | Should a source with no current Bronze batch fail the whole job (`current_batches_present`), or skip its Silver tasks? | Fail, as for DepEd | Team (#121 review) |
 | Should a school with two conflicting rows keep one copy if the rows are identical? | Every copy quarantined | D-024 |
-| Facilities: should a facilities year delivered before its enrollment year wait instead of failing at the 1% threshold? | Fail, and the last good build stays published | D-037 |
-| Facilities: does a blank elementary classroom count mean no permanent room (S-2)? | Unknown: NULL, flagged `es_classrooms_missing` | D-037 |
+| Facilities: should a facilities year delivered before its enrollment year wait instead of failing at the 1% threshold? | Fail, and the last good build stays published | D-038 |
+| Facilities: does a blank elementary classroom count mean no permanent room (S-2)? | Unknown: NULL, flagged `es_classrooms_missing` | D-038 |
 | Should Gold treat `no_counts` like `all_zero`? | Gold decides per measure | D-024 |
 | Should Silver skip when Bronze is unchanged, with a condition task in the job? | Rebuild every run | D-025 |
 | Should the Bronze gate also count only its own execution's results, so a repaired job run is judged on its own, as the Silver gate does? Changing it means regenerating every source's Bronze gate | Start a new run instead of repairing a failed one | D-020 |

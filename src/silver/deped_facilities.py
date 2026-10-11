@@ -4,7 +4,7 @@ Facilities has the same identifier, labels, and quarantine reasons as enrollment
 (src/silver/spec.py, sql.py), but a different shape: no free text, counts in
 named groups each with its own plausible maximum, sixty facility yes/no columns,
 measures for public schools only, and location only through enrollment. So it
-has its own module, reusing the shared SQL helpers (D-037).
+has its own module, reusing the shared SQL helpers (D-038).
 
 Two reviewed files define it: config/ingestion/deped_facilities.json (the Bronze
 contract) and config/mappings/deped_facilities.json (the Silver mapping). Every
@@ -33,7 +33,7 @@ from src.silver.sql import (
 
 SOURCE_ID = "deped_facilities"
 FLAGS = (("is_overseas", "boolean"), ("has_facility_data", "boolean"), ("es_classrooms_missing", "boolean"))
-# Enrollment's reasons, then one of its own: a school enrollment Silver cannot place (O-2, D-037).
+# Enrollment's reasons, then one of its own: a school enrollment Silver cannot place (O-2, D-038).
 REASONS = (*QUARANTINE_REASONS, "school_id_not_in_enrollment")
 
 
@@ -316,7 +316,7 @@ def build_sql(spec):
         "-- Every school is kept, public or not: facility measures exist for public schools only (O-3), and",
         "-- Gold scopes to them. Location is not in this file; it comes from enrollment through school_id, so",
         f"-- a school missing from the published {spec.enrollment_table} for its school year is quarantined",
-        "-- (O-2, D-037). This task therefore runs after the enrollment Silver gate.",
+        "-- (O-2, D-038). This task therefore runs after the enrollment Silver gate.",
         f"-- The Silver tables ({spec.clean_table}, {spec.quarantine_table}) are never written here:",
         "-- the gate (the next task) checks the candidates and publishes them only if every check passes,",
         "-- so a failed build never replaces the last good one. It rebuilds on every run (D-025).",

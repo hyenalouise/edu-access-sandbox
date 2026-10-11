@@ -27,7 +27,7 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 
 No task waited in a queue. Run 2's extra 21 minutes are serverless setup of two Python tasks ("Waiting for cluster" in the UI): Free Edition's shared serverless capacity, not this change, which touches neither task. The facilities SQL took about the same in both runs.
 
-The facilities gate now depends on the enrollment Silver gate (D-037). In run 1 the facilities build finished at 13:28:59 and its gate started at 13:30:54, when the enrollment Silver gate ended: about 115 s of waiting that the job did not have before.
+The facilities gate now depends on the enrollment Silver gate (D-038). In run 1 the facilities build finished at 13:28:59 and its gate started at 13:30:54, when the enrollment Silver gate ended: about 115 s of waiting that the job did not have before.
 
 ### Run 1 timeline: every enabled task green, 90_validate_deped_facilities_clean after both 02_clean_deped_facilities and 90_validate_deped_enrollment_clean
 <img width="1436" height="663" alt="image" src="https://github.com/user-attachments/assets/759a550b-ec9b-4d21-8c0e-6a5923d168d1" />
