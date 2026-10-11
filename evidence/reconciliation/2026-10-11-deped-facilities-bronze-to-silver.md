@@ -77,6 +77,37 @@ At commit `02089c92fc5dcde1fd49375a3505f6fae1876381`, facilities Silver reads on
 | clean content SHA-256, both runs | `c9dd4853a9102c3868e9244a2b0ffbfab74df3bc508f64b6667d94a960f36e37`, the same as at `f5b6a30` and `1c2317b` |
 | task time | build 0.4 s, gate 0.8 s |
 
+## The published file, counted without the pipeline
+
+The four totals the Silver gate reconciles were first taken from the pipeline's own run. To check them against the file DepEd published, `analysis/verification/deped_facilities_source_totals.py` (commit `31341e1`) reads the approved zip, checks the zip's and the CSV's SHA-256 against the contract, and counts with the Python standard library only: no `src/`, Bronze, Silver, or Databricks.
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python analysis/verification/deped_facilities_source_totals.py
+```
+
+| Measure | Published CSV | Silver gate (every run, local and `dev`) | Result |
+|---|---:|---:|---|
+| rows | 60,167 | 60,167 | OK |
+| sum of all counts | 1,213,740 | 1,213,740 | OK |
+| `True` values | 458,922 | 458,922 | OK |
+| blank counts | 626,515 | 626,515 | OK |
+| blank yes/no | 2,800,050 | 2,800,050 | OK |
+| counts not a whole number | 0 | | OK (profile O-6) |
+| yes/no not `True`, `False`, or blank | 0 | | OK (profile O-7) |
+| values with surrounding spaces | 0 | | OK |
+
+So no value was lost or changed from the published file to Silver: published CSV = Bronze (the gate's Bronze side) = Silver.
+
+### Where each expected value comes from
+
+| Expected value | Source | Independent of the pipeline |
+|---|---|---|
+| 60,167 rows; 0 repeated keys; 0 missing from enrollment | Source card and profile (O-1, O-2) | Yes |
+| 47,817 with facility data; 669 `es_classrooms_missing`; 33 overseas | Profile O-3 (47,817 public schools with building counts), O-4 (669), and the data dictionary (33 PSO rows) | Yes |
+| 1,213,740 / 458,922 / 626,515 / 2,800,050 | The published CSV, counted above | Yes |
+| 22 INT and 66 BOOLEAN columns; 37 checks | The design: 21 counts + `delivery_version`; 63 yes/no + 3 flags; `gate_checks()` | Yes, from the specification |
+| Content SHA-256 `c9dd4853…` (local) and `215d7139…` (`dev`) | The first run on each engine | No: it shows later runs rebuild the same rows, not that the rows are right |
+
 ## What this does not show
 
 - Databricks: facilities Silver had not run on `dev` when this record was made. It ran there at `6b2844d` ([record](../pipeline-runs/2026-10-11-deped-facilities-silver.md)); at `1c2317b` and `02089c9`, not yet.

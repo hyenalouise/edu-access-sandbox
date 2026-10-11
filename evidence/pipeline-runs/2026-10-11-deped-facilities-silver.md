@@ -134,6 +134,8 @@ The verification query (below, with the commit filled in and `checks in the last
 | Identical rebuild | Delta versions 2 (run 1) and 3 (run 2): 0 rows in either `EXCEPT ALL` direction |
 | Unchanged by review | Version 1 (run 2 at `6b2844d`) and version 3: 0 rows in either direction |
 
+The four reconciled totals in that query (1,213,740 / 458,922 / 626,515 / 2,800,050) also equal the published CSV, counted without the pipeline ([local record](../reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md#the-published-file-counted-without-the-pipeline)).
+
 ### Verification query after run 2: 20 rows, all OK
 <img width="1026" height="503" alt="image" src="https://github.com/user-attachments/assets/0ff31489-8b3a-43a3-9d56-b374f486fc9d" />
 
