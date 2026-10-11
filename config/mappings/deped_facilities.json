@@ -1,0 +1,134 @@
+{
+  "source_id": "deped_facilities",
+  "owner": "@hyenalouise",
+  "generator": "deped_facilities",
+  "how_to_change": "The source owner approves a new or changed label, column, or maximum by merging a pull request that edits this file, then regenerates etl/03_silver and the Silver data dictionary (docs/operations/silver.md). A label that is not listed here fails the Silver gate (labels_mapped_*); a publisher column that is not classified here stops the generator.",
+  "silver_table": "deped_facilities_clean",
+  "quarantine_table": "deped_facilities_quarantine",
+  "identifier": {
+    "column": "school_id",
+    "pattern": "^[0-9]{6}$",
+    "finding": "O-1",
+    "note": "Kept as text (fixed six digits). Validated exactly as published, without trimming."
+  },
+  "count_groups": {
+    "max_digits": 9,
+    "finding": "O-6",
+    "note": "Every column listed here is a count, typed INT. A blank stays NULL, never 0. A value that is not 1 to 9 digits, or is above its group's plausible_max, quarantines the row. Counts are not trimmed.",
+    "groups": {
+      "buildings": {
+        "plausible_max": 200,
+        "evidence": "Largest published value 52 (buildings_needs_minor_repair), SY 2023-24. 200 is 3.8 times that and catches a count with an extra digit (520).",
+        "columns": [
+          "buildings_good_condition",
+          "buildings_needs_minor_repair",
+          "buildings_needs_major_repair",
+          "buildings_for_completion",
+          "buildings_ongoing_construction",
+          "buildings_for_condemnation",
+          "buildings_for_demolition"
+        ]
+      },
+      "classrooms": {
+        "plausible_max": 1000,
+        "evidence": "Largest published value 231 (es_classrooms_instructional), SY 2023-24. 1,000 is 4.3 times that and catches a count with an extra digit (2,310).",
+        "columns": [
+          "es_classrooms_instructional",
+          "jhs_classrooms_instructional",
+          "shs_classrooms_instructional",
+          "es_classrooms_non_instructional",
+          "jhs_classrooms_non_instructional",
+          "shs_classrooms_non_instructional"
+        ]
+      },
+      "temporary_and_makeshift": {
+        "plausible_max": 1000,
+        "evidence": "Largest published value 445 (hs_classes_using_makeshift_rooms), SY 2023-24; the next is 132. 1,000 is 2.2 times that and catches a count with an extra digit (4,450).",
+        "columns": [
+          "es_temporary_learning_spaces",
+          "hs_temporary_learning_spaces",
+          "es_classes_using_temporary_learning_spaces",
+          "hs_classes_using_temporary_learning_spaces",
+          "es_makeshift_rooms",
+          "hs_makeshift_rooms",
+          "es_classes_using_makeshift_rooms",
+          "hs_classes_using_makeshift_rooms"
+        ]
+      }
+    }
+  },
+  "booleans": {
+    "columns": ["offers_es", "offers_jhs", "offers_shs"],
+    "facility_column_pattern": "^(es|hs)_(has|accessible)_[a-z0-9_]+$",
+    "true": ["True"],
+    "false": ["False"],
+    "finding": "O-7",
+    "evidence": "Every one of the 63 yes/no columns holds only True, False, or blank in SY 2023-24. The offers_* columns are never blank; the 60 facility columns are 22.6% to 82.3% filled among public schools (34.6% to 96.1% blank overall). Enrollment's Yes/No (SY 2025-26) is not listed: facilities has no such year yet."
+  },
+  "categories": {
+    "sector": {
+      "finding": "O-3",
+      "rule": "Same standard set as deped_enrollment (DepEd's README list).",
+      "standard": ["Public", "Private", "SUC/LUC", "PSO"],
+      "labels": [
+        {"published": "Public", "standard": "Public", "evidence": "47,818 rows."},
+        {"published": "Private", "standard": "Private", "evidence": "12,113 rows."},
+        {"published": "SUC/LUC", "standard": "SUC/LUC", "evidence": "203 rows."},
+        {"published": "PSO", "standard": "PSO", "evidence": "33 rows."}
+      ]
+    },
+    "school_management": {
+      "finding": "O-3",
+      "rule": "Same standard set as deped_enrollment (the SY 2023-24 and 2024-25 labels).",
+      "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "DOST", "Other GA", "International School", "PSO"],
+      "labels": [
+        {"published": "DepEd", "standard": "DepEd", "evidence": "47,802 rows."},
+        {"published": "Non-Sectarian", "standard": "Non-Sectarian", "evidence": "8,558 rows."},
+        {"published": "Sectarian", "standard": "Sectarian", "evidence": "3,549 rows."},
+        {"published": "SUC", "standard": "SUC", "evidence": "181 rows."},
+        {"published": "LUC", "standard": "LUC", "evidence": "22 rows."},
+        {"published": "DOST", "standard": "DOST", "evidence": "14 rows."},
+        {"published": "Other GA", "standard": "Other GA", "evidence": "2 rows."},
+        {"published": "International School", "standard": "International School", "evidence": "6 rows."},
+        {"published": "PSO", "standard": "PSO", "evidence": "33 rows."}
+      ]
+    }
+  },
+  "overseas": {
+    "finding": "O-3",
+    "markers": {
+      "sector": "PSO",
+      "school_management": "PSO"
+    },
+    "note": "Any marker makes is_overseas TRUE, as in deped_enrollment. Both agree on all 33 rows."
+  },
+  "public_scope": {
+    "column": "sector",
+    "value": "Public",
+    "finding": "O-3",
+    "evidence": "SY 2023-24: of 12,349 non-public rows (Private 12,113, SUC/LUC 203, PSO 33), none has a value in any of the 81 facility columns; every public row but one has at least one. Technical Notes p. 3, 12: facility data covers public schools. All rows stay in Silver; Gold scopes to public schools. A non-public row with a facility value is WARN (facility_data_public_only): the scope may have changed."
+  },
+  "missing_classrooms": {
+    "column": "es_classrooms_instructional",
+    "offered_by": "offers_es",
+    "finding": "O-4, O-5, S-2",
+    "evidence": "669 of 39,346 public schools offering elementary have a blank es_classrooms_instructional, and no school has 0. 466 of the 669 report a temporary learning space or makeshift room above 0, so a blank may mean zero permanent rooms (S-2, open). Kept NULL and flagged es_classrooms_missing; never read as 0."
+  },
+  "levels": {
+    "finding": "O-4",
+    "note": "A facility column's prefix names the school level it describes; buildings_* describe the whole school. hs_ covers junior and senior high. A value for a level the school does not offer is WARN (facility_values_within_offered_levels): Gold reads a blank there as 'not applicable'.",
+    "evidence": "SY 2023-24: 0 rows have a value for a level the school does not offer.",
+    "prefixes": {
+      "es_": ["offers_es"],
+      "jhs_": ["offers_jhs"],
+      "shs_": ["offers_shs"],
+      "hs_": ["offers_jhs", "offers_shs"]
+    }
+  },
+  "location": {
+    "source_id": "deped_enrollment",
+    "finding": "O-2",
+    "evidence": "SY 2023-24: 60,167 school IDs in both files; 0 only in facilities; 0 only in enrollment.",
+    "rule": "Facilities has no place columns: its location comes from deped_enrollment_clean through (school_id, school_year). Facilities Silver does not read enrollment, so the two lanes run in parallel; Integration (#91), after 90_validate_control, checks that every facilities school is in enrollment."
+  }
+}

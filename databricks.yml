@@ -222,7 +222,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 02_clean_deped_facilities
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_facilities_raw
           run_if: ALL_SUCCESS
@@ -233,7 +232,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_deped_facilities_clean
-          disabled: true
           depends_on:
             - task_key: 02_clean_deped_facilities
           run_if: ALL_SUCCESS
