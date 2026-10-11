@@ -80,7 +80,7 @@ Facilities Silver, rebuilt in the same run, has 60,167 rows and the content SHA-
 ### Re-run graph: facilities Silver on, 90_validate_control green, each map with one arrow from it
 <img width="1455" height="638" alt="image" src="https://github.com/user-attachments/assets/a51e1ce7-bd22-498c-af77-42f42e4dea87" />
 
-### Re-run fan-in results: 3 rows, all PASS
+### Re-run check query: 6 rows, every actual equal to expected
 <img width="1017" height="223" alt="image" src="https://github.com/user-attachments/assets/29c1334b-137c-482d-9423-5e5211d5fd08" />
 
 ## Limitations
