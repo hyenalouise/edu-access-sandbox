@@ -116,13 +116,13 @@ After review, facilities Silver reads only its own Bronze, its lane waits for no
 The two Silver gates ran at the same time in both runs: the lanes are parallel, and the facilities build no longer waits for enrollment. No task queued; setup was at most 3 s.
 
 ### Job details: the facilities lane with no link to enrollment, code_revision 9197926
-<!-- Screenshot: job Tasks graph: 02_clean_deped_facilities after 90_validate_deped_facilities_raw only, and the code_revision parameter -->
+<img width="1461" height="623" alt="image" src="https://github.com/user-attachments/assets/338c7bcb-573b-4bce-8dd7-5c654ce27c15" />
 
 ### Run 1 timeline: the two Silver gates side by side
-<!-- Screenshot: run 89482607322789 timeline: 90_validate_deped_facilities_clean and 90_validate_deped_enrollment_clean overlapping -->
+<img width="1445" height="636" alt="image" src="https://github.com/user-attachments/assets/cd6da7a4-3db2-483f-92a3-acd1878e3869" />
 
 ### Run 2 timeline: the same 30 tasks green
-<!-- Screenshot: run 948438707623608 timeline -->
+<img width="1455" height="626" alt="image" src="https://github.com/user-attachments/assets/477b518e-d536-4b3b-b5ae-0880145e9f6a" />
 
 The verification query (below, with the commit filled in and `checks in the last run` expecting 37) after run 2: every row OK, 2 succeeded runs at this commit, and `content_sha256` `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c`, the same as after both runs at `6b2844d`. Also checked:
 
@@ -135,16 +135,16 @@ The verification query (below, with the commit filled in and `checks in the last
 | Unchanged by review | Version 1 (run 2 at `6b2844d`) and version 3: 0 rows in either direction |
 
 ### Verification query after run 2: 20 rows, 19 OK and the content hash
-<!-- Screenshot: the verification query result -->
+<img width="1026" height="503" alt="image" src="https://github.com/user-attachments/assets/0ff31489-8b3a-43a3-9d56-b374f486fc9d" />
 
 ### Gate results of the two runs: bronze PASS 6, silver PASS 74
-<!-- Screenshot: data_quality_results grouped by run, layer, status for the two job runs -->
+<img width="676" height="206" alt="image" src="https://github.com/user-attachments/assets/1b5295d9-88a3-43a6-837b-6feedf533d36" />
 
 ### DESCRIBE HISTORY deped_facilities_clean: versions 2 and 3 are the two runs
-<!-- Screenshot: DESCRIBE HISTORY -->
+<img width="946" height="199" alt="image" src="https://github.com/user-attachments/assets/722b0453-f3bc-4eae-86d3-42d0a3c57fd0" />
 
 #### Versions 2 and 3, and 1 and 3, compared: 0 in every direction
-<!-- Screenshot: the EXCEPT ALL comparisons -->
+<img width="942" height="202" alt="image" src="https://github.com/user-attachments/assets/be557a49-e7b3-4d6a-8a8d-83d4ed8d182f" />
 
 A run in between, `358678952220373` at `77821bc` (the build then waited for the enrollment Silver gate), was cancelled by hand during its facilities gate to correct the job layout. It left one facilities `silver_build` row `running` in `pipeline_runs`, never published: Gold trusts only `succeeded` runs (D-025), and the next build replaced its candidate tables.
 
