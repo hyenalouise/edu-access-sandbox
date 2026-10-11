@@ -9,9 +9,9 @@
 --   deped_facilities_clean_candidate       one row per school per school year, typed and standardized;
 --   deped_facilities_quarantine_candidate  rows that cannot be trusted, with their reasons.
 -- Every school is kept, public or not: facility measures exist for public schools only (O-3), and
--- Gold scopes to them. Location is not in this file; it comes from enrollment through school_id, so
--- a school missing from the published deped_enrollment_clean for its school year is quarantined
--- (O-2, D-038). This task therefore runs after the enrollment Silver gate.
+-- Gold scopes to them. Location is not in this file; it comes from enrollment through school_id, and
+-- Integration checks every school is there (D-038). Only facilities Bronze is read here, so this lane
+-- runs in parallel with every other source.
 -- The Silver tables (deped_facilities_clean, deped_facilities_quarantine) are never written here:
 -- the gate (the next task) checks the candidates and publishes them only if every check passes,
 -- so a failed build never replaces the last good one. It rebuilds on every run (D-025).
@@ -51,14 +51,10 @@ ALTER SCHEMA edu_access.`03-silver` OWNER TO `reached-hq`;
 -- A reason is decided with explicit NULL handling, and concat_ws never returns NULL, so
 -- quarantine_reasons = '' and <> '' split the rows without losing any.
 CREATE OR REPLACE TEMPORARY VIEW deped_facilities_classified AS
-WITH enrollment AS (
-  SELECT DISTINCT school_year, school_id FROM edu_access.`03-silver`.deped_enrollment_clean
-),
-bronze AS (
-  SELECT r.*, e.school_id IS NOT NULL AS in_enrollment
+WITH bronze AS (
+  SELECT r.*
   FROM edu_access.`02-bronze`.deped_facilities_raw AS r
   JOIN edu_access.`01-control`.current_batches AS c ON r.batch_id = c.batch_id
-  LEFT JOIN enrollment AS e ON e.school_year = r.school_year AND e.school_id = r.school_id
   WHERE c.source_id = 'deped_facilities'
 ),
 -- Labels: whitespace normalized, blank to NULL. Counts stay as published here.
@@ -67,7 +63,6 @@ normalized AS (
     r.school_year,
     r.`school_id`,
     COUNT(*) OVER (PARTITION BY r.school_year, r.`school_id`) AS school_id_rows,
-    r.in_enrollment,
     NULLIF(TRIM(regexp_replace(translate(r.`sector`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS sector,
     NULLIF(TRIM(regexp_replace(translate(r.`school_management`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS school_management,
     NULLIF(TRIM(regexp_replace(translate(r.`offers_es`, chr(9) || chr(160), '  '), ' +', ' ')), '') AS offers_es,
@@ -338,8 +333,7 @@ typed AS (
          OR CASE WHEN regexp_like(n.hs_makeshift_rooms, '^[0-9]{1,9}$') THEN TRY_CAST(n.hs_makeshift_rooms AS BIGINT) END > 1000
          OR CASE WHEN regexp_like(n.es_classes_using_makeshift_rooms, '^[0-9]{1,9}$') THEN TRY_CAST(n.es_classes_using_makeshift_rooms AS BIGINT) END > 1000
          OR CASE WHEN regexp_like(n.hs_classes_using_makeshift_rooms, '^[0-9]{1,9}$') THEN TRY_CAST(n.hs_classes_using_makeshift_rooms AS BIGINT) END > 1000
-      THEN 'count_above_plausible_max' END,
-      CASE WHEN NOT n.in_enrollment THEN 'school_id_not_in_enrollment' END
+      THEN 'count_above_plausible_max' END
     ) AS quarantine_reasons,
     n.batch_id,
     n.delivery_version,

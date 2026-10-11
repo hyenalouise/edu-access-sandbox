@@ -1,9 +1,9 @@
-"""Silver for deped_facilities: cleaning rules, flags, quarantine, the enrollment reference, and the gate.
+"""Silver for deped_facilities: cleaning rules, flags, quarantine, the gate, and the job layout.
 
-Made-up facilities and enrollment deliveries (tests/factories/deped_deliveries.py) go
-through the real Bronze pipeline into an in-memory DuckDB, then enrollment Silver
-and facilities Silver run from the committed SQL files, in the job's order: the
-facilities gate reads the published enrollment Silver. No real DepEd row is used.
+Made-up facilities deliveries (tests/factories/deped_deliveries.py) go through the
+real Bronze pipeline into an in-memory DuckDB, then through the committed Silver SQL
+files, run the way the job's two SQL tasks run them. Facilities Silver reads only its
+own Bronze: no enrollment is loaded here (D-038). No real DepEd row is used.
 
 By default every made-up school is public and offers elementary only, so its
 junior and senior high columns are blank, as DepEd publishes them (profile O-4).
@@ -57,38 +57,27 @@ def facility_rows(n=3, changes=None):
 class Env:
     def __init__(self, tmp_path):
         self.config = empty_config(SOURCE)
-        self.enrollment = empty_config("deped_enrollment")
         self.inbox = tmp_path / "landing" / "deped"
         self.repo = fake_repo(tmp_path / "repo", self.config)
-        write_config(self.repo, self.enrollment)
         self.store = DuckDBStore()
 
-    def deliver(self, rows=None, n_rows=3, enrollment_rows=None, folder="original", version=1):
-        """A facilities delivery and, the first time, the same schools' enrollment (n_rows of them)."""
+    def deliver(self, rows=None, n_rows=3, folder="original", version=1):
         path = make_delivery(self.inbox / folder, "2023-24", rows=rows if rows is not None else facility_rows(n_rows),
                              source_id=SOURCE)
         supersedes = self.config["deliveries"][-1]["archive_sha256"] if version > 1 else None
         approve(self.config, path, "2023-24", delivery_version=version, supersedes=supersedes)
         write_config(self.repo, self.config)
-        if not self.enrollment["deliveries"]:          # the same school IDs, from 900001
-            enrollment = make_delivery(self.inbox / "original", "2023-24", rows=enrollment_rows,
-                                       n_rows=len(rows) if rows is not None else n_rows)
-            approve(self.enrollment, enrollment, "2023-24")
-            write_config(self.repo, self.enrollment)
         return path
 
     def bronze(self):
-        for source in ("deped_enrollment", SOURCE):
-            summary = IngestionRun(self.store, self.repo, source, self.inbox.parent, "local", REVISION).execute()
-            assert summary.status == "succeeded", summary
+        summary = IngestionRun(self.store, self.repo, SOURCE, self.inbox.parent, "local", REVISION).execute()
+        assert summary.status == "succeeded", summary
 
     def silver(self, run_id=None, hook=None, gate=True):
-        """Enrollment Silver (the facilities gate reads it), then the facilities build and gate."""
+        """The job's two facilities Silver SQL tasks: the build, then (if it succeeded) the gate."""
         run_id = run_id or str(uuid.uuid4())
         params = {"run_id": run_id, "code_revision": REVISION, "environment": "local"}
         folder = self.repo / "etl" / "03_silver"
-        self.store.run_file(folder / "01_clean_deped_enrollment.sql", params)
-        self.store.run_file(folder / "90_validate_deped_enrollment_clean.sql", params)
         try:
             self.store.run_file(folder / BUILD, params)
         except Exception as e:
@@ -270,44 +259,9 @@ def test_a_clean_load_passes_every_check(env):
     checks = env.checks(summary.run_id)
     assert set(checks) == set(facilities.gate_checks(facilities.load_spec(REPO_ROOT)))
     assert {c["status"] for c in checks.values()} == {"PASS"}
-    assert checks["school_id_in_enrollment"]["actual"] == "0"
     assert all(c["batch_id"] for name, c in checks.items() if name not in (
         "current_batches_present", "lineage_complete", "rows_resolve_to_current_bronze", "rows_built_by_this_run",
         "one_timestamp_per_run"))
-
-
-def test_a_school_missing_from_enrollment_is_quarantined_and_the_rest_published(env):
-    env.deliver(facility_rows(250), enrollment_rows=make_rows(columns("v1"), n_rows=249))   # 900250 has no enrollment row
-    env.bronze()
-    summary = env.silver()
-    assert summary.status == "succeeded"                                         # 1 of 250: WARN, not above 1%
-    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE}") == [("900250", ["school_id_not_in_enrollment"])]
-    assert env.one(f"SELECT COUNT(*) FROM {CLEAN}") == 249
-    checks = env.checks(summary.run_id)
-    assert checks["quarantine_reason_school_id_not_in_enrollment"]["status"] == "WARN"
-    assert checks["school_id_in_enrollment"]["actual"] == "0"                  # no clean row is missing
-
-
-def test_a_facilities_year_mostly_missing_from_enrollment_fails(env):
-    """A wrong file, or a facilities year delivered before its enrollment year: above 1%, nothing is published."""
-    env.deliver(facility_rows(3), enrollment_rows=make_rows(columns("v1"), n_rows=2))
-    env.bronze()
-    summary = env.silver()
-    assert summary.status == "failed"
-    assert env.checks(summary.run_id, "FAIL")["quarantine_rate"]["actual"] == "1"
-    assert not env.q("SELECT * FROM information_schema.tables WHERE table_name = 'deped_facilities_clean'")
-
-
-def test_a_school_enrollment_set_aside_is_set_aside_here_too(env):
-    """Enrollment may quarantine up to 1% and still publish; facilities follows instead of failing."""
-    enrollment = make_rows(columns("v1"), n_rows=250)
-    enrollment[0] = with_values(columns("v1"), enrollment[0], {"g1_male": "-1"})
-    env.deliver(facility_rows(250), enrollment_rows=enrollment)
-    env.bronze()
-    summary = env.silver()
-    assert summary.status == "succeeded"
-    assert env.q(f"SELECT school_id, quarantine_reasons FROM {QUARANTINE}") == [("900001", ["school_id_not_in_enrollment"])]
-    assert env.one(f"SELECT COUNT(*) FROM {CLEAN}") == 249
 
 
 @pytest.mark.parametrize("change, check", [
@@ -373,9 +327,7 @@ def test_check_results_hold_counts_not_values(env):
 
 
 def test_no_current_batch_fails_the_gate(env):
-    path = make_delivery(env.inbox / "original", "2023-24")              # enrollment only
-    approve(env.enrollment, path, "2023-24")
-    write_config(env.repo, env.enrollment)
+    env.inbox.mkdir(parents=True)                                        # nothing approved: no batch
     env.bronze()
     summary = env.silver()
     assert summary.status == "failed"
@@ -432,6 +384,17 @@ def test_lineage_and_run_stamp_on_every_row(env):
 
 def test_the_facilities_generator_is_chosen_by_its_rules_file():
     assert generator(SOURCE, REPO_ROOT) is facilities
+
+
+def test_the_facilities_lane_runs_in_parallel_with_enrollment():
+    """Each source lane waits only for itself; 90_validate_control is the fan-in (D-038)."""
+    job = yaml.safe_load((REPO_ROOT / "databricks.yml").read_text(encoding="utf-8"))["resources"]["jobs"]["edu_access_pipeline"]
+    depends = {t["task_key"]: [d["task_key"] for d in t.get("depends_on", [])] for t in job["tasks"]}
+    assert depends["02_clean_deped_facilities"] == ["90_validate_deped_facilities_raw"]
+    assert depends["90_validate_deped_facilities_clean"] == ["02_clean_deped_facilities"]
+    assert "90_validate_deped_enrollment_clean" in depends["90_validate_control"]
+    for sql in (BUILD, GATE):
+        assert "deped_enrollment" not in (REPO_ROOT / "etl" / "03_silver" / sql).read_text(encoding="utf-8")
 
 
 def test_every_gate_check_is_written_by_the_gate_sql():

@@ -3,10 +3,9 @@
 --   python -m src.silver.cli gate --source deped_facilities > etl/03_silver/90_validate_deped_facilities_clean.sql
 -- Do not edit by hand; tests/test_silver.py fails if it differs.
 --
--- The job task after the Silver build, which runs after the enrollment Silver gate. It checks the
--- candidate tables the build wrote, one row per check in data_quality_results, and reads the
--- published enrollment Silver to confirm every clean school is there. On any FAIL it records the run 'failed' and stops the task before
--- publishing, so the Silver tables keep the last build that passed and nothing downstream runs.
+-- The job task after the Silver build. It checks the candidate tables the build wrote, one row
+-- per check in data_quality_results. On any FAIL it records the run 'failed' and stops the task
+-- before publishing, so the Silver tables keep the last build that passed and nothing downstream runs.
 -- Otherwise it copies the candidates to the Silver tables and records the run 'succeeded'.
 -- PASS: as expected. WARN: recorded, the build is published (quarantined rows, or a scope change).
 -- FAIL: the candidate cannot be trusted and is not published. Results hold counts, never row values.
@@ -33,7 +32,6 @@ bronze AS (
 ),
 clean AS (SELECT * FROM edu_access.`03-silver`.deped_facilities_clean_candidate),
 quarantined AS (SELECT * FROM edu_access.`03-silver`.deped_facilities_quarantine_candidate),
-enrollment AS (SELECT school_year, school_id FROM edu_access.`03-silver`.deped_enrollment_clean),
 -- Current Bronze rows, each marked if Silver set it aside.
 b AS (
   SELECT bronze.*, q.source_row_number IS NOT NULL AS in_quarantine
@@ -439,15 +437,6 @@ matched_years AS (
   JOIN b ON c.source_sha256 = b.source_sha256 AND c.source_row_number = b.source_row_number
   GROUP BY c.school_year
 ),
--- Each clean row beside the same school in the same school year of enrollment Silver.
-reference_years AS (
-  SELECT
-    c.school_year,
-    COUNT_IF(e.school_id IS NULL) AS orphan_rows
-  FROM clean AS c
-  LEFT JOIN enrollment AS e ON e.school_year = c.school_year AND e.school_id = c.school_id
-  GROUP BY c.school_year
-),
 quarantine_years AS (
   SELECT
     q.school_year,
@@ -457,8 +446,7 @@ quarantine_years AS (
     COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_duplicated')) AS reason_school_id_duplicated,
     COUNT_IF(array_contains(q.quarantine_reasons, 'count_negative')) AS reason_count_negative,
     COUNT_IF(array_contains(q.quarantine_reasons, 'count_uncastable')) AS reason_count_uncastable,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'count_above_plausible_max')) AS reason_count_above_plausible_max,
-    COUNT_IF(array_contains(q.quarantine_reasons, 'school_id_not_in_enrollment')) AS reason_school_id_not_in_enrollment
+    COUNT_IF(array_contains(q.quarantine_reasons, 'count_above_plausible_max')) AS reason_count_above_plausible_max
   FROM quarantined AS q GROUP BY q.school_year
 ),
 years AS (
@@ -490,14 +478,12 @@ years AS (
     COALESCE(public_without_data_rows, 0) AS public_without_data_rows,
     COALESCE(classrooms_missing_rows, 0) AS classrooms_missing_rows,
     COALESCE(relabelled_rows, 0) AS relabelled_rows,
-    COALESCE(orphan_rows, 0) AS orphan_rows,
     COALESCE(reason_school_id_blank, 0) AS reason_school_id_blank,
     COALESCE(reason_school_id_malformed, 0) AS reason_school_id_malformed,
     COALESCE(reason_school_id_duplicated, 0) AS reason_school_id_duplicated,
     COALESCE(reason_count_negative, 0) AS reason_count_negative,
     COALESCE(reason_count_uncastable, 0) AS reason_count_uncastable,
     COALESCE(reason_count_above_plausible_max, 0) AS reason_count_above_plausible_max,
-    COALESCE(reason_school_id_not_in_enrollment, 0) AS reason_school_id_not_in_enrollment,
     COALESCE(unmapped_sector, 0) + COALESCE(quarantined_unmapped_sector, 0) AS unmapped_sector,
     COALESCE(unmapped_school_management, 0) + COALESCE(quarantined_unmapped_school_management, 0) AS unmapped_school_management,
     COALESCE(unmapped_offers_es, 0) + COALESCE(quarantined_unmapped_offers_es, 0) AS unmapped_offers_es,
@@ -508,7 +494,6 @@ years AS (
   LEFT JOIN bronze_years ON bronze_years.school_year = y.school_year
   LEFT JOIN clean_years ON clean_years.school_year = y.school_year
   LEFT JOIN matched_years ON matched_years.school_year = y.school_year
-  LEFT JOIN reference_years ON reference_years.school_year = y.school_year
   LEFT JOIN quarantine_years ON quarantine_years.school_year = y.school_year
 ),
 found AS (SELECT COUNT(*) AS current_batches FROM cur),
@@ -575,10 +560,6 @@ checks AS (
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_facilities_clean_candidate' AS table_name, 'missing_booleans_stay_null' AS check_name,
          CASE WHEN clean_blank_booleans = kept_blank_booleans THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(kept_blank_booleans AS STRING) AS expected, CAST(clean_blank_booleans AS STRING) AS actual FROM years
-  -- Each school year: every clean school is in the published enrollment Silver (the build quarantines the rest)
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_facilities_clean_candidate' AS table_name, 'school_id_in_enrollment' AS check_name,
-         CASE WHEN orphan_rows = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
-         CAST(0 AS STRING) AS expected, CAST(orphan_rows AS STRING) AS actual FROM years
   -- Each school year: every label is in the reviewed mapping
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_facilities_clean_candidate' AS table_name, 'labels_mapped_sector' AS check_name,
          CASE WHEN unmapped_sector = 0 THEN 'PASS' ELSE 'FAIL' END AS status,
@@ -627,9 +608,6 @@ checks AS (
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_facilities_quarantine_candidate' AS table_name, 'quarantine_reason_count_above_plausible_max' AS check_name,
          CASE WHEN reason_count_above_plausible_max = 0 THEN 'PASS' ELSE 'WARN' END AS status,
          '0' AS expected, CAST(reason_count_above_plausible_max AS STRING) AS actual FROM years
-  UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_facilities_quarantine_candidate' AS table_name, 'quarantine_reason_school_id_not_in_enrollment' AS check_name,
-         CASE WHEN reason_school_id_not_in_enrollment = 0 THEN 'PASS' ELSE 'WARN' END AS status,
-         '0' AS expected, CAST(reason_school_id_not_in_enrollment AS STRING) AS actual FROM years
   -- Each school year: how many rows each cleaning rule changed or flagged (records, always PASS)
   UNION ALL SELECT batch_id AS batch_id, 'edu_access.03-silver.deped_facilities_clean_candidate' AS table_name, 'rule_whitespace_normalized' AS check_name,
          'PASS' AS status,
