@@ -412,7 +412,7 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 
 `deped_facilities` uses the design above (two SQL tasks, candidates, publish after the gate, `pipeline_runs`; D-020, D-025) with its own generator, `src/silver/deped_facilities.py`, and [Silver mapping](../../config/mappings/deped_facilities.json) (D-037); columns: [data dictionary](../data/silver/deped-facilities-clean.md).
 
-**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). **Run twice on Databricks `dev`** on 2026-10-11 at `6b2844d` (job runs `1045250185878076` and `700607904560713`, both succeeded): the same rows and checks as locally, all 38 checks PASS, and identical content in both runs ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md)). The query in that evidence is the facilities check for a new confirmation run, following [Running on Databricks](#running-on-databricks).
+**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). **Run twice on Databricks `dev`** on 2026-10-11 at `6b2844d` (job runs `1045250185878076` and `700607904560713`, both succeeded): the same rows and checks as locally, all 38 checks PASS, and identical content in both runs ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md)). Since then, a school missing from enrollment Silver is quarantined instead of failing the gate (D-037): rerun locally on the real file at `1c2317b` with the same rows and content, 39 checks all PASS; **the `dev` confirmation run at the new commit is still to do**. The query in that evidence is the facilities check for a new confirmation run, following [Running on Databricks](#running-on-databricks).
 
 ### The flow (facilities)
 
@@ -421,17 +421,20 @@ bronze_deped_facilities              Python: check and load the delivery
 90_validate_deped_facilities_raw     SQL: the Bronze gate
    │  only if it passed
    ▼
-02_clean_deped_facilities            SQL: run stamp; pipeline_runs 'running'; from current_batches only:
+   │  only if it passed, and only if 90_validate_deped_enrollment_clean succeeded
+   ▼
+02_clean_deped_facilities            SQL: run stamp; pipeline_runs 'running'; from current_batches only, beside
+   │                                     the published deped_enrollment_clean:
    │                                       deped_facilities_clean_candidate       one row per school per school year
    │                                       deped_facilities_quarantine_candidate  rows that cannot be trusted, with reasons
-   │  only if it succeeded, and only if 90_validate_deped_enrollment_clean succeeded
+   │  only if it succeeded
    ▼
-90_validate_deped_facilities_clean   SQL: 38 results for SY 2023-24; reads the published deped_enrollment_clean;
+90_validate_deped_facilities_clean   SQL: 39 results for SY 2023-24;
                                           any FAIL: 'failed', stop, nothing published;
                                           else publish quarantine, then clean, then 'succeeded'
 ```
 
-Unlike the other lanes, the facilities gate waits for the enrollment Silver gate: it checks that every facilities school is in the published enrollment Silver, which is where its location comes from (O-2). On `dev` that wait was about 115 s in the first run.
+Unlike the other lanes, the facilities build waits for the enrollment Silver gate: a school missing from the published enrollment Silver, which is where its location comes from (O-2), is quarantined. On `dev`, when this wait was still on the gate, it took about 115 s in the first run. If enrollment Silver fails, facilities Silver does not run in that job run and its last good build stays published.
 
 ### Grain, shape, and rules (facilities)
 
@@ -446,10 +449,11 @@ One wide row per school per school year, key (`school_id`, `school_year`), every
 | `is_overseas` | `sector` or `school_management` is `PSO` | O-3 | 33 |
 | `has_facility_data` | Any count or facility yes/no is published | O-3 | 47,817 (every public school but one) |
 | `es_classrooms_missing` | A public school offering elementary with a blank `es_classrooms_instructional`; kept NULL, never 0 | O-4, O-5, S-2 | 669 |
+| Missing from enrollment | A school not in the published `deped_enrollment_clean` for its school year is quarantined (`school_id_not_in_enrollment`); WARN, FAIL above 1% | O-2, D-037 | 0 |
 
 ### The gate (facilities)
 
-FAIL checks: `current_batches_present`, `lineage_complete`, `rows_resolve_to_current_bronze`, `rows_built_by_this_run`, `one_timestamp_per_run`; per school year `rows_reconcile`, `school_id_unique`, `school_id_valid`, `counts_non_negative`, `counts_within_plausible_max`, `counts_reconcile` (the sum of every count equals Bronze's), `missing_counts_stay_null`, `true_values_reconcile` (the number of TRUE values equals Bronze's `True`), `missing_booleans_stay_null`, `school_id_in_enrollment`, `labels_mapped_<column>` for `sector`, `school_management`, and each `offers_*`, `labels_mapped_facility_booleans` (all 60 together), and `quarantine_rate`. WARN checks: each quarantine reason; `facility_data_public_only` (a non-public school has a facility value: the scope may have changed); `facility_values_within_offered_levels` (a school has a value for a level it does not offer: Gold reads those blanks as not applicable). Records (always PASS): `rule_whitespace_normalized`, `rule_blank_counts_to_null`, `rule_blank_booleans_to_null`, `rule_labels_standardized`, `flag_is_overseas`, `flag_has_facility_data`, `flag_public_without_facility_data`, `flag_es_classrooms_missing`. `deped_facilities.gate_checks()` lists them all, and a test checks the SQL writes exactly those. On SY 2023-24 every check is PASS.
+FAIL checks: `current_batches_present`, `lineage_complete`, `rows_resolve_to_current_bronze`, `rows_built_by_this_run`, `one_timestamp_per_run`; per school year `rows_reconcile`, `school_id_unique`, `school_id_valid`, `counts_non_negative`, `counts_within_plausible_max`, `counts_reconcile` (the sum of every count equals Bronze's), `missing_counts_stay_null`, `true_values_reconcile` (the number of TRUE values equals Bronze's `True`), `missing_booleans_stay_null`, `school_id_in_enrollment` (no clean row is missing from enrollment Silver), `labels_mapped_<column>` for `sector`, `school_management`, and each `offers_*`, `labels_mapped_facility_booleans` (all 60 together), and `quarantine_rate`. WARN checks: each quarantine reason, including `school_id_not_in_enrollment`; `facility_data_public_only` (a non-public school has a facility value: the scope may have changed); `facility_values_within_offered_levels` (a school has a value for a level it does not offer: Gold reads those blanks as not applicable). Records (always PASS): `rule_whitespace_normalized`, `rule_blank_counts_to_null`, `rule_blank_booleans_to_null`, `rule_labels_standardized`, `flag_is_overseas`, `flag_has_facility_data`, `flag_public_without_facility_data`, `flag_es_classrooms_missing`. `deped_facilities.gate_checks()` lists them all, and a test checks the SQL writes exactly those. On SY 2023-24 every check is PASS.
 
 ### Changing a rule (facilities)
 
@@ -497,7 +501,7 @@ A new schema version also needs a reviewed change to `src/silver/deped_facilitie
 | PSA: should a `partial_estimate` row (some measures blank) be quarantined rather than kept with a WARN? | Kept, WARN | D-034 |
 | Should a source with no current Bronze batch fail the whole job (`current_batches_present`), or skip its Silver tasks? | Fail, as for DepEd | Team (#121 review) |
 | Should a school with two conflicting rows keep one copy if the rows are identical? | Every copy quarantined | D-024 |
-| Facilities: should a school missing from enrollment Silver fail the gate, or only warn, once facilities and enrollment years can arrive separately? | FAIL (`school_id_in_enrollment`) | D-037 |
+| Facilities: should a facilities year delivered before its enrollment year wait instead of failing at the 1% threshold? | Fail, and the last good build stays published | D-037 |
 | Facilities: does a blank elementary classroom count mean no permanent room (S-2)? | Unknown: NULL, flagged `es_classrooms_missing` | D-037 |
 | Should Gold treat `no_counts` like `all_zero`? | Gold decides per measure | D-024 |
 | Should Silver skip when Bronze is unchanged, with a condition task in the job? | Rebuild every run | D-025 |
