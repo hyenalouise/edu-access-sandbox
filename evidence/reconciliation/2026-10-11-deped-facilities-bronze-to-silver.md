@@ -51,7 +51,21 @@ Identical after run 1 and run 2:
 | clean content SHA-256, run 1 | | `c9dd4853a9102c3868e9244a2b0ffbfab74df3bc508f64b6667d94a960f36e37` | |
 | clean content SHA-256, run 2 | the same | `c9dd4853a9102c3868e9244a2b0ffbfab74df3bc508f64b6667d94a960f36e37` | OK |
 
+## Re-run at `1c2317b`: a missing school is quarantined
+
+At commit `1c2317b79fbcf8811c140d5c3948f2023014c894`, a school missing from enrollment Silver is quarantined (`school_id_not_in_enrollment`) instead of failing the gate, and the build, not the gate, waits for the enrollment Silver gate (D-037). The same steps as above, from a clean detached checkout and a fresh database, run twice; `python -m pytest tests -q` at that commit: 618 passed.
+
+| Check | Result |
+|---|---|
+| clean + quarantined | 60,167 + 0, both runs |
+| `has_facility_data` / `es_classrooms_missing` / `is_overseas` | 47,817 / 669 / 33 |
+| gate checks | 39 (the new `quarantine_reason_school_id_not_in_enrollment` added), all PASS, both runs |
+| clean content SHA-256, both runs | `c9dd4853a9102c3868e9244a2b0ffbfab74df3bc508f64b6667d94a960f36e37`, the same as at `f5b6a30` |
+| task time | build 0.4 s, gate 0.8 s |
+
+No real school is missing from enrollment, so the change leaves every published row as it was.
+
 ## What this does not show
 
-- Databricks: facilities Silver has not run on `dev` yet. Spark-only behavior (its `split` and `array_contains`, the 81-term flag expression, and the gate's join to the published enrollment Silver on the warehouse) is shown only by the local DuckDB run until then.
+- Databricks: facilities Silver had not run on `dev` when this record was made. It ran there at `6b2844d` ([record](../pipeline-runs/2026-10-11-deped-facilities-silver.md)); at `1c2317b`, not yet.
 - A quarantined row, an unmapped label, a school missing from enrollment, and a failing gate are shown by the made-up deliveries in `tests/test_silver_facilities.py`, not by real data: the real file has none.
