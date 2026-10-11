@@ -16,7 +16,7 @@ The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed 
 CI ("Repository checks") passed on that commit. The job was run once with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8).
 
 ### Job details: the three maps with one arrow each, from 90_validate_control
-<!-- Screenshot: job Tasks graph around 90_validate_control and the three map tasks, and the code_revision parameter -->
+<img width="1262" height="660" alt="image" src="https://github.com/user-attachments/assets/e782efe8-c78f-4bc6-ac00-6753c1895c6d" />
 
 | | Job run `43200517535648` |
 |---|---|
@@ -30,7 +30,7 @@ CI ("Repository checks") passed on that commit. The job was run once with `datab
 The Silver lanes switched on at this commit are `deped_enrollment` and `psa_poverty_stat`. The other four Silver gates (facilities, personnel, PSGC, HDX) are disabled on `main`, so the fan-in waited for them as finished and did not check them.
 
 ### Run timeline: 90_validate_control after the Silver gates, the maps disabled
-<!-- Screenshot: run 43200517535648 timeline or graph: 90_validate_control green after the two Silver gates, the three maps disabled -->
+<img width="1263" height="629" alt="image" src="https://github.com/user-attachments/assets/9878756d-d14f-49a4-b6ff-ca25dea64c54" />
 
 ## Results
 
@@ -46,7 +46,7 @@ On the SQL warehouse after the run:
 | `silver_build` runs in this job run | deped_enrollment succeeded, psa_poverty_stat succeeded | the same | OK |
 
 ### Fan-in results: two PASS rows
-<!-- Screenshot: the query below, 6 rows, all matching -->
+<img width="884" height="225" alt="image" src="https://github.com/user-attachments/assets/28919555-3965-46c6-b5e1-cd13d49ca379" />
 
 What this run confirms that the local runs could not (D-017): Spark runs the generated SQL as DuckDB does, including `VALUES … AS l(source_id)` joined to `pipeline_runs`, the session variable that limits the check to this execution, and `raise_error` in a `CASE` that does not fire. Databricks also runs an `ALL_DONE` task after every Silver gate, disabled ones included.
 
