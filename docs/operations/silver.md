@@ -412,7 +412,7 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 
 `deped_facilities` uses the design above (two SQL tasks, candidates, publish after the gate, `pipeline_runs`; D-020, D-025) with its own generator, `src/silver/deped_facilities.py`, and [Silver mapping](../../config/mappings/deped_facilities.json) (D-037); columns: [data dictionary](../data/silver/deped-facilities-clean.md).
 
-**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). Not yet run on Databricks.
+**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). **Run twice on Databricks `dev`** on 2026-10-11 at `6b2844d` (job runs `1045250185878076` and `700607904560713`, both succeeded): the same rows and checks as locally, all 38 checks PASS, and identical content in both runs ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md)). The query in that evidence is the facilities check for a new confirmation run, following [Running on Databricks](#running-on-databricks).
 
 ### The flow (facilities)
 
@@ -431,7 +431,7 @@ bronze_deped_facilities              Python: check and load the delivery
                                           else publish quarantine, then clean, then 'succeeded'
 ```
 
-Unlike the other lanes, the facilities gate waits for the enrollment Silver gate: it checks that every facilities school is in the published enrollment Silver, which is where its location comes from (O-2).
+Unlike the other lanes, the facilities gate waits for the enrollment Silver gate: it checks that every facilities school is in the published enrollment Silver, which is where its location comes from (O-2). On `dev` that wait was about 115 s in the first run.
 
 ### Grain, shape, and rules (facilities)
 
@@ -484,7 +484,7 @@ A new schema version also needs a reviewed change to `src/silver/deped_facilitie
 - With the PSA Silver tasks on, an environment whose Bronze has no current PSA batch (no approved workbook loaded) fails the job at `current_batches_present`, as DepEd does: Silver never publishes an empty table as if it were data. Intended (fail loudly rather than serve nothing silently); such an environment loads the workbook first. Raised in review of #121; the team has not yet confirmed it.
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
 - The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs. A task that dies after both copies but before recording `succeeded` leaves nothing trusted for the source until the next run passes.
-- Only `deped_enrollment`, `psa_poverty_stat`, and `deped_facilities` have Silver; the other sources follow with their own mapping (#87 to #90). Facilities has not yet run on Databricks.
+- Only `deped_enrollment`, `psa_poverty_stat`, and `deped_facilities` have Silver; the other sources follow with their own mapping (#87 to #90).
 
 ## Open questions
 
