@@ -10,7 +10,7 @@ The two facilities Silver SQL tasks of `edu_access_pipeline`, run by Spark on th
 
 The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed with `databricks bundle deploy --target dev --profile reached-hq` from a clean checkout of the pushed commit `6b2844dbb82ab596384f70160f0439cbe7e97654` (`databricks bundle validate` OK first). Read back from `databricks bundle summary` before running: the bundle's git commit and the `code_revision` parameter both equal that commit, and the two facilities Silver tasks are enabled. The job was then run twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8).
 
-### Job details: Git source at commit 6b2844d, the facilities Silver tasks enabled
+### Job details: the task graph with the facilities Silver tasks enabled, and code_revision 6b2844d
 <img width="1437" height="567" alt="image" src="https://github.com/user-attachments/assets/7666984d-7568-4f64-9895-bea0193b2120" />
 
 | | Run 1 | Run 2 |
@@ -29,13 +29,13 @@ No task waited in a queue. Run 2's extra 21 minutes are serverless setup of two 
 
 The facilities gate now depends on the enrollment Silver gate (D-037). In run 1 the facilities build finished at 13:28:59 and its gate started at 13:30:54, when the enrollment Silver gate ended: about 115 s of waiting that the job did not have before.
 
-### Run 1 task graph: every enabled task green, 90_validate_deped_facilities_clean after both 02_clean_deped_facilities and 90_validate_deped_enrollment_clean
+### Run 1 timeline: every enabled task green, 90_validate_deped_facilities_clean after both 02_clean_deped_facilities and 90_validate_deped_enrollment_clean
 <img width="1436" height="663" alt="image" src="https://github.com/user-attachments/assets/759a550b-ec9b-4d21-8c0e-6a5923d168d1" />
 
-### Run 2 task graph: the same 30 tasks green
+### Run 2 timeline: the same 30 tasks green, add_control_columns 11m 28s
 <img width="1441" height="668" alt="image" src="https://github.com/user-attachments/assets/20f3782a-301f-4564-93f5-d52a4762060c" />
 
-### Run 2 timeline: add_control_columns and bronze_deped_facilities in setup ("Waiting for cluster")
+### Run 2 setup waits: add_control_columns (11m 28s) and bronze_deped_facilities (10m 33s), mostly setup ("Waiting for cluster")
 <img width="751" height="415" alt="image" src="https://github.com/user-attachments/assets/95f5f199-589d-4610-9eae-1806c2eb5d65" />
 <img width="716" height="422" alt="image" src="https://github.com/user-attachments/assets/284a764d-2ef4-4f08-b116-0e4307533bc8" />
 
