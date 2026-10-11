@@ -124,7 +124,7 @@ The two Silver gates ran at the same time in both runs: the lanes are parallel, 
 ### Run 2 timeline: the same 30 tasks green
 <img width="1455" height="626" alt="image" src="https://github.com/user-attachments/assets/477b518e-d536-4b3b-b5ae-0880145e9f6a" />
 
-The verification query (below, with the commit filled in and `checks in the last run` expecting 37) after run 2: every row OK, 2 succeeded runs at this commit, and `content_sha256` `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c`, the same as after both runs at `6b2844d`. Also checked:
+The verification query (below, with the commit filled in and `checks in the last run` expecting 37) after run 2: all 20 rows OK, including 2 succeeded runs at this commit and `content_sha256` `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c`, now the expected value: the same as after both runs at `6b2844d`. Also checked:
 
 | Check | Result |
 |---|---|
@@ -134,7 +134,7 @@ The verification query (below, with the commit filled in and `checks in the last
 | Identical rebuild | Delta versions 2 (run 1) and 3 (run 2): 0 rows in either `EXCEPT ALL` direction |
 | Unchanged by review | Version 1 (run 2 at `6b2844d`) and version 3: 0 rows in either direction |
 
-### Verification query after run 2: 20 rows, 19 OK and the content hash
+### Verification query after run 2: 20 rows, all OK
 <img width="1026" height="503" alt="image" src="https://github.com/user-attachments/assets/0ff31489-8b3a-43a3-9d56-b374f486fc9d" />
 
 ### Gate results of the two runs: bronze PASS 6, silver PASS 74
@@ -143,7 +143,7 @@ The verification query (below, with the commit filled in and `checks in the last
 ### DESCRIBE HISTORY deped_facilities_clean: versions 2 and 3 are the two runs
 <img width="946" height="199" alt="image" src="https://github.com/user-attachments/assets/722b0453-f3bc-4eae-86d3-42d0a3c57fd0" />
 
-#### Versions 2 and 3, and 1 and 3, compared: 0 in every direction
+#### Versions 2 and 3 compared: 0 and 0
 <img width="942" height="202" alt="image" src="https://github.com/user-attachments/assets/be557a49-e7b3-4d6a-8a8d-83d4ed8d182f" />
 
 A run in between, `358678952220373` at `77821bc` (the build then waited for the enrollment Silver gate), was cancelled by hand during its facilities gate to correct the job layout. It left one facilities `silver_build` row `running` in `pipeline_runs`, never published: Gold trusts only `succeeded` runs (D-025), and the next build replaced its candidate tables.
