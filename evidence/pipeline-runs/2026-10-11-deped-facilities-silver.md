@@ -11,7 +11,7 @@ The two facilities Silver SQL tasks of `edu_access_pipeline`, run by Spark on th
 The job `[dev ina_magno] edu_access_pipeline` (job `651937364323543`), deployed with `databricks bundle deploy --target dev --profile reached-hq` from a clean checkout of the pushed commit `6b2844dbb82ab596384f70160f0439cbe7e97654` (`databricks bundle validate` OK first). Read back from `databricks bundle summary` before running: the bundle's git commit and the `code_revision` parameter both equal that commit, and the two facilities Silver tasks are enabled. The job was then run twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`. Times are Manila (UTC+8).
 
 ### Job details: Git source at commit 6b2844d, the facilities Silver tasks enabled
-<!-- Screenshot: job details page showing the Git source commit 6b2844d and 02_clean_deped_facilities / 90_validate_deped_facilities_clean enabled -->
+<img width="1437" height="567" alt="image" src="https://github.com/user-attachments/assets/7666984d-7568-4f64-9895-bea0193b2120" />
 
 | | Run 1 | Run 2 |
 |---|---|---|
@@ -30,13 +30,15 @@ No task waited in a queue. Run 2's extra 21 minutes are serverless setup of two 
 The facilities gate now depends on the enrollment Silver gate (D-037). In run 1 the facilities build finished at 13:28:59 and its gate started at 13:30:54, when the enrollment Silver gate ended: about 115 s of waiting that the job did not have before.
 
 ### Run 1 task graph: every enabled task green, 90_validate_deped_facilities_clean after both 02_clean_deped_facilities and 90_validate_deped_enrollment_clean
-<!-- Screenshot: run 1045250185878076 graph view -->
+<img width="1436" height="663" alt="image" src="https://github.com/user-attachments/assets/759a550b-ec9b-4d21-8c0e-6a5923d168d1" />
 
 ### Run 2 task graph: the same 30 tasks green
-<!-- Screenshot: run 700607904560713 graph view -->
+<img width="1441" height="668" alt="image" src="https://github.com/user-attachments/assets/20f3782a-301f-4564-93f5-d52a4762060c" />
 
 ### Run 2 timeline: add_control_columns and bronze_deped_facilities in setup ("Waiting for cluster")
-<!-- Screenshot: run 700607904560713 timeline view (Improved Performance Observability), showing the two setup waits -->
+<img width="751" height="415" alt="image" src="https://github.com/user-attachments/assets/95f5f199-589d-4610-9eae-1806c2eb5d65" />
+<img width="716" height="422" alt="image" src="https://github.com/user-attachments/assets/284a764d-2ef4-4f08-b116-0e4307533bc8" />
+
 
 ## Results
 
@@ -67,7 +69,7 @@ The verification query below, run on the SQL warehouse after run 2:
 After run 1 the same query gave the same values, with 1 run at this commit. `content_sha256` (every clean column except the run stamp) was `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c` after both runs.
 
 ### Verification query after run 2: 20 rows, 19 OK and the content hash
-<!-- Screenshot: the verification query result in the SQL editor -->
+<img width="1012" height="502" alt="image" src="https://github.com/user-attachments/assets/800cac7b-be01-48bb-87b8-651d10558801" />
 
 Also checked on the warehouse:
 
@@ -81,16 +83,16 @@ Also checked on the warehouse:
 | Identical rebuild | Delta versions 0 (run 1, the table's first) and 1 (run 2) of `deped_facilities_clean`, without `run_id`, `cleaned_at_utc`, and `code_revision`: 0 rows in either `EXCEPT ALL` direction |
 
 ### Gate results of the two runs: bronze PASS 6, silver PASS 76
-<!-- Screenshot: data_quality_results grouped by run, layer, status for deped_facilities -->
+<img width="1003" height="199" alt="image" src="https://github.com/user-attachments/assets/49f07ccc-affa-41c7-8573-5d265ad6125a" />
 
 ### Owners: the four facilities Silver tables owned by reached-hq
-<!-- Screenshot: information_schema.tables owners query -->
+<img width="1010" height="203" alt="image" src="https://github.com/user-attachments/assets/ed947c0d-7c18-427b-b114-521c10e950f5" />
 
 ### DESCRIBE HISTORY deped_facilities_clean: versions 0 and 1 are the two runs
-<!-- Screenshot: DESCRIBE HISTORY result -->
+<img width="1009" height="204" alt="image" src="https://github.com/user-attachments/assets/bbb2d09a-019e-401e-90ec-256049c7101f" />
 
 #### Versions 0 and 1 compared: 0 and 0
-<!-- Screenshot: the EXCEPT ALL comparison in both directions -->
+<img width="1006" height="204" alt="image" src="https://github.com/user-attachments/assets/983f8207-9056-4f56-9111-11e51e98a225" />
 
 What these runs confirm that the local runs could not (D-017): Spark runs the facilities SQL as DuckDB does, including the 81-term `has_facility_data` expression, `IS DISTINCT FROM`, `split` and `array_contains` on the quarantine reasons, the gate's join to the published enrollment Silver, the job waiting for two upstream tasks (`depends_on` on the enrollment Silver gate), and `CREATE OR REPLACE TABLE` creating the four facilities tables in Unity Catalog with ownership handed to the group.
 
