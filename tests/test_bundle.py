@@ -156,20 +156,17 @@ def test_non_source_tasks_declare_dependencies(jobs):
 def test_parallel_stages_fan_in_only_at_the_next_stage(jobs):
     tasks = {task["task_key"]: task for task in jobs["edu_access_pipeline"]["tasks"]}
 
-    expected_maps = {
-        "01_map_deped_school_psgc": {
-            "90_validate_control", "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean",
-            "90_validate_deped_personnel_clean", "90_validate_psa_psgc_clean",
-        },
-        "02_map_psa_poverty_psgc": {
-            "90_validate_control", "90_validate_psa_poverty_stat_clean", "90_validate_psa_psgc_clean",
-        },
-        "03_map_hdx_adm3_psgc": {
-            "90_validate_control", "90_validate_hdx_adm3_clean", "90_validate_psa_psgc_clean",
-        },
+    # Every Silver gate fans in to 90_validate_control, which runs even when a lane failed (ALL_DONE)
+    # and fails itself if one did; Integration starts only from it (D-039).
+    control = tasks["90_validate_control"]
+    assert control.get("run_if") == "ALL_DONE" and not control.get("disabled")
+    assert {d["task_key"] for d in control["depends_on"]} == {
+        "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean", "90_validate_deped_personnel_clean",
+        "90_validate_psa_psgc_clean", "90_validate_psa_poverty_stat_clean", "90_validate_hdx_adm3_clean",
     }
-    for key, expected in expected_maps.items():
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == expected
+    for key in ("01_map_deped_school_psgc", "02_map_psa_poverty_psgc", "03_map_hdx_adm3_psgc"):
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == {"90_validate_control"}
+        assert tasks[key].get("run_if") == "ALL_SUCCESS"
 
     integration_gate = {"90_validate_education_geography_integrated"}
     for key in ("01_placeholder_dim_geography", "02_placeholder_dim_school"):
