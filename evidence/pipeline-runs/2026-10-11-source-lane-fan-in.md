@@ -2,6 +2,8 @@
 
 Issue #127 · Databricks `dev` · 2026-10-11 · checked by @hyenalouise
 
+The first run below is at `1962bce`, before `main` (with facilities Silver, #126) was merged into this branch. The run after the merge, checking three lanes, is in [Re-run at `3719301`](#re-run-at-3719301-three-lanes-after-merging-126).
+
 ## The claim
 
 With `90_validate_control` switched on (D-039), a job run on Databricks runs it after the Silver gates have finished. It writes one `silver_lane_succeeded` result per Silver lane switched on, PASS for each lane whose `silver_build` run in the same job run succeeded, stamped with the commit that ran, and succeeds. The three map tasks depend only on it.
@@ -50,11 +52,42 @@ On the SQL warehouse after the run:
 
 What this run confirms that the local runs could not (D-017): Spark runs the generated SQL as DuckDB does, including `VALUES … AS l(source_id)` joined to `pipeline_runs`, the session variable that limits the check to this execution, and `raise_error` in a `CASE` that does not fire. Databricks also runs an `ALL_DONE` task after every Silver gate, disabled ones included.
 
+## Re-run at `3719301`: three lanes, after merging #126
+
+After `main` with #126 was merged into this branch (`b35e631`), facilities Silver is switched on, so the regenerated fan-in checks three lanes (`3719301`). The job was deployed from a clean checkout of the pushed commit `3719301686a2f78aef4a050e333c8f275e08aa50` (`bundle summary`: that commit as git commit and `code_revision`; facilities Silver enabled; `90_validate_control` enabled; each map depending only on it) and run once. CI ("Repository checks") passed on that commit.
+
+| | Job run `1059177807653368` |
+|---|---|
+| Whole job | 22:47:00 to 23:05:22 (14:47:00 to 15:05:22 UTC), 18 min 22 s, `SUCCESS`; `bronze_psa_poverty_stat` waited 197 s in serverless setup |
+| Tasks | 31 `SUCCESS`, 32 disabled |
+| Silver gates | facilities from 23:02:49 (92 s), enrollment from 23:03:03 (81 s), PSA poverty from 23:04:30 (44 s), all `SUCCESS` |
+| `90_validate_control` | `SUCCESS`, 5 s, from 23:05:14, once the last Silver gate had finished |
+| The three map tasks | `DISABLED`, after `90_validate_control` |
+
+The query from [How to reproduce](#how-to-reproduce), with this job run id and three lanes expected, gave:
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| fan-in results in this run | 3 | 3 | OK |
+| fan-in results that are FAIL | 0 | 0 | OK |
+| lanes checked | deped_enrollment, deped_facilities, psa_poverty_stat | the same | OK |
+| `actual` of each result | succeeded ×3 | succeeded ×3 | OK |
+| commit on the results | `3719301…` | `3719301…` | OK |
+| `silver_build` runs in this job run | the three lanes, succeeded | the same | OK |
+
+Facilities Silver, rebuilt in the same run, has 60,167 rows and the content SHA-256 `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c`, the same as every run in #126's evidence.
+
+### Re-run graph: facilities Silver on, 90_validate_control green, each map with one arrow from it
+<!-- Screenshot: run 1059177807653368 graph view -->
+
+### Re-run fan-in results: 3 rows, all PASS
+<!-- Screenshot: the How to reproduce query with job run id 1059177807653368, expecting 3 lanes -->
+
 ## Limitations
 
 - A failing lane was not exercised on Databricks, to keep the shared `dev` tables at a good build. `tests/test_local_job.py` shows it locally: when enrollment's Bronze gate fails, the fan-in still runs, records enrollment as `not run` and PSA as `succeeded`, and fails.
 - The maps are disabled placeholders, so "Integration does not run when a lane fails" is shown by the fan-in failing, not yet by a skipped map.
-- Since this run, `dev` holds #128's job definition, with facilities Silver disabled. A later facilities run (#126) needs a deploy from that branch first.
+- `dev` holds this PR's job definition, deployed at `3719301`: `main` with #126, plus the fan-in.
 
 ## How to reproduce
 
