@@ -2,6 +2,8 @@
 
 Issue #86 · Databricks `dev` · 2026-10-11 · checked by @hyenalouise
 
+The runs below are at `6b2844d`, when the facilities gate also waited for the enrollment Silver gate. Review then moved the enrollment check to Integration and made the lane parallel; the confirmation runs at that commit, `9197926`, are in [Re-run at `9197926`](#re-run-at-9197926-the-parallel-lane).
+
 ## The claim
 
 The two facilities Silver SQL tasks of `edu_access_pipeline`, run by Spark on the SQL warehouse after the enrollment Silver gate, build `deped_facilities_clean` and `deped_facilities_quarantine` with the same result as the [local runs](../reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md): 60,167 clean rows, 0 quarantined, every school in enrollment Silver, counts, TRUE values and blanks equal to Bronze, and all 38 gate checks PASS. A second run rebuilds rows identical to the first, apart from the run stamp, and records a second `succeeded` run.
@@ -96,6 +98,56 @@ Also checked on the warehouse:
 
 What these runs confirm that the local runs could not (D-017): Spark runs the facilities SQL as DuckDB does, including the 81-term `has_facility_data` expression, `IS DISTINCT FROM`, `split` and `array_contains` on the quarantine reasons, the gate's join to the published enrollment Silver, the job waiting for two upstream tasks (`depends_on` on the enrollment Silver gate), and `CREATE OR REPLACE TABLE` creating the four facilities tables in Unity Catalog with ownership handed to the group.
 
+## Re-run at `9197926`: the parallel lane
+
+After review, facilities Silver reads only its own Bronze, its lane waits for no other source, and the enrollment check is left to Integration (#91, D-038). The job was deployed from a clean checkout of the pushed commit `9197926689e286762edca8acbdea459408713b32` (`bundle validate` OK; `bundle summary` showed that commit as the git commit and the `code_revision` parameter, `02_clean_deped_facilities` depending only on `90_validate_deped_facilities_raw`, and `90_validate_deped_facilities_clean` only on the build) and run twice. CI ("Repository checks") passed on that commit.
+
+| | Run 1 | Run 2 |
+|---|---|---|
+| Job run | `89482607322789` | `948438707623608` |
+| Whole job | 16:22:20 to 16:29:30 (08:22:20 to 08:29:30 UTC), 7 min 10 s, `SUCCESS` | 16:30:35 to 16:35:46 (08:30:35 to 08:35:46 UTC), 5 min 10 s, `SUCCESS` |
+| Tasks | 30 `SUCCESS`, 33 disabled | same |
+| `bronze_deped_facilities` | skip, 0 inserted, 107 s | skip, 0 inserted, 92 s |
+| `90_validate_deped_facilities_raw` | 41 s | 18 s |
+| `02_clean_deped_facilities` | 63 s, from 16:26:23, right after its own Bronze gate | 59 s, from 16:33:06 |
+| `90_validate_deped_facilities_clean` | 119 s, from 16:27:27 | 91 s, from 16:34:05 |
+| `90_validate_deped_enrollment_clean` | 16:27:21 to 16:29:28 | 16:34:00 to 16:35:32 |
+
+The two Silver gates ran at the same time in both runs: the lanes are parallel, and the facilities build no longer waits for enrollment. No task queued; setup was at most 3 s.
+
+### Job details: the facilities lane with no link to enrollment, code_revision 9197926
+<!-- Screenshot: job Tasks graph: 02_clean_deped_facilities after 90_validate_deped_facilities_raw only, and the code_revision parameter -->
+
+### Run 1 timeline: the two Silver gates side by side
+<!-- Screenshot: run 89482607322789 timeline: 90_validate_deped_facilities_clean and 90_validate_deped_enrollment_clean overlapping -->
+
+### Run 2 timeline: the same 30 tasks green
+<!-- Screenshot: run 948438707623608 timeline -->
+
+The verification query (below, with the commit filled in and `checks in the last run` expecting 37) after run 2: every row OK, 2 succeeded runs at this commit, and `content_sha256` `215d71392756655b873b33c1cfaa2b3b6616280ebe1a6888a3c140bea6c6b68c`, the same as after both runs at `6b2844d`. Also checked:
+
+| Check | Result |
+|---|---|
+| Gate results of the two runs | 74 Silver results (37 per run) and 6 Bronze results, all PASS |
+| Bronze rerun | `bronze_deped_facilities` skipped its one batch in both runs |
+| Owners | the four facilities Silver tables still owned by `reached-hq` |
+| Identical rebuild | Delta versions 2 (run 1) and 3 (run 2): 0 rows in either `EXCEPT ALL` direction |
+| Unchanged by review | Version 1 (run 2 at `6b2844d`) and version 3: 0 rows in either direction |
+
+### Verification query after run 2: 20 rows, 19 OK and the content hash
+<!-- Screenshot: the verification query result -->
+
+### Gate results of the two runs: bronze PASS 6, silver PASS 74
+<!-- Screenshot: data_quality_results grouped by run, layer, status for the two job runs -->
+
+### DESCRIBE HISTORY deped_facilities_clean: versions 2 and 3 are the two runs
+<!-- Screenshot: DESCRIBE HISTORY -->
+
+#### Versions 2 and 3, and 1 and 3, compared: 0 in every direction
+<!-- Screenshot: the EXCEPT ALL comparisons -->
+
+A run in between, `358678952220373` at `77821bc` (the build then waited for the enrollment Silver gate), was cancelled by hand during its facilities gate to correct the job layout. It left one facilities `silver_build` row `running` in `pipeline_runs`, never published: Gold trusts only `succeeded` runs (D-025), and the next build replaced its candidate tables.
+
 ## Limitations
 
 - No real row is quarantined, and every school is in enrollment, so quarantine and the `school_id_in_enrollment` FAIL are shown on Databricks only by the checks passing on clean data; the made-up rows of `tests/test_silver_facilities.py` show the rest locally.
@@ -153,6 +205,8 @@ SELECT table_name, table_owner FROM edu_access.information_schema.tables
 WHERE table_schema = '03-silver' AND table_name LIKE 'deped_facilities%' ORDER BY 1;
 
 DESCRIBE HISTORY edu_access.`03-silver`.deped_facilities_clean;
+
+-- For the runs at 9197926, use job runs 89482607322789 and 948438707623608 and versions 2 and 3 below.
 
 SELECT
   (SELECT COUNT(*) FROM (
