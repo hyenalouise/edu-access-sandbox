@@ -1,6 +1,6 @@
 # Silver: Bronze → clean, typed, standardized
 
-How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85); `psa_poverty_stat` follows the same task, run, and publishing design with its own shape and rules ([PSA Poverty Stat](#psa-poverty-stat), D-034).
+How the Bronze rows of each source's current deliveries become one clean, typed, validated table, what each rule changes, what is set aside, and how each run is recorded. The first source built this way is `deped_enrollment` (#85); `psa_poverty_stat` ([PSA Poverty Stat](#psa-poverty-stat), D-034) and `deped_facilities` ([DepEd facilities](#deped-facilities), D-038) follow the same task, run, and publishing design with their own shape and rules.
 
 **Status:** two SQL tasks of the job `edu_access_pipeline`, built and tested locally, and run by the job on the real Bronze data of all three school years (2026-10-09, [evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md)). Run on Databricks `dev` on 2026-10-09 at `7d93d8e`: two job runs, every check OK, identical rows ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-enrollment-silver.md)); and with publishing after the gate at `acd6416`, with the same rows ([evidence](../../evidence/pipeline-runs/2026-10-09-silver-publish-after-gate.md)).
 
@@ -409,6 +409,75 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 - Region and province: `region` is the published banner label; Silver has no province column. Canonical region and province come from matching `correspondence_code` to PSGC's `correspondence_code` in Integration (`02_map_psa_poverty_psgc`), never from the labels or the ID prefix alone.
 - Cross-year comparability (S-3) is unverified: a 2018 → 2023 trend needs a team decision first.
 
+## DepEd facilities
+
+`deped_facilities` uses the design above (two SQL tasks, candidates, publish after the gate, `pipeline_runs`; D-020, D-025) with its own generator, `src/silver/deped_facilities.py`, and [Silver mapping](../../config/mappings/deped_facilities.json) (D-038); columns: [data dictionary](../data/silver/deped-facilities-clean.md).
+
+**Status:** implemented and tested locally on made-up deliveries (`tests/test_silver_facilities.py`), and **run locally on the real SY 2023-24 file** on 2026-10-11 with the whole job ([evidence](../../evidence/reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md)). **Run twice on Databricks `dev`** on 2026-10-11 at `6b2844d` (job runs `1045250185878076` and `700607904560713`, both succeeded): the same rows and checks as locally, all 38 checks PASS, and identical content in both runs ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md)). Since then the lane runs in parallel and the enrollment check moved to Integration (D-038): rerun locally on the real file at `02089c9` with the same rows and content, 37 checks all PASS, and **twice on `dev` at `9197926`** (job runs `89482607322789` and `948438707623608`): all 37 checks PASS, the same content as before, and the two lanes' Silver gates running side by side ([evidence](../../evidence/pipeline-runs/2026-10-11-deped-facilities-silver.md#re-run-at-9197926-the-parallel-lane)). The query in that evidence is the facilities check for a new confirmation run, following [Running on Databricks](#running-on-databricks).
+
+### The flow (facilities)
+
+```
+bronze_deped_facilities              Python: check and load the delivery
+90_validate_deped_facilities_raw     SQL: the Bronze gate
+   │  only if it passed
+   ▼
+02_clean_deped_facilities            SQL: run stamp; pipeline_runs 'running'; from current_batches only:
+   │                                       deped_facilities_clean_candidate       one row per school per school year
+   │                                       deped_facilities_quarantine_candidate  rows that cannot be trusted, with reasons
+   │  only if it succeeded
+   ▼
+90_validate_deped_facilities_clean   SQL: 37 results for SY 2023-24;
+                                          any FAIL: 'failed', stop, nothing published;
+                                          else publish quarantine, then clean, then 'succeeded'
+```
+
+The lane reads only facilities Bronze and waits for no other source; `90_validate_control` is the fan-in. Location comes from enrollment (O-2), and Integration (#91) checks that every facilities school is there.
+
+### Grain, shape, and rules (facilities)
+
+One wide row per school per school year, key (`school_id`, `school_year`), every column in published order. Every school is kept, public or not: the facility measures exist for public schools only (O-3), and Gold scopes to `sector = 'Public'`.
+
+| Rule | What it does | Why | SY 2023-24 |
+|---|---|---|---|
+| Current batches only | Reads Bronze rows whose `batch_id` is in `current_batches` | D-015 | 60,167 rows |
+| Labels | `sector`, `school_management`: whitespace normalized, mapped to enrollment's standard sets; an unmapped label fails the gate | D-022 | 0 relabelled |
+| Yes/no | `offers_*` and the 60 `es_has_*`, `hs_has_*`, `*_accessible_*` columns: `True` → TRUE, `False` → FALSE, blank → NULL; any other label fails the gate | O-7 | 57,820 rows with a blank yes/no |
+| Counts | The 21 counts: whole number → INT, blank → NULL, never 0; negative, not a whole number, or above the group's maximum (buildings 200; classrooms 1,000; temporary and makeshift 1,000) quarantines the row | O-6, D-038 | 59,622 rows with a blank count; largest 52 / 231 / 445 |
+| `is_overseas` | `sector` or `school_management` is `PSO` | O-3 | 33 |
+| `has_facility_data` | Any count or facility yes/no is published | O-3 | 47,817 (every public school but one) |
+| `es_classrooms_missing` | A public school offering elementary with a blank `es_classrooms_instructional`; kept NULL, never 0 | O-4, O-5, S-2 | 669 |
+
+### The gate (facilities)
+
+FAIL checks: `current_batches_present`, `lineage_complete`, `rows_resolve_to_current_bronze`, `rows_built_by_this_run`, `one_timestamp_per_run`; per school year `rows_reconcile`, `school_id_unique`, `school_id_valid`, `counts_non_negative`, `counts_within_plausible_max`, `counts_reconcile` (the sum of every count equals Bronze's), `missing_counts_stay_null`, `true_values_reconcile` (the number of TRUE values equals Bronze's `True`), `missing_booleans_stay_null`, `labels_mapped_<column>` for `sector`, `school_management`, and each `offers_*`, `labels_mapped_facility_booleans` (all 60 together), and `quarantine_rate`. WARN checks: each quarantine reason; `facility_data_public_only` (a non-public school has a facility value: the scope may have changed); `facility_values_within_offered_levels` (a school has a value for a level it does not offer: Gold reads those blanks as not applicable). Records (always PASS): `rule_whitespace_normalized`, `rule_blank_counts_to_null`, `rule_blank_booleans_to_null`, `rule_labels_standardized`, `flag_is_overseas`, `flag_has_facility_data`, `flag_public_without_facility_data`, `flag_es_classrooms_missing`. `deped_facilities.gate_checks()` lists them all, and a test checks the SQL writes exactly those. On SY 2023-24 every check is PASS.
+
+### Changing a rule (facilities)
+
+Edit `config/mappings/deped_facilities.json` (a new publisher column must be classified there, or the generator stops), then regenerate (a test fails until you do):
+
+```bash
+python -m src.silver.cli sql --source deped_facilities > etl/03_silver/02_clean_deped_facilities.sql
+```
+
+```bash
+python -m src.silver.cli gate --source deped_facilities > etl/03_silver/90_validate_deped_facilities_clean.sql
+```
+
+```bash
+python -m src.silver.cli dictionary --source deped_facilities > docs/data/silver/deped-facilities-clean.md
+```
+
+A new schema version also needs a reviewed change to `src/silver/deped_facilities.py`, which does not yet handle columns absent from one year.
+
+### Handoff to Integration and Gold (facilities)
+
+- Read only a `succeeded` run's rows. One row per (`school_id`, `school_year`); location from `deped_enrollment_clean` on the same key.
+- Facility results are for public schools only (`sector = 'Public'`); say so. `has_facility_data` FALSE marks the one public school with no facility value.
+- NULL is never 0. A blank for a level the school does not offer is not applicable; `es_classrooms_missing` schools are left out of, or shown apart from, any classroom result.
+- `*_classrooms_instructional` follows the NSBI definition (ALS, audio-visual, computer rooms, and laboratories count), not DepEd's official classroom-learner ratio (O-9): name the measure accordingly.
+- Learners per room (O-8, S-1) is computed in Integration (#91), with any threshold decided and cited there. Integration also checks that every facilities school is in enrollment Silver for the same school year (O-2).
+
 ## Limitations
 
 - On Databricks only `dev` has run it, and only with nothing to quarantine: a quarantined row and a failing gate are shown by the local tests, not on Databricks.
@@ -416,7 +485,7 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 - With the PSA Silver tasks on, an environment whose Bronze has no current PSA batch (no approved workbook loaded) fails the job at `current_batches_present`, as DepEd does: Silver never publishes an empty table as if it were data. Intended (fail loudly rather than serve nothing silently); such an environment loads the workbook first. Raised in review of #121; the team has not yet confirmed it.
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
 - The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs. A task that dies after both copies but before recording `succeeded` leaves nothing trusted for the source until the next run passes.
-- Only `deped_enrollment` and `psa_poverty_stat` have Silver; facilities and the other sources follow with their own mapping (#86 to #90).
+- Only `deped_enrollment`, `psa_poverty_stat`, and `deped_facilities` have Silver; the other sources follow with their own mapping (#87 to #90).
 
 ## Open questions
 
@@ -429,6 +498,7 @@ What only Databricks can show for PSA: Spark's `split`/`array_contains`, `TRY_CA
 | PSA: should a `partial_estimate` row (some measures blank) be quarantined rather than kept with a WARN? | Kept, WARN | D-034 |
 | Should a source with no current Bronze batch fail the whole job (`current_batches_present`), or skip its Silver tasks? | Fail, as for DepEd | Team (#121 review) |
 | Should a school with two conflicting rows keep one copy if the rows are identical? | Every copy quarantined | D-024 |
+| Facilities: does a blank elementary classroom count mean no permanent room (S-2)? | Unknown: NULL, flagged `es_classrooms_missing` | D-038 |
 | Should Gold treat `no_counts` like `all_zero`? | Gold decides per measure | D-024 |
 | Should Silver skip when Bronze is unchanged, with a condition task in the job? | Rebuild every run | D-025 |
 | Should the Bronze gate also count only its own execution's results, so a repaired job run is judged on its own, as the Silver gate does? Changing it means regenerating every source's Bronze gate | Start a new run instead of repairing a failed one | D-020 |

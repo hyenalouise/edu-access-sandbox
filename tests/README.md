@@ -15,6 +15,7 @@ python -m pytest tests -q
 | `test_naming.py` | Naming configuration and ETL path conventions |
 | `test_ingestion_*.py` | Delivery validation, loading, rerun, and source-specific behavior |
 | `test_silver.py` | DepEd enrollment Silver: cleaning rules, quarantine, the gate, the run record, revisions, and the generated SQL |
+| `test_silver_facilities.py` | DepEd facilities Silver on made-up deliveries with matching enrollment: typed counts and yes/no columns, blanks kept NULL, enrollment's labels, overseas, public-scope and missing-classroom flags, per-group maximums, quarantine, the enrollment reference, scope warnings, every gate check, revisions, publishing, and the rules file |
 | `test_silver_psa.py` | PSA Poverty Stat Silver on made-up workbooks: unpivot, ID padding, region banners, NULL and `no_estimate`, full-precision numbers, statistical flags, quarantine, every gate check, revisions and new years, repeated rebuilds, the run record, and the generated files |
 | `test_fan_in.py` | The source-lane fan-in: the committed `90_validate_control.sql` equals what `src/job/fan_in.py` generates, it checks exactly the Silver lanes switched on, and the generator refuses a fan-in that misses or adds a lane |
 | `test_bundle.py`, `test_databricks_runtime.py` | The job's commit tracking and task order, and the Databricks runtime differences imitated locally |

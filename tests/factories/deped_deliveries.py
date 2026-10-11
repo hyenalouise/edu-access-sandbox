@@ -71,6 +71,8 @@ def make_rows(header, n_rows=3, first_id=900001):
                 row.append(TEXT_VALUES[column].format(i=i + 1))
             elif "unique" in column:
                 row.append("")  # blank count, as in SY 2023-24 (profile O-16); not zero
+            elif "_has_" in column or "_accessible_" in column:
+                row.append(("True", "False", "")[i % 3])  # facilities yes/no, blank as published (profile O-7)
             else:
                 row.append(str(i % 4))
         rows.append(row)
