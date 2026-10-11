@@ -65,7 +65,19 @@ At commit `1c2317b79fbcf8811c140d5c3948f2023014c894`, a school missing from enro
 
 No real school is missing from enrollment, so the change leaves every published row as it was.
 
+## Re-run at `02089c9`: the lane runs in parallel, the enrollment check moves to Integration
+
+At commit `02089c92fc5dcde1fd49375a3505f6fae1876381`, facilities Silver reads only its own Bronze, waits for no other source, and no longer checks enrollment (D-038; Integration #91 will). The same steps again, from a clean detached checkout and a fresh database, run twice; `python -m pytest tests -q` at that commit: 616 passed.
+
+| Check | Result |
+|---|---|
+| clean + quarantined | 60,167 + 0, both runs |
+| `has_facility_data` / `es_classrooms_missing` / `is_overseas` | 47,817 / 669 / 33 |
+| gate checks | 37 (the two enrollment checks removed), all PASS, both runs |
+| clean content SHA-256, both runs | `c9dd4853a9102c3868e9244a2b0ffbfab74df3bc508f64b6667d94a960f36e37`, the same as at `f5b6a30` and `1c2317b` |
+| task time | build 0.4 s, gate 0.8 s |
+
 ## What this does not show
 
-- Databricks: facilities Silver had not run on `dev` when this record was made. It ran there at `6b2844d` ([record](../pipeline-runs/2026-10-11-deped-facilities-silver.md)); at `1c2317b`, not yet.
+- Databricks: facilities Silver had not run on `dev` when this record was made. It ran there at `6b2844d` ([record](../pipeline-runs/2026-10-11-deped-facilities-silver.md)); at `1c2317b` and `02089c9`, not yet.
 - A quarantined row, an unmapped label, a school missing from enrollment, and a failing gate are shown by the made-up deliveries in `tests/test_silver_facilities.py`, not by real data: the real file has none.
