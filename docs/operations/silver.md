@@ -24,7 +24,8 @@ bronze_deped_enrollment             Python: check and load the deliveries       
                                          then pipeline_runs 'succeeded'
    │
    ▼  this source lane is complete; other source lanes run independently in parallel
-      90_validate_control is the fan-in; Integration and Gold read a Silver table only when
+      90_validate_control is the fan-in: it records every Silver lane and fails if one did not succeed (D-039);
+      Integration starts only from it, and Integration and Gold read a Silver table only when
       the run its rows carry succeeded
 ```
 
@@ -284,7 +285,7 @@ bronze_psa_poverty_stat             Python: check and load the workbook (skip wh
                                          nothing published; else publish quarantine, then clean, then 'succeeded'
 ```
 
-The lane does not wait for any other source; `90_validate_control` (disabled) is the fan-in.
+The lane does not wait for any other source; `90_validate_control` is the fan-in (D-039).
 
 ### Grain and shape (PSA)
 
