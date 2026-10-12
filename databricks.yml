@@ -23,6 +23,11 @@ variables:
   job_timeout_seconds:
     description: Stop and fail a run still going after this long (90 minutes, twice the warning).
     default: 5400
+  alert_schedule:
+    description: >-
+      When the SQL alerts evaluate (Quartz cron, Asia/Manila): daily at 08:00. Once a day keeps the
+      warehouse idle otherwise; the job has no schedule, so a run's results wait at most a day.
+    default: "0 0 8 * * ?"
 
 resources:
   jobs:
@@ -871,6 +876,107 @@ resources:
         - environment_key: ingestion
           spec:
             client: "2"
+
+  # SQL alerts on the control tables, so a FAIL or a stale source is visible
+  # without opening the job's logs: the alert email lists the rows (D-043).
+  # Each evaluates once a day. Like the job, they email whoever deployed.
+  # Each check's newest result in a run decides (RANK, so the rows one gate
+  # wrote together stay together): a gate rerun in a repaired run, which keeps
+  # its run_id, replaces its earlier FAIL. Tested on DuckDB in tests/test_alerts.py.
+  alerts:
+    quality_failures:
+      display_name: edu_access_pipeline data-quality FAIL
+      warehouse_id: ${var.warehouse_id}
+      query_text: |-
+        WITH latest_run AS (
+          SELECT run_id FROM edu_access.`01-control`.data_quality_results
+          ORDER BY checked_at_utc DESC LIMIT 1
+        ),
+        newest AS (
+          SELECT q.*, RANK() OVER (
+                   PARTITION BY q.layer, q.source_id, q.batch_id, q.table_name, q.check_name
+                   ORDER BY q.checked_at_utc DESC) AS result_rank
+          FROM edu_access.`01-control`.data_quality_results AS q
+          JOIN latest_run AS r ON q.run_id = r.run_id
+        )
+        SELECT run_id, layer, source_id, table_name, check_name, expected, actual, checked_at_utc
+        FROM newest
+        WHERE result_rank = 1 AND status = 'FAIL'
+        ORDER BY layer, source_id, table_name, check_name
+      custom_summary: "edu_access_pipeline: {{ALERT_STATUS}}, data-quality FAIL in the latest run"
+      custom_description: |-
+        The latest run of edu_access_pipeline recorded these data-quality FAILs (newest result per check):
+
+        {{QUERY_RESULT_TABLE}}
+
+        Alert: {{ALERT_URL}}
+      evaluation:
+        source:
+          name: check_name
+          aggregation: COUNT
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0
+        empty_result_state: OK
+        notification:
+          notify_on_ok: true
+          subscriptions:
+            - user_email: ${workspace.current_user.userName}
+      schedule:
+        quartz_cron_schedule: ${var.alert_schedule}
+        timezone_id: Asia/Manila
+      permissions:
+        - group_name: reached-hq
+          level: CAN_RUN
+
+    stale_sources:
+      display_name: edu_access_pipeline stale source
+      warehouse_id: ${var.warehouse_id}
+      # The latest run that checked freshness, so a partial run that skipped
+      # the check does not hide a stale source.
+      query_text: |-
+        WITH latest_run AS (
+          SELECT run_id FROM edu_access.`01-control`.data_quality_results
+          WHERE check_name = 'source_fresh'
+          ORDER BY checked_at_utc DESC LIMIT 1
+        ),
+        newest AS (
+          SELECT q.*, RANK() OVER (PARTITION BY q.source_id ORDER BY q.checked_at_utc DESC) AS result_rank
+          FROM edu_access.`01-control`.data_quality_results AS q
+          JOIN latest_run AS r ON q.run_id = r.run_id
+          WHERE q.check_name = 'source_fresh'
+        )
+        SELECT run_id, source_id, expected, actual, checked_at_utc
+        FROM newest
+        WHERE result_rank = 1 AND status = 'WARN'
+        ORDER BY source_id
+      custom_summary: "edu_access_pipeline: {{ALERT_STATUS}}, a source may be stale"
+      custom_description: |-
+        These sources' latest succeeded batch is older than its limit in config/freshness.yml. Check the publisher for a newer release:
+
+        {{QUERY_RESULT_TABLE}}
+
+        Alert: {{ALERT_URL}}
+      evaluation:
+        source:
+          name: source_id
+          aggregation: COUNT
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0
+        empty_result_state: OK
+        notification:
+          notify_on_ok: true
+          subscriptions:
+            - user_email: ${workspace.current_user.userName}
+      schedule:
+        quartz_cron_schedule: ${var.alert_schedule}
+        timezone_id: Asia/Manila
+      permissions:
+        - group_name: reached-hq
+          level: CAN_RUN
 
 targets:
   # Name the host explicitly, so a deploy cannot land in whichever workspace
