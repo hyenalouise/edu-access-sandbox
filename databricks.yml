@@ -15,6 +15,14 @@ variables:
   warehouse_id:
     description: SQL warehouse that runs the job's SQL tasks (Serverless Starter Warehouse)
     default: 71d3ccb9cea611c0
+  duration_warning_seconds:
+    description: >-
+      Email a run still going after this long (45 minutes). Observed whole runs took 6 min 43 s to
+      18 min 22 s, and the first run 39 minutes, 35.5 of them waiting for Free Edition capacity (D-017).
+    default: 2700
+  job_timeout_seconds:
+    description: Stop and fail a run still going after this long (90 minutes, twice the warning).
+    default: 5400
 
 resources:
   jobs:
@@ -41,6 +49,25 @@ resources:
       max_concurrent_runs: 1
       queue:
         enabled: true
+
+      # A failed or slow run emails whoever deployed the job, resolved at deploy
+      # time, so no address is committed (D-043). A run that times out counts as
+      # failed. The thresholds are variables so an alert can be tested with a
+      # one-off --var override; their defaults come from observed runs (D-043).
+      timeout_seconds: ${var.job_timeout_seconds}
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: ${var.duration_warning_seconds}
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
+        on_duration_warning_threshold_exceeded:
+          - ${workspace.current_user.userName}
+      notification_settings:
+        no_alert_for_canceled_runs: true
+        no_alert_for_skipped_runs: true
 
       tasks:
         # Shared control bootstrap. These idempotent DDL tasks run once before

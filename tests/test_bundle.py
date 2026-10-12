@@ -392,3 +392,37 @@ def test_delivered_sources_are_not_disabled(jobs, repo_root):
             assert len(lane) == 3, f"{name}: {source} should have a create, load and gate task, found {len(lane)}"
             for task in lane:
                 assert task.get("disabled") is not True, f"{name}/{task['task_key']} disables delivered source {source}"
+
+
+DEPLOYER = "${workspace.current_user.userName}"
+
+
+def test_failed_and_slow_runs_email_the_deployer(jobs):
+    """Resolved at deploy time, so whoever deployed hears about their own runs and no
+    address is committed to a public repository (D-043)."""
+    for name, job in jobs.items():
+        emails = job.get("email_notifications", {})
+        assert emails.get("on_failure") == [DEPLOYER], f"{name}: a failed run must email the deployer"
+        assert emails.get("on_duration_warning_threshold_exceeded") == [DEPLOYER], (
+            f"{name}: a slow run must email the deployer")
+        settings = job.get("notification_settings", {})
+        assert settings.get("no_alert_for_canceled_runs") is True, f"{name}: a run someone cancelled is not a failure"
+
+
+def test_no_email_address_is_committed(repo_root):
+    text = (repo_root / "databricks.yml").read_text(encoding="utf-8")
+    assert not re.search(r"[\w.+-]+@[\w-]+\.[\w.]+", text), "databricks.yml must not hold an email address"
+
+
+def test_slow_runs_warn_before_they_time_out(bundle, jobs):
+    """Both thresholds are variables, so an alert can be tested with a --var override; the
+    warning must come first, or a slow run would only ever be reported as a failure."""
+    variables = bundle["variables"]
+    warning = int(variables["duration_warning_seconds"]["default"])
+    timeout = int(variables["job_timeout_seconds"]["default"])
+    assert 0 < warning < timeout
+    for name, job in jobs.items():
+        assert job.get("timeout_seconds") == "${var.job_timeout_seconds}", f"{name}: no run timeout"
+        rules = job.get("health", {}).get("rules", [])
+        assert {"metric": "RUN_DURATION_SECONDS", "op": "GREATER_THAN",
+                "value": "${var.duration_warning_seconds}"} in rules, f"{name}: no run-duration warning"
