@@ -86,8 +86,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND layer = 'control' ORDER BY 1") == [
-        ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("psa_poverty_stat", "PASS"),
-        ("psa_psgc", "PASS")]   # one per Silver lane on
+        ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("hdx_boundaries", "PASS"),
+        ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS")]   # one per Silver lane on
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
@@ -168,7 +168,8 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     assert store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-2' AND layer = 'control' ORDER BY 1") == [
         ("deped_enrollment", "FAIL", "not run"), ("deped_facilities", "PASS", "succeeded"),
-        ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]
+        ("hdx_boundaries", "PASS", "succeeded"), ("psa_poverty_stat", "PASS", "succeeded"),
+        ("psa_psgc", "PASS", "succeeded")]
     store.close()
 
 
