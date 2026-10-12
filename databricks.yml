@@ -488,7 +488,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 06_clean_hdx_adm3
-          disabled: true
           depends_on:
             - task_key: 90_validate_hdx_adm3_raw
           run_if: ALL_SUCCESS
@@ -499,7 +498,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_hdx_adm3_clean
-          disabled: true
           depends_on:
             - task_key: 06_clean_hdx_adm3
           run_if: ALL_SUCCESS

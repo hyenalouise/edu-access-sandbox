@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
-from factories import psa_workbooks, psgc_workbooks
+from factories import hdx_geojson, psa_workbooks, psgc_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
@@ -42,8 +42,11 @@ def repo(tmp_path):
     psgc = psgc_workbooks.empty_config()
     psgc_workbooks.approve(psgc, psgc_workbooks.make_workbook(tmp_path / "landing" / "psa" / "original"))
     write_config(root, psgc)
-    write_config(root, empty_config("hdx_boundaries"))                  # ← new
-    (tmp_path / "landing" / "admin_boundaries").mkdir(parents=True)     # ← new
+    # HDX boundaries run through Silver too, so the job always has one made-up GeoJSON file approved for it.
+    hdx = empty_config("hdx_boundaries")
+    features = [hdx_geojson.silver_feature(i) for i in range(1, 4)]
+    hdx_geojson.approve(hdx, hdx_geojson.write_features(tmp_path / "landing" / "admin_boundaries", features), 3)
+    write_config(root, hdx)
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -74,11 +77,13 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_enrollment_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build' "
                        "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_facilities", "succeeded"),
-                                         ("psa_poverty_stat", "succeeded"), ("psa_psgc", "succeeded")]
+                                         ("hdx_boundaries", "succeeded"), ("psa_poverty_stat", "succeeded"),
+                                         ("psa_psgc", "succeeded")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_facilities_clean") == [(3, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_psgc_clean") == [
         (len(psgc_workbooks.UNITS), "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND layer = 'control' ORDER BY 1") == [
         ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("psa_poverty_stat", "PASS"),
@@ -102,7 +107,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
-        == [("load", 4), ("skip", 4)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC
+        == [("load", 5), ("skip", 5)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX
     store.close()
 
 
@@ -124,7 +129,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 6), ("silver_build", 4)]   # one filter, both layers
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 6), ("silver_build", 5)]   # one filter, both layers
     store.close()
 
 

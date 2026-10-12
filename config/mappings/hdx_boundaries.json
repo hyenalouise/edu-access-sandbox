@@ -1,0 +1,254 @@
+{
+  "source_id": "hdx_boundaries",
+  "generator": "hdx_boundaries",
+  "owner": "@saraevcldn",
+  "how_to_change": "The source owner approves a new or changed label or rule by merging a pull request that edits this file, then regenerates etl/03_silver (docs/operations/silver.md). A label that is not listed here fails the Silver gate (labels_mapped_*); it is never accepted silently.",
+  "silver_table": "hdx_adm3_clean",
+  "quarantine_table": "hdx_adm3_quarantine",
+  "identifier": {
+    "column": "adm3_pcode",
+    "pattern": "^PH[0-9]{7}$",
+    "finding": "O-3, O-4, O-5",
+    "note": "COD-AB P-code, kept as text exactly as published. It is not a PSGC code: matching to PSGC is Integration's job (03_map_hdx_adm3_psgc), checking names as well as codes, because COD-AB reuses some PSGC code numbers for different units (#74, HB-2). A blank, malformed, or repeated value quarantines the row."
+  },
+  "code_columns": {
+    "finding": "O-9",
+    "note": "Parent P-codes, kept as text exactly as published. Each must match its pattern, and the chain must hold: adm3_pcode starts with adm2_pcode, adm2_pcode starts with adm1_pcode, adm0_pcode is PH. A broken chain sets hierarchy_consistent = FALSE; the row is kept. Bronze check 2026-10-09: 0 broken chains.",
+    "columns": {
+      "adm2_pcode": "^PH[0-9]{5}$",
+      "adm1_pcode": "^PH[0-9]{2}$",
+      "adm0_pcode": "^PH$"
+    }
+  },
+  "free_text_columns": [
+    "adm3_name",
+    "adm2_name",
+    "adm3_ref_name"
+  ],
+  "free_text_note": "Whitespace trimmed and collapsed, blank to NULL; no character repair. Bronze check 2026-10-09: 0 values with extra spaces, 0 mojibake. adm3_ref_name is adm3_name without the letter ñ (23 rows, e.g. Peñablanca / Penablanca); both are kept as published.",
+  "blank_columns": {
+    "columns": [
+      "adm3_name1",
+      "adm3_name2",
+      "adm3_name3",
+      "adm2_name1",
+      "adm2_name2",
+      "adm2_name3",
+      "adm1_name1",
+      "adm1_name2",
+      "adm1_name3",
+      "adm0_name1",
+      "adm0_name2",
+      "adm0_name3",
+      "lang1",
+      "lang2",
+      "lang3"
+    ],
+    "finding": "data dictionary (0.00% filled)",
+    "note": "Alternate-language name fields, blank in all 1,642 rows of v03. Kept as text so a later version that fills them needs no schema change; cleaned like free text (blank to NULL)."
+  },
+  "categories": {
+    "adm1_name": {
+      "finding": "O-9",
+      "rule": "Region names as COD-AB v03 publishes them (17 regions, before the Negros Island Region). Kept as published; comparability with PSGC regions is an Integration concern.",
+      "standard": [
+        "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+        "Cordillera Administrative Region (CAR)",
+        "Mimaropa Region",
+        "National Capital Region (NCR)",
+        "Region I (Ilocos Region)",
+        "Region II (Cagayan Valley)",
+        "Region III (Central Luzon)",
+        "Region IV-A (Calabarzon)",
+        "Region IX (Zamboanga Peninsula)",
+        "Region V (Bicol Region)",
+        "Region VI (Western Visayas)",
+        "Region VII (Central Visayas)",
+        "Region VIII (Eastern Visayas)",
+        "Region X (Northern Mindanao)",
+        "Region XI (Davao Region)",
+        "Region XII (Soccsksargen)",
+        "Region XIII (Caraga)"
+      ],
+      "labels": [
+        {
+          "published": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+          "standard": "Bangsamoro Autonomous Region In Muslim Mindanao (BARMM)",
+          "evidence": "127 rows."
+        },
+        {
+          "published": "Cordillera Administrative Region (CAR)",
+          "standard": "Cordillera Administrative Region (CAR)",
+          "evidence": "77 rows."
+        },
+        {
+          "published": "Mimaropa Region",
+          "standard": "Mimaropa Region",
+          "evidence": "73 rows."
+        },
+        {
+          "published": "National Capital Region (NCR)",
+          "standard": "National Capital Region (NCR)",
+          "evidence": "17 rows."
+        },
+        {
+          "published": "Region I (Ilocos Region)",
+          "standard": "Region I (Ilocos Region)",
+          "evidence": "125 rows."
+        },
+        {
+          "published": "Region II (Cagayan Valley)",
+          "standard": "Region II (Cagayan Valley)",
+          "evidence": "93 rows."
+        },
+        {
+          "published": "Region III (Central Luzon)",
+          "standard": "Region III (Central Luzon)",
+          "evidence": "130 rows."
+        },
+        {
+          "published": "Region IV-A (Calabarzon)",
+          "standard": "Region IV-A (Calabarzon)",
+          "evidence": "142 rows."
+        },
+        {
+          "published": "Region IX (Zamboanga Peninsula)",
+          "standard": "Region IX (Zamboanga Peninsula)",
+          "evidence": "72 rows."
+        },
+        {
+          "published": "Region V (Bicol Region)",
+          "standard": "Region V (Bicol Region)",
+          "evidence": "114 rows."
+        },
+        {
+          "published": "Region VI (Western Visayas)",
+          "standard": "Region VI (Western Visayas)",
+          "evidence": "133 rows."
+        },
+        {
+          "published": "Region VII (Central Visayas)",
+          "standard": "Region VII (Central Visayas)",
+          "evidence": "132 rows."
+        },
+        {
+          "published": "Region VIII (Eastern Visayas)",
+          "standard": "Region VIII (Eastern Visayas)",
+          "evidence": "143 rows."
+        },
+        {
+          "published": "Region X (Northern Mindanao)",
+          "standard": "Region X (Northern Mindanao)",
+          "evidence": "93 rows."
+        },
+        {
+          "published": "Region XI (Davao Region)",
+          "standard": "Region XI (Davao Region)",
+          "evidence": "49 rows."
+        },
+        {
+          "published": "Region XII (Soccsksargen)",
+          "standard": "Region XII (Soccsksargen)",
+          "evidence": "49 rows."
+        },
+        {
+          "published": "Region XIII (Caraga)",
+          "standard": "Region XIII (Caraga)",
+          "evidence": "73 rows."
+        }
+      ]
+    },
+    "adm0_name": {
+      "finding": "data dictionary",
+      "rule": "Country name.",
+      "standard": [
+        "Philippines"
+      ],
+      "labels": [
+        {
+          "published": "Philippines",
+          "standard": "Philippines",
+          "evidence": "All 1,642 rows."
+        }
+      ]
+    },
+    "version": {
+      "finding": "O-10",
+      "rule": "COD-AB edition. A new edition is a new delivery and a reviewed change to this file.",
+      "standard": [
+        "v03"
+      ],
+      "labels": [
+        {
+          "published": "v03",
+          "standard": "v03",
+          "evidence": "All 1,642 rows."
+        }
+      ]
+    },
+    "lang": {
+      "finding": "data dictionary",
+      "rule": "Language of the name fields.",
+      "standard": [
+        "en"
+      ],
+      "labels": [
+        {
+          "published": "en",
+          "standard": "en",
+          "evidence": "All 1,642 rows."
+        }
+      ]
+    }
+  },
+  "date_columns": {
+    "columns": [
+      "valid_on",
+      "valid_to"
+    ],
+    "format": "YYYY-MM-DD",
+    "finding": "O-10",
+    "note": "Cast to DATE. A blank stays NULL. A value that does not cast quarantines the row (valid_on_uncastable / valid_to_uncastable). valid_on equals the delivery's reference date (2025-02-13), which Bronze already enforces. valid_to is blank in all 1,642 rows. Bronze check 2026-10-09: 0 failures."
+  },
+  "decimal_columns": {
+    "finding": "data dictionary; Bronze check 2026-10-09",
+    "note": "Cast to DECIMAL with enough scale that no published digit is rounded (D-023). A value that does not cast quarantines the row. Bronze check 2026-10-09: area_sqkm up to 4 integer and 14 decimal digits; center_lat up to 8 decimals; center_lon up to 3 integer and 14 decimal digits; 0 failures.",
+    "columns": {
+      "area_sqkm": {
+        "type": "DECIMAL(20,14)",
+        "positive": true,
+        "reason": "area_uncastable",
+        "evidence": "min 0.399814, max 2341.43, zeros 0. A zero or negative area quarantines the row (area_not_positive); a blank area stays NULL and the row is kept (D-023)."
+      },
+      "center_lat": {
+        "type": "DECIMAL(18,14)",
+        "reason": "center_uncastable",
+        "evidence": "min 4.77802, max 20.7622."
+      },
+      "center_lon": {
+        "type": "DECIMAL(18,14)",
+        "reason": "center_uncastable",
+        "evidence": "min 114.285, max 126.426 (west edge is Kalayaan, Palawan)."
+      }
+    }
+  },
+  "geometry": {
+    "column": "geometry",
+    "storage": "GeoJSON text, as published",
+    "allowed_types": [
+      "Polygon",
+      "MultiPolygon"
+    ],
+    "finding": "O-6, O-7, O-8",
+    "note": "Kept as the published GeoJSON text (D-023, and the same value on DuckDB and Databricks); never simplified, reprojected, or repaired. The build parses every row: a geometry that does not parse (geometry_unparseable), is empty (geometry_empty), or is not Polygon/MultiPolygon (geometry_wrong_type) quarantines the row. A geometry that parses but is not valid is kept and flagged (geometry_is_valid = FALSE). center_inside_geometry = FALSE flags a published centre outside its own shape. Feasibility 2026-10-09, DuckDB 1.4.5 spatial and Databricks DBR 19.9: 1,642 parsed, 1,642 valid, 0 empty, 1,273 Polygon and 369 MultiPolygon, all centres inside their shapes."
+  },
+  "quarantine": {
+    "fail_above_percent": 1,
+    "note": "The gate WARNs when any feature is quarantined and FAILs when more than this percent of a batch's features are, so a broken delivery is never published. 1% of 1,642 is 16 features; the 2026-10-09 checks found none to quarantine."
+  },
+  "flags": {
+    "hierarchy_consistent": "adm3 → adm2 → adm1 P-code chain holds and adm0_pcode = PH.",
+    "geometry_is_valid": "ST_IsValid of the parsed geometry. Invalid shapes are kept, never repaired.",
+    "center_inside_geometry": "The published centre point lies inside the published shape."
+  }
+}
