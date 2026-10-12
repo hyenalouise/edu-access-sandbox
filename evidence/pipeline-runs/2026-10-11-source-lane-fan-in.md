@@ -86,6 +86,7 @@ Facilities Silver, rebuilt in the same run, has 60,167 rows and the content SHA-
 ## Re-run at `a405f70`: four lanes, after merging #124
 
 After `main` with #124 was merged into this branch (`9a9c482`), PSGC Silver is switched on, so the regenerated fan-in checks four lanes (`4b22730`). The job was deployed from a clean checkout of the pushed commit `a405f70f7795abbfc60deb3644147504665f9eab` (`bundle validate` OK; `bundle summary`: that commit as git commit and `code_revision`; PSGC Silver enabled; `90_validate_control` enabled; each map depending only on it) and run once on 2026-10-12. CI ("Repository checks") passed on that commit.
+<img width="1457" height="528" alt="image" src="https://github.com/user-attachments/assets/a1f70f9b-cbdd-4035-b514-3d7ad55d8b9f" />
 
 | | Job run `294813485627349` |
 |---|---|
@@ -109,6 +110,7 @@ The query from [How to reproduce](#how-to-reproduce), with this job run id and f
 ## Re-run at `7e4b2a5`: five lanes, after merging #122
 
 While the run above was going, #122 merged. After `main` with #122 was merged into this branch (`967b75e`), HDX Silver is switched on, so the regenerated fan-in checks five lanes (`ff99d84`). The job was deployed from a clean checkout of the pushed commit `7e4b2a5fadbfc259f870c46c14bd22db5cce8f58` (`bundle validate` OK; `bundle summary`: that commit as git commit and `code_revision`; PSGC and HDX Silver enabled; `90_validate_control` enabled; each map depending only on it) and run once on 2026-10-12. CI ("Repository checks") passed on that commit.
+<img width="1451" height="541" alt="image" src="https://github.com/user-attachments/assets/4094e83d-00d7-41ba-baa9-5f3ffce16918" />
 
 | | Job run `858942934541036` |
 |---|---|
