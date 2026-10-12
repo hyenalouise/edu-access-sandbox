@@ -59,17 +59,22 @@ def test_both_alerts_exist_and_email_the_deployer(alerts):
         assert "{{QUERY_RESULT_TABLE}}" in alert["custom_description"], f"{key}: the email must list the rows"
 
 
-def test_each_alert_counts_a_column_its_query_returns(store, alerts):
-    """A misspelled source column makes the alert error on Databricks instead of triggering."""
-    result(store, "run-1", "rows_reconcile", "FAIL", 0)
-    result(store, "run-1", "source_fresh", "WARN", 1, layer="control")
+def test_each_alert_compares_its_own_row_count(store, alerts):
+    """The alert reads its count from the first row, with no aggregation of its own: with one, the
+    email lists only the count, not the rows (seen on dev, 2026-10-13). A misspelled column makes the
+    alert error on Databricks instead of triggering."""
+    for batch in ("b1", "b2", "b3"):
+        result(store, "run-1", "rows_reconcile", "FAIL", 0, batch_id=batch)
+    for source in ("psa_psgc", "hdx_boundaries"):
+        result(store, "run-1", "source_fresh", "WARN", 1, layer="control", source_id=source)
     for key, alert in alerts.items():
         evaluation = alert["evaluation"]
-        assert evaluation["source"]["aggregation"] == "COUNT"
+        assert "aggregation" not in evaluation["source"], f"{key}: the email would show only the count"
         assert evaluation["comparison_operator"] == "GREATER_THAN"
         assert evaluation["threshold"]["value"]["double_value"] == 0
         rows = reported(store, alerts, key)
-        assert rows and evaluation["source"]["name"] in rows[0], f"{key}: returns no {evaluation['source']['name']}"
+        column = evaluation["source"]["name"]
+        assert rows and {r[column] for r in rows} == {len(rows)}, f"{key}: {column} must count the rows returned"
 
 
 def test_quality_failures_reports_the_fails_of_the_latest_run_only(store, alerts):

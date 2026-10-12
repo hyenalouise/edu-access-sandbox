@@ -880,6 +880,9 @@ resources:
   # SQL alerts on the control tables, so a FAIL or a stale source is visible
   # without opening the job's logs: the alert email lists the rows (D-043).
   # Each evaluates once a day. Like the job, they email whoever deployed.
+  # Each query counts its own rows (COUNT(*) OVER ()) and the alert compares
+  # that column on the first row: an aggregation in the alert would make the
+  # email show only the count, not the rows (seen on dev, 2026-10-13).
   # Each check's newest result in a run decides (RANK, so the rows one gate
   # wrote together stay together): a gate rerun in a repaired run, which keeps
   # its run_id, replaces its earlier FAIL. Tested on DuckDB in tests/test_alerts.py.
@@ -899,7 +902,8 @@ resources:
           FROM edu_access.`01-control`.data_quality_results AS q
           JOIN latest_run AS r ON q.run_id = r.run_id
         )
-        SELECT run_id, layer, source_id, table_name, check_name, expected, actual, checked_at_utc
+        SELECT COUNT(*) OVER () AS fail_count,
+               run_id, layer, source_id, table_name, check_name, expected, actual, checked_at_utc
         FROM newest
         WHERE result_rank = 1 AND status = 'FAIL'
         ORDER BY layer, source_id, table_name, check_name
@@ -912,8 +916,7 @@ resources:
         Alert: {{ALERT_URL}}
       evaluation:
         source:
-          name: check_name
-          aggregation: COUNT
+          name: fail_count
         comparison_operator: GREATER_THAN
         threshold:
           value:
@@ -947,7 +950,7 @@ resources:
           JOIN latest_run AS r ON q.run_id = r.run_id
           WHERE q.check_name = 'source_fresh'
         )
-        SELECT run_id, source_id, expected, actual, checked_at_utc
+        SELECT COUNT(*) OVER () AS stale_count, run_id, source_id, expected, actual, checked_at_utc
         FROM newest
         WHERE result_rank = 1 AND status = 'WARN'
         ORDER BY source_id
@@ -960,8 +963,7 @@ resources:
         Alert: {{ALERT_URL}}
       evaluation:
         source:
-          name: source_id
-          aggregation: COUNT
+          name: stale_count
         comparison_operator: GREATER_THAN
         threshold:
           value:
