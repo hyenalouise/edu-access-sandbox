@@ -356,7 +356,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 04_clean_psa_psgc
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_psgc_raw
           run_if: ALL_SUCCESS
@@ -367,7 +366,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_psa_psgc_clean
-          disabled: true
           depends_on:
             - task_key: 04_clean_psa_psgc
           run_if: ALL_SUCCESS
