@@ -433,7 +433,7 @@ bronze_psa_psgc               Python: check and load the workbook (skip when alr
                                    then 'succeeded'
 ```
 
-The lane does not wait for any other source; `90_validate_control` (disabled) is the fan-in. The mapping tasks of Integration (`01_map_deped_school_psgc`, `02_map_psa_poverty_psgc`, `03_map_hdx_adm3_psgc`) wait for this gate.
+The lane does not wait for any other source; `90_validate_control` is the fan-in (D-039). The mapping tasks of Integration (`01_map_deped_school_psgc`, `02_map_psa_poverty_psgc`, `03_map_hdx_adm3_psgc`) need PSGC and start only from the fan-in, which checks this lane.
 
 ### Grain and shape (PSGC)
 

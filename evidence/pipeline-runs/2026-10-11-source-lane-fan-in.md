@@ -2,7 +2,7 @@
 
 Issue #127 · Databricks `dev` · 2026-10-11 · checked by @hyenalouise
 
-The first run below is at `1962bce`, before `main` (with facilities Silver, #126) was merged into this branch. The run after the merge, checking three lanes, is in [Re-run at `3719301`](#re-run-at-3719301-three-lanes-after-merging-126).
+The first run below is at `1962bce`, before `main` (with facilities Silver, #126) was merged into this branch. The run after the merge, checking three lanes, is in [Re-run at `3719301`](#re-run-at-3719301-three-lanes-after-merging-126). Since `main` with PSGC Silver (#124) was merged, the fan-in checks four lanes; that version has not been run on `dev` yet.
 
 ## The claim
 
