@@ -2,7 +2,7 @@
 
 Issue #127 · Databricks `dev` · 2026-10-11 · checked by @hyenalouise
 
-The first run below is at `1962bce`, before `main` (with facilities Silver, #126) was merged into this branch. The run after the merge, checking three lanes, is in [Re-run at `3719301`](#re-run-at-3719301-three-lanes-after-merging-126). Since `main` with PSGC Silver (#124) and HDX Silver (#122) was merged, the fan-in checks five lanes; that version has not been run on `dev` yet.
+The first run below is at `1962bce`, before `main` (with facilities Silver, #126) was merged into this branch. The run after the merge, checking three lanes, is in [Re-run at `3719301`](#re-run-at-3719301-three-lanes-after-merging-126). The runs after merging PSGC Silver (#124) and HDX Silver (#122), checking four and then five lanes, are in [Re-run at `a405f70`](#re-run-at-a405f70-four-lanes-after-merging-124) and [Re-run at `7e4b2a5`](#re-run-at-7e4b2a5-five-lanes-after-merging-122), both on 2026-10-12.
 
 ## The claim
 
@@ -83,11 +83,59 @@ Facilities Silver, rebuilt in the same run, has 60,167 rows and the content SHA-
 ### Re-run check query: 6 rows, every actual equal to expected
 <img width="1017" height="223" alt="image" src="https://github.com/user-attachments/assets/29c1334b-137c-482d-9423-5e5211d5fd08" />
 
+## Re-run at `a405f70`: four lanes, after merging #124
+
+After `main` with #124 was merged into this branch (`9a9c482`), PSGC Silver is switched on, so the regenerated fan-in checks four lanes (`4b22730`). The job was deployed from a clean checkout of the pushed commit `a405f70f7795abbfc60deb3644147504665f9eab` (`bundle validate` OK; `bundle summary`: that commit as git commit and `code_revision`; PSGC Silver enabled; `90_validate_control` enabled; each map depending only on it) and run once on 2026-10-12. CI ("Repository checks") passed on that commit.
+
+| | Job run `294813485627349` |
+|---|---|
+| Whole job | 11:07:22 to 11:15:40 (03:07:22 to 03:15:40 UTC), 8 min 17 s, `SUCCESS` |
+| Tasks | 33 `SUCCESS`, 30 disabled |
+| Silver gates | facilities from 11:12:36 (171 s), PSGC from 11:12:38 (167 s), enrollment from 11:12:41 (168 s), PSA poverty from 11:12:41 (153 s), all `SUCCESS` |
+| `90_validate_control` | `SUCCESS`, 7 s, from 11:15:30, once the last Silver gate had finished |
+| The three map tasks | `DISABLED`, after `90_validate_control` |
+
+The query from [How to reproduce](#how-to-reproduce), with this job run id and four lanes expected, gave:
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| fan-in results in this run | 4 | 4 | OK |
+| fan-in results that are FAIL | 0 | 0 | OK |
+| lanes checked | deped_enrollment, deped_facilities, psa_poverty_stat, psa_psgc | the same | OK |
+| `actual` of each result | succeeded ×4 | succeeded ×4 | OK |
+| commit on the results | `a405f70…` | `a405f70…` | OK |
+| `silver_build` runs in this job run | the four lanes, succeeded | the same | OK |
+
+## Re-run at `7e4b2a5`: five lanes, after merging #122
+
+While the run above was going, #122 merged. After `main` with #122 was merged into this branch (`967b75e`), HDX Silver is switched on, so the regenerated fan-in checks five lanes (`ff99d84`). The job was deployed from a clean checkout of the pushed commit `7e4b2a5fadbfc259f870c46c14bd22db5cce8f58` (`bundle validate` OK; `bundle summary`: that commit as git commit and `code_revision`; PSGC and HDX Silver enabled; `90_validate_control` enabled; each map depending only on it) and run once on 2026-10-12. CI ("Repository checks") passed on that commit.
+
+| | Job run `858942934541036` |
+|---|---|
+| Whole job | 11:20:17 to 11:27:01 (03:20:17 to 03:27:01 UTC), 6 min 43 s, `SUCCESS`; `bronze_hdx_boundaries` waited 36 s in serverless setup |
+| Tasks | 35 `SUCCESS`, 28 disabled |
+| Silver gates | PSGC from 11:23:30 (175 s), facilities from 11:23:30 (148 s), PSA poverty from 11:23:47 (135 s), enrollment from 11:23:51 (138 s), HDX from 11:25:46 (65 s), all `SUCCESS` |
+| `90_validate_control` | `SUCCESS`, 6 s, from 11:26:52, once the last Silver gate (HDX) had finished |
+| The three map tasks | `DISABLED`, after `90_validate_control` |
+
+The query from [How to reproduce](#how-to-reproduce), with this job run id and five lanes expected, gave:
+
+| Check | Expected | Actual | Result |
+|---|---|---|---|
+| fan-in results in this run | 5 | 5 | OK |
+| fan-in results that are FAIL | 0 | 0 | OK |
+| lanes checked | deped_enrollment, deped_facilities, hdx_boundaries, psa_poverty_stat, psa_psgc | the same | OK |
+| `actual` of each result | succeeded ×5 | succeeded ×5 | OK |
+| commit on the results | `7e4b2a5…` | `7e4b2a5…` | OK |
+| `silver_build` runs in this job run | the five lanes, succeeded | the same | OK |
+
+The times and task counts for both re-runs are from `databricks jobs get-run`; there are no screenshots for them.
+
 ## Limitations
 
-- A failing lane was not exercised on Databricks, to keep the shared `dev` tables at a good build. `tests/test_local_job.py` shows it locally: when enrollment's Bronze gate fails, the fan-in still runs, records enrollment as `not run` and PSA as `succeeded`, and fails.
+- A failing lane was not exercised on Databricks, to keep the shared `dev` tables at a good build. `tests/test_local_job.py` shows it locally: when enrollment's Bronze gate fails, the fan-in still runs, records enrollment as `not run` and the other four lanes as `succeeded`, and fails.
 - The maps are disabled placeholders, so "Integration does not run when a lane fails" is shown by the fan-in failing, not yet by a skipped map.
-- `dev` holds this PR's job definition, deployed at `3719301`: `main` with #126, plus the fan-in.
+- `dev` holds this PR's job definition, deployed at `7e4b2a5`: `main` with #126, #124 and #122, plus the fan-in.
 
 ## How to reproduce
 
