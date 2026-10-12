@@ -6,6 +6,9 @@
     python -m src.silver.cli sql        --source psa_poverty_stat > etl/03_silver/05_clean_psa_poverty_stat.sql
     python -m src.silver.cli gate       --source psa_poverty_stat > etl/03_silver/90_validate_psa_poverty_stat_clean.sql
     python -m src.silver.cli dictionary --source psa_poverty_stat > docs/data/silver/psa-poverty-stat-clean.md
+    python -m src.silver.cli sql        --source deped_facilities > etl/03_silver/02_clean_deped_facilities.sql
+    python -m src.silver.cli gate       --source deped_facilities > etl/03_silver/90_validate_deped_facilities_clean.sql
+    python -m src.silver.cli dictionary --source deped_facilities > docs/data/silver/deped-facilities-clean.md
 
 The build and the gate are SQL tasks of the job (databricks.yml); run the job
 locally with python -m src.job.local_run. Exit codes: 0 printed; 2 the

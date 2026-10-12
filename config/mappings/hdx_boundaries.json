@@ -218,7 +218,7 @@
         "type": "DECIMAL(20,14)",
         "positive": true,
         "reason": "area_uncastable",
-        "evidence": "min 0.399814, max 2341.43, zeros 0. A zero or negative area quarantines the row (area_not_positive)."
+        "evidence": "min 0.399814, max 2341.43, zeros 0. A zero or negative area quarantines the row (area_not_positive); a blank area stays NULL and the row is kept (D-023)."
       },
       "center_lat": {
         "type": "DECIMAL(18,14)",

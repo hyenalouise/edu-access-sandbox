@@ -26,6 +26,19 @@
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
 | `README.md` in the official ZIP | [Official archive](https://www.deped.gov.ph/wp-content/uploads/School-Personnel-in-SY-2023-2024.zip) | `e2aecfdb0a94d748e75d9d3b2846012185ba68533be0ce66b964bd7ae81afb93` | Module scope, data availability, all variable tables, naming convention, abbreviations, and blank-value note |
+
+## Ingestion
+
+| Item | Value |
+|---|---|
+| Contract | [`config/ingestion/deped_personnel.json`](../../../../config/ingestion/deped_personnel.json) |
+| Bronze table | `` edu_access.`02-bronze`.deped_personnel_raw ``: publisher columns as text plus complete row provenance |
+| Generated SQL | [`03_create_deped_personnel_raw.sql`](../../../../etl/02_bronze/03_create_deped_personnel_raw.sql) and [`90_validate_deped_personnel_raw.sql`](../../../../etl/02_bronze/90_validate_deped_personnel_raw.sql) |
+| Raw storage | `/Volumes/edu_access/00-source/raw/deped/`; the ZIP checksum was verified after upload on 2026-10-06 |
+| Local validation | Real approved ZIP loaded 60,167 rows and reconciled to 60,167 Bronze rows; an immediate rerun skipped the succeeded batch and inserted 0 rows. All 327 publisher columns remained text, all rows had complete provenance, and no pipeline duplicates were found |
+| Databricks confirmation | Confirmed on `dev`: the real ZIP loaded 60,167 rows and skipped on rerun; later `edu_access_pipeline` run `696706629226090` at commit `15fcecbd` successfully ran the Personnel create, load, and separate gate tasks ([evidence](../../../../evidence/pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md)) |
+
+Bronze preserves all 327 publisher columns as text. It does not quarantine the O-9 review cases, recompute the O-8 principal totals, or convert blank personnel counts to zero. Those decisions belong to later layers and must remain traceable to the raw values.
 | School Characteristics Technical Notes | [Official PDF](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf) | `a0cb8728a4b175e6eba493fa0d06146c10db9064bc3c71807162fd9266f39cbc` | BEIS lineage and purpose (p. 1); collection tools (p. 2); annual frequency and responsible encoders (p. 3); teacher-learner ratio and annex handling (p. 8); personnel limitations (p. 12) |
 
 ## Coverage

@@ -177,6 +177,15 @@ def test_a_value_that_cannot_be_typed_exactly_is_quarantined(env, reason):
     assert checks["rows_reconcile"]["status"] == "PASS"
 
 
+def test_a_blank_area_stays_null_and_the_row_is_kept(env):
+    env.deliver(good(2) + [feature(3, area_sqkm="null")])                 # Bronze does not require an area
+    run_id, error = env.silver()
+    assert error is None
+    assert env.one(f"SELECT COUNT(*) FROM {CLEAN} WHERE area_sqkm IS NULL") == 1
+    assert env.one(f"SELECT COUNT(*) FROM {QUARANTINE}") == 0
+    assert env.checks(run_id)["area_positive"]["status"] == "PASS"     # the gate agrees with the build
+
+
 @pytest.mark.parametrize("geometry, reason", [
     ('{"type": "Point", "coordinates": [120.55, 14.05]}', "geometry_wrong_type"),
     ('{"type": "Polygon", "coordinates": "not coordinates"}', "geometry_unparseable"),

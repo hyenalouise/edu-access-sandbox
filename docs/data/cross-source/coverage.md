@@ -127,7 +127,7 @@ The workbooks mark footnotes with superscript runs, which text extraction reads 
 |---|---|---|---|
 | DepEd enrollment, facilities, personnel, ELLNA, NAT Grade 6 | SY 2023-24 | Same | SY 2023-24 |
 | PSGC | 30 June 2026 | Later geography; names still match | "PSGC 2Q 2026" |
-| Poverty | 2023 estimate | Same calendar year as the start of the school year; inputs are the 2023 FIES and January 2024 LFS | "Poverty 2023" next to "SY 2023-24"; not called the same period (open question 1) |
+| Poverty | 2023 estimate | Same calendar year as the start of the school year; inputs are the 2023 FIES and January 2024 LFS | "Poverty 2023" next to "SY 2023-24"; not called the same period ([D-027](../../governance/decisions.md#d-027-poverty-2023-beside-sy-2023-24)) |
 | Barangay and age-group population | 2024 census, 1 July 2024 | Just after SY 2023-24 ends | "2024 census" |
 | FLEMMS | Fieldwork October 2024; attendance SY 2024-25 | One year later | Compare with DepEd SY 2024-25, or label the years apart |
 | OpenSTAT | Most tables end SY 2022-23; school counts reach SY 2023-24 | Mostly earlier | Each table's own years |
@@ -142,7 +142,7 @@ Statements that disagree across cards, memos, and the #8 thread, with the eviden
 
 | # | Where | Says | Evidence | Fix |
 |---|---|---|---|---|
-| 1 | [psa_psgc profile](../source-inventory/psa_psgc/profile.md) O-3 | "Do not join on" `Correspondence Code` | The poverty join (X-1, 1,612 of 1,612) and 96 HDX ADM3 units depend on it. PSGC S-2 calls it "supported, not confirmed". D-012 says to revisit when a source arrives with codes from another PSGC version, which poverty and HDX both do | Revisit D-012 to allow joins through `Correspondence Code` where a source carries old codes, and update O-3 (open question 4) |
+| 1 | [psa_psgc profile](../source-inventory/psa_psgc/profile.md) O-3 | "Do not join on" `Correspondence Code` | The poverty join (X-1, 1,612 of 1,612) and 96 HDX ADM3 units depend on it. PSGC S-2 calls it "supported, not confirmed". D-012 says to revisit when a source arrives with codes from another PSGC version, which poverty and HDX both do | Done: [D-030](../../governance/decisions.md#d-030-joins-through-correspondence-code) allows these joins, one-to-one and name-checked, and O-3 points to it |
 | 2 | [BARMM memo](barmm-dataset-research.md), summary 5 | OSM has 3,572 school points | OSM also stores schools as areas: 3,572 points and 47,068 areas, 50,640 school IDs with no overlap (#39 card O-3) | Corrected in this pull request |
 | 3 | #8 thread (CMCI) | 1,634 of 1,634 CMCI LGUs match non-SGA PSGC units | The claim holds, but no card showed it: #35 records only 1,472 found after removing the suffix. Re-run here (CM-3): 1,634 of 1,634 match one-to-one, but only with a suffix lookup (17 suffixes by review) and 16 reviewed aliases. A plain name match also makes one false match: `San Pedro` takes Bulalacao through its old name instead of the City of San Pedro | Use the match in [dti_cmci_psgc_match.md](generated/dti_cmci_psgc_match.md); try current names before old names in any national name match |
 | 4 | #8 thread (CMCI and OSM summary table) | CMCI columns `lgu_name`, `capacity_of_school`, `educational`; join to Gold on `psgc_code + year` | The files have `lgu`, `capacity_of_school_services`, `education` (#35 profile O-7). `year` is the CMCI reference year, not a school year | Use the real column names. Join on PSGC code and record the CMCI year as an attribute |
@@ -155,22 +155,16 @@ Statements that disagree across cards, memos, and the #8 thread, with the eviden
 
 ## Open questions
 
-1. **Poverty year:** label poverty 2023 next to SY 2023-24 (proposed), or treat them as one period?
-2. **Missing poverty areas:** keep the 44 blank with reason `not_in_source` (proposed, and what the poverty card says), or acquire the 2023 Official Poverty Statistics for HUCs, Isabela, and Cotabato and accept a mixed method?
-3. **Shared match columns:** one set for every place-name crosswalk (DepEd, barangay population, CMCI, BPDA) before Silver. Proposed:
-   - `source_id`, `source_row_ref`, and the raw place fields, unchanged
-   - `source_reference_date`
-   - `psgc_version` (`2Q 2026`)
-   - `psgc_code` (10 digits, blank when not matched)
-   - `geographic_level` (`reg`, `prov`, `city_mun`, `bgy`)
-   - `match_method` (`exact`, `old_name`, `folded`, `brackets_dropped`, `correspondence_code`, ...)
-   - `match_status` (`matched`, `unmatched`, `ambiguous`, `not_in_source`, `excluded`)
-   - `population_concept`, for population sources only (`total`, `household`)
-4. **D-012 and `Correspondence Code`:** amend D-012 to allow joins through `Correspondence Code` for sources that carry old codes (poverty, HDX), and update PSGC O-3 (conflict 1).
-5. **Special Geographic Area schools:** exclude the 112 from city- and municipality-level joins, or mark them, until their barangays are matched?
-6. **OSM scope:** `school` only, or also `kindergarten`? Colleges and universities are out under D-003.
-7. **Barangay population:** settled by BP-3 to BP-5. Use PSGC's `2024 Population` column; keep the workbooks as a check. Record as a decision?
-8. **CMCI reviewed readings:** can Sara check the 17 suffix readings and 16 aliases in [dti_cmci_psgc_match.md](generated/dti_cmci_psgc_match.md)?
+None open. The eight raised here were settled on #74 on 2026-10-09, and seven are recorded in the decision log:
+
+1. **Poverty year:** "Poverty 2023" beside "SY 2023-24", never one period ([D-027](../../governance/decisions.md#d-027-poverty-2023-beside-sy-2023-24)).
+2. **Missing poverty areas:** the 44 stay blank as `not_in_source`, never imputed ([D-028](../../governance/decisions.md#d-028-cities-and-municipalities-without-a-poverty-estimate)).
+3. **Shared match columns:** one set for every crosswalk to PSGC, with a fixed `match_method` list ([D-029](../../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk)).
+4. **`Correspondence Code`:** allowed for sources with old 9-digit codes, one-to-one and name-checked ([D-030](../../governance/decisions.md#d-030-joins-through-correspondence-code)).
+5. **Special Geographic Area schools:** the 112 are `excluded` from city- and municipality-level joins until their barangays are matched ([D-031](../../governance/decisions.md#d-031-special-geographic-area-schools-at-city-or-municipality-level)).
+6. **OSM scope:** `school` only; `kindergarten` only if #9 needs it ([D-032](../../governance/decisions.md#d-032-osm-scope)).
+7. **Barangay population:** PSGC's `2024 Population` column, with the workbooks as a cross-check ([D-033](../../governance/decisions.md#d-033-barangay-population-source)); provisional until @mafelisilda confirms.
+8. **CMCI reviewed readings:** checked by @saraevcldn on #74. All 17 suffix readings and 16 aliases hold. `Bantayan Island` means Bantayan town only, since CMCI lists Madridejos and Santa Fe (CU) separately.
 
 ## Status against #8
 

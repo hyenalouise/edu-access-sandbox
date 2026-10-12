@@ -20,7 +20,7 @@ docs/data/cross-source/
 
 | File | What it answers | Finding IDs | Script |
 |---|---|---|---|
-| [coverage.md](coverage.md) | For every source: how it names places, its level, years, grain, join keys, and PSGC match. Also join paths, limits, time alignment, conflicts between documents, and open questions | C, BP, AG, CM, HB | several, below |
+| [coverage.md](coverage.md) | For every source: how it names places, its level, years, grain, join keys, and PSGC match. Also join paths, limits, time alignment, conflicts between documents, and open questions with the decisions they led to | C, BP, AG, CM, HB | several, below |
 | [deped-dataset-research.md](deped-dataset-research.md) | How DepEd SY 2023-24 place names match PSGC, and how the DepEd school files join on `school_id` | A, B | [`cross_source_deped.py`](../../../analysis/cross_source/cross_source_deped.py) |
 | [deped-year-comparison.md](deped-year-comparison.md) | What changes across DepEd enrollment SY 2023-24, 2024-25, and 2025-26: labels, blank counts, school IDs, places, and the PSGC match per year | Y | [`cross_source_deped_years.py`](../../../analysis/cross_source/cross_source_deped_years.py) |
 | [barmm-dataset-research.md](barmm-dataset-research.md) | What the BPDA, PSA, and other sources can say about BARMM, and how they join | none (BPDA label matches were done by hand) | none |
@@ -74,7 +74,7 @@ The coverage matrix for #8 was built in these steps. New cross-source work shoul
 3. **Re-run what can be re-run.** For every acquired source, a script reads the checksum-verified raw files and matches them to PSGC 2Q 2026, using the shared rules below. Numbers that could not be re-run keep the label **Card**.
 4. **Count and list what does not match.** Nothing is forced. Every unmatched or ambiguous record is counted in the memo and listed in a generated file, with its reason.
 5. **Look for joins that would be wrong, not just missing.** A match can succeed and still be wrong. Each script checks for codes claimed twice, and code matches are checked against names.
-6. **Record what limits the joins, and what the team must decide.** Gaps that change results (for example, schools in areas without a poverty estimate) go under "What limits the joins"; choices that are not ours to make alone go under "Open questions".
+6. **Record what limits the joins, and what the team must decide.** Gaps that change results (for example, schools in areas without a poverty estimate) go under "What limits the joins"; choices that are not ours to make alone go under "Open questions", and once the team agrees, into the [decision log](../../governance/decisions.md).
 
 ## Shared matching rules
 
@@ -85,7 +85,7 @@ All `cross_source_*.py` scripts reuse the rules in `cross_source_deped.py`, so e
 - **A match must be unique.** Two or more candidates is "ambiguous", never a pick.
 - **Current names before old names** when there is no parent to scope the search: otherwise an old name can take another place's match (CMCI's `San Pedro` matched Bulalacao, whose old name is San Pedro, instead of the City of San Pedro).
 - **A code is not enough on its own.** COD-AB uses some PSGC code numbers for different places (Maguindanao, Manila), so a code match counts only if the names agree.
-- **`Correspondence Code`** (PSGC's old 9-digit code) links sources that carry old codes: poverty, and the COD-AB units still coded under Regions VI and VII. Its use is pending a D-012 amendment (coverage matrix, open question 4).
+- **`Correspondence Code`** (PSGC's old 9-digit code) links sources that carry old codes: poverty, and the COD-AB units still coded under Regions VI and VII. [D-030](../../governance/decisions.md#d-030-joins-through-correspondence-code) allows it when the join is one-to-one and the names are checked, recorded as `match_method = correspondence_code`.
 - **Anything decided by review, not by the data,** such as a CMCI suffix reading or an alias, is written into the script, counted separately, and listed for a teammate to check.
 
 ## How to rerun

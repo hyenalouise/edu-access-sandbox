@@ -501,7 +501,8 @@ def gate_sql(spec):
         "COUNT_IF(g.geo IS NULL) AS unparsed_rows",
         f"COUNT_IF(g.geo IS NOT NULL AND {_geometry_type('g.geo')} NOT IN ({allowed})) AS wrong_type_rows",
         "COUNT_IF(g.geo IS NOT NULL AND st_isempty(g.geo)) AS empty_rows",
-        *[f"COUNT_IF(c.{d.name} IS NULL OR c.{d.name} <= 0) AS not_positive_{d.name}" for d in positive],
+        # A blank area stays NULL (D-023), as the build keeps it; only a published zero or negative fails.
+        *[f"COUNT_IF(c.{d.name} <= 0) AS not_positive_{d.name}" for d in positive],
         "COUNT_IF(\n        "
         f"c.hierarchy_consistent IS DISTINCT FROM {_hierarchy(spec, 'c')}\n"
         "        OR c.geometry_is_valid IS DISTINCT FROM COALESCE(st_isvalid(g.geo), FALSE)\n"

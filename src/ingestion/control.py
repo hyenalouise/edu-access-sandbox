@@ -54,11 +54,10 @@ def add_missing_columns(store):
 
 
 def _complete(columns, rows):
-    """Supply NULL for nullable control columns a row does not name.
+    """Supply NULL for unnamed nullable columns so staged inserts match the live table.
 
-    Shared Databricks tables can gain additive columns before this branch knows
-    them. Rows read from a table already name every column, so saving one again
-    preserves its existing values.
+    Matched upserts update only fields named by the caller, so these staged NULLs
+    cannot erase values written to newer columns by another deployment.
     """
     return [{column: row.get(column) for column, _ in columns} for row in rows]
 
@@ -66,9 +65,14 @@ def _complete(columns, rows):
 def _upsert(store, table, key, row):
     columns = store.columns(SCHEMA, table)
     store.stage(f"{table}_stage", columns, _complete(columns, [row]))
+    named = {name for name in row}
+    updates = [name for name, _ in columns if name in named and name != key]
+    if not updates:
+        updates = [key]
+    assignments = ", ".join(f"`{name}` = s.`{name}`" for name in updates)
     store.sql(
         f"MERGE INTO {table_name(SCHEMA, table)} AS t USING {table}_stage AS s ON t.{key} = s.{key} "
-        "WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *"
+        f"WHEN MATCHED THEN UPDATE SET {assignments} WHEN NOT MATCHED THEN INSERT *"
     )
 
 

@@ -153,7 +153,7 @@ clean_batches AS (
     COUNT_IF(g.geo IS NULL) AS unparsed_rows,
     COUNT_IF(g.geo IS NOT NULL AND upper(replace(CAST(st_geometrytype(g.geo) AS STRING), 'ST_', '')) NOT IN ('POLYGON', 'MULTIPOLYGON')) AS wrong_type_rows,
     COUNT_IF(g.geo IS NOT NULL AND st_isempty(g.geo)) AS empty_rows,
-    COUNT_IF(c.area_sqkm IS NULL OR c.area_sqkm <= 0) AS not_positive_area_sqkm,
+    COUNT_IF(c.area_sqkm <= 0) AS not_positive_area_sqkm,
     COUNT_IF(
         c.hierarchy_consistent IS DISTINCT FROM COALESCE(regexp_like(c.adm2_pcode, '^PH[0-9]{5}$')
         AND regexp_like(c.adm1_pcode, '^PH[0-9]{2}$')

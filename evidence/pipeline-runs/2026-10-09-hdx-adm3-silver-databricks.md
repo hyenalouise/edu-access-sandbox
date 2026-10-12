@@ -4,7 +4,7 @@ Issue #90 · Databricks `dev` · 2026-10-09 · checked by @saraevcldn
 
 ## The claim
 
-The two Silver SQL tasks of `edu_access_pipeline` for `hdx_boundaries`, run by Spark on the SQL warehouse, build `hdx_adm3_clean` and `hdx_adm3_quarantine` from the current Bronze batch: 1,642 clean rows, 0 quarantined, and all 38 gate checks PASS. Every geometry function in the generated SQL (`try_to_geometry`, `st_geometrytype`, `st_isempty`, `st_isvalid`, `st_contains`) runs on Databricks as written (D-035). A second run, on the same Bronze rows and the same commit, records a second `succeeded` run with the same counts and results.
+The two Silver SQL tasks of `edu_access_pipeline` for `hdx_boundaries`, run by Spark on the SQL warehouse, build `hdx_adm3_clean` and `hdx_adm3_quarantine` from the current Bronze batch: 1,642 clean rows, 0 quarantined, and all 38 gate checks PASS. Every geometry function in the generated SQL (`try_to_geometry`, `st_geometrytype`, `st_isempty`, `st_isvalid`, `st_contains`) runs on Databricks as written (D-040). A second run, on the same Bronze rows and the same commit, records a second `succeeded` run with the same counts and results.
 
 ## What was run
 
