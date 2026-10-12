@@ -80,3 +80,46 @@ def approve(config, path, row_count, period=PERIOD, delivery_version=1, supersed
     }
     config["deliveries"].append(entry)
     return entry
+
+
+# --- Features Silver accepts -----------------------------------------------------------------
+# The features above use made-up labels ("Test Place 1") that Bronze keeps but the Silver gate
+# rejects (labels_mapped_*). These use the real region, country, version and language labels,
+# a closed square, and a centre inside it, so a build passes every Silver check.
+
+SQUARE = ('{"type": "Polygon", "coordinates": '
+          '[[[120.5, 14.0], [120.6, 14.0], [120.6, 14.1], [120.5, 14.1], [120.5, 14.0]]]}')
+
+
+def pcodes(i):
+    """Made-up P-codes for feature i: 100 towns per made-up province, so the codes stay PH + 7 digits."""
+    province = f"PH01{10 + i // 100:03d}"
+    return province + f"{i % 100:02d}", province
+
+
+def silver_properties(i, **changes):
+    """JSON text of each property, as a COD-AB file writes it; changes = {column: JSON text}."""
+    adm3, adm2 = pcodes(i)
+    values = {c: "null" for c in columns() if c != "geometry"}
+    values.update({
+        "adm3_name": json.dumps(f"Town {i}"), "adm3_ref_name": json.dumps(f"Town {i}"),
+        "adm3_pcode": json.dumps(adm3), "adm2_name": json.dumps(f"Province {i // 100}"), "adm2_pcode": json.dumps(adm2),
+        "adm1_name": '"Region I (Ilocos Region)"', "adm1_pcode": '"PH01"',
+        "adm0_name": '"Philippines"', "adm0_pcode": '"PH"',
+        "valid_on": json.dumps(PERIOD), "version": '"v03"', "lang": '"en"',
+        "area_sqkm": "112.24600000000012", "center_lat": "14.05", "center_lon": "120.55",
+    })
+    values.update(changes)
+    return values
+
+
+def silver_feature(i, geometry=SQUARE, **changes):
+    props = ", ".join(f"{json.dumps(c)}: {v}" for c, v in silver_properties(i, **changes).items())
+    return f'{{"type": "Feature", "properties": {{{props}}}, "geometry": {geometry}}}'
+
+
+def write_features(folder, features, name=FILE_NAME):
+    """Write a FeatureCollection of the given feature texts into folder and return its path."""
+    text = '{"type": "FeatureCollection", "name": "phl_admin3", "features": [\n' + ",\n".join(features) + "\n]}\n"
+    return write_text(Path(folder) / name, text)
+

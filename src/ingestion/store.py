@@ -59,6 +59,12 @@ def to_duckdb(statement):
     return statement
 
 
+# Geometry functions (Silver for hdx_boundaries). DuckDB has them only in its spatial extension, which
+# is loaded the first time a statement uses one, so no other source needs it. try_to_geometry is the
+# Databricks name (NULL when the text is not a geometry); DuckDB gets it as a macro over GeoJSON.
+SPATIAL = re.compile(r"\b(st_[a-z]+|try_to_geometry)\(", re.IGNORECASE)
+
+
 def table_name(schema, table):
     return f"{CATALOG}.`{schema}`.{table}"
 
@@ -83,6 +89,15 @@ class DuckDBStore:
         self.con.execute(f"USE {CATALOG}")
         self.con.execute("CREATE TEMP MACRO regexp_replace_all(s, p, r) AS regexp_replace(s, p, r, 'g')")
         self._tmp = tempfile.TemporaryDirectory()
+        self._spatial = False
+
+    def _load_spatial(self, statement):
+        if self._spatial or not SPATIAL.search(statement):
+            return
+        self.con.execute("INSTALL spatial")
+        self.con.execute("LOAD spatial")
+        self.con.execute("CREATE TEMP MACRO try_to_geometry(s) AS TRY(ST_GeomFromGeoJSON(s))")
+        self._spatial = True
 
     def close(self):
         self.con.close()
@@ -96,12 +111,15 @@ class DuckDBStore:
     def sql(self, statement, params=None):
         if databricks_only(statement):
             return
+        self._load_spatial(statement)
         self.con.execute(to_duckdb(statement), params or None)
 
     def query(self, statement, params=None):
+        self._load_spatial(statement)
         return self.con.execute(to_duckdb(statement), params or None).fetchall()
 
     def records(self, statement, params=None):
+        self._load_spatial(statement)
         cursor = self.con.execute(to_duckdb(statement), params or None)
         names = [d[0] for d in cursor.description]
         return [dict(zip(names, row)) for row in cursor.fetchall()]
