@@ -288,7 +288,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 03_clean_deped_personnel
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_personnel_raw
           run_if: ALL_SUCCESS
@@ -299,7 +298,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_deped_personnel_clean
-          disabled: true
           depends_on:
             - task_key: 03_clean_deped_personnel
           run_if: ALL_SUCCESS

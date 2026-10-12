@@ -40,9 +40,11 @@ def test_the_lanes_are_exactly_the_silver_gates_switched_on():
 def test_switching_a_silver_lane_on_adds_it():
     j = job()
     gates = fan_in.silver_gates(REPO_ROOT)
-    off = next(k for k in gates if task(j, k).get("disabled"))
-    task(j, off)["disabled"] = False
-    assert gates[off] in {source for source, _ in fan_in.silver_lanes(REPO_ROOT, j)}
+    gate = next(iter(gates))
+    task(j, gate)["disabled"] = True
+    assert gates[gate] not in {source for source, _ in fan_in.silver_lanes(REPO_ROOT, j)}
+    task(j, gate)["disabled"] = False
+    assert gates[gate] in {source for source, _ in fan_in.silver_lanes(REPO_ROOT, j)}
 
 
 @pytest.mark.parametrize("break_it, message", [

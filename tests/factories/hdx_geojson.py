@@ -122,4 +122,3 @@ def write_features(folder, features, name=FILE_NAME):
     """Write a FeatureCollection of the given feature texts into folder and return its path."""
     text = '{"type": "FeatureCollection", "name": "phl_admin3", "features": [\n' + ",\n".join(features) + "\n]}\n"
     return write_text(Path(folder) / name, text)
-

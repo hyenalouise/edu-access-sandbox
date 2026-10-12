@@ -718,8 +718,9 @@ def test_silver_sql_uses_only_what_both_engines_share():
     different things to the two engines; a ';' in a string would break store.split_statements."""
     for path in sorted((REPO_ROOT / "etl" / "03_silver").glob("*.sql")):
         code = "\n".join(line.split("--", 1)[0] for line in path.read_text(encoding="utf-8").splitlines())
-        for token in ("\\", "::", "regexp_matches", "list_", "string_split", "regexp_replace_all", " EXCLUDE ", "[]"):
+        for token in ("\\", "::", "regexp_matches", "string_split", "regexp_replace_all", " EXCLUDE ", "[]"):
             assert token not in code, f"{path.name} uses {token!r}"
+        assert not __import__("re").search(r"\blist_[a-z_]+\s*\(", code), f"{path.name} uses a DuckDB list function"
         for literal in __import__("re").findall(r"'[^']*'", code):
             assert ";" not in literal, f"{path.name}: ';' inside {literal}"
 
@@ -751,3 +752,10 @@ def test_translated_regular_expressions_behave_like_spark():
     assert store.query("SELECT regexp_like('123456', '^[0-9]{6}$'), regexp_like('12345', '^[0-9]{6}$'), "
                        "regexp_like('x123456', '[0-9]{6}')") == [(True, False, True)]       # partial match, as rlike
     assert store.query("SELECT TRY_CAST('5.0' AS INT)") == [(5,)]   # why counts are checked as digits first
+
+
+def test_whole_number_decimal_cast_is_explicit_for_databricks_compatibility():
+    """Databricks does not cast '2.0' straight to BIGINT, so Personnel goes through DECIMAL."""
+    spec = generator("deped_personnel", REPO_ROOT).load_spec(REPO_ROOT, "deped_personnel")
+    sql = generator("deped_personnel", REPO_ROOT).build_sql(spec)
+    assert "TRY_CAST(TRY_CAST(n.kinder_teachers_lgu_funding AS DECIMAL(38, 10)) AS BIGINT)" in sql

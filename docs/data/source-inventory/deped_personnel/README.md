@@ -1,6 +1,6 @@
 # deped_personnel: DepEd school-level personnel
 
-**Status:** profiled
+**Status:** Bronze landed; Silver confirmed on Databricks `dev`
 
 ## Identity
 
@@ -26,6 +26,7 @@
 | Document | URL | SHA-256 | Sections relied on |
 |---|---|---|---|
 | `README.md` in the official ZIP | [Official archive](https://www.deped.gov.ph/wp-content/uploads/School-Personnel-in-SY-2023-2024.zip) | `e2aecfdb0a94d748e75d9d3b2846012185ba68533be0ce66b964bd7ae81afb93` | Module scope, data availability, all variable tables, naming convention, abbreviations, and blank-value note |
+| School Characteristics Technical Notes | [Official PDF](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf) | `a0cb8728a4b175e6eba493fa0d06146c10db9064bc3c71807162fd9266f39cbc` | BEIS lineage and purpose (p. 1); collection tools (p. 2); annual frequency and responsible encoders (p. 3); teacher-learner ratio and annex handling (p. 8); personnel limitations (p. 12) |
 
 ## Ingestion
 
@@ -39,7 +40,14 @@
 | Databricks confirmation | Confirmed on `dev`: the real ZIP loaded 60,167 rows and skipped on rerun; later `edu_access_pipeline` run `696706629226090` at commit `15fcecbd` successfully ran the Personnel create, load, and separate gate tasks ([evidence](../../../../evidence/pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md)) |
 
 Bronze preserves all 327 publisher columns as text. It does not quarantine the O-9 review cases, recompute the O-8 principal totals, or convert blank personnel counts to zero. Those decisions belong to later layers and must remain traceable to the raw values.
-| School Characteristics Technical Notes | [Official PDF](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf) | `a0cb8728a4b175e6eba493fa0d06146c10db9064bc3c71807162fd9266f39cbc` | BEIS lineage and purpose (p. 1); collection tools (p. 2); annual frequency and responsible encoders (p. 3); teacher-learner ratio and annex handling (p. 8); personnel limitations (p. 12) |
+
+## Silver
+
+`deped_personnel_clean` keeps one row per school and school year, types all 321 personnel measures as nullable integers, accepts integer-equivalent decimal text such as `0.0` in every measure, preserves recorded zero separately from blank, and carries Bronze lineage. It maps `sector` and `school_management` to enrollment's standard sets and fails on an unreviewed category or offering label. It retains `shs_total_school_principal` and adds `shs_school_principal_calculated` plus a discrepancy flag. `shs_master_teacher_iv` remains present and nullable, with an explicit unavailable flag.
+
+`deped_personnel_quarantine` retains invalid identifiers, invalid measures, and values outside the documented public or offered-level scope with every reason and the Bronze `batch_id`. Personnel Silver reads only its own Bronze and runs independently of enrollment. The repeatable O-9 comparison moves to Integration (#91), where an unmatched school can be distinguished from a school with zero enrollment. The nine profiled outlier schools remain in clean Silver with their published values unchanged.
+
+**Earlier Databricks confirmation, superseded by D-041:** Run `423839712402245` at commit `287bc51` confirmed the typing and reconciliation SQL, but it quarantined nine cross-source enrollment outliers. Review moved that comparison to Integration, so a new confirmation of the current 60,167-clean-row design is still required ([earlier evidence](../../../../evidence/pipeline-runs/2026-10-11-deped-personnel-silver.md)).
 
 ## Coverage
 

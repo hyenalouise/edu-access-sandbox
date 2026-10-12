@@ -1,0 +1,32 @@
+{
+  "source_id": "deped_personnel",
+  "generator": "deped_personnel",
+  "owner": "@mafelisilda",
+  "silver_table": "deped_personnel_clean",
+  "quarantine_table": "deped_personnel_quarantine",
+  "identifier": {"column": "school_id", "pattern": "^[0-9]{6}$"},
+  "dimensions": ["sector", "school_management", "offers_es", "offers_jhs", "offers_shs"],
+  "public_sector": "Public",
+  "boolean_true": ["True"],
+  "boolean_false": ["False"],
+  "categories": {
+    "sector": {
+      "standard": ["Public", "Private", "SUC/LUC", "PSO"],
+      "labels": {"Public": "Public", "Private": "Private", "SUC/LUC": "SUC/LUC", "PSO": "PSO"}
+    },
+    "school_management": {
+      "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "DOST", "Other GA", "International School", "PSO"],
+      "labels": {"DepEd": "DepEd", "Non-Sectarian": "Non-Sectarian", "Sectarian": "Sectarian", "SUC": "SUC", "LUC": "LUC", "DOST": "DOST", "Other GA": "Other GA", "International School": "International School", "PSO": "PSO"}
+    }
+  },
+  "integer_max": 2147483647,
+  "all_blank_measure": "shs_master_teacher_iv",
+  "principal_total": "shs_total_school_principal",
+  "principal_components": ["shs_school_principal_i", "shs_school_principal_ii", "shs_school_principal_iii", "shs_school_principal_iv"],
+  "rules": {
+    "blank": "Blank measures become NULL and remain distinct from recorded zero. Integer-equivalent decimal text such as 0.0 is accepted as a whole number in every personnel measure.",
+    "scope": "Personnel measures cover public schools only. A populated measure outside Public is quarantined.",
+    "principal_total": "The publisher total is retained. A separate calculated total and discrepancy flag are added.",
+    "all_blank": "The published all-blank measure is retained and explicitly flagged as unavailable."
+  }
+}

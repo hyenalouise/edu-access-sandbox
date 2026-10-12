@@ -604,7 +604,7 @@ A new schema version also needs a reviewed change to `src/silver/deped_facilitie
 - With the PSA Silver tasks on, an environment whose Bronze has no current PSA batch (no approved workbook loaded) fails the job at `current_batches_present`, as DepEd does: Silver never publishes an empty table as if it were data. Intended (fail loudly rather than serve nothing silently); such an environment loads the workbook first. Raised in review of #121; the team has not yet confirmed it. The same holds for PSGC since its Silver tasks are on (#88).
 - Every run rebuilds every school year, and starts the SQL warehouse; fine at 180,000 rows, revisit for larger sources.
 - The two Silver tables are published one after the other: a task that dies between them leaves them from different runs until the next run. Gold's rule (the run each table's rows carry) keeps the clean table readable; a reader comparing the two tables must check both runs. A task that dies after both copies but before recording `succeeded` leaves nothing trusted for the source until the next run passes.
-- Only `deped_enrollment`, `psa_poverty_stat`, `psa_psgc`, `deped_facilities`, and `hdx_boundaries` have Silver; the other sources follow with their own mapping (#87, #89).
+- `deped_enrollment`, `deped_facilities`, `deped_personnel`, `psa_psgc`, `psa_poverty_stat`, and `hdx_boundaries` have Silver.
 
 ## Open questions
 
@@ -625,6 +625,20 @@ A new schema version also needs a reviewed change to `src/silver/deped_facilitie
 | Should the Bronze gate also count only its own execution's results, so a repaired job run is judged on its own, as the Silver gate does? Changing it means regenerating every source's Bronze gate | Start a new run instead of repairing a failed one | D-020 |
 | Drop `01-control.layer_builds` on dev, created by the cancelled run of 2026-10-08 and no longer used? | Left in place | Team |
 | Should profile.md record the three Bronze findings above (and S-1's correction)? | Recorded here only | D-007 |
+# DepEd personnel
+
+The Personnel Silver lane runs after its own Bronze gate and reads only Personnel Bronze (D-041). It rebuilds `deped_personnel_clean_candidate` and `deped_personnel_quarantine_candidate`, then publishes only after `90_validate_deped_personnel_clean.sql` records no FAIL result. The lane does not wait for or read enrollment; cross-source checks belong to Integration (#91).
+
+| Rule | Handling | Expected profiled effect | Possible information loss |
+|---|---|---:|---|
+| 321 personnel measures | Whole numbers become nullable `INT`; integer-equivalent decimal text such as `0.0` is accepted in every measure; blank becomes `NULL`; recorded zero stays `0` | 5,372,726 filled cells, including 5,108,840 recorded zeros | Formatting such as `.0` is removed by typing; Bronze text remains unchanged |
+| `sector`, `school_management`, and `offers_*` | Map to enrollment's reviewed standard sets; an unreviewed label fails the gate | All current labels map | None. Bronze text remains unchanged |
+| Public-school scope and offered level | A populated value outside its documented scope quarantines the school row | 0 profiled violations | The row is excluded from derived staffing measures, but retained in quarantine and Bronze |
+| `shs_master_teacher_iv` | Keep the typed column and set `shs_master_teacher_iv_unavailable` | All 60,167 publisher values blank | No value is invented. The role cannot be analyzed |
+| SHS principal total | Keep `shs_total_school_principal`; add the sum of grades I to IV and a discrepancy flag | 1,090 discrepancies | None. Both totals remain available |
+| Personnel exceeds enrollment | Keep every valid Personnel row; compare with enrollment and flag in Integration (#91) | 11 fields across 9 schools in the profile | None in Silver. The published staff counts remain available to Gold |
+
+The gate writes reconciliation, lineage, blank-versus-zero, principal-discrepancy, all-blank-field, label-mapping, quarantine-rate, and every quarantine-reason count to `01-control.data_quality_results`. Quarantine above 0 is WARN and above 1% of Bronze rows is FAIL. The approved delivery produces 60,167 clean rows and 0 quarantined rows locally.
 
 ## HDX ADM3 boundaries
 
@@ -683,4 +697,3 @@ Besides the shared whole-build checks (`current_batches_present`, `lineage_compl
 - `adm3_pcode` is a COD-AB P-code, not a PSGC code; match by code and name together (`03_map_hdx_adm3_psgc`), and relate the 8 Special Geographic Area units spatially ([limitations](../governance/limitations.md)).
 - Regions are COD-AB's 17, before the Negros Island Region; take regions from PSGC.
 - Parse `geometry` where a spatial type is needed; never write a repaired shape back to Silver.
-

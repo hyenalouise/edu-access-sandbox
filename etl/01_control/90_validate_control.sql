@@ -10,6 +10,7 @@
 -- (D-039). Lanes checked, the Silver gates this task waits for that are switched on:
 --   deped_enrollment (90_validate_deped_enrollment_clean)
 --   deped_facilities (90_validate_deped_facilities_clean)
+--   deped_personnel (90_validate_deped_personnel_clean)
 --   psa_psgc (90_validate_psa_psgc_clean)
 --   psa_poverty_stat (90_validate_psa_poverty_stat_clean)
 --   hdx_boundaries (90_validate_hdx_adm3_clean)
@@ -27,7 +28,7 @@ INSERT INTO edu_access.`01-control`.data_quality_results
 SELECT :run_id, CAST(NULL AS STRING), l.source_id, 'control', 'edu_access.01-control.pipeline_runs', 'silver_lane_succeeded',
        CASE WHEN r.status = 'succeeded' THEN 'PASS' ELSE 'FAIL' END,
        'succeeded', COALESCE(r.status, 'not run'), current_timestamp(), :code_revision
-FROM (VALUES ('deped_enrollment'), ('deped_facilities'), ('psa_psgc'), ('psa_poverty_stat'), ('hdx_boundaries')) AS l(source_id)
+FROM (VALUES ('deped_enrollment'), ('deped_facilities'), ('deped_personnel'), ('psa_psgc'), ('psa_poverty_stat'), ('hdx_boundaries')) AS l(source_id)
 LEFT JOIN edu_access.`01-control`.pipeline_runs AS r
   ON r.source_id = l.source_id AND r.pipeline_name = 'silver_build' AND r.run_id = :run_id;
 

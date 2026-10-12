@@ -8,6 +8,7 @@ Code that writes each source's Silver SQL from reviewed configuration. The SQL i
 | `sql.py` | Generates the build SQL (`NN_clean_<source>.sql`) and the gate (`90_validate_<table>.sql`) from the spec |
 | `dictionary.py` | Generates the Silver data dictionary (`docs/data/silver/`) from the spec |
 | `psa_poverty_stat.py` | PSA Poverty Stat's own spec, build, gate, and dictionary: unpivots the wide workbook rows to one row per unit and estimate year (D-034). `gate_checks()` lists every check the gate writes |
+| `deped_personnel.py` | Personnel-specific typing, standard category labels, public-scope checks, publisher-versus-calculated principal totals, and the all-blank-field flag (D-041). `gate_checks()` lists every check the gate writes |
 | `deped_facilities.py` | DepEd facilities' own spec, build, gate, and dictionary: count groups with their own maximums, sixty facility yes/no columns, and public-scope and offered-level warnings (D-038). `gate_checks()` lists every check the gate writes |
 | `hdx_boundaries.py` | HDX ADM3's own spec, build, gate, and dictionary: dates, exact decimals, and geometry kept as published text and checked with spatial functions (D-040). `gate_checks()` lists every check the gate writes |
 | `generators.py` | Chooses a source's generator: the module named by `generator` in its rules file, or the DepEd enrollment modules above |

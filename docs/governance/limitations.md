@@ -15,6 +15,7 @@ What the data and methods can and cannot support, with evidence. Filled in as fi
 ## Measurement
 
 - **PSA poverty incidence is a model-based small-area estimate of the share of persons below the poverty threshold, not a count.** Many city and municipal estimates are imprecise: CV over 20 in 171 (2018), 84 (2021) and 156 (2023) of 1,611 estimates; 3 lower limits are zero or negative; in 2021 the published SE disagrees with incidence × CV in 133 CALABARZON rows (profile O-7 to O-9). Silver flags these (`cv_over_20`, `lower_limit_not_positive`, `se_cv_inconsistent`) and changes nothing; any ranking must carry the interval and CV. Cross-year comparability of 2018, 2021 and 2023 is unverified (S-3). Evidence: [Silver, PSA Poverty Stat](../operations/silver.md#psa-poverty-stat), D-034.
+- **DepEd personnel measures cover personnel actually working in public schools, not plantilla positions or vacancies.** Blank is not zero, one published field is entirely blank, and the business rule for the SHS principal total is unknown. Silver retains the publisher total and calculated total separately. The nine schools where a personnel value exceeds same-year enrollment remain in clean Silver with their published values; Integration (#91) must flag them before Gold derives staffing measures. Ratios still require a verified annex-to-mother-school crosswalk. Evidence: [Personnel profile](../data/source-inventory/deped_personnel/profile.md), O-3 to O-9 and O-13 to O-14; D-041.
 
 ## Geography
 
