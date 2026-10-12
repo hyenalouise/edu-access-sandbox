@@ -989,6 +989,8 @@ SHOW TBLPROPERTIES edu_access.`02-bronze`.psa_psgc_raw ('delta.columnMapping.mod
 
 ### Handoff to Silver (PSGC, not built here)
 
+Built in #88: [Silver, PSA PSGC](silver.md#psa-psgc) and D-035. The list below is the handoff it was built from.
+
 Bronze preserves; Silver cleans. Silver (`psa_psgc_clean`) should:
 
 - read only rows whose `batch_id` is in `current_batches`, and use the quarter in the contract's `master_reference_period` (2Q 2026, D-012) as the reference; other quarters are for comparison;

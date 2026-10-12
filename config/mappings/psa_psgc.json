@@ -1,0 +1,384 @@
+{
+  "source_id": "psa_psgc",
+  "generator": "psa_psgc",
+  "owner": "@maeveylain",
+  "how_to_change": "The source owner approves a new or changed label or rule by merging a pull request that edits this file, then regenerates or updates etl/03_silver/04_clean_psa_psgc.sql and 90_validate_psa_psgc_clean.sql (docs/operations/silver.md). A label that is not listed here fails the Silver gate (labels_mapped_*); it is never accepted silently. No code or category is guessed (#88).",
+  "silver_table": "psa_psgc_clean",
+  "quarantine_table": "psa_psgc_quarantine",
+  "candidate_table": "psa_psgc_clean_candidate",
+  "candidate_quarantine_table": "psa_psgc_quarantine_candidate",
+  "evidence_basis": "Counts below are from psa_psgc_raw, current batch psa_psgc__2026-Q2__31892bc2bdde (43,768 rows), loaded locally from main c873717 on 2026-10-09, and agree with the profile (docs/data/source-inventory/psa_psgc/profile.md).",
+  "identifier": {
+    "column": "psgc_code",
+    "pattern": "^[0-9]{10}$",
+    "finding": "O-1",
+    "note": "Kept as text with its leading zeros (29,620 codes start with 0, e.g. Region IX is 0900000000). Validated exactly as published, without trimming. A blank or malformed code quarantines the row. A repeated code quarantines every copy and FAILs the gate, so nothing is published: PSGC is what Integration joins to (D-019). 0 rows in the 2Q 2026 delivery."
+  },
+  "codes": {
+    "correspondence_code": {
+      "pattern": "^[0-9]{9}$",
+      "finding": "O-3, S-2",
+      "rule": "Kept as text with its leading zeros. Blank becomes NULL and is never derived from psgc_code. A filled value that is not nine digits quarantines the row.",
+      "evidence": "43,718 filled, all nine digits and unique; 50 blank (barangays 38, municipalities 8, provinces 2, blank level 1, region 1: Maguindanao del Norte and del Sur, the Negros Island Region, and the Special Geographic Area). S-2 (an older 9-digit PSGC kept for continuity) is supported but not confirmed by PSA."
+    }
+  },
+  "free_text_columns": {
+    "name": {
+      "finding": "O-9",
+      "rule": "Trim, and collapse runs of spaces, tabs, and no-break spaces to one space. Spelling is not otherwise changed. The published value stays in Bronze.",
+      "evidence": "2,855 names end in a space (2,846 of them on rows with a Status value); 0 leading or double spaces. Names are not keys: 27,391 distinct names in 43,768 rows."
+    },
+    "old_names": {
+      "finding": "O-11",
+      "rule": "Same whitespace rule as name. Blank becomes NULL. Used for matching older sources, not as a full history.",
+      "evidence": "1,699 rows filled (barangays 1,618, municipalities 75, cities 3, provinces 3); 3 end in a space."
+    }
+  },
+  "renames": {
+    "column_j_footnote": {
+      "to": "population_footnote",
+      "finding": "O-6",
+      "reason": "Column J has no header in the workbook and holds footnotes about the population figure, not data. The new name says what it annotates.",
+      "rule": "Kept as text (whitespace rule as name); blank becomes NULL. Kept in Silver because a province's population excludes the cities named here, which Gold must know before summing.",
+      "evidence": "19 rows: provinces 16, regions 2, barangays 1. 16 are '(excluding CITY OF ...)' notes (one names Cebu, Lapu-Lapu, and Mandaue) and 3 are the markers '1/', '2/', '3/'."
+    }
+  },
+  "population": {
+    "column": "population",
+    "type": "int",
+    "finding": "O-4",
+    "rule": "Cast to nullable INT when the value is one or more digits. The publisher's '#N/A' becomes NULL with population_null_reason = 'publisher_na'. Zero stays 0 (a published value, flagged for review, never treated as missing). Any other value quarantines the row as population_uncastable. A blank population becomes NULL with population_null_reason = 'blank' and is counted (rule_population_blank_to_null); 0 rows in 2Q 2026.",
+    "null_markers": {
+      "#N/A": {
+        "reason": "publisher_na",
+        "evidence": "1 row: 0990100000 'City of Isabela (Not a Province)' (blank level). The City of Isabela itself, 0990101000, has its population."
+      }
+    },
+    "zero_evidence": "12 rows, all barangays. Flagged as population_is_zero.",
+    "range_evidence": "Largest values by level: region 16,933,234; province 4,573,884; city 3,084,270; municipality 451,383; sub-municipality 637,942; barangay 215,035. All fit INT.",
+    "reconciliation": {
+      "region_total": 112727776,
+      "national_summary_total": 112729484,
+      "difference": 1708,
+      "note": "The difference is the Filipinos abroad stated in the Notes sheet (D.2), so the 18 regions must sum to 112,727,776, never to the national figure (O-4)."
+    },
+    "blank_reason": "blank"
+  },
+  "income_classification": {
+    "column": "income_classification",
+    "finding": "O-7",
+    "rule": "Split into income_class (the class without the star) and income_class_retained_after_downgrade (TRUE when the published class has a star, FALSE for an unstarred class, NULL when there is no class). '-' becomes NULL with income_class_null_reason = 'not_classified'. Blank stays NULL (not classified at that level).",
+    "classes": [
+      "1st",
+      "2nd",
+      "3rd",
+      "4th",
+      "5th"
+    ],
+    "labels": [
+      {
+        "published": "1st",
+        "income_class": "1st",
+        "retained_after_downgrade": false,
+        "evidence": "Provinces 66, cities 85, municipalities 696."
+      },
+      {
+        "published": "2nd",
+        "income_class": "2nd",
+        "retained_after_downgrade": false,
+        "evidence": "Provinces 12, cities 25, municipalities 245."
+      },
+      {
+        "published": "3rd",
+        "income_class": "3rd",
+        "retained_after_downgrade": false,
+        "evidence": "Provinces 2, cities 30, municipalities 240."
+      },
+      {
+        "published": "4th",
+        "income_class": "4th",
+        "retained_after_downgrade": false,
+        "evidence": "Provinces 2, cities 9, municipalities 234."
+      },
+      {
+        "published": "5th",
+        "income_class": "5th",
+        "retained_after_downgrade": false,
+        "evidence": "Municipalities 64."
+      },
+      {
+        "published": "2nd*",
+        "income_class": "2nd",
+        "retained_after_downgrade": true,
+        "evidence": "2 municipalities: Mankayan (1401111000), Alfonso Castaneda (0205015000)."
+      },
+      {
+        "published": "3rd*",
+        "income_class": "3rd",
+        "retained_after_downgrade": true,
+        "evidence": "2 municipalities: Lugait (1004316000), Sultan Sa Barongis (1908823000)."
+      },
+      {
+        "published": "4th*",
+        "income_class": "4th",
+        "retained_after_downgrade": true,
+        "evidence": "2 municipalities: Arteche (0802601000), Tipo-Tipo (1900706000)."
+      },
+      {
+        "published": "-",
+        "income_class": null,
+        "retained_after_downgrade": null,
+        "null_reason": "not_classified",
+        "evidence": "The 8 Special Geographic Area municipalities (1999901000 to 1999908000)."
+      }
+    ],
+    "open_question": "The star's meaning ('retained after downgrade') follows the profile's proposed handling (O-7); the Notes sheet does not define it. UNVERIFIED until PSA or the mentor confirms; the published value stays in Bronze."
+  },
+  "categories": {
+    "geographic_level": {
+      "finding": "O-2",
+      "rule": "Kept as published (PSA's abbreviations). Blank becomes NULL and is flagged (level_blank); no level is assigned without a reviewed rule (open decision below). The Notes legend lists Dist, which has 0 rows, and omits City, so the standard set is the observed values.",
+      "standard": [
+        "Reg",
+        "Prov",
+        "City",
+        "Mun",
+        "SubMun",
+        "Bgy"
+      ],
+      "labels": [
+        {
+          "published": "Reg",
+          "standard": "Reg",
+          "meaning": "region",
+          "evidence": "18 rows."
+        },
+        {
+          "published": "Prov",
+          "standard": "Prov",
+          "meaning": "province",
+          "evidence": "82 rows; matches the National Summary (O-5)."
+        },
+        {
+          "published": "City",
+          "standard": "City",
+          "meaning": "city",
+          "evidence": "149 rows; matches the National Summary (O-5)."
+        },
+        {
+          "published": "Mun",
+          "standard": "Mun",
+          "meaning": "municipality",
+          "evidence": "1,493 rows; matches the National Summary (O-5)."
+        },
+        {
+          "published": "SubMun",
+          "standard": "SubMun",
+          "meaning": "sub-municipality (City of Manila only)",
+          "evidence": "14 rows, all under 1380600000 City of Manila."
+        },
+        {
+          "published": "Bgy",
+          "standard": "Bgy",
+          "meaning": "barangay",
+          "evidence": "42,010 rows; matches the National Summary (O-5)."
+        }
+      ],
+      "blank": {
+        "rows": 2,
+        "evidence": "0990100000 'City of Isabela (Not a Province)' and 1999900000 'Special Geographic Area'. Both sit at the province position of the code and hold units below them: 0990100000 holds the City of Isabela (0990101000, City, CC) and its 45 barangays; 1999900000 holds the 8 Special Geographic Area municipalities and their 63 barangays."
+      }
+    },
+    "city_class": {
+      "finding": "Bronze (no profile finding; values counted for this mapping)",
+      "rule": "Kept as published. Filled only for cities; blank elsewhere stays NULL.",
+      "standard": [
+        "HUC",
+        "ICC",
+        "CC"
+      ],
+      "labels": [
+        {
+          "published": "HUC",
+          "standard": "HUC",
+          "meaning": "highly urbanized city",
+          "evidence": "33 cities. None has a province row above it: the province position of the code is the city itself."
+        },
+        {
+          "published": "ICC",
+          "standard": "ICC",
+          "meaning": "independent component city",
+          "evidence": "5 cities."
+        },
+        {
+          "published": "CC",
+          "standard": "CC",
+          "meaning": "component city",
+          "evidence": "111 cities."
+        }
+      ]
+    },
+    "urban_rural": {
+      "finding": "O-8",
+      "rule": "Kept as published for U and R. '-' becomes NULL with urban_rural_null_reason = 'unknown' and is never folded into rural. Blank (every row that is not a barangay) stays NULL.",
+      "standard": [
+        "U",
+        "R"
+      ],
+      "labels": [
+        {
+          "published": "U",
+          "standard": "U",
+          "meaning": "urban",
+          "evidence": "7,918 barangays."
+        },
+        {
+          "published": "R",
+          "standard": "R",
+          "meaning": "rural",
+          "evidence": "34,054 barangays."
+        },
+        {
+          "published": "-",
+          "standard": null,
+          "null_reason": "unknown",
+          "evidence": "38 barangays, exactly the 38 barangays with a blank correspondence_code (S-1: likely created after the 2020 census). Includes 6 Caloocan barangays, so not every NCR barangay is U."
+        }
+      ]
+    },
+    "status": {
+      "finding": "O-12, S-5",
+      "rule": "Kept as published; blank stays NULL. The meaning of each value is not defined by PSA (S-5).",
+      "standard": [
+        "Capital",
+        "Pob."
+      ],
+      "labels": [
+        {
+          "published": "Capital",
+          "standard": "Capital",
+          "meaning": "provincial capital (S-5, unverified)",
+          "evidence": "82 rows: cities 45, municipalities 37."
+        },
+        {
+          "published": "Pob.",
+          "standard": "Pob.",
+          "meaning": "poblacion (S-5, unverified)",
+          "evidence": "2,773 rows, all barangays."
+        }
+      ]
+    }
+  },
+  "hierarchy": {
+    "finding": "O-10",
+    "rule": "Silver adds the parent codes derived from psgc_code (it never changes psgc_code): region_code = first 2 digits + 8 zeros; province_code = first 5 digits + 5 zeros when that code is a Prov row or one of the two blank-level containers, else NULL; city_municipality_code = first 7 digits + 3 zeros for barangays. The gate asserts every derived parent exists in the same delivery.",
+    "derived_columns": [
+      "region_code",
+      "province_code",
+      "city_municipality_code"
+    ],
+    "evidence": {
+      "region": "Every non-region row's region_code is a Reg row (0 missing).",
+      "province": "Provinces' region exists (0 missing). Of cities and municipalities, those without a Prov row at the province position are: the 33 HUCs (the position is the city itself), Pateros (NCR, no province), the City of Isabela (under the 0990100000 container), and the 8 Special Geographic Area municipalities (under the 1999900000 container).",
+      "city_municipality": "Every barangay's city_municipality_code exists: municipality 34,007, city 7,106, sub-municipality 897 (Manila).",
+      "sub_municipality": "The 14 sub-municipalities' province position is 1380600000 City of Manila.",
+      "manila": "Manila's 897 barangays have city_municipality_code = one of the 14 sub-municipalities (1380601000 to 1380614000), not the City of Manila (1380600000, an HUC, so no province_code). A sub-municipality rolls up to Manila by its first 5 digits + 00000."
+    },
+    "levels": {
+      "region": "Reg",
+      "province": "Prov",
+      "city": "City",
+      "municipality": "Mun",
+      "barangay": "Bgy"
+    },
+    "no_province_city_class": "HUC",
+    "no_province_exceptions": [
+      {
+        "code": "1381701000",
+        "name": "Pateros",
+        "reason": "The only municipality of NCR, which has no provinces (O-10). Listed so the gate can tell it from a missing province row."
+      }
+    ],
+    "no_province_rule": "A city or municipality with no province_code must be an HUC (city_class) or listed in no_province_exceptions; anything else FAILs the gate (province_code_missing_only_where_listed), because it means a province row is missing.",
+    "self_reference": "A region row's region_code is its own code, and so is the province_code of a province row and of the two blank-level containers. Group by these columns with care: a province's own row is in its own group."
+  },
+  "flags": {
+    "level_blank": {
+      "finding": "O-2",
+      "rows": 2,
+      "note": "geographic_level is NULL; see categories.geographic_level.blank."
+    },
+    "population_is_zero": {
+      "finding": "O-4",
+      "rows": 12,
+      "note": "All barangays. A published 0, kept as 0."
+    },
+    "has_population_footnote": {
+      "finding": "O-6",
+      "rows": 19,
+      "note": "population_footnote is filled; a province's population then excludes the named cities."
+    }
+  },
+  "quarantine_reasons": {
+    "psgc_code_blank": "O-1",
+    "psgc_code_malformed": "O-1",
+    "psgc_code_duplicated": "O-1",
+    "correspondence_code_malformed": "O-3",
+    "population_uncastable": "O-4",
+    "expected_rows": 0,
+    "note": "No row of the 2Q 2026 delivery meets any reason. Quarantine above 0 rows of a batch is WARN and above 1% is FAIL, as for enrollment (D-024). A duplicated code also FAILs the gate on its own (D-019)."
+  },
+  "gate_expectations": {
+    "rows": 43768,
+    "level_counts": {
+      "Reg": 18,
+      "Prov": 82,
+      "City": 149,
+      "Mun": 1493,
+      "SubMun": 14,
+      "Bgy": 42010,
+      "blank": 2
+    },
+    "national_summary_counts": {
+      "Prov": 82,
+      "City": 149,
+      "Mun": 1493,
+      "Bgy": 42010,
+      "finding": "O-5"
+    },
+    "region_population_total": 112727776,
+    "population_null_rows": 1,
+    "correspondence_code_null_rows": 50,
+    "trimmed_names": 2855,
+    "note": "Counts of the 2Q 2026 delivery, used by the tests of the real load. The gate does not hardcode them: it reconciles each batch with its own Bronze rows."
+  },
+  "excluded_from_silver": {
+    "note": "Nothing is dropped. Every Bronze column reaches Silver (column_j_footnote renamed, income_classification split), and every Bronze row is in the clean or the quarantine table."
+  },
+  "open_decisions": [
+    {
+      "topic": "Level of the two blank-level rows",
+      "options": "Keep geographic_level NULL with level_blank (proposed, since #88 says no category is guessed), or assign a team-approved level such as a province-equivalent container, with the evidence in categories.geographic_level.blank.",
+      "owner": "team"
+    },
+    {
+      "topic": "Meaning of the starred income class",
+      "options": "Keep the split with retained_after_downgrade marked UNVERIFIED (proposed), or keep the starred label unsplit until PSA confirms.",
+      "owner": "@maeveylain, mentor"
+    },
+    {
+      "topic": "PSGC as the barangay population source",
+      "decided": "D-033 (2026-10-09, provisional until @mafelisilda confirms)",
+      "effect": "population in this table is the barangay population used downstream; the barangay workbooks stay a cross-check."
+    },
+    {
+      "topic": "Joins through correspondence_code",
+      "decided": "D-030 (2026-10-09)",
+      "effect": "correspondence_code stays a clean nine-digit string here; Integration may join old 9-digit codes through it, one-to-one and name-checked, with match_method = correspondence_code (D-029). The 50 rows without it match by name only."
+    }
+  ],
+  "master_reference": "Silver flags rows of the quarter named by master_reference_period in config/ingestion/psa_psgc.json (2026-Q2, D-012) as is_master_reference; every current quarter is kept.",
+  "quarantine": {
+    "fail_above_percent": 1
+  }
+}
