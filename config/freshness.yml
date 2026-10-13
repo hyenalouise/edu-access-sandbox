@@ -3,8 +3,10 @@
 # generates etl/01_control/90_validate_freshness.sql; regenerate after a change:
 #   python -m src.job.freshness > etl/01_control/90_validate_freshness.sql
 #
-# Age is counted from the batch's succeeded_at_utc (when we loaded it), not from the
-# publisher's release date, which no source records. Each limit is the publisher's
+# Age is counted from the batch's succeeded_at_utc (when we loaded it), the one date
+# every source has. Only psa_psgc records a publication date, and its master reference
+# stays 2Q 2026 (D-012), so counting from it would warn every day. A newer release can
+# therefore be out for up to its limit before the WARN. Each limit is the publisher's
 # cadence from the source card plus about a month's grace. A stale source is a WARN,
 # never a FAIL: its data is still correct, only possibly out of date, so the run
 # goes on and the stale-source alert says which source to check. Every source with a

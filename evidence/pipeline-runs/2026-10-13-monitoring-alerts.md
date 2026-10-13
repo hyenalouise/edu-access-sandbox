@@ -100,7 +100,7 @@ All emails reached the deployer's inbox only (`${workspace.current_user.userName
 - **Dev only.** Everything was tested on `dev`, where only the deployer is told. Telling the whole team on `prod` is #99.
 - **The timeout was not made to fire.** Its setting was read back from the deployed job (`timeout_seconds` 5400) and shown in the duration email (1h 30m). A timed-out run is a failed run, and the failure email was tested.
 - **`quality_failures` reads only the latest run.** A partial run (`--only`) after a failing one hides that run's FAILs until the next full run, as the rerun above shows. Scheduled and normal runs are whole runs.
-- **Freshness age counts from when we loaded a batch**, not from the publisher's release date, which no source records.
+- **Freshness age counts from when we loaded a batch**, not from the publisher's release date: only PSGC records one, and its master reference is pinned to 2Q 2026 (D-012), so a new release can be out for up to its limit before it warns.
 
 ## Reproduce
 
