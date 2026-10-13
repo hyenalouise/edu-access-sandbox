@@ -151,7 +151,8 @@ A job that succeeds has only run; it has not shown the data is right. So the job
 
 - **Who is told.** The job's emails and the alerts go to whoever deployed them (`${workspace.current_user.userName}`, resolved at deploy time), so on `dev` only the person who ran it hears about it, and no address is committed. On `prod` the whole team will be told; that target and its recipients come with #99.
 - **When the alerts evaluate.** Daily at 08:00 Asia/Manila (`alert_schedule`). Development mode pauses alert schedules, so on `dev` an alert is evaluated by hand from its page in the workspace.
-- **Testing.** Each threshold is a bundle variable, and `freshness_as_of` is a job parameter, so every signal can be made to fire once without changing code or data: deploy with `--var duration_warning_seconds=60`, run only `90_validate_control` (no Silver lane ran in that run, so it records FAILs and fails), and run only `90_validate_freshness` with `freshness_as_of` set years ahead. The commands and results are in [evidence](../../evidence/pipeline-runs/).
+- **Latest run only.** `quality_failures` reads the latest run that wrote any result, so a partial run (`--only`) after a failing one hides that run's FAILs until the next full run.
+- **Testing.** Each threshold is a bundle variable, and `freshness_as_of` is a job parameter, so every signal can be made to fire once without changing code or data: deploy with `--var duration_warning_seconds=60`, run only `90_validate_control` (no Silver lane ran in that run, so it records FAILs and fails), and run only `90_validate_freshness` with `freshness_as_of` set years ahead. Tested on `dev` on 2026-10-13 ([evidence](../../evidence/pipeline-runs/2026-10-13-monitoring-alerts.md)).
 
 ## Environments and deployment
 
