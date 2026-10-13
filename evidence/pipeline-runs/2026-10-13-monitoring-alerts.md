@@ -33,10 +33,10 @@ Before the first deploy, the local deploy state (`.databricks/bundle/dev/resourc
 The 62.8-second run sent no duration warning: it ended about when the warning came due. The 72.9-second run, with margin, did.
 
 ### Failure email: run 827120061094283, the fan-in failed
-<!-- SCREENSHOT 1-failure-email-run-827120061094283.png: replace this line with tmp/pr130-screenshots/1-failure-email-run-827120061094283.png (drag it in on GitHub) -->
+<img width="1548" height="1274" alt="1-failure-email-run-827120061094283" src="https://github.com/user-attachments/assets/190614a2-97bc-4349-bf37-7dadceb9e74a" />
 
 ### Duration warning: run 409891514420038, past the 60-second test threshold
-<!-- SCREENSHOT 2-duration-warning-run-409891514420038.png: replace this line with tmp/pr130-screenshots/2-duration-warning-run-409891514420038.png (drag it in on GitHub) -->
+<img width="1542" height="1272" alt="2-duration-warning-run-409891514420038" src="https://github.com/user-attachments/assets/41384a43-9edf-4db7-b945-c220cc92e086" />
 
 ### Alerts, at `4a93aca`
 
@@ -49,7 +49,7 @@ The 62.8-second run sent no duration warning: it ended about when the warning ca
 **Fixed in `bbeac4a`:** with `aggregation: COUNT` on the alert, `{{QUERY_RESULT_TABLE}}` is the aggregate. Each query now returns its rows with a `COUNT(*) OVER ()` column (`fail_count`, `stale_count`), and the alert compares that column on the first row with no aggregation.
 
 ### Before the fix: the data-quality alert email shows only a count
-<!-- SCREENSHOT 3-quality-alert-count-only-before-fix.png: replace this line with tmp/pr130-screenshots/3-quality-alert-count-only-before-fix.png (drag it in on GitHub) -->
+<img width="1548" height="944" alt="3-quality-alert-count-only-before-fix" src="https://github.com/user-attachments/assets/911a57eb-464e-4e82-8453-a9f8ae82b427" />
 
 ### Recovery: a full run, at `4a93aca` with the default thresholds
 
@@ -75,16 +75,16 @@ Both alerts then returned to `OK` (`stale_sources` 18:11:16, `quality_failures` 
 | Both alerts | Evaluated | `quality_failures` `OK` 18:20:27, `stale_sources` `OK` 18:20:25 | Each "OK" email, with an empty table |
 
 ### After the fix: the data-quality alert email lists each FAIL
-<!-- SCREENSHOT 4-quality-alert-lists-rows-after-fix.png: replace this line with tmp/pr130-screenshots/4-quality-alert-lists-rows-after-fix.png (drag it in on GitHub) -->
+<img width="1548" height="1176" alt="4-quality-alert-lists-rows-after-fix" src="https://github.com/user-attachments/assets/b347becd-c54a-43a3-ac77-bba5d5831cd2" />
 
 ### After the fix: the stale-source alert email lists each stale source
-<!-- SCREENSHOT 5-stale-alert-lists-rows-after-fix.png: replace this line with tmp/pr130-screenshots/5-stale-alert-lists-rows-after-fix.png (drag it in on GitHub) -->
+<img width="1550" height="1172" alt="5-stale-alert-lists-rows-after-fix" src="https://github.com/user-attachments/assets/a3b5f02b-9b64-4a90-a872-375c296c533c" />
 
 ### Back to OK: the data-quality alert
-<!-- SCREENSHOT 6-quality-alert-back-to-ok.png: replace this line with tmp/pr130-screenshots/6-quality-alert-back-to-ok.png (drag it in on GitHub) -->
+<img width="1564" height="680" alt="6-quality-alert-back-to-ok" src="https://github.com/user-attachments/assets/b5dba792-e8ec-466c-b6c9-d7244978f39c" />
 
 ### Back to OK: the stale-source alert
-<!-- SCREENSHOT 7-stale-alert-back-to-ok.png: replace this line with tmp/pr130-screenshots/7-stale-alert-back-to-ok.png (drag it in on GitHub) -->
+<img width="1570" height="888" alt="7-stale-alert-back-to-ok" src="https://github.com/user-attachments/assets/0014ef73-4cfe-4c49-87c7-9f80ee7ebd09" />
 
 All emails reached the deployer's inbox only (`${workspace.current_user.userName}`), from `prod-monitoring@databricks.com` for the job and `noreply@databricks.com` for the alerts. The recipient's address is covered in the screenshots.
 
