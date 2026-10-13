@@ -27,7 +27,7 @@ sources:
     basis: Quarterly (Metadata sheet). The master reference stays 2Q 2026 (D-012); a WARN means a newer quarter is likely out and the owner decides whether to load it
   psa_poverty_stat:
     max_age_days: 1125
-    basis: Unverified; estimates for 2018, 2021 and 2023 so far, about every three years
+    basis: Small area estimates about every three years (2018, 2021, 2023); the 2023 estimates were released 6 Feb 2026, PSA press release 2026-43
   hdx_boundaries:
     max_age_days: 365
     basis: Unverified; no stated schedule, so checked once a year

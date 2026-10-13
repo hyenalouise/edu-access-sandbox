@@ -11,7 +11,7 @@
 --   deped_facilities    400 days  Collected annually (Technical Notes p. 3); only one year published so far
 --   deped_personnel     400 days  Annual BEIS collection (Technical Notes p. 3); publication timing unverified
 --   psa_psgc            120 days  Quarterly (Metadata sheet). The master reference stays 2Q 2026 (D-012); a WARN means a newer quarter is likely out and the owner decides whether to load it
---   psa_poverty_stat   1125 days  Unverified; estimates for 2018, 2021 and 2023 so far, about every three years
+--   psa_poverty_stat   1125 days  Small area estimates about every three years (2018, 2021, 2023); the 2023 estimates were released 6 Feb 2026, PSA press release 2026-43
 --   hdx_boundaries      365 days  Unverified; no stated schedule, so checked once a year
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
