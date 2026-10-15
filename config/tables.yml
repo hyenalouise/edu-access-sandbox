@@ -119,6 +119,13 @@ draft_integration_tables:
     candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
 
+integration_tables:
+  - table: deped_annex_mother_map
+    build_file: 04_map_deped_annex_mother.sql
+    validate_file: 90_validate_deped_annex_mother_map.sql
+    grain: One row per annex school and school year.
+    purpose: Auditable annex-to-mother mapping. Rows remain unmatched until DepEd publishes a reliable crosswalk.
+
 deferred_layers:
   - gold
   - analytics
