@@ -1,0 +1,108 @@
+// ReachED ERD: business entities and their relationships (logical view; the Gold galaxy schema is in data-model.md).
+// Source: https://dbdiagram.io/d/ReachED-ERD-6acf49c2aebfe7a21fe5f61c
+// When the diagram changes, copy its code here and update the Mermaid diagram in erd.md in the same pull request.
+
+Table city_municipality {
+  psgc_code varchar(10) [primary key, note: 'Official PSGC code']
+  lgu_name varchar(150) [not null]
+  lgu_type varchar(20) [not null, note: 'City or Municipality']
+  province varchar(150)
+  region varchar(100)
+  income_class varchar(30)
+  area_sq_km decimal(12,2)
+}
+
+Table barangay {
+  psgc_code varchar(10) [primary key, note: 'Official PSGC code']
+  barangay_name varchar(150) [not null]
+  city_mun_psgc_code varchar(10) [not null]
+}
+
+Table school {
+  school_id varchar(20) [primary key, note: 'Official school identifier']
+  school_name varchar(255) [not null]
+  school_type varchar(50)
+  region_name varchar(100) [note: 'As published by DepEd']
+  province_name varchar(150) [note: 'As published by DepEd']
+  city_municipality_name varchar(150) [note: 'As published by DepEd']
+  barangay_name varchar(150) [note: 'As published by DepEd']
+  city_mun_psgc_code varchar(10) [note: 'From the Integration crosswalk (D-029); NULL when not matched']
+  barangay_psgc_code varchar(10) [note: 'From the Integration crosswalk (D-029); NULL when not matched']
+  psgc_match_status varchar(20) [not null, note: 'matched, unmatched, ambiguous, excluded (D-029, D-031)']
+}
+
+Table population_record {
+  psgc_code varchar(10) [not null, note: 'Barangay PSGC code']
+  reference_year integer [not null]
+  total_population integer
+
+  indexes {
+    (psgc_code, reference_year) [pk]
+  }
+}
+
+Table school_age_population_record {
+  psgc_code varchar(10) [not null, note: 'City/municipality PSGC code']
+  reference_year integer [not null]
+  age integer [not null, note: 'Single year of age']
+  sex varchar(10) [not null]
+  population integer
+
+  indexes {
+    (psgc_code, reference_year, age, sex) [pk]
+  }
+
+  Note: 'Provisional: source found, not yet profiled. Grain and match to PSGC confirmed after profiling.'
+}
+
+Table poverty_record {
+  psgc_code varchar(10) [not null]
+  reference_year integer [not null]
+  poverty_incidence decimal(5,2)
+  poverty_magnitude integer
+
+  indexes {
+    (psgc_code, reference_year) [pk]
+  }
+}
+
+Table classroom_record {
+  school_id varchar(20) [not null]
+  school_year varchar(20) [not null]
+  classroom_count integer
+
+  indexes {
+    (school_id, school_year) [pk]
+  }
+}
+
+Table personnel_record {
+  school_id varchar(20) [not null]
+  school_year varchar(20) [not null]
+  teacher_count integer
+
+  indexes {
+    (school_id, school_year) [pk]
+  }
+}
+
+Table enrollment_record {
+  school_id varchar(20) [not null]
+  school_year varchar(20) [not null]
+  education_level varchar(100) [not null]
+  enrollment_count integer [not null, note: 'Number of enrolled learners']
+
+  indexes {
+    (school_id, school_year, education_level) [pk]
+  }
+}
+
+Ref: barangay.city_mun_psgc_code > city_municipality.psgc_code
+Ref: school.city_mun_psgc_code > city_municipality.psgc_code
+Ref: school.barangay_psgc_code > barangay.psgc_code
+Ref: population_record.psgc_code > barangay.psgc_code
+Ref: school_age_population_record.psgc_code > city_municipality.psgc_code
+Ref: poverty_record.psgc_code > city_municipality.psgc_code
+Ref: classroom_record.school_id > school.school_id
+Ref: personnel_record.school_id > school.school_id
+Ref: enrollment_record.school_id > school.school_id

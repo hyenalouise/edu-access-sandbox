@@ -9,6 +9,7 @@ documents should link to it rather than duplicate current-state claims.
 | Review the provisional model and approved grains | [Data model](architecture/data-model.md) |
 | Review stakeholder and question framing | [Business framing](business/README.md) |
 | Find a source card, profile, or dictionary | [Source inventory](data/source-inventory/README.md) |
+| See the business entities and how they relate | [Entity-relationship diagram](architecture/erd.md) |
 | Review joinability and coverage evidence | [Cross-source analysis](data/cross-source/README.md) |
 | Set up a workstation | [Terminal setup](getting-started/terminal-setup.md) |
 | Understand accepted and provisional decisions | [Decision log](governance/decisions.md) |
