@@ -190,6 +190,9 @@ for col in ["sector", "school_management", "annex_status", "offers_es"]:
     for t in ENROLLMENT:
         vals = q(f"SELECT '[' || coalesce({col}, 'NULL') || ']', count(*) FROM {t} GROUP BY 1 ORDER BY 2 DESC")
         show("O-8", f"{t}.{col}: " + "; ".join(f"{v} {n:,}" for v, n in vals))
+lg = q("""SELECT b.school_management, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
+          WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
+show("O-8", f"enr_2020_21 'Local Government' schools, by 2023-24 school_management: {lg}")
 show("O-9", "compare the school_management values above with the README, which lists 'DepEd Managed'")
 
 origins = q("""SELECT a.region, count(*) FROM enr_2023_24 a JOIN enr_2024_25 b USING (school_id)
