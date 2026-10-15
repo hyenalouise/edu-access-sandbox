@@ -1,0 +1,35 @@
+# How old each source's latest succeeded batch may get before the job warns that
+# its data may be stale (#100, D-043). Read by src/job/freshness.py, which
+# generates etl/01_control/90_validate_freshness.sql; regenerate after a change:
+#   python -m src.job.freshness > etl/01_control/90_validate_freshness.sql
+#
+# Age is counted from the batch's succeeded_at_utc (when we loaded it), the one date
+# every source has. Only psa_psgc records a publication date, and its master reference
+# stays 2Q 2026 (D-012), so counting from it would warn every day. A newer release can
+# therefore be out for up to its limit before the WARN. Each limit is the publisher's
+# cadence from the source card plus about a month's grace. A stale source is a WARN,
+# never a FAIL: its data is still correct, only possibly out of date, so the run
+# goes on and the stale-source alert says which source to check. Every source with a
+# Bronze load in databricks.yml must be listed (tests/test_freshness.py).
+#
+# The source owner confirms or changes their source's limit in review.
+
+sources:
+  deped_enrollment:
+    max_age_days: 400
+    basis: Annual (source card); SY 2025-26 was added 2026-07-23
+  deped_facilities:
+    max_age_days: 400
+    basis: Collected annually (Technical Notes p. 3); only one year published so far
+  deped_personnel:
+    max_age_days: 400
+    basis: Annual BEIS collection (Technical Notes p. 3); publication timing unverified
+  psa_psgc:
+    max_age_days: 120
+    basis: Quarterly (Metadata sheet). The master reference stays 2Q 2026 (D-012); a WARN means a newer quarter is likely out and the owner decides whether to load it
+  psa_poverty_stat:
+    max_age_days: 1125
+    basis: Small area estimates about every three years (2018, 2021, 2023); the 2023 estimates were released 6 Feb 2026, PSA press release 2026-43
+  hdx_boundaries:
+    max_age_days: 395
+    basis: Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)
