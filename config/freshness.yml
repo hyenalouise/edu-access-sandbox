@@ -31,5 +31,5 @@ sources:
     max_age_days: 1125
     basis: Small area estimates about every three years (2018, 2021, 2023); the 2023 estimates were released 6 Feb 2026, PSA press release 2026-43
   hdx_boundaries:
-    max_age_days: 365
-    basis: Unverified; no stated schedule, so checked once a year
+    max_age_days: 395
+    basis: Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)

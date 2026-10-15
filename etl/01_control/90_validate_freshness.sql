@@ -12,7 +12,7 @@
 --   deped_personnel     400 days  Annual BEIS collection (Technical Notes p. 3); publication timing unverified
 --   psa_psgc            120 days  Quarterly (Metadata sheet). The master reference stays 2Q 2026 (D-012); a WARN means a newer quarter is likely out and the owner decides whether to load it
 --   psa_poverty_stat   1125 days  Small area estimates about every three years (2018, 2021, 2023); the 2023 estimates were released 6 Feb 2026, PSA press release 2026-43
---   hdx_boundaries      365 days  Unverified; no stated schedule, so checked once a year
+--   hdx_boundaries      395 days  Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id           the job run
@@ -38,7 +38,7 @@ FROM (VALUES ('deped_enrollment', 400, INTERVAL '400' DAY),
        ('deped_personnel', 400, INTERVAL '400' DAY),
        ('psa_psgc', 120, INTERVAL '120' DAY),
        ('psa_poverty_stat', 1125, INTERVAL '1125' DAY),
-       ('hdx_boundaries', 365, INTERVAL '365' DAY)) AS l(source_id, max_age_days, max_age)
+       ('hdx_boundaries', 395, INTERVAL '395' DAY)) AS l(source_id, max_age_days, max_age)
 LEFT JOIN (
   SELECT source_id, MAX(succeeded_at_utc) AS last_succeeded_at_utc
   FROM edu_access.`01-control`.current_batches
