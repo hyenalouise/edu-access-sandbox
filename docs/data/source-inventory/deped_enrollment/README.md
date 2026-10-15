@@ -20,7 +20,7 @@ Published years: SY 2017-18 to SY 2025-26. Acquired so far: the four years below
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `Enrollment-in-SY-2020-2021.zip` | zip | n/a | 2,965,093 | n/a | `65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241` | `/Volumes/edu_access/00-source/raw/deped/2026-10-16/` (uploaded 2026-10-16; checksum verified after upload, listed in that folder's `SHA256SUMS.txt`) |
+| `Enrollment-in-SY-2020-2021.zip` | zip | n/a | 2,965,093 | n/a | `65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241` | `/Volumes/edu_access/00-source/raw/deped/2026-10-16/` (uploaded 2026-10-16 with a `RETRIEVED.txt` giving the source URL and download time; both checksums verified after upload and listed in that folder's `SHA256SUMS.txt`) |
 | ↳ `enrollment_2020-21.csv` | CSV | UTF-8, LF | 19,159,186 | 60,957 | `5cef0e62c4998dbf74bb2116a468f1b87ea1f296f29bd830988796cc543cf1cb` | extracted from the zip |
 | `Enrollment-in-SY-2023-2024.zip` | zip | n/a | 2,969,709 | n/a | `a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb` | `/Volumes/edu_access/00-source/raw/deped/` (uploaded 2026-09-30) |
 | ↳ `enrollment_2023-24.csv` | CSV | UTF-8, LF | 19,010,469 | 60,167 | `cb9457d1dd12cccde880e0d8065212f16a4a5970ac525d5e2f8c90069f1c3657` | extracted from the zip |
