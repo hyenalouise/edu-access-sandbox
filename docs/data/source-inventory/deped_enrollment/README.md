@@ -85,13 +85,14 @@ See [profile.md](profile.md) for evidence.
 
 | Field | Value |
 |---|---|
+| Status by school year | Four years acquired and profiled: SY 2020-21, 2023-24, 2024-25, 2025-26. Only SY 2023-24 to 2025-26 are in the contract, Bronze, and Silver. **SY 2020-21 is not yet ingested** |
 | Contract (approved deliveries, schema versions) | [`config/ingestion/deped_enrollment.json`](../../../../config/ingestion/deped_enrollment.json) |
 | Bronze table | `` edu_access.`02-bronze`.deped_enrollment_raw ``: all school years and delivery versions, text, with provenance |
 | Schema versions | `v1` (SY 2023-24, 2024-25), `v2` (SY 2025-26). SY 2020-21 has the `v1` header but is not yet in the contract |
-| Loaded locally | All three school years, 2026-10-06; row counts match the table above |
+| Loaded locally | SY 2023-24, 2024-25, 2025-26, 2026-10-06; row counts match the table above. SY 2020-21 not loaded |
 | Raw storage | `/Volumes/edu_access/00-source/raw/deped/`, uploaded 2026-09-30; SY 2020-21 in `raw/deped/2026-10-16/`, uploaded 2026-10-16; a local copy for profiling stays in `raw-data/deped/original/` |
-| Checksums after upload | Match the table above. The ingestion job hashed each zip in the volume, and the CSV and README inside it, before loading, and refuses any file whose checksum differs; all three loaded (job run `738752819100453`, 2026-10-06). The folder's `SHA256SUMS.txt` lists the same values |
-| Loaded on Databricks | Yes, 2026-10-06 (`dev`): all three school years loaded and verified; a second run skipped them all ([evidence](../../../../evidence/pipeline-runs/2026-10-06-deped-enrollment-idempotency.md)) |
+| Checksums after upload | Match the table above. The ingestion job hashed each zip in the volume, and the CSV and README inside it, before loading, and refuses any file whose checksum differs; all three loaded (job run `738752819100453`, 2026-10-06). The folder's `SHA256SUMS.txt` lists the same values. SY 2020-21 has not been through the job: its zip was downloaded back from the volume on 2026-10-16 and matched the table, and `raw/deped/2026-10-16/SHA256SUMS.txt` lists it |
+| Loaded on Databricks | SY 2023-24 to 2025-26 only, 2026-10-06 (`dev`): all three loaded and verified; a second run skipped them all ([evidence](../../../../evidence/pipeline-runs/2026-10-06-deped-enrollment-idempotency.md)) |
 | Silver tables | `` edu_access.`03-silver`.deped_enrollment_clean `` and `deped_enrollment_quarantine`: one row per school per school year, current delivery only ([dictionary](../../silver/deped-enrollment-clean.md), [rules and counts](../../../operations/silver.md#cleaning-rules)). Built locally on the real data 2026-10-07; not yet on Databricks |
 
 How a new school year or a revised file is added: [ingestion.md, Runbook](../../../operations/ingestion.md#runbook).
