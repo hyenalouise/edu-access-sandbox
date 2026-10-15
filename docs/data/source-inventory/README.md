@@ -23,6 +23,7 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/data/cross
 | source_id | Name | Publisher | Status | Owner |
 |---|---|---|---|---|
 | [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise |
+| [deped_enrollment_psgc](deped_enrollment_psgc/) | DepEd school-level enrollment with PSGC and coordinates (SY 2023-24) | DepEd | profiled | @maeveylain |
 | [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise |
 | [deped_ellna](deped_ellna/) | DepEd selected school-level ELLNA results | DepEd | profiled | @mafelisilda |
 | [deped_nat_gr6](deped_nat_gr6/) | DepEd selected school-level NAT Grade 6 results | DepEd | profiled | @mafelisilda |

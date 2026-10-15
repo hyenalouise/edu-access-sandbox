@@ -1,0 +1,80 @@
+# Business and analytical questions
+
+**Status:** The question wording below was approved through mentor review on 2026-10-14. Metric and dashboard implementation choices remain open under D-042 and the separate [metric specification](metric-specification.md).
+
+| | |
+|---|---|
+| **Primary users** | Local education planners: DepEd Schools Division Offices and LGU Local School Boards |
+| **Action** | Prioritize classroom provision and teacher allocation |
+| **Wider resource context** | Public schools, classrooms, and teachers |
+| **Purpose** | Address capacity pressure in relation to enrollment need |
+| **Education scope** | Public basic education, Kinder to Grade 12 (D-003) |
+| **Unit of analysis** | City or municipality |
+| **Decision boundary** | ReachED organizes evidence for prioritization and local validation. Planners decide the response and the amount to provide or allocate. |
+
+## Business problem
+
+Local education planners need a consistent way to identify where public-school enrollment places the greatest pressure on classroom and teacher capacity. A raw national total does not show which locations warrant attention, while a rank without context can make unlike local government units appear directly comparable.
+
+Enrollment is **observed demand**: learners enrolled in public schools located in an LGU. It does not include every school-age resident, identify learner residence, or by itself establish how many classrooms or teachers must be added. The analysis therefore supports prioritization and validation rather than prescribing a final intervention.
+
+## Business question
+
+> **How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?**
+
+In this question, “cities” means cities and municipalities, the same unit the analytical questions use. The approved wording is kept as it is.
+
+## Analytical questions
+
+1. **Which cities and municipalities have fewer public schools relative to their number of enrolled students and total population?**
+2. **Which cities and municipalities have the most public-school students per classroom?**
+3. **Which cities and municipalities have the most public-school students per teacher?**
+4. **Which cities and municipalities have the largest gap between school-age population and student enrollment over time?**
+
+### How the analytical questions support the decision
+
+| Question | Role in the business decision | Primary output |
+|---|---|---|
+| **AP1 · Schools** | Supporting context on the availability of public schools; it does not independently recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
+| **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
+| **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
+| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Population aged 5–17 minus enrollment in all sectors, for 2020 and 2024, and the change between them; the public-school share is shown beside it |
+
+```mermaid
+flowchart LR
+    AP1["AP1 · School provision context"] --> E["LGU evidence"]
+    AP2["AP2 · Classroom pressure"] --> C["Classroom priority view"]
+    AP3["AP3 · Teacher pressure"] --> T["Teacher priority view"]
+    AP4["AP4 · Enrollment-need context"] --> E
+    E --> C
+    E --> T
+    M["Comparison framework<br/>official benchmark · peer · national"] --> C
+    M --> T
+    C --> R["Planner validation and response decision"]
+    T --> R
+```
+
+Classroom and teacher priorities remain separate. A city or municipality may show classroom pressure without teacher pressure, or the reverse. A combined score is not part of the approved question and requires a later decision on weights and interpretation.
+
+## Analytical boundaries
+
+- **Public-school scope:** the classroom and personnel sources cover public schools, so AP1 to AP3 use public-school enrollment.
+- **AP4 enrollment scope:** AP4 compares all school-age residents with all enrolled learners, so it counts enrollment in every sector (public, private, and SUC/LUC) except Philippine Schools Overseas, and shows the public-school share beside it.
+- **AP4 "over time" means two matched points:** the 2020 Census with SY 2020-21 enrollment, and the 2024 Census with SY 2024-25 enrollment. School years without a census in the same year have no AP4 value; nothing is interpolated or projected.
+- **School location is not learner residence:** enrollment is assigned to the LGU where the school is located. Cross-boundary attendance can affect every result.
+- **AP1 is context, not a construction recommendation:** fewer schools per learner or resident does not establish that a new school should be built.
+- **AP2 and AP3 require matched coverage:** missing classroom or personnel values remain missing, not zero, and must be reported with coverage.
+- **AP4 is not an out-of-school count:** population is counted where people live, while enrollment is counted where the school is. The difference can include cross-boundary attendance, learners outside ages 5–17, and non-enrollment, and it can be negative where a city or municipality enrolls learners from neighboring areas.
+- **Comparison is not an adequacy claim:** peer and national distributions are descriptive. Only a cited standard that matches the metric's definition, level, and period may be called an official benchmark.
+- **Planners make the response decision:** the evidence can lead to provision, reallocation, further investigation, another operational action, or no action.
+
+## Implementation boundary
+
+This document fixes the approved business and analytical meaning; it does not approve formulas or dashboard fields. The separate [metric and dashboard specification](metric-specification.md) owns candidate calculations, required columns, comparison rules, validation status, and unresolved choices. The [dataset use map](dataset-use-map.md) owns source routing and source gaps.
+
+Follow-on workstreams use those contracts as follows:
+
+- the **data model** defines facts, dimensions, grains, and reference structures;
+- the **ERD** defines business entities and their relationships;
+- the **analytics layer** implements only metrics marked ready in the metric specification and tests their exact behavior;
+- the **dashboard** presents only approved outputs, with their coverage and limitations.
