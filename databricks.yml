@@ -956,7 +956,7 @@ resources:
         ORDER BY source_id
       custom_summary: "edu_access_pipeline: {{ALERT_STATUS}}, a source may be stale"
       custom_description: |-
-        These sources' latest succeeded batch is older than its limit in config/freshness.yml. Check the publisher for a newer release:
+        These sources' latest succeeded batch is older than its limit in config/freshness.yml, or they have no succeeded batch yet. For an old batch, check the publisher for a newer release; for no batch, check that the source was loaded:
 
         {{QUERY_RESULT_TABLE}}
 
