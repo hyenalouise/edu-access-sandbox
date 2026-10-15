@@ -13,6 +13,17 @@
       "owner": "hyenalouise"
     },
     {
+      "source_id": "deped_enrollment_psgc",
+      "name": "DepEd school-level enrollment with PSGC and coordinates",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "Learner Information System (LIS); coordinates from NSBI",
+      "acquisition": "Email request to DepEd Planning Service, EMISD",
+      "format": "xlsx (one sheet)",
+      "school_years_acquired": ["2023-24"],
+      "owner": "maeveylain"
+    },
+    {
       "source_id": "deped_facilities",
       "name": "DepEd school facilities",
       "publisher": "Department of Education (DepEd)",
