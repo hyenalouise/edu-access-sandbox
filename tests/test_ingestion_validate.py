@@ -79,6 +79,8 @@ def test_contract_matches_the_source_card_row_by_row(repo_root, path):
         return _workbook_matches_the_card(config, lines)
     if config.get("format") == "xlsx_table":
         return _workbook_table_matches_the_card(config, lines)
+    if config.get("format") == "xlsx_report":
+        return _workbook_report_matches_the_card(config, lines)
     for d in config["deliveries"]:
         archive_rows = [line for line in lines if d["archive_sha256"] in line]
         assert len(archive_rows) == 1, f"{d['archive']}: its checksum must be on exactly one card row"
@@ -119,6 +121,19 @@ def _workbook_table_matches_the_card(config, lines):
         assert f"`{d['workbook']}`" in rows[0], f"{d['workbook']}: checksum is on another file's row"
         assert f"{d['row_count']:,}" in rows[0], f"{d['workbook']}: row count {d['row_count']:,} is not on its card row"
         assert d["range"] in rows[0], f"{d['workbook']}: range {d['range']} is not on its card row"
+
+
+def _workbook_report_matches_the_card(config, lines):
+    """An xlsx_report workbook (DepEd EMISD): name, checksum, sheet, range, and every row-kind count on one card row."""
+    for d in config["deliveries"]:
+        rows = [line for line in lines if d["workbook_sha256"] in line]
+        assert len(rows) == 1, f"{d['workbook']}: its checksum must be on exactly one card row"
+        row = rows[0]
+        assert f"`{d['workbook']}`" in row, f"{d['workbook']}: checksum is on another file's row"
+        assert f"`{d['sheet']}`" in row, f"{d['workbook']}: sheet {d['sheet']!r} is not on its card row"
+        assert f"range {d['range']}" in row, f"{d['workbook']}: range {d['range']} is not on its card row"
+        for label in ("row_count", "unit_rows", "blank_rows", "no_identifier_rows"):
+            assert f"{d[label]:,}" in row, f"{d['workbook']}: {label} {d[label]:,} is not on its card row"
 
 
 def test_v2_adds_columns_without_reordering_v1():

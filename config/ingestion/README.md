@@ -93,6 +93,24 @@ Each approved workbook pins:
 
 To approve a new quarter, follow the PSGC runbook in [docs/operations/ingestion.md](../../docs/operations/ingestion.md#runbook-psgc). `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, row count and range sit on one row of the source card.
 
+## Report-style workbook contracts (`format: xlsx_report`)
+
+`deped_enrollment_psgc.json` describes one xlsx workbook per school year whose data sheet is laid out as a report: title rows, a grade and sex band, then the header in row 8 (#152). The rules are in `src/ingestion/xlsx_report.py`.
+
+| Field | Meaning |
+|---|---|
+| `format` | `xlsx_report` |
+| `workbook_pattern` | Publisher file name with named groups `start` and `end`, the two years of the school year, e.g. `SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx`. Searched for under `landing_dir` at any depth |
+| `data_sheet`, `expected_sheets` | As for `xlsx_table`: a sheet not in the list stops the batch |
+| `header_row` | The row holding the column names (8). Rows above it are not loaded; rows below it are, every one |
+| `period_cell` | The title cell that states the school year and its pattern (`A2`, `SY 2023-2024`). Its school year must equal the file name's and the approval's |
+| `identifier_column`, `identifier_pattern` | The school ID and its expected pattern (`^[0-9]{6}$`). A row with no identifier is kind `no_identifier`; a row with no cells is `blank`; the rest are `unit` |
+| `profiled` | Counts the profile found, each PASS at its count and WARN when it changes, never FAIL: `identifier_format` (IDs not matching the pattern), `identifier_duplicates`, `duplicate_rows`, `error_cells` (`#N/A`), `mojibake_cells` (DepEd's `Ã‘`) |
+| `schema_versions` | `columns` (snake_case Bronze names) and `source_headers` (the exact header cells, line breaks and trailing spaces included), in the same order. Two columns may share a header; they get distinct Bronze names by position |
+| `quality_checks` | As for `xlsx_table`, counted on `unit` rows only, plus `matches` (a regular expression, e.g. a 9-digit code that lost its leading zero) |
+
+Each approved workbook pins `school_year`, `delivery_version`, `supersedes`, `workbook`, `workbook_sha256`, `sheet`, `range` (down to `header_row` plus `row_count` rows), `schema_version`, `title_cells` (every title cell the team read, as exact text; a changed note stops the batch), `row_count` and its split into `unit_rows`, `blank_rows` and `no_identifier_rows` (Bronze reconciles each), and `retrieved_at_utc`. `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, sheet, range and every row count sit on one row of the source card.
+
 ## GeoJSON contracts (`"format": "geojson_features"`)
 
 `hdx_boundaries.json` describes one GeoJSON FeatureCollection per delivery, not zipped (D-026). It uses the same fields as a zip contract, with these differences:

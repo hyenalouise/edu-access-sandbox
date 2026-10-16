@@ -14,6 +14,7 @@ without pretending that the business problem or analytical questions are final.
 | PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
 | PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
+| DepEd EMISD enrollment with PSGC and coordinates | `deped_enrollment_psgc_raw` | not named yet (its Silver issue, #137) | not named yet |
 
 Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
 the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).

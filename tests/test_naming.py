@@ -42,27 +42,32 @@ def test_known_source_table_names_are_registered(repo_root):
         "psa_psgc",
         "psa_poverty_stat",
         "hdx_boundaries",
+        "deped_enrollment_psgc",
     ]
 
     for number, source in enumerate(sources, start=1):
         bronze = source["bronze"]
-        silver = source["silver"]
+        # A source may be registered before its Silver names are settled; then it has no silver entry,
+        # and it cannot have a Silver mapping either (checked below).
+        silver = source.get("silver")
         assert bronze["table"].endswith("_raw")
-        assert silver["table"].endswith("_clean")
-        assert silver["quarantine_table"].endswith("_quarantine")
-        assert silver["candidate_table"] == silver["table"] + "_candidate"
-        assert silver["candidate_quarantine_table"] == silver["quarantine_table"] + "_candidate"
         assert SQL_FILE.fullmatch(bronze["create_file"])
-        assert SQL_FILE.fullmatch(silver["clean_file"])
         prefix = f"{number:02d}_"
         assert bronze["create_file"].startswith(prefix + "create_")
-        assert silver["clean_file"].startswith(prefix + "clean_")
-        for layer in (bronze, silver):
-            assert SQL_FILE.fullmatch(layer["validate_file"])
+        assert SQL_FILE.fullmatch(bronze["validate_file"])
+        if silver is not None:
+            assert silver["table"].endswith("_clean")
+            assert silver["quarantine_table"].endswith("_quarantine")
+            assert silver["candidate_table"] == silver["table"] + "_candidate"
+            assert silver["candidate_quarantine_table"] == silver["quarantine_table"] + "_candidate"
+            assert SQL_FILE.fullmatch(silver["clean_file"])
+            assert silver["clean_file"].startswith(prefix + "clean_")
+            assert SQL_FILE.fullmatch(silver["validate_file"])
 
         if (repo_root / "config" / "ingestion" / f"{source['source_id']}.json").is_file():
             assert (repo_root / "etl" / "02_bronze" / bronze["create_file"]).is_file()
         if (repo_root / "config" / "mappings" / f"{source['source_id']}.json").is_file():
+            assert silver is not None, f"{source['source_id']} has a Silver mapping but no silver entry"
             assert (repo_root / "etl" / "03_silver" / silver["clean_file"]).is_file()
 
 
