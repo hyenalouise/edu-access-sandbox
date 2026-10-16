@@ -70,6 +70,24 @@ These are working names only:
 | `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed. Gold and Analytics names remain deferred
-until the business problem, analytical questions, measures, and grains are
-approved.
+and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
+in [`docs/architecture/data-model.md`](../architecture/data-model.md). They
+remain design-only until the team and mentor approve the ERD and Integration
+prerequisite #44 is ready. Analytics names remain deferred until the metric
+contract is approved.
+
+## Proposed Gold names
+
+| Table | Grain |
+|---|---|
+| `dim_city_municipality` | One PSGC city or municipality, plus technical members |
+| `dim_barangay` | One PSGC barangay, plus technical members |
+| `dim_school` | One DepEd school |
+| `dim_school_year` | One school year |
+| `dim_education_level` | One education reporting level: ES, JHS, or SHS |
+| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context |
+| `fact_school_enrollment` | School x school year x education level |
+| `fact_school_classroom_capacity` | School x school year |
+| `fact_school_teacher_capacity` | School x school year x education level |
+| `fact_city_population` | City or municipality x reference year |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
