@@ -40,7 +40,7 @@ official download ─▶ 00-source volume ─▶ checksum + approved contract �
                                       runs, batches, attempts, data-quality results, current_batches
 ```
 
-Four delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd, `zip_csv`), a workbook sheet covering several estimate years (`psa_poverty_stat`, `xlsx_sheet`, D-018), an xlsx workbook per publication quarter (`psa_psgc`, `xlsx_table`, D-019), and one GeoJSON file per boundary edition (`hdx_boundaries`, `geojson_features`, D-026). Only discovery, the period, and how a file is read and checked differ.
+Five delivery formats share this flow, chosen by the source's contract: a zip with one CSV per school year (DepEd, `zip_csv`), a workbook sheet covering several estimate years (`psa_poverty_stat`, `xlsx_sheet`, D-018), an xlsx workbook per publication quarter (`psa_psgc`, `xlsx_table`, D-019), a report-style workbook per school year with title rows above the header (`deped_enrollment_psgc`, `xlsx_report`, #152), and one GeoJSON file per boundary edition (`hdx_boundaries`, `geojson_features`, D-026). Only discovery, the period, and how a file is read and checked differ.
 
 Built, Bronze to Silver ([Silver](../operations/silver.md)), and run on Databricks `dev` for DepEd enrollment:
 

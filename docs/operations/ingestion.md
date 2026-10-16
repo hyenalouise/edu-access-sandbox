@@ -1312,3 +1312,91 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 | Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-026 |
 | Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
 | Does `hdx_boundaries` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+
+## DepEd EMISD workbook (xlsx_report)
+
+`deped_enrollment_psgc` loads through the same pipeline, from its own contract, [`config/ingestion/deped_enrollment_psgc.json`](../../config/ingestion/deped_enrollment_psgc.json) (`format: xlsx_report`). What differs is in [`src/ingestion/xlsx_report.py`](../../src/ingestion/xlsx_report.py): the header is in row 8, below title rows that state the school year and the basis of the PSGC codes and coordinates; the period is a school year; every row below the header is kept with its kind. Issue #152; the pipeline use is #137 (option B: a `school_id` to PSGC crosswalk, not a second enrollment table).
+
+**Status:** built and tested locally with made-up workbooks (`tests/test_ingestion_report.py`), and loaded locally from the real SY 2023-24 workbook: 60,285 rows, every count equal to the source card and the profile, 0 FAIL, then a skip ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-local-idempotency.md)). **Verified on Databricks `dev`** on 2026-10-16 at commit `a769301`: 60,285 rows loaded (60,275 `unit`, 9 `blank`, 1 `no_identifier`), 41 checks all PASS, then a skip with Bronze unchanged ([evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-databricks-idempotency.md)). Bronze only: no Silver task exists yet. The source stays `profiled`.
+
+### The flow (EMISD)
+
+```
+DepEd EMISD, by email request              (not published online; one workbook per request)
+   │  save the attachment as received; never rename, open-and-save, or convert; keep the email as PDF beside it
+   ▼
+00 Source   /Volumes/edu_access/00-source/raw/deped/[<received date>/]SY <yyyy>-<yyyy> School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx
+   │  discover SY *-* School Level Data …xlsx → SHA-256 → approved?   (config/ingestion/deped_enrollment_psgc.json)
+   ▼
+   │  open safely → sheet DB → approved title cells exactly → school year from the name = cell A2 = approval
+   │  → exact header in row 8 = a schema version → every row 9..last as stored text, with its kind → checks
+01 Control  pipeline_runs · ingestion_batches · ingestion_batch_attempts · data_quality_results
+   │  MERGE → reconcile (rows, and rows per kind) → succeeded → Bronze gate
+   ▼
+02 Bronze   edu_access.`02-bronze`.deped_enrollment_psgc_raw    (every school year, every version, text, with provenance)
+```
+
+### The nine questions, for `deped_enrollment_psgc`
+
+| Question | Answer |
+|---|---|
+| What should be ingested? | Every row of sheet `DB` below the header: SY 2023-24 is `A1:CJ60293`, header row 8, then 60,285 rows: 60,275 schools (`unit`), 9 blank rows and 1 row of `#N/A` with no school ID (`no_identifier`, row 60176), all 88 columns. Rows 1-7 (titles, the grade and sex band) are checked, not loaded |
+| How often does it arrive? | Only when the team requests it from EMISD. No schedule; the freshness limit is DepEd's yearly 400 days |
+| What identifies a new delivery? | A workbook SHA-256 not seen before. Its school year comes from the file name (`SY 2023-2024 …` is `2023-24`) and must equal cell A2 and the approved entry |
+| What indicates that an existing delivery changed? | The same file name with a different SHA-256, or a title cell that differs from the approval (`title_changed`): a new note on the PSGC basis or the coordinate date is a different delivery |
+| Has this exact file already been processed? | `ingestion_batches.status = 'succeeded'` for its SHA-256. The next run records a `skip` |
+| Does the team need to retain previous versions? | Yes. A revised workbook (for example with fewer `#N/A` coordinates, which EMISD was asked about in #137) is `delivery_version: 2`; both stay in Bronze (D-015) |
+| Is the delivery valid? | The checks under [EMISD validation](#emisd-validation) |
+| Can the ingestion be safely rerun? | Yes: a succeeded workbook is skipped; a forced rerun inserts nothing; an interrupted or failed one is retried and the MERGE adds only missing rows |
+| Where did every resulting row come from? | `source_file`, `source_sha256`, `source_sheet`, `source_row_number` (the Excel row), `source_row_kind` and `school_year`, joined by `batch_id` and `run_id` to the control tables, with `code_revision` for the code |
+
+### Identity (EMISD)
+
+| Level | Identified by |
+|---|---|
+| Delivery (batch) | Workbook SHA-256; `batch_id` = `deped_enrollment_psgc__<school year>__<sha256[:12]>`, e.g. `deped_enrollment_psgc__2023-24__746d69530d22` |
+| Logical period | `source_id` + school year + `delivery_version` |
+| Bronze row | `source_sha256` + `source_row_number` (the Excel row, 9 to 60,293). Never the school ID: it repeats once in the file (profile O-3), and both rows are kept |
+| Schema | `schema_version` + `schema_fingerprint` (SHA-256 of the exact header cells, line breaks and trailing spaces included) |
+
+### EMISD validation
+
+Refused before any row is read (the batch stops): an unknown or changed file, an unsafe workbook (the shared opener's checks), a sheet other than `DB`, a title cell that differs from the approval, a school year that disagrees between the name, cell A2 and the approval, and a header that is not a known schema version.
+
+Recorded per batch: FAIL (blocks) when the row count, the range, or any row-kind count differs from the approval, or a required column is missing. PASS at the profiled count and WARN when it changes, never FAIL, for each known characteristic: school IDs not 6 digits (1), repeated school IDs (1), fully repeated rows (1), `#N/A` cells (34,904), mojibake (280), formulas (0), and the twelve `quality_checks` of the contract (9-digit PSGC codes, `#N/A` and blank codes and coordinates, `(0, 0)` longitudes, `1St`, `-`; profile O-2 to O-13). Nothing is padded, trimmed, typed or dropped: those are Silver's rules.
+
+### Running locally (EMISD)
+
+From Git Bash, with `RAW_DATA_DIR` set to the folder that holds `deped/` (the workbook may sit in `deped/` or any folder under it):
+
+```bash
+python -m src.ingestion.cli ingest --source deped_enrollment_psgc --db local_state/emisd.duckdb
+```
+
+```bash
+python -m src.ingestion.cli status --source deped_enrollment_psgc --db local_state/emisd.duckdb
+```
+
+Reading the 162 MB sheet takes about two minutes locally.
+
+### Runbook (EMISD)
+
+**1. How do I add a new workbook from EMISD?**
+Approve first, upload last. The lane searches `raw/deped/` at every depth, so a workbook there that the contract does not approve is `blocked` (`unregistered_delivery`) and fails the shared job for everyone.
+
+1. Save the attachment unchanged and the email as PDF, in your local `RAW_DATA_DIR/deped/original/` only.
+2. Profile the workbook locally (`analysis/profiling/profile_deped_enrollment_psgc.py`, with its name and checksum) and update the card.
+3. Add the delivery to the contract in a pull request: `school_year`, `delivery_version` and `supersedes`, `workbook` and its checksum, `sheet`, `range`, `schema_version`, every `title_cells` value as read, the four row counts, and `retrieved_at_utc` (the email's time). If the header changed, add a schema version and regenerate the SQL (`cli ddl`, `cli gate`). Load it locally before review.
+4. Only after that pull request is merged, upload the workbook and the email PDF to `raw/deped/<received date>/` (never over an existing file), then run the job.
+
+**2. What if EMISD sends a corrected SY 2023-24 file?**
+Follow step 1 and approve it as `delivery_version: 2` with `supersedes` set to v1's checksum; upload it only after that merges. Both stay in Bronze; `current_batches` makes v2 current.
+
+**3. How do I inspect a failed batch, rerun, and prove no duplicates?**
+As for the other sources ([Runbook](#runbook)): the batch and check queries with `source_id = 'deped_enrollment_psgc'`; fix and run again; run twice and see `load` then `skip`, with 60,285 rows and 0 duplicate `(source_sha256, source_row_number)` pairs.
+
+### Limitations (EMISD)
+
+- Verified on made-up workbooks, on the real file locally (DuckDB), and on Databricks `dev` (2026-10-16). Not yet run from `main`.
+- Bronze keeps the `#N/A` and blank rows and the 108 appended schools as received; deciding what Silver keeps for the crosswalk is the Silver issue's job (#137).
+- The workbook's licensing is unverified (source card).
