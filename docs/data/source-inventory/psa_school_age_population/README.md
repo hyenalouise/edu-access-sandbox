@@ -32,7 +32,7 @@ Raw files are kept in raw storage, never in git. Record exactly what arrived.
 | PSA email of 2026-10-15 replying to the team's request of 2026-10-13 | none (email) | not yet saved with the raw files | Publisher office, acquisition channel, census sources, terms ("for your academic research"), DHSD referral |
 | Sheet titles, column bands, ages, source lines, and the 2024 notes inside the workbooks | in the files above | as above | Population concept, geographic levels, census, boundary changes (2024 notes 1/ to 8/, a/) |
 
-No technical notes came with the files. Census reference dates and the age definition are asked in the profile.
+No technical notes came with the files. The census reference dates (May 1, 2020 and July 1, 2024) are recorded under Time basis; the age definition is asked in the profile (S-2).
 
 ## Coverage
 

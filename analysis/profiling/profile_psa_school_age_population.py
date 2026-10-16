@@ -350,7 +350,7 @@ show("O-8", "national males per 100 females, ages 5-17, total population: " + fm
 # %% S-1 to S-3 Suspected findings
 show("S-1", "the 2020 Interim Province units and the 2024 Special Geographic Area municipalities are listed under O-7; "
      "whether they cover the same barangays needs PSA or the PSGC barangay list (no query here)")
-show("S-2", "census reference dates and the age definition are not stated in the files: documentary, ask PSA (no query)")
+show("S-2", "census reference dates are recorded in the dataset use map; the age definition is not stated in the files: documentary, ask PSA (no query)")
 show("S-3", "Kalayaan (Palawan), both sexes, ages 5-24, total / household: " + "; ".join(
     f"{y}: {t:,} / {h:,}" for y, t, h in q("""SELECT year, sum(value) FILTER (WHERE concept = 'total'),
         sum(value) FILTER (WHERE concept = 'household') FROM p WHERE label = 'KALAYAAN' AND province = 'PALAWAN' AND sex = 'both' GROUP BY 1 ORDER BY 1""")))
@@ -372,7 +372,8 @@ else:
 
     def csv_key(label):
         dots = len(label) - len(label.lstrip("."))
-        return {0: 0, 2: 1, 4: 2}.get(dots), clean(label.lstrip(".").replace("*", ""))
+        name = clean(label.lstrip(".").replace("*", ""))
+        return {0: 0, 2: 1, 4: 2}.get(dots), re.sub(r"\s+\d+$", "", name)  # a bare footnote digit, as in "Special Geographic Area 8"
 
     theirs = {}
     for r in age_group:
@@ -385,6 +386,22 @@ else:
             GROUP BY ALL"""):
         band = {5: "5 - 9", 10: "10 - 14", 15: "15 - 19", 20: "20 - 24"}[lo]
         mine.setdefault((depth, clean(label), band), {})[sex] = v
+
+    # Province or HUC labels that differ only in spelling: the CSV has U+FFFD where this file has Ñ
+    # (Las Piñas, Parañaque; psa_population_per_age_group O-10), and the 2024 name Samar where this
+    # file keeps Western Samar (PSGC old name). Each pairing is printed so it can be checked.
+    RENAMED = {"WESTERN SAMAR": "SAMAR"}
+    for depth in (1, 2):
+        ours_left = sorted({k[1] for k in mine if k[0] == depth} - {k[1] for k in theirs if k[0] == depth})
+        theirs_left = sorted({k[1] for k in theirs if k[0] == depth} - {k[1] for k in mine if k[0] == depth})
+        for name in ours_left:
+            match = [t for t in theirs_left if t == RENAMED.get(name)
+                     or ("\ufffd" in t and re.fullmatch(re.escape(t).replace("\ufffd", "."), name))]
+            if len(match) == 1:
+                show("X-1", f"paired by label rule: {name} = CSV {match[0]!a}")
+                for band in bands:
+                    if (depth, match[0], band) in theirs:
+                        theirs[(depth, name, band)] = theirs.pop((depth, match[0], band))
     for depth, level in ((0, "national"), (1, "region"), (2, "province or HUC")):
         ours = {k for k in mine if k[0] == depth}
         paired = ours & set(theirs)
