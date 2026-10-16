@@ -1,0 +1,247 @@
+{
+  "source_id": "psa_school_age_population",
+  "format": "xlsx_census",
+  "bronze_table": "psa_school_age_population_raw",
+  "landing_dir": "psa",
+  "workbook_pattern": "^(?P<year>[0-9]{4}) School-Age Population by Single Year Age, Sex, and City Municipality\\.xlsx$",
+  "max_uncompressed_bytes": 100000000,
+  "sheet_suffixes": {
+    "total": "Total Pop",
+    "household": "Household Pop"
+  },
+  "notes_marker": "Notes:",
+  "source_prefix": "Source",
+  "schema_versions": {
+    "v1": {
+      "note": "2020 wide layout, profiled 2026-10-16 (profile.md O-1): place label in column A, then Both Sexes, Male and Female bands in row 2, each over ages 5-24 in row 3 (columns B to BI), one row per place.",
+      "layout": "wide",
+      "band_row": 2,
+      "bands": {
+        "B": "Both Sexes",
+        "V": "Male",
+        "AP": "Female"
+      },
+      "age_row": 3,
+      "ages": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "columns": [
+        "label",
+        "both_sexes_age_5",
+        "both_sexes_age_6",
+        "both_sexes_age_7",
+        "both_sexes_age_8",
+        "both_sexes_age_9",
+        "both_sexes_age_10",
+        "both_sexes_age_11",
+        "both_sexes_age_12",
+        "both_sexes_age_13",
+        "both_sexes_age_14",
+        "both_sexes_age_15",
+        "both_sexes_age_16",
+        "both_sexes_age_17",
+        "both_sexes_age_18",
+        "both_sexes_age_19",
+        "both_sexes_age_20",
+        "both_sexes_age_21",
+        "both_sexes_age_22",
+        "both_sexes_age_23",
+        "both_sexes_age_24",
+        "male_age_5",
+        "male_age_6",
+        "male_age_7",
+        "male_age_8",
+        "male_age_9",
+        "male_age_10",
+        "male_age_11",
+        "male_age_12",
+        "male_age_13",
+        "male_age_14",
+        "male_age_15",
+        "male_age_16",
+        "male_age_17",
+        "male_age_18",
+        "male_age_19",
+        "male_age_20",
+        "male_age_21",
+        "male_age_22",
+        "male_age_23",
+        "male_age_24",
+        "female_age_5",
+        "female_age_6",
+        "female_age_7",
+        "female_age_8",
+        "female_age_9",
+        "female_age_10",
+        "female_age_11",
+        "female_age_12",
+        "female_age_13",
+        "female_age_14",
+        "female_age_15",
+        "female_age_16",
+        "female_age_17",
+        "female_age_18",
+        "female_age_19",
+        "female_age_20",
+        "female_age_21",
+        "female_age_22",
+        "female_age_23",
+        "female_age_24"
+      ]
+    },
+    "v2": {
+      "note": "2024 long layout, profiled 2026-10-16 (profile.md O-1): 'Single Year Age' band in row 2 over ages 5-24 in row 3 (columns B to U); a place row with no values, then Total, Male and Female rows.",
+      "layout": "long",
+      "band_row": 2,
+      "bands": {
+        "B": "Single Year Age"
+      },
+      "age_row": 3,
+      "ages": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "sex_labels": {
+        "Total": "sex_total",
+        "Male": "sex_male",
+        "Female": "sex_female"
+      },
+      "columns": [
+        "label",
+        "age_5",
+        "age_6",
+        "age_7",
+        "age_8",
+        "age_9",
+        "age_10",
+        "age_11",
+        "age_12",
+        "age_13",
+        "age_14",
+        "age_15",
+        "age_16",
+        "age_17",
+        "age_18",
+        "age_19",
+        "age_20",
+        "age_21",
+        "age_22",
+        "age_23",
+        "age_24"
+      ]
+    }
+  },
+  "known_issues": [
+    {
+      "name": "place_label_footnote_marker",
+      "check": "place_label_footnote_marker",
+      "finding": "O-6",
+      "profiled": {
+        "2024 Total Pop": 11,
+        "2024 Household Pop": 10
+      }
+    },
+    {
+      "name": "source_line_misspelled",
+      "check": "source_line_contains",
+      "value": "Stataistics",
+      "finding": "O-1",
+      "profiled": {
+        "2020 Total Pop": 1,
+        "2020 Household Pop": 1
+      }
+    },
+    {
+      "name": "title_names_only_city_municipality",
+      "check": "title_lacks",
+      "value": "Province",
+      "finding": "O-1",
+      "profiled": {
+        "2024 Household Pop": 1
+      }
+    }
+  ],
+  "deliveries": [
+    {
+      "logical_dataset": "school_age_population_2020",
+      "census_year": "2020",
+      "delivery_version": 1,
+      "supersedes": null,
+      "workbook": "2020 School-Age Population by Single Year Age, Sex, and City Municipality.xlsx",
+      "workbook_sha256": "e40d71839b951926cd3c9515c1edafbb6a2121f734670716e3b21bd3f9dcd35f",
+      "schema_version": "v1",
+      "sheets": [
+        {
+          "sheet": "2020 Total Pop",
+          "place_rows": 1742,
+          "sheet_rows": null
+        },
+        {
+          "sheet": "2020 Household Pop",
+          "place_rows": 1742,
+          "sheet_rows": null
+        }
+      ],
+      "retrieved_at_utc": "2026-10-15T02:07:00Z"
+    },
+    {
+      "logical_dataset": "school_age_population_2024",
+      "census_year": "2024",
+      "delivery_version": 1,
+      "supersedes": null,
+      "workbook": "2024 School-Age Population by Single Year Age, Sex, and City Municipality.xlsx",
+      "workbook_sha256": "49d15bb0cdd191cd6aef4a14f4b063da247ba791b32caa653c37c464dff15954",
+      "schema_version": "v2",
+      "sheets": [
+        {
+          "sheet": "2024 Total Pop",
+          "place_rows": 1744,
+          "sheet_rows": null
+        },
+        {
+          "sheet": "2024 Household Pop",
+          "place_rows": 1744,
+          "sheet_rows": null
+        }
+      ],
+      "retrieved_at_utc": "2026-10-15T02:07:00Z"
+    }
+  ]
+}

@@ -34,7 +34,7 @@ resources:
     edu_access_pipeline:
       name: edu_access_pipeline
       description: >-
-        Validates and ingests six approved education and geography sources
+        Validates and ingests eight approved education and geography sources
         through Bronze and Silver. Implemented Integration tasks run after the
         source fan-in; remaining Integration, Gold, and Analytics placeholders
         stay visible but disabled.
@@ -585,6 +585,52 @@ resources:
           sql_task:
             file:
               path: etl/02_bronze/90_validate_deped_enrollment_psgc_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        # 08 - PSA school-age population (Bronze only until its Silver issue)
+        - task_key: 08_create_psa_school_age_population_raw
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/08_create_psa_school_age_population_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: bronze_psa_school_age_population
+          depends_on:
+            - task_key: 08_create_psa_school_age_population_raw
+          run_if: ALL_SUCCESS
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --no-gate
+              - --no-setup
+              - --backend
+              - spark
+              - --source
+              - psa_school_age_population
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
+
+        - task_key: 90_validate_psa_school_age_population_raw
+          depends_on:
+            - task_key: bronze_psa_school_age_population
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/90_validate_psa_school_age_population_raw.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
 

@@ -36,3 +36,6 @@ sources:
   hdx_boundaries:
     max_age_days: 395
     basis: Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)
+  psa_school_age_population:
+    max_age_days: 1856
+    basis: Census years only (2020 CPH, 2024 POPCEN), received from PSA on request (2026-10-15); PSA counts the population about every five years, so five years plus a month
