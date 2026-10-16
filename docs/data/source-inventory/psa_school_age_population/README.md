@@ -1,8 +1,8 @@
-﻿# psa_school_age_population: PSA population aged 5-24 by single-year age, sex and city/municipality
+# psa_school_age_population: PSA population aged 5-24 by single-year age, sex and city/municipality
 
 **Status:** profiled
 
-Issue: #154. The team's school-age population reference: the only source found with population by single year of age at city and municipality level, for the 2020 and 2024 censuses. It complements [psa_population_per_age_group](../psa_population_per_age_group/README.md), which stops at province or highly urbanized city and uses five-year bands.
+Issue: #154. The team's school-age population reference: the only source found with population by single year of age at city and municipality level, for the 2020 and 2024 censuses. It is the population side of AP4 (D-042): population aged 5-17, total population, both sexes, at the 2020 and 2024 censuses. It complements [psa_population_per_age_group](../psa_population_per_age_group/README.md), which stops at province or highly urbanized city and uses five-year bands.
 
 ## Identity
 
@@ -41,7 +41,7 @@ No technical notes came with the files. Census reference dates and the age defin
 | Geographic coverage | Philippines |
 | Geographic level | Country, region, province (and, for highly urbanized and independent cities and NCR, the city directly under its region), and city or municipality: 1,642 cities and municipalities in each year (O-2) |
 | Time coverage | Two censuses: 2020 and 2024 |
-| Time basis | Census reference dates; not stated in the files (asked) |
+| Time basis | Census reference dates: May 1, 2020 (2020 CPH) and July 1, 2024 (2024 POPCEN), as recorded in the [dataset use map](../../../business/dataset-use-map.md#school-age-population-source); not stated in the files themselves |
 | Update frequency | Census years; the next one is not scheduled in the files |
 | Population covered | Ages 5 to 24 only, by single year and sex. Two concepts on separate sheets: total population and household population (O-5) |
 
@@ -74,11 +74,11 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** report layouts, different in each year: 2020 wide, 2024 long with a place row followed by three sex rows (O-1).
 - **Observed:** no PSGC codes and no level column; levels are recovered from the sums, which close exactly in all four sheets (O-2).
 - **Observed:** names carry old names and `(Capital)` in brackets (176 labels in 2020, 48 in 2024) and, in 2024, footnote markers such as `1/` (O-6).
-- **Observed:** 77 cities and municipalities per year do not match the other year by name within province: Samar renamed Western Samar, Maguindanao split in two, 6 renames or spelling changes, and the 8 2020 Special Geographic Area "clusters" against the 8 municipalities created in 2024 (O-7).
+- **Observed:** 77 cities and municipalities per year do not match the other year by name within province: Samar renamed Western Samar, Maguindanao split in two, 7 renames or spelling changes, and the 8 2020 Special Geographic Area "clusters" against the 8 municipalities created in 2024 (O-7).
 - **Suspected:** the 8 2020 clusters are PSA's grouping of the Special Geographic Area barangays by former Cotabato town, not LGUs (S-1).
 
 ## Limitations for analysis
 
-- Census years only (2020, 2024). A 2023 value for SY 2023-24 is not in the source; anything computed for 2023 is the team's estimate, not a PSA statistic, until DHSD answers.
-- Total and household population are different concepts; never mix them, or this source with other population sources, in one ratio without saying which (O-5).
+- Census years only (2020, 2024). D-042 sets AP4 on exactly these two points, matched to SY 2020-21 and SY 2024-25, with no interpolation or extrapolation, so no other year is derived from this source.
+- Total and household population are different concepts; never mix them, or this source with other population sources, in one ratio without saying which (O-5). AP4 uses total population, both sexes (D-042).
 - No codes: every use needs a reviewed name match to PSGC (X-2), and the 2020 Special Geographic Area clusters cannot be matched one-to-one to the 2024 municipalities (O-7, S-1).

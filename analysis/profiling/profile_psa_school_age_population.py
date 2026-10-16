@@ -356,6 +356,8 @@ show("S-3", "Kalayaan (Palawan), both sexes, ages 5-24, total / household: " + "
         sum(value) FILTER (WHERE concept = 'household') FROM p WHERE label = 'KALAYAAN' AND province = 'PALAWAN' AND sex = 'both' GROUP BY 1 ORDER BY 1""")))
 
 # %% X-1 2024 household population against psa_population_per_age_group (five-year bands)
+# The CSV marks its levels with leading dots (none: country, 2: region, 4: province or HUC) and
+# keeps footnote markers in labels; places are paired by cleaned name within the same level.
 csv_path = ORIGINAL / AGE_GROUP_CSV[0]
 if not csv_path.exists() or sha256(csv_path) != AGE_GROUP_CSV[1]:
     show("X-1", f"skipped: {AGE_GROUP_CSV[0]} with the SHA-256 on the psa_population_per_age_group card is not in {ORIGINAL}")
@@ -366,20 +368,36 @@ else:
         header = next(reader)
         age_group = [dict(zip(header, r)) for r in reader]
     bands = {"5 - 9": (5, 9), "10 - 14": (10, 14), "15 - 19": (15, 19), "20 - 24": (20, 24)}
-    national = {r["Age Group"]: r for r in age_group if r["Geographic Location"] == "PHILIPPINES"}
-    parts = []
-    for band, (lo, hi) in bands.items():
-        mine = dict(q(f"""SELECT sex, sum(value) FROM p WHERE year = 2024 AND concept = 'household' AND depth = 0
-                          AND age BETWEEN {lo} AND {hi} GROUP BY 1"""))
-        theirs = national.get(band)
-        if theirs is None:
-            parts.append(f"{band}: no national row")
-            continue
-        same = all(int(theirs[c]) == mine[s] for c, s in (("Both Sexes", "both"), ("Male", "male"), ("Female", "female")))
-        parts.append(f"{band}: this file {mine['both']:,}, age-group CSV {int(theirs['Both Sexes']):,}, all three sexes equal {same}")
-    show("X-1", "national household population, 2024: " + "; ".join(parts))
+    sexes = (("Both Sexes", "both"), ("Male", "male"), ("Female", "female"))
 
-# %% X-2 2024 cities and municipalities against PSGC 2Q 2026 by name within province
+    def csv_key(label):
+        dots = len(label) - len(label.lstrip("."))
+        return {0: 0, 2: 1, 4: 2}.get(dots), clean(label.lstrip(".").replace("*", ""))
+
+    theirs = {}
+    for r in age_group:
+        if r["Age Group"] in bands:
+            depth, name = csv_key(r["Geographic Location"])
+            theirs[(depth, name, r["Age Group"])] = {s: int(r[c]) for c, s in sexes}
+    mine = {}
+    for depth, label, sex, lo, v in q("""SELECT depth, label, sex, CASE WHEN age <= 9 THEN 5 WHEN age <= 14 THEN 10
+            WHEN age <= 19 THEN 15 ELSE 20 END, sum(value) FROM p WHERE year = 2024 AND concept = 'household' AND depth <= 2
+            GROUP BY ALL"""):
+        band = {5: "5 - 9", 10: "10 - 14", 15: "15 - 19", 20: "20 - 24"}[lo]
+        mine.setdefault((depth, clean(label), band), {})[sex] = v
+    for depth, level in ((0, "national"), (1, "region"), (2, "province or HUC")):
+        ours = {k for k in mine if k[0] == depth}
+        paired = ours & set(theirs)
+        equal = sum(mine[k][s] == theirs[k][s] for k in paired for _, s in sexes)
+        show("X-1", f"{level}: places in this file {len(ours) // 4}, in the CSV {sum(1 for k in theirs if k[0] == depth) // 4}, "
+             f"paired by name {len(paired) // 4}; cells equal {equal:,} of {len(paired) * 3:,} (4 bands x 3 sexes)")
+        unpaired = sorted({k[1] for k in ours - set(theirs)})
+        if unpaired:
+            show("X-1", f"{level}: not paired by name: " + ", ".join(unpaired))
+    show("X-1", "national 5 - 9, both sexes: this file {:,}, CSV {:,}".format(
+        mine.get((0, "PHILIPPINES", "5 - 9"), {}).get("both", 0), theirs.get((0, "PHILIPPINES", "5 - 9"), {}).get("both", 0)))
+
+# %% X-2 cities and municipalities against PSGC 2Q 2026 by name within province, both census years
 psgc_path = ORIGINAL / PSGC_2Q2026[0]
 if not psgc_path.exists() or sha256(psgc_path) != PSGC_2Q2026[1]:
     show("X-2", f"skipped: {PSGC_2Q2026[0]} with the SHA-256 on the psa_psgc card is not in {ORIGINAL}")
@@ -390,12 +408,17 @@ else:
     for code, name, level in units:
         if level in ("City", "Mun"):
             psgc[(clean(name), clean(provinces.get(code[:5], "-")))].append(code)
-    show("X-2", f"PSGC 2Q 2026 cities and municipalities: {sum(len(v) for v in psgc.values()):,}; in this file (2024): {len(k24):,}")
-    hit = [k for k in k24 if len(psgc.get(k, [])) == 1]
-    show("X-2", f"matched exactly one PSGC unit by cleaned name and province: {len(hit):,}; none: {sum(k not in psgc for k in k24)}; "
-         f"more than one: {sum(len(psgc.get(k, [])) > 1 for k in k24)}")
-    show("X-2", "not matched: " + ", ".join(f"{k24[k][0]} ({k24[k][1]})" for k in sorted(k24) if k not in psgc))
-    # S-4: for the names that are neither Western Samar nor the Special Geographic Area, the PSGC
+    show("X-2", f"PSGC 2Q 2026 cities and municipalities: {sum(len(v) for v in psgc.values()):,}")
+    show("X-2", "PSGC 2Q 2026 provinces named Samar, Western Samar, Maguindanao, or Interim: " + (", ".join(
+        f"{code} {name}" for code, name, level in units if level == "Prov" and re.search(r"^(WESTERN )?SAMAR$|MAGUINDANAO|INTERIM", name.upper())) or "none"))
+    for year, keys in ((2020, k20), (2024, k24)):
+        hit = [k for k in keys if len(psgc.get(k, [])) == 1]
+        missed = [k for k in sorted(keys) if k not in psgc]
+        show("X-2", f"{year}: places {len(keys):,}; matched exactly one PSGC unit by cleaned name and province: {len(hit):,}; "
+             f"none: {len(missed)}; more than one: {sum(len(psgc.get(k, [])) > 1 for k in keys)}")
+        show("X-2", f"{year}: not matched, by parent: " + fmt(collections.Counter(keys[k][1] for k in missed).most_common()))
+        show("X-2", f"{year}: not matched: " + ", ".join(f"{keys[k][0]} ({keys[k][1]})" for k in missed))
+    # S-4: for the 2024 names that are neither Western Samar nor the Special Geographic Area, the PSGC
     # cities and municipalities of the same province, to see whether a respelling or rename explains them.
     for k in sorted(k24):
         if k in psgc or k[1] in ("WESTERN SAMAR", "SPECIAL GEOGRAPHIC AREA"):
