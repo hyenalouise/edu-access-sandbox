@@ -211,12 +211,12 @@
         {
           "sheet": "2020 Total Pop",
           "place_rows": 1742,
-          "sheet_rows": null
+          "sheet_rows": 1748
         },
         {
           "sheet": "2020 Household Pop",
           "place_rows": 1742,
-          "sheet_rows": null
+          "sheet_rows": 1748
         }
       ],
       "retrieved_at_utc": "2026-10-15T02:07:00Z"
@@ -233,12 +233,12 @@
         {
           "sheet": "2024 Total Pop",
           "place_rows": 1744,
-          "sheet_rows": null
+          "sheet_rows": 6994
         },
         {
           "sheet": "2024 Household Pop",
           "place_rows": 1744,
-          "sheet_rows": null
+          "sheet_rows": 6991
         }
       ],
       "retrieved_at_utc": "2026-10-15T02:07:00Z"
