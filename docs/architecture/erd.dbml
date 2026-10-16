@@ -1,52 +1,79 @@
-// ReachED ERD: business entities and their relationships (logical view; the Gold galaxy schema is in data-model.md).
+// ReachED ERD: business entities and their relationships (logical view).
+// Based on docs/architecture/data-model.md (#138), with agreed review changes.
+// erd.md maps each entity to its Gold table.
 // Source: https://dbdiagram.io/d/ReachED-ERD-6acf49c2aebfe7a21fe5f61c
 // When the diagram changes, copy its code here and update the Mermaid diagram in erd.md in the same pull request.
 
 Table city_municipality {
-  psgc_code varchar(10) [primary key, note: 'Official PSGC code, or the code of an unknown or excluded member']
-  member_type varchar(20) [not null, note: 'psgc, unknown, or excluded (Special Geographic Area schools, D-031)']
-  lgu_name varchar(150) [not null]
-  lgu_type varchar(20) [not null, note: 'City or Municipality']
-  province varchar(150)
-  region varchar(100)
-  income_class varchar(30)
-  area_sq_km decimal(12,2)
+  city_mun_psgc_code varchar(10) [pk, note: 'PSGC code or technical-member code']
+  city_mun_name varchar(150) [not null, note: 'PSGC name']
+  province_psgc_code varchar(10) [note: 'Parent province when applicable']
+  province_name varchar(150)
+  region_psgc_code varchar(10) [note: 'Stable parent region key']
+  region_name varchar(100)
+  lgu_type varchar(20)
+  city_class varchar(3) [note: 'HUC, ICC, CC, or NULL for a municipality']
+  income_class varchar(3) [note: '1st through 5th, or NULL when not classified']
+  income_class_retained boolean
+  land_area_sqkm decimal(18,4)
+  land_area_source varchar(50)
+  is_sga boolean
+  member_type varchar(10) [not null, note: 'regular, unknown, or excluded']
+  source_psgc_quarter varchar(10)
 }
 
 Table barangay {
-  psgc_code varchar(10) [primary key, note: 'Official PSGC code, or the code of the unknown barangay of a city or municipality']
-  member_type varchar(20) [not null, note: 'psgc or unknown; one unknown barangay per city or municipality']
+  barangay_psgc_code varchar(10) [pk]
   barangay_name varchar(150) [not null]
   city_mun_psgc_code varchar(10) [not null]
+  urban_rural varchar(1)
+  member_type varchar(10) [not null, note: 'regular, unknown, or excluded']
 }
 
 Table school {
-  school_id varchar(20) [primary key, note: 'Official school identifier']
+  school_id varchar(20) [pk]
   school_name varchar(255) [not null]
+}
+
+Table school_year {
+  school_year varchar(9) [pk, note: 'e.g. 2023-2024']
+  start_year integer [not null]
+  end_year integer [not null]
+  has_enrollment boolean [not null]
+  has_facilities boolean [not null]
+  has_personnel boolean [not null]
+}
+
+Table education_level {
+  education_level_code varchar(3) [pk, note: 'ES, JHS, or SHS']
+  education_level_name varchar(50) [not null]
 }
 
 Table enrollment_record {
   school_id varchar(20) [not null]
-  school_year varchar(20) [not null]
-  education_level varchar(3) [not null, note: 'ES, JHS, or SHS (D-047)']
-  enrollment_count integer [not null, note: 'Number of enrolled learners at the level']
-  region_name varchar(100) [note: 'As published by DepEd for that school year']
-  province_name varchar(150) [note: 'As published by DepEd for that school year']
-  city_municipality_name varchar(150) [note: 'As published by DepEd for that school year']
-  barangay_name varchar(150) [note: 'As published by DepEd for that school year']
-  city_mun_psgc_code varchar(10) [not null, note: 'Matched city or municipality, or the unknown or excluded member (D-029, D-031)']
-  barangay_psgc_code varchar(10) [not null, note: 'Matched barangay, or the unknown barangay of the city or municipality']
-  psgc_match_status varchar(20) [not null, note: 'matched, unmatched, ambiguous, excluded (D-029, D-031)']
+  school_year varchar(9) [not null]
+  education_level_code varchar(3) [not null]
+  city_mun_psgc_code varchar(10) [not null, note: 'Matched city or municipality, or a technical member; never NULL']
+  barangay_psgc_code varchar(10) [not null, note: 'Matched barangay, or a technical member; never NULL']
+  psgc_match_status varchar(10) [not null, note: 'matched, unmatched, ambiguous, or excluded']
+  sector varchar(20)
+  annex_status varchar(50)
+  is_offered boolean
+  learner_count bigint [note: 'NULL remains distinct from zero; NULL only when all level counts are blank']
 
   indexes {
-    (school_id, school_year, education_level) [pk]
+    (school_id, school_year, education_level_code) [pk]
   }
 }
 
 Table classroom_record {
   school_id varchar(20) [not null]
-  school_year varchar(20) [not null]
-  classroom_count integer [note: 'Sum of the ES, JHS, and SHS instructional room counts that are not blank; NULL only when all three are blank (D-047)']
+  school_year varchar(9) [not null]
+  instructional_classrooms_total integer
+  temporary_learning_spaces integer
+  classes_using_temporary_learning_spaces integer
+  makeshift_rooms integer
+  classes_using_makeshift_rooms integer
 
   indexes {
     (school_id, school_year) [pk]
@@ -55,54 +82,67 @@ Table classroom_record {
 
 Table personnel_record {
   school_id varchar(20) [not null]
-  school_year varchar(20) [not null]
-  education_level varchar(3) [not null, note: 'ES, JHS, or SHS (D-047)']
-  teacher_count integer [note: 'Teacher I-III, Master, Head, SPED/SNED, Special Science, Instructors, and locally funded teachers; principals and non-teaching staff excluded (D-047)']
+  school_year varchar(9) [not null]
+  education_level_code varchar(3) [not null]
+  teacher_count integer
+  sef_provincial_teacher_count integer
+  sef_city_municipal_teacher_count integer
+  lgu_funded_teacher_count integer
+  other_funded_teacher_count integer
 
   indexes {
-    (school_id, school_year, education_level) [pk]
+    (school_id, school_year, education_level_code) [pk]
   }
 }
 
 Table population_record {
-  psgc_code varchar(10) [not null, note: 'City or municipality PSGC code']
+  city_mun_psgc_code varchar(10) [not null]
   reference_year integer [not null]
-  total_population integer [note: 'PSGC 2024 Population (D-033)']
+  population bigint
+  estimate_status varchar(12) [not null, note: 'available, missing, provisional, or excluded']
+  status_reason varchar(255) [note: 'NULL when available']
 
   indexes {
-    (psgc_code, reference_year) [pk]
+    (city_mun_psgc_code, reference_year) [pk]
   }
 }
 
-Table school_age_population_record [note: 'Provisional: PSA Total Population by Single-Year Age, Sex, and City/Municipality, 2020 CPH and 2024 POPCEN. Found, not yet profiled or ingested; names only, no PSGC codes.'] {
-  psgc_code varchar(10) [not null, note: 'City or municipality PSGC code, by name match (D-029)']
-  reference_year integer [not null, note: '2020 (CPH) or 2024 (POPCEN)']
-  age integer [not null, note: 'Single year of age; AP4 uses 5-17']
-  sex varchar(10) [not null]
-  population integer
+Table school_age_population_record [note: 'Provisional: PSA 2020 CPH and 2024 POPCEN single-year-age population. Found, not yet profiled or ingested.'] {
+  city_mun_psgc_code varchar(10) [not null]
+  reference_year integer [not null]
+  age integer [not null]
+  sex varchar(6) [not null, note: 'male or female; both-sexes total is not stored']
+  population bigint
+  psgc_match_status varchar(10) [not null, note: 'Name-to-PSGC match result: matched, unmatched, ambiguous, or excluded']
 
   indexes {
-    (psgc_code, reference_year, age, sex) [pk]
+    (city_mun_psgc_code, reference_year, age, sex) [pk]
   }
 }
 
-Table poverty_record {
-  psgc_code varchar(10) [primary key, note: 'City or municipality PSGC code; one row per city or municipality (D-046)']
-  poverty_2023_incidence decimal(5,2) [note: 'Percent of persons; NULL unless status is estimated']
-  poverty_2023_ci90_lower decimal(5,2)
-  poverty_2023_ci90_upper decimal(5,2)
-  poverty_2023_cv decimal(6,2)
-  poverty_2023_cv_over_20 boolean
-  poverty_2023_status varchar(20) [not null, note: 'estimated, no_estimate, or not_in_source (D-046)']
-  poverty_2023_status_reason varchar(255)
+Table city_poverty {
+  city_mun_psgc_code varchar(10) [pk, note: 'One row per city or municipality']
+  estimate_year integer [not null]
+  poverty_incidence decimal(12,6) [note: 'Percent of persons; NULL unless estimated']
+  poverty_ci90_lower decimal(12,6)
+  poverty_ci90_upper decimal(12,6)
+  poverty_cv decimal(12,6)
+  poverty_cv_over_20 boolean [note: 'Shown as less precise when the CV is above 20 (D-046)']
+  estimate_status varchar(14) [not null, note: 'estimated, no_estimate, or not_in_source']
+  status_reason varchar(255) [note: 'Why there is no estimate; NULL when estimated (D-046)']
 }
 
-Ref: barangay.city_mun_psgc_code > city_municipality.psgc_code
-Ref: enrollment_record.city_mun_psgc_code > city_municipality.psgc_code
-Ref: enrollment_record.barangay_psgc_code > barangay.psgc_code
+Ref: barangay.city_mun_psgc_code > city_municipality.city_mun_psgc_code
+Ref: enrollment_record.city_mun_psgc_code > city_municipality.city_mun_psgc_code
+Ref: enrollment_record.barangay_psgc_code > barangay.barangay_psgc_code
 Ref: enrollment_record.school_id > school.school_id
+Ref: enrollment_record.school_year > school_year.school_year
+Ref: enrollment_record.education_level_code > education_level.education_level_code
 Ref: classroom_record.school_id > school.school_id
+Ref: classroom_record.school_year > school_year.school_year
 Ref: personnel_record.school_id > school.school_id
-Ref: population_record.psgc_code > city_municipality.psgc_code
-Ref: school_age_population_record.psgc_code > city_municipality.psgc_code
-Ref: poverty_record.psgc_code - city_municipality.psgc_code
+Ref: personnel_record.school_year > school_year.school_year
+Ref: personnel_record.education_level_code > education_level.education_level_code
+Ref: population_record.city_mun_psgc_code > city_municipality.city_mun_psgc_code
+Ref: school_age_population_record.city_mun_psgc_code > city_municipality.city_mun_psgc_code
+Ref: city_poverty.city_mun_psgc_code - city_municipality.city_mun_psgc_code
