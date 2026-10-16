@@ -75,6 +75,8 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** no PSGC codes and no level column; levels are recovered from the sums, which close exactly in all four sheets (O-2).
 - **Observed:** names carry old names and `(Capital)` in brackets (176 labels in 2020, 48 in 2024) and, in 2024, footnote markers such as `1/` (O-6).
 - **Observed:** 77 cities and municipalities per year do not match the other year by name within province: Samar renamed Western Samar, Maguindanao split in two, 7 renames or spelling changes, and the 8 2020 Special Geographic Area "clusters" against the 8 municipalities created in 2024 (O-7).
+- **Observed:** by name within province, with no alias, 1,602 of 1,642 places match one PSGC 2Q 2026 city or municipality in 2024 and 1,585 in 2020; the others are Western Samar, Maguindanao (2020), renamed or respelled LGUs, and the 8 Special Geographic Area units of each year (X-2).
+- **Observed:** the 2024 household sheet equals psa_population_per_age_group in every cell both publish (X-1).
 - **Suspected:** the 8 2020 clusters are PSA's grouping of the Special Geographic Area barangays by former Cotabato town, not LGUs (S-1).
 
 ## Limitations for analysis
