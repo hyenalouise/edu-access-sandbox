@@ -9,6 +9,7 @@ On Databricks `dev`, the job `edu_access_pipeline` loads the two PSA school-age 
 ## What was run
 
 - Job `[dev sara_celadina] edu_access_pipeline` (job ID `413860742211114`), deployed with `databricks bundle deploy --target dev` from `feat/157-bronze-psa-school-age-population` at `3dcdd8dd895f5c65bd39c58cdaff8c0194eded1f`. Every load task in both runs printed `code_revision=3dcdd8dd895f5c65bd39c58cdaff8c0194eded1f`.
+- The branch was rebased onto `main` after these runs, so the hashes here are no longer on it. The same changes are now `3dcdd8d` = `2a80477` and `ae631ea` = `846310c` (identical `git patch-id`).
 - Both workbooks uploaded by @saraevcldn to `/Volumes/edu_access/00-source/raw/psa/`. The job hashes each file itself. The batch IDs below carry the approved SHA-256 prefixes (`e40d71839b95` for 2020, `49d15bb0cdd1` for 2024).
 - Started twice with `databricks bundle run edu_access_pipeline --target dev --profile reached-hq`.
 
