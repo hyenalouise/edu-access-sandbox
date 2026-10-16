@@ -140,6 +140,27 @@ integration_tables:
     grain: One row per annex school and school year.
     purpose: Auditable annex-to-mother mapping. Rows remain unmatched until DepEd publishes a reliable crosswalk.
 
+gold_tables:
+  - table: dim_school
+    build_file: 01_build_dim_school.sql
+    validate_file: 90_validate_dim_school.sql
+    grain: One DepEd school.
+  - table: dim_school_year
+    build_file: 02_build_dim_school_year.sql
+    validate_file: 90_validate_dim_school_year.sql
+    grain: One enrollment school year.
+  - table: dim_education_level
+    build_file: 03_build_dim_education_level.sql
+    validate_file: 90_validate_dim_education_level.sql
+    grain: One education reporting level.
+  - table: fact_school_classroom_capacity
+    build_file: 10_build_fact_school_classroom_capacity.sql
+    validate_file: 90_validate_fact_school_classroom_capacity.sql
+    grain: One school and school year.
+  - table: fact_school_teacher_capacity
+    build_file: 11_build_fact_school_teacher_capacity.sql
+    validate_file: 90_validate_fact_school_teacher_capacity.sql
+    grain: One school, school year, and education level.
+
 deferred_layers:
-  - gold
   - analytics

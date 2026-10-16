@@ -168,17 +168,31 @@ def test_parallel_stages_fan_in_only_at_the_next_stage(jobs):
         assert {d["task_key"] for d in tasks[key]["depends_on"]} == {"90_validate_control"}
         assert tasks[key].get("run_if") == "ALL_SUCCESS"
 
-    integration_gate = {"90_validate_education_geography_integrated"}
-    for key in ("01_placeholder_dim_geography", "02_placeholder_dim_school"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == integration_gate
+    expected_gold_dependencies = {
+        "01_build_dim_school": {"90_validate_control"},
+        "90_validate_dim_school": {"01_build_dim_school"},
+        "02_build_dim_school_year": {"90_validate_dim_school"},
+        "90_validate_dim_school_year": {"02_build_dim_school_year"},
+        "03_build_dim_education_level": {"90_validate_dim_school_year"},
+        "90_validate_dim_education_level": {"03_build_dim_education_level"},
+        "10_build_fact_school_classroom_capacity": {"90_validate_dim_school_year"},
+        "90_validate_fact_school_classroom_capacity": {"10_build_fact_school_classroom_capacity"},
+        "11_build_fact_school_teacher_capacity": {"90_validate_dim_education_level"},
+        "90_validate_fact_school_teacher_capacity": {"11_build_fact_school_teacher_capacity"},
+    }
+    for key, dependencies in expected_gold_dependencies.items():
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == dependencies
+        assert tasks[key].get("run_if") == "ALL_SUCCESS"
+        assert not tasks[key].get("disabled")
 
-    dimension_gates = {"90_placeholder_validate_dim_geography", "90_placeholder_validate_dim_school"}
-    for key in ("10_placeholder_fact_school_year", "20_placeholder_fact_poverty_estimate"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == dimension_gates
-
-    fact_gates = {"90_placeholder_validate_fact_school_year", "90_placeholder_validate_fact_poverty_estimate"}
-    for key in ("01_answer_ap1", "02_answer_ap2", "03_answer_ap3", "04_answer_ap4"):
-        assert {d["task_key"] for d in tasks[key]["depends_on"]} == fact_gates
+    expected_analytics_dependencies = {
+        "01_answer_ap1": {"90_validate_dim_school_year"},
+        "02_answer_ap2": {"90_validate_fact_school_classroom_capacity"},
+        "03_answer_ap3": {"90_validate_fact_school_teacher_capacity"},
+        "04_answer_ap4": {"90_validate_control"},
+    }
+    for key, dependencies in expected_analytics_dependencies.items():
+        assert {d["task_key"] for d in tasks[key]["depends_on"]} == dependencies
 
 
 def test_a_load_that_skips_its_gate_is_gated_by_it(jobs, repo_root):

@@ -1,7 +1,8 @@
 # Gold data model
 
-**Status:** proposed for team and mentor review under #45. Do not build these
-tables until the design is approved and Integration prerequisite #44 is ready.
+**Status:** approved design under #45. Tables with reviewed inputs may be built
+independently. Geography-dependent tables remain deferred until the required
+Integration mappings are implemented and pass their gates.
 
 The model keeps source-aligned values at their useful analytical grains. Gold
 stores keys and measures that cannot be reconstructed without losing meaning.

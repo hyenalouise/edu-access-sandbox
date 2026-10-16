@@ -1,2 +1,0 @@
--- PLACEHOLDER: proposed school dimension; grain and slowly changing attributes are not yet approved.
--- Remove "placeholder_" from the filename only when the business model is implemented.

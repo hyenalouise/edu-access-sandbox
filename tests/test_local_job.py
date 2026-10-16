@@ -70,7 +70,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     deliver(repo, landing)
     db = tmp_path / "job.duckdb"
     results = run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None)
-    assert set(statuses(results).values()) == {"succeeded", "disabled"}
+    failed = [(result.task_key, result.status, result.detail) for result in results if result.status not in {"succeeded", "disabled"}]
+    assert not failed, failed
     _, job = load_job(repo)
     assert [r.task_key for r in results] == [t["task_key"] for t in in_order(job["tasks"])]
     store = DuckDBStore(db)

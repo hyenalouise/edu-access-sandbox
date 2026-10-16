@@ -1,2 +1,0 @@
--- PLACEHOLDER: proposed validation gate for dim_geography.
--- Remove "placeholder_" from the filename only when the dimension and gate are implemented.

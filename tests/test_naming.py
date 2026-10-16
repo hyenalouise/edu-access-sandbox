@@ -74,11 +74,21 @@ def test_known_source_table_names_are_registered(repo_root):
 def test_integration_registry_is_explicitly_draft(repo_root):
     registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
     assert registry["draft_integration_tables"]
-    assert registry["deferred_layers"] == ["gold", "analytics"]
+    assert registry["deferred_layers"] == ["analytics"]
     for candidate in registry["draft_integration_tables"]:
         assert candidate["table"].endswith("_map")
         assert SQL_FILE.fullmatch(candidate["candidate_file"])
         assert "_map_" in candidate["candidate_file"]
+
+
+def test_gold_registry_names_existing_builds_and_gates(repo_root):
+    registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
+    assert registry["gold_tables"]
+    for table in registry["gold_tables"]:
+        assert SQL_FILE.fullmatch(table["build_file"])
+        assert SQL_FILE.fullmatch(table["validate_file"])
+        assert (repo_root / "etl" / "05_gold" / table["build_file"]).is_file()
+        assert (repo_root / "etl" / "05_gold" / table["validate_file"]).is_file()
 
 
 def test_etl_files_follow_the_layer_layout(repo_files):

@@ -16,8 +16,9 @@ without pretending that the business problem or analytical questions are final.
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
 | DepEd EMISD enrollment with PSGC and coordinates | `deped_enrollment_psgc_raw` | not named yet (its Silver issue, #137) | not named yet |
 
-Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
-the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
+Implemented source-aligned Bronze and Silver tables are listed in
+[`etl/03_silver/README.md`](../../etl/03_silver/README.md). Gold tables supported
+by the current reviewed inputs are listed below.
 
 Each Silver table and Silver quarantine also has a **candidate** copy with the
 suffix `_candidate` (for example `deped_enrollment_clean_candidate`): the build
@@ -76,18 +77,18 @@ remain design-only until the team and mentor approve the ERD and Integration
 prerequisite #44 is ready. Analytics names remain deferred until the metric
 contract is approved.
 
-## Proposed Gold names
+## Gold tables
 
-| Table | Grain |
-|---|---|
-| `dim_city_municipality` | One PSGC city or municipality, plus technical members |
-| `dim_barangay` | One PSGC barangay, plus technical members |
-| `dim_school` | One DepEd school |
-| `dim_school_year` | One school year |
-| `dim_education_level` | One education reporting level: ES, JHS, or SHS |
-| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context |
-| `fact_school_enrollment` | School x school year x education level |
-| `fact_school_classroom_capacity` | School x school year |
-| `fact_school_teacher_capacity` | School x school year x education level |
-| `fact_city_population` | City or municipality x reference year |
-| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
+| Table | Grain | Status |
+|---|---|---|
+| `dim_city_municipality` | One PSGC city or municipality, plus technical members | Deferred for Integration geography maps |
+| `dim_barangay` | One PSGC barangay, plus technical members | Deferred for Integration geography maps |
+| `dim_school` | One DepEd school | Implemented |
+| `dim_school_year` | One school year | Implemented |
+| `dim_education_level` | One education reporting level: ES, JHS, or SHS | Implemented |
+| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context | Deferred for poverty-to-PSGC mapping |
+| `fact_school_enrollment` | School x school year x education level | Deferred for school-to-PSGC mapping |
+| `fact_school_classroom_capacity` | School x school year | Implemented for SY 2023-24 |
+| `fact_school_teacher_capacity` | School x school year x education level | Implemented for SY 2023-24 |
+| `fact_city_population` | City or municipality x reference year | Deferred with `dim_city_municipality` |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | Deferred until its source reaches Silver and Integration |
