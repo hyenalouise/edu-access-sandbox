@@ -75,7 +75,7 @@ DSWD stays as context unless the team adds 4Ps data; without it, the analysis ca
 | Planner | Where they sit | What they plan or decide | What the dashboard must give them |
 |---|---|---|---|
 | Provincial Planning and Development Coordinator and staff (first persona) | Provincial Planning and Development Office | The province's development plan, including where education support goes across its cities and municipalities | A province view of every town, comparable pressure indicators, and figures they can copy into plan documents |
-| Provincial School Board | Chaired by the governor, co-chaired by the schools division superintendent | How the provincial Special Education Fund is spent | Classroom and teacher measures, enrollment-need context where supported, and reported locally funded teacher categories with attribution limitations |
+| Provincial School Board | Co-chaired by the governor and the schools division superintendent | How the provincial Special Education Fund is spent | Classroom and teacher measures, enrollment-need context where supported, and reported locally funded teacher categories with attribution limitations |
 | City and Municipal Planning and Development Coordinators | City and municipal planning offices | Their own development plan and local school board budget | Their town against the national same-type distribution and against similar towns |
 | Schools division superintendent and division planning officers | DepEd schools division office | Teacher deployment and the division's school-building priorities | Teacher and classroom pressure indicators by level, down to the school |
 | Governor, mayors, and sanggunian education committees | Local chief executives and councils | Approving budgets and requests | One sentence per place they can trust: the sponsor's test is whether a mayor can zoom in and trust the numbers |
@@ -87,7 +87,7 @@ What this means for the dashboard:
 - **Reported funding category of teachers.** The personnel data separates locally funded categories at the school level, but it does not identify the responsible province, city, or municipality or the funding period. Attribution to a specific LGU requires a verified crosswalk.
 - **Drill-down to the school.** Division planners work school by school.
 
-**Evidence (D-001):** these roles come from the Local Government Code and DepEd's structure. The team has not interviewed these planners, so the roles are **assumed** until they are cited in #7 (`docs/business/planner-needs.md`) or checked with the mentor or a sponsor contact.
+**Evidence (D-001):** these roles are **documented**: Joint Circular No. 01, s. 2025 states them, cited as R-01 to R-03 in [planner-needs.md](planner-needs.md#planner-roles). The team has not interviewed these planners. Which role is the first persona stays **assumed** (A-07) until the mentor or a sponsor contact confirms it.
 
 ## User story
 

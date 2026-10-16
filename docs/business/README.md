@@ -9,8 +9,9 @@ Planner needs and the business-to-analytics hierarchy: one business question, fo
 | [national-benchmarks-and-indicators.md](national-benchmarks-and-indicators.md) | Official formulas, policy criteria, numeric references, national targets, data compatibility, and source citations | Research register; activation still requires metric-level approval |
 | [dataset-use-map.md](dataset-use-map.md) | Route for all 21 profiled datasets: core calculations, method support, context, cross-checks, deferred use, and exclusions | Updated for approved questions; AP4 population source found, not yet profiled |
 | [stakeholders.md](stakeholders.md) | Local education planners, sponsors, government agencies, user story, and persona stories | Updated for approved questions |
+| [planner-needs.md](planner-needs.md) | Planner needs and roles behind the approved questions, each cited to a published document and tagged documented, mentor-validated, or assumed (D-001) | Draft for review (#7) |
 
-The BP and AP wording was approved through mentor review on 2026-10-14. The metric specification remains a draft analytical contract, D-042 remains provisional for implementation choices, and planner needs are still being documented (#7). Data-model, ERD, Gold, analytics, and dashboard pull requests must use the approved wording and preserve the stated source gaps and limitations.
+The BP and AP wording was approved through mentor review on 2026-10-14. The metric specification remains a draft analytical contract, D-042 remains provisional for implementation choices, and the planner needs in [planner-needs.md](planner-needs.md) are a draft for review (#7). Data-model, ERD, Gold, analytics, and dashboard pull requests must use the approved wording and preserve the stated source gaps and limitations.
 
 ## Research briefs
 
