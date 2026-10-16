@@ -182,7 +182,8 @@ for t in ENROLLMENT:
 base = set(columns("enr_2023_24"))
 for t in [t for t in ENROLLMENT if t != "enr_2023_24"]:
     cols = set(columns(t))
-    show("O-7", f"{t} vs enr_2023_24: added={sorted(cols - base)} removed={sorted(base - cols)}")
+    show("O-7", f"{t} vs enr_2023_24: added={sorted(cols - base)} removed={sorted(base - cols)} "
+         f"same_columns_in_same_order={columns(t) == base_order}")
 vals = q('SELECT "Modified Curricular Offering Classification", count(*) FROM enr_2025_26 GROUP BY 1 ORDER BY 2 DESC')
 show("O-7", "enr_2025_26 Modified Curricular Offering Classification: " + "; ".join(f"{v} {n:,}" for v, n in vals))
 
