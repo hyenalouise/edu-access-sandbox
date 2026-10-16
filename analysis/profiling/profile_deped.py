@@ -194,9 +194,10 @@ for col in ["sector", "school_management", "annex_status", "offers_es"]:
 lg = q("""SELECT b.school_management, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
           WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
 show("O-8", f"enr_2020_21 'Local Government' schools, by 2023-24 school_management: {lg}")
-gone = one("""SELECT count(*) FROM enr_2020_21 WHERE school_management = 'Local Government'
-              AND school_id NOT IN (SELECT school_id FROM enr_2023_24) AND school_id NOT IN (SELECT school_id FROM enr_2024_25)""")
-show("O-8", f"enr_2020_21 'Local Government' schools in neither enr_2023_24 nor enr_2024_25: {gone}")
+gone = q("""SELECT sector, region, municipality, count(*) FROM enr_2020_21 WHERE school_management = 'Local Government'
+             AND school_id NOT IN (SELECT school_id FROM enr_2023_24) AND school_id NOT IN (SELECT school_id FROM enr_2024_25)
+             GROUP BY ALL ORDER BY 4 DESC, 3""")
+show("O-8", f"enr_2020_21 'Local Government' schools in neither enr_2023_24 nor enr_2024_25 (sector, region, municipality, schools): {gone}")
 show("O-9", "compare the school_management values above with the README, which lists 'DepEd Managed'")
 
 origins = q("""SELECT a.region, count(*) FROM enr_2023_24 a JOIN enr_2024_25 b USING (school_id)
