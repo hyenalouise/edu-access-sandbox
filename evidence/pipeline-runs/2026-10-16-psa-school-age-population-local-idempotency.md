@@ -15,6 +15,8 @@ python -m src.ingestion.cli ingest --source psa_school_age_population
 python -m src.ingestion.cli status --source psa_school_age_population
 ```
 
+The branch was rebased onto `main` after these runs, so the commits in the table are no longer on it. The same changes are now `90fc80f` = `5bb8f90` (the only other difference is `main`'s #160), `3dcdd8d` = `2a80477` and `ae631ea` = `846310c` (identical `git patch-id`).
+
 | Step | Commit | `run_id` | Result |
 |---|---|---|---|
 | 1. First run, `sheet_rows` not yet pinned | `90fc80f` | `f7983888-47bd-48f1-b84d-f9acbd8ebb68` | Both batches `failed` on `sheet_rows_match_approved` only (4 FAIL, one per sheet), as designed. Nothing loaded. |
