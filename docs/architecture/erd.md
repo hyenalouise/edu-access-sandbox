@@ -1,25 +1,26 @@
 # Entity-relationship diagram
 
-The business entities the project tracks and how they relate. This is the logical view of the Gold galaxy schema in the [data model](data-model.md) (#138), with the agreed review changes noted below. Each entity maps to one Gold table (see [Entities](#entities)). Keep column names, allowed values, and NULL rules aligned with the data model as both are updated. The entities follow the team's alignment decisions in #45.
+The business entities the project tracks and how they relate. This is the logical view of the Gold galaxy schema in the [data model](data-model.md) (#138), with the agreed review changes noted below. Each entity maps to a Gold table (see [Entities](#entities)). Keep column names, allowed values, and NULL rules aligned with the data model as both are updated. The entities follow the team's alignment decisions in #45.
 
 The team edits the diagram on [dbdiagram.io](https://dbdiagram.io/d/ReachED-ERD-6acf49c2aebfe7a21fe5f61c); [`erd.dbml`](erd.dbml) is a copy of its code. The diagram below is the same model in Mermaid so GitHub renders it. Change both in the same pull request, and keep them in step with the data model.
 
+In short: a city or municipality has many barangays; each school is located in a city and barangay **for each school year** (`school_location`); and each school location has enrollment and teacher records by education level and one classroom record.
+
 ```mermaid
 erDiagram
-    city_municipality ||--o{ barangay : "city_mun_psgc_code"
-    city_municipality ||--o{ enrollment_record : "city_mun_psgc_code"
-    barangay ||--o{ enrollment_record : "barangay_psgc_code"
-    school ||--o{ enrollment_record : "school_id"
-    school ||--o{ classroom_record : "school_id"
-    school ||--o{ personnel_record : "school_id"
-    school_year ||--o{ enrollment_record : "school_year"
-    school_year ||--o{ classroom_record : "school_year"
-    school_year ||--o{ personnel_record : "school_year"
-    education_level ||--o{ enrollment_record : "education_level_code"
-    education_level ||--o{ personnel_record : "education_level_code"
-    city_municipality ||--o{ population_record : "city_mun_psgc_code"
-    city_municipality ||--o{ school_age_population_record : "city_mun_psgc_code"
-    city_municipality ||--o| city_poverty : "city_mun_psgc_code"
+    city_municipality ||--o{ barangay : "has"
+    city_municipality ||--o{ school_location : "locates"
+    barangay ||--o{ school_location : "locates"
+    school ||--o{ school_location : "is located, per year"
+    school_year ||--o{ school_location : "dates"
+    school_location ||--o{ enrollment_record : "has"
+    school_location ||--o| classroom_record : "has"
+    school_location ||--o{ personnel_record : "has"
+    education_level ||--o{ enrollment_record : "classifies"
+    education_level ||--o{ personnel_record : "classifies"
+    city_municipality ||--o{ population_record : "has"
+    city_municipality ||--o{ school_age_population_record : "has"
+    city_municipality ||--o| city_poverty : "has"
 
     city_municipality {
         varchar city_mun_psgc_code PK "PSGC code or technical-member code"
@@ -61,15 +62,19 @@ erDiagram
         varchar education_level_code PK "ES/JHS/SHS"
         varchar education_level_name "not null"
     }
+    school_location {
+        varchar school_id PK, FK
+        varchar school_year PK, FK
+        varchar city_mun_psgc_code FK "not null; real or technical member"
+        varchar barangay_psgc_code FK "not null; inside that city"
+        varchar psgc_match_status "not null"
+        varchar sector
+        varchar annex_status
+    }
     enrollment_record {
         varchar school_id PK, FK
         varchar school_year PK, FK
         varchar education_level_code PK, FK
-        varchar city_mun_psgc_code FK "not null; real or technical member"
-        varchar barangay_psgc_code FK "not null; real or technical member"
-        varchar psgc_match_status "not null"
-        varchar sector
-        varchar annex_status
         boolean is_offered
         bigint learner_count "NULL only when all level counts are blank"
     }
@@ -120,7 +125,7 @@ erDiagram
     }
 ```
 
-Every `enrollment_record` points to a city or municipality and a barangay, either a regular PSGC member or a technical member. This preserves records with unmatched, ambiguous, or excluded locations and allows joins to retain those records. Location and match status are stored per school year and are shared across the education-level records for that school-year combination.
+Every `school_location` points to a city or municipality and a barangay, either a regular PSGC member or a technical member, so records with unmatched, ambiguous, or excluded locations are kept in every join. The barangay must belong to the recorded city or municipality; the DBML enforces this with a composite reference on (`barangay_psgc_code`, `city_mun_psgc_code`), which Mermaid cannot show.
 
 ## Entities
 
@@ -131,7 +136,8 @@ Every `enrollment_record` points to a city or municipality and a barangay, eithe
 | `school` | `dim_school` | School | `school_id` | DepEd Silver |
 | `school_year` | `dim_school_year` | School year | `school_year` | School years in DepEd Silver, with source-coverage indicators |
 | `education_level` | `dim_education_level` | Reporting level | `education_level_code` | Reviewed list: ES, JHS, SHS ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)) |
-| `enrollment_record` | `fact_school_enrollment` | School, school year, and education level | `school_id`, `school_year`, `education_level_code` | `deped_enrollment` Silver; location from the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk), [D-031](../governance/decisions.md#d-031-special-geographic-area-schools-at-city-or-municipality-level), #91) |
+| `school_location` | Proposed: the location, `sector`, and `annex_status` columns of `fact_school_enrollment` in #138, or a separate `fact_school_year` table (to be agreed with #138) | School and school year | `school_id`, `school_year` | `deped_enrollment` Silver for `sector` and `annex_status`; location from the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk), [D-031](../governance/decisions.md#d-031-special-geographic-area-schools-at-city-or-municipality-level), #91) |
+| `enrollment_record` | `fact_school_enrollment` | School, school year, and education level | `school_id`, `school_year`, `education_level_code` | `deped_enrollment` Silver |
 | `classroom_record` | `fact_school_classroom_capacity` | School and school year | `school_id`, `school_year` | `deped_facilities` Silver ([D-038](../governance/decisions.md#d-038-deped-facilities-silver)) |
 | `personnel_record` | `fact_school_teacher_capacity` | School, school year, and education level | `school_id`, `school_year`, `education_level_code` | `deped_personnel` Silver ([D-041](../governance/decisions.md#d-041-deped-personnel-silver)) |
 | `population_record` | `fact_city_population` | City or municipality and reference year | `city_mun_psgc_code`, `reference_year` | PSGC's `2024 Population` column, `psa_psgc` Silver ([D-033](../governance/decisions.md#d-033-barangay-population-source)) |
@@ -142,7 +148,7 @@ Every `enrollment_record` points to a city or municipality and a barangay, eithe
 
 `member_type` is `regular` for a PSGC city, municipality, or barangay, and `unknown` or `excluded` for a technical member.
 
-| An enrollment record whose… | Points to city / municipality | And barangay |
+| A school location whose… | Points to city / municipality | And barangay |
 |---|---|---|
 | City and barangay matched | The PSGC city or municipality | The PSGC barangay |
 | City matched, barangay not | The PSGC city or municipality | That city's own `unknown` barangay, so it still rolls up to the city |
@@ -163,10 +169,11 @@ Every `enrollment_record` points to a city or municipality and a barangay, eithe
 
 ## Modeling assumptions
 
-- **Location is stored per school year.** A school's city or municipality can change between school years, and AP4 compares years, so location and `psgc_match_status` are stored on `enrollment_record`, not on `school`. They are the same for every education-level record for a school in a given school year. DepEd's published place names remain in the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk)), not in Gold.
+- **Location is stored per school year, on `school_location`.** A school's city or municipality can change between school years, and AP4 compares years, so location, `psgc_match_status`, `sector`, and `annex_status` describe the school in a given school year, not the school itself. Storing them once per school year, rather than on every education-level row, keeps the levels of a school in one place. DepEd's published place names remain in the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk)), not in Gold.
+- **Every enrollment, classroom, and personnel record has a school location for its school year.** A school that appears in facilities or personnel but not in that year's enrollment still gets a `school_location` row, pointing to the `unknown` members, so no record is lost.
 - **DepEd has no PSGC code.** Geographic codes come from the Integration crosswalk (#91).
 - **Population is at city/municipality level**, because AP1 ranks cities and municipalities.
-- **School-sector filters are applied in Analytics.** AP1–AP3 use public schools; AP4 uses all sectors except PSO (D-047). The sector is retained in enrollment records. Annexes count as schools and are labelled using `annex_status`.
+- **School-sector filters are applied in Analytics.** AP1–AP3 use public schools; AP4 uses all sectors except PSO (D-047). Annexes count as schools and are labelled using `annex_status`.
 - **Every PSGC city or municipality has a poverty row; technical members do not**, so the relationship is optional on the poverty side (`||--o|` in the Mermaid). DBML's `-` marks the link as one-to-one but cannot mark a side as optional, so the Mermaid shows the full cardinality.
 
 ## Resolved questions

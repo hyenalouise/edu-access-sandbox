@@ -1,8 +1,7 @@
 // ReachED ERD: business entities and their relationships (logical view).
 // Based on docs/architecture/data-model.md (#138), with agreed review changes.
-// erd.md maps each entity to its Gold table.
+// School locations are recorded per school year to preserve location matching.
 // Source: https://dbdiagram.io/d/ReachED-ERD-6acf49c2aebfe7a21fe5f61c
-// When the diagram changes, copy its code here and update the Mermaid diagram in erd.md in the same pull request.
 
 Table city_municipality {
   city_mun_psgc_code varchar(10) [pk, note: 'PSGC code or technical-member code']
@@ -28,6 +27,10 @@ Table barangay {
   city_mun_psgc_code varchar(10) [not null]
   urban_rural varchar(1)
   member_type varchar(10) [not null, note: 'regular, unknown, or excluded']
+
+  indexes {
+    (barangay_psgc_code, city_mun_psgc_code) [unique]
+  }
 }
 
 Table school {
@@ -49,15 +52,24 @@ Table education_level {
   education_level_name varchar(50) [not null]
 }
 
-Table enrollment_record {
+Table school_location [note: 'One row per school per school year; preserves year-specific location and PSGC matching.'] {
   school_id varchar(20) [not null]
   school_year varchar(9) [not null]
-  education_level_code varchar(3) [not null]
   city_mun_psgc_code varchar(10) [not null, note: 'Matched city or municipality, or a technical member; never NULL']
   barangay_psgc_code varchar(10) [not null, note: 'Matched barangay, or a technical member; never NULL']
   psgc_match_status varchar(10) [not null, note: 'matched, unmatched, ambiguous, or excluded']
   sector varchar(20)
   annex_status varchar(50)
+
+  indexes {
+    (school_id, school_year) [pk]
+  }
+}
+
+Table enrollment_record {
+  school_id varchar(20) [not null]
+  school_year varchar(9) [not null]
+  education_level_code varchar(3) [not null]
   is_offered boolean
   learner_count bigint [note: 'NULL remains distinct from zero; NULL only when all level counts are blank']
 
@@ -121,8 +133,8 @@ Table school_age_population_record [note: 'Provisional: PSA 2020 CPH and 2024 PO
 }
 
 Table city_poverty {
-  city_mun_psgc_code varchar(10) [pk, note: 'One row per city or municipality']
-  estimate_year integer [not null]
+  city_mun_psgc_code varchar(10) [pk, note: 'One row per PSGC city or municipality in the current source snapshot (D-046)']
+  estimate_year integer [not null, note: 'Current source snapshot: 2023']
   poverty_incidence decimal(12,6) [note: 'Percent of persons; NULL unless estimated']
   poverty_ci90_lower decimal(12,6)
   poverty_ci90_upper decimal(12,6)
@@ -132,17 +144,53 @@ Table city_poverty {
   status_reason varchar(255) [note: 'Why there is no estimate; NULL when estimated (D-046)']
 }
 
+TableGroup geography {
+  city_municipality
+  barangay
+}
+
+TableGroup schools {
+  school
+  school_location
+}
+
+TableGroup school_reporting {
+  enrollment_record
+  classroom_record
+  personnel_record
+}
+
+TableGroup reference {
+  school_year
+  education_level
+}
+
+TableGroup city_context {
+  population_record
+  school_age_population_record
+  city_poverty
+}
+
+// Geography hierarchy
 Ref: barangay.city_mun_psgc_code > city_municipality.city_mun_psgc_code
-Ref: enrollment_record.city_mun_psgc_code > city_municipality.city_mun_psgc_code
-Ref: enrollment_record.barangay_psgc_code > barangay.barangay_psgc_code
-Ref: enrollment_record.school_id > school.school_id
-Ref: enrollment_record.school_year > school_year.school_year
+
+// School locations: one location record per school per school year
+Ref: school_location.school_id > school.school_id
+Ref: school_location.school_year > school_year.school_year
+Ref: school_location.city_mun_psgc_code > city_municipality.city_mun_psgc_code
+
+// School location to barangay; also ensures the barangay belongs to the recorded city/municipality
+Ref: school_location.(barangay_psgc_code, city_mun_psgc_code) > barangay.(barangay_psgc_code, city_mun_psgc_code)
+
+// School reporting records
+Ref: enrollment_record.(school_id, school_year) > school_location.(school_id, school_year)
+Ref: classroom_record.(school_id, school_year) > school_location.(school_id, school_year)
+Ref: personnel_record.(school_id, school_year) > school_location.(school_id, school_year)
+
 Ref: enrollment_record.education_level_code > education_level.education_level_code
-Ref: classroom_record.school_id > school.school_id
-Ref: classroom_record.school_year > school_year.school_year
-Ref: personnel_record.school_id > school.school_id
-Ref: personnel_record.school_year > school_year.school_year
 Ref: personnel_record.education_level_code > education_level.education_level_code
+
+// City/municipality population and poverty context
 Ref: population_record.city_mun_psgc_code > city_municipality.city_mun_psgc_code
 Ref: school_age_population_record.city_mun_psgc_code > city_municipality.city_mun_psgc_code
 Ref: city_poverty.city_mun_psgc_code - city_municipality.city_mun_psgc_code
