@@ -234,6 +234,17 @@
       "owner": "mafelisilda"
     },
     {
+      "source_id": "psa_school_age_population",
+      "name": "PSA school-age population by single-year age, sex and city/municipality",
+      "publisher": "Philippine Statistics Authority (PSA)",
+      "status": "profiled",
+      "source_system": "2020 Census of Population and Housing; 2024 Census of Population",
+      "acquisition": "Email request to PSA, Population and Housing Census Division",
+      "format": "xlsx (two workbooks, two sheets each)",
+      "years_acquired": ["2020", "2024"],
+      "owner": "saraevcldn"
+    },
+    {
       "source_id": "hdx_boundaries",
       "name": "Philippine administrative boundaries",
       "publisher": "UN OCHA",
