@@ -81,6 +81,8 @@ def test_contract_matches_the_source_card_row_by_row(repo_root, path):
         return _workbook_table_matches_the_card(config, lines)
     if config.get("format") == "xlsx_report":
         return _workbook_report_matches_the_card(config, lines)
+    if config.get("format") == "xlsx_census":
+        return _workbook_census_matches_the_card(config, lines)
     for d in config["deliveries"]:
         archive_rows = [line for line in lines if d["archive_sha256"] in line]
         assert len(archive_rows) == 1, f"{d['archive']}: its checksum must be on exactly one card row"
@@ -134,6 +136,22 @@ def _workbook_report_matches_the_card(config, lines):
         assert f"range {d['range']}" in row, f"{d['workbook']}: range {d['range']} is not on its card row"
         for label in ("row_count", "unit_rows", "blank_rows", "no_identifier_rows"):
             assert f"{d[label]:,}" in row, f"{d['workbook']}: {label} {d[label]:,} is not on its card row"
+
+
+def _workbook_census_matches_the_card(config, lines):
+    """An xlsx_census workbook (PSA school-age population): name, checksum, every sheet and its place rows,
+    and each sheet's row count once pinned, on one card row."""
+    for d in config["deliveries"]:
+        rows = [line for line in lines if d["workbook_sha256"] in line]
+        assert len(rows) == 1, f"{d['workbook']}: its checksum must be on exactly one card row"
+        row = rows[0]
+        assert f"`{d['workbook']}`" in row, f"{d['workbook']}: checksum is on another file's row"
+        for s in d["sheets"]:
+            assert f"`{s['sheet']}`" in row, f"{d['workbook']}: sheet {s['sheet']!r} is not on its card row"
+            assert f"{s['place_rows']:,} places" in row, f"{d['workbook']}: {s['place_rows']:,} places is not on its card row"
+            if s["sheet_rows"] is not None:
+                assert f"`{s['sheet']}` {s['sheet_rows']:,} rows" in row, (
+                    f"{d['workbook']}: {s['sheet']} has {s['sheet_rows']:,} rows in the contract but not on its card row")
 
 
 def test_v2_adds_columns_without_reordering_v1():

@@ -111,6 +111,20 @@ To approve a new quarter, follow the PSGC runbook in [docs/operations/ingestion.
 
 Each approved workbook pins `school_year`, `delivery_version`, `supersedes`, `workbook`, `workbook_sha256`, `sheet`, `range` (down to `header_row` plus `row_count` rows), `schema_version`, `title_cells` (every title cell the team read, as exact text; a changed note stops the batch), `row_count` and its split into `unit_rows`, `blank_rows` and `no_identifier_rows` (Bronze reconciles each), and `retrieved_at_utc`. `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, sheet, range and every row count sit on one row of the source card.
 
+## Census workbook contracts (`"format": "xlsx_census"`)
+
+`psa_school_age_population.json` describes one xlsx workbook per census, delivered as is, whose sheets (`<year> Total Pop`, `<year> Household Pop`) are all loaded. The rules are in `src/ingestion/xlsx_census.py`; the issue is #157.
+
+| Field | Meaning |
+|---|---|
+| `workbook_pattern` | Publisher file name with the named group `year` (the census year) |
+| `sheet_suffixes` | The sheets every workbook has, after its year: `Total Pop`, `Household Pop`. A sheet not listed stops the batch |
+| `notes_marker`, `source_prefix` | `Notes:` starts the notes below a 2024 table; a row starting `Source` is the source line |
+| `schema_versions` | One per layout. `layout` is `wide` (2020: a row per place) or `long` (2024: a place row, then Total / Male / Female rows, mapped by `sex_labels`); `bands` (the band labels in `band_row`, by the column each starts in), `ages` in `age_row`, and `columns` (Bronze names, `label` first) |
+| `known_issues` | Publisher quirks with their profiled count per sheet (`place_label_footnote_marker`, `source_line_contains`, `title_lacks`). WARN when the count changes; never FAIL, never a correction |
+
+Each approved workbook pins `logical_dataset` (one per census, versions 1, 2, 3 with `supersedes`), `census_year` (must equal the file name's), `workbook`, `workbook_sha256`, `schema_version`, `retrieved_at_utc`, and per sheet `place_rows` (from the profile) and `sheet_rows` (every row to the last one holding a value). `sheet_rows` may be `null` until the first local run on the real file reports it; the load fails until it is pinned. `tests/test_ingestion_validate.py` fails unless the workbook's name, checksum, sheets and place rows are on its card row.
+
 ## GeoJSON contracts (`"format": "geojson_features"`)
 
 `hdx_boundaries.json` describes one GeoJSON FeatureCollection per delivery, not zipped (D-026). It uses the same fields as a zip contract, with these differences:

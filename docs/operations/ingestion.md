@@ -1,6 +1,6 @@
 # Ingestion: Source → Control → Bronze
 
-How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The DepEd sources use ZIP deliveries: `deped_enrollment` was first, `deped_facilities` second, and `deped_personnel` third. Personnel uses the same ingestion code with its own contract, generated SQL, tests, and job lane. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` uses `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) uses `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
+How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The DepEd sources use ZIP deliveries: `deped_enrollment` was first, `deped_facilities` second, and `deped_personnel` third. Personnel uses the same ingestion code with its own contract, generated SQL, tests, and job lane. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` uses `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) uses `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below). `psa_school_age_population` uses `xlsx_census`: one workbook per census, both sheets loaded ([PSA school-age population](#psa-school-age-population-two-census-workbooks) below).
 
 **Status:** the current `edu_access_pipeline` was verified on Databricks `dev` for all six Bronze sources. `deped_personnel` passed local real-file validation and its create, load, and gate tasks were confirmed on Databricks `dev` at commit `15fcecbd` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md)). The source cards and evidence files record the uploaded files, tables, and completed runs.
 
@@ -1402,3 +1402,78 @@ As for the other sources ([Runbook](#runbook)): the batch and check queries with
 - Verified on made-up workbooks, on the real file locally (DuckDB), and on Databricks `dev` (2026-10-16). Not yet run from `main`.
 - Bronze keeps the `#N/A` and blank rows and the 108 appended schools as received; deciding what Silver keeps for the crosswalk is the Silver issue's job (#137).
 - The workbook's licensing is unverified (source card).
+
+## PSA school-age population (two census workbooks)
+
+`psa_school_age_population` loads through the same pipeline from its own contract, `config/ingestion/psa_school_age_population.json` (`format: xlsx_census`). What differs is in `src/ingestion/xlsx_census.py` (reading and checking every sheet of a census workbook) and the `XlsxCensus` class in `src/ingestion/formats.py`. Issue: #157; source card and profile: #154.
+
+**Status:** implemented and tested locally with made-up workbooks of both layouts (`tests/test_ingestion_school_age.py`). Not yet run on the real workbooks: each sheet's row count (`sheet_rows`) is `null` in the contract until the first local run reports it, so that run fails `sheet_rows_match_approved` and loads nothing. Copy the actual counts it reports to the card and the contract, then run again. The source stays `profiled`.
+
+### The flow (school-age population)
+
+```
+00 Source   RAW_DATA_DIR/psa/original/<year> School-Age Population by Single Year Age, Sex, and City Municipality.xlsx
+   │  discover *.xlsx matching the contract's workbook_pattern → SHA-256 → approved?
+   │  open the two sheets safely; check the bands, the ages, every row's kind, the counts
+01 Control  ingestion_batches (one batch per workbook), attempts, data_quality_results
+02 Bronze   edu_access.`02-bronze`.psa_school_age_population_raw   (every row of both sheets, text, with provenance)
+   │  90_validate_psa_school_age_population_raw.sql, its own job task (D-020)
+```
+
+### Identity (school-age population)
+
+| Thing | Identity | Why |
+|---|---|---|
+| Delivery (batch) | Workbook SHA-256; `batch_id` = `psa_school_age_population__<census year>__<first 12 of SHA-256>` | One batch per workbook |
+| Logical dataset | `school_age_population_2020`, `school_age_population_2024`; versions 1, 2, 3 within each (D-015, D-018) | A census republished by PSA is the next version of its dataset, with `supersedes` |
+| Bronze row | (`source_sha256`, `source_sheet`, `source_row_number`) | Both sheets of a workbook use the same row numbers, so the sheet is part of the key (`contract.row_key`); the MERGE and the gate use all three |
+
+The census year is kept in `estimate_years_covered` in the control tables (a one-year set), so load types and `current_batches` work as for `psa_poverty_stat`, and in `census_year` on every Bronze row.
+
+### Layout as a versioned contract (school-age population)
+
+| Schema version | Layout | Columns |
+|---|---|---|
+| `v1` (2020) | `wide`: a row per place; `Both Sexes` in B2, `Male` in V2, `Female` in AP2, ages 5-24 in row 3 under each | `label`, then `both_sexes_age_5` … `female_age_24` (60) |
+| `v2` (2024) | `long`: a place row with no values, then `Total`, `Male`, `Female` rows; `Single Year Age` in B2, ages 5-24 in B3:U3 | `label`, then `age_5` … `age_24` (20) |
+
+The table holds the union of both: a column not in a year's layout is NULL for that year's rows. Nothing is reshaped: the 2024 rows stay long and the 2020 rows stay wide until Silver.
+
+Each row's `source_row_kind` comes from the layout: `title` (row 1), `header` (rows 2-3), `place`, `sex_total` / `sex_male` / `sex_female` (2024), `note` (a label and no counts; in 2024 from `Notes:` on), `source` (a label starting `Source`), `blank`, or `unclassified`. Silver reads only `place` (2020) and the `sex_*` rows with the `place` row above them (2024).
+
+### School-age population validation
+
+FAIL, and nothing loads:
+
+- the sheets are not exactly `<year> Total Pop` and `<year> Household Pop` (refused as `missing_sheet` or `unexpected_sheet`);
+- row 2 does not hold exactly the profiled bands, or row 3 does not hold ages 5-24 in the expected columns (60 in 2020, 20 in 2024);
+- place rows per sheet differ from the approval (1,742 in 2020, 1,744 in 2024), a sheet's row count differs from `sheet_rows` (or it is not pinned), or any row is `unclassified`;
+- in 2024, a place row not followed by exactly one `Total`, `Male`, `Female` block, or a sex row outside one;
+- a count that is not a whole number as stored (profile O-3), a value right of the layout, or text decoded twice.
+
+WARN, with the profiled count beside the actual count: footnote markers in place labels (2024: 11 on the total sheet, 10 on the household sheet; O-6), the misspelled 2020 source line (O-1), and the 2024 household title naming only "City/Municipality" (O-1). Formula and error cells are WARN too.
+
+After the MERGE, each sheet is reconciled to the file: Bronze rows equal the sheet's rows, row numbers have no repeats and no gaps, every provenance column is filled, and the counts by `source_row_kind` equal the file's. Then the generated gate (`etl/02_bronze/90_validate_psa_school_age_population_raw.sql`) checks the whole table and writes to `data_quality_results`.
+
+### Running locally (school-age population)
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.ingestion.cli ingest --source psa_school_age_population
+python -m src.ingestion.cli status --source psa_school_age_population
+```
+
+Regenerate the SQL after changing the contract:
+
+```bash
+python -m src.ingestion.cli ddl --source psa_school_age_population > etl/02_bronze/08_create_psa_school_age_population_raw.sql
+python -m src.ingestion.cli gate --source psa_school_age_population > etl/02_bronze/90_validate_psa_school_age_population_raw.sql
+```
+
+In `edu_access_pipeline`, the source has its own lane: `08_create_psa_school_age_population_raw` → `bronze_psa_school_age_population` → `90_validate_psa_school_age_population_raw`. It is Bronze only, so it is not part of the Silver fan-in. The workbooks must first be uploaded to the `00-source` volume under `psa/original/`.
+
+### Open questions (school-age population)
+
+| Question | Default until decided | Where |
+|---|---|---|
+| Does `psa_school_age_population` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+| Total or household population for school-age need? | Both loaded; Silver decides | Profile O-5, mentor |

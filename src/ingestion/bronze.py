@@ -20,10 +20,12 @@ those publisher duplicates; the archive's SHA-256 would load a re-zipped copy
 twice. For a workbook the data file is the workbook itself, and the row number
 is the Excel row, so (source_sha256, source_row_number) points at one line of
 the sheet; a contract approves exactly one sheet per workbook, which keeps that
-pair unique (a second sheet would need source_sheet in the key).
+pair unique. The one format that loads several sheets of a workbook
+(`xlsx_census`) adds source_sheet to the key, because its sheets share row
+numbers (contract.row_key).
 """
 
-from src.ingestion.contract import provenance_columns
+from src.ingestion.contract import provenance_columns, row_key
 from src.ingestion.errors import IngestionError
 from src.ingestion.store import table_name
 
@@ -113,7 +115,7 @@ SELECT :run_id, NULL, '{SOURCE}', 'bronze', 'edu_access.02-bronze.{TABLE}',
        'no_pipeline_duplicates', CASE WHEN extra = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(extra AS STRING),
        current_timestamp(), :code_revision
 FROM (
-  SELECT COUNT(*) - COUNT(DISTINCT source_sha256 || ':' || CAST(source_row_number AS STRING)) AS extra
+  SELECT COUNT(*) - COUNT(DISTINCT {KEY}) AS extra
   FROM edu_access.`02-bronze`.{TABLE}
 ) AS t;
 
@@ -160,7 +162,9 @@ WHERE run_id = :run_id AND source_id = '{SOURCE}' AND status = 'FAIL';
 
 def bronze_gate(config):
     """The Bronze gate SQL for a source: the same checks for every source, so it is generated, not copied."""
-    return GATE_TEMPLATE.replace("{TABLE}", config["bronze_table"]).replace("{SOURCE}", config["source_id"])
+    key = " || ':' || ".join(f"CAST({c} AS STRING)" if c == "source_row_number" else c for c in row_key(config))
+    return (GATE_TEMPLATE.replace("{KEY}", key).replace("{TABLE}", config["bronze_table"])
+            .replace("{SOURCE}", config["source_id"]))
 
 
 def add_missing_columns(store, config):
@@ -190,7 +194,7 @@ def build_rows(prepared, registry_entry, batch_id, run_id, ingested_at_utc, code
         row.update(absent)
         row.update(provenance)
         row.update(prepared.row_provenance(number))
-        row["source_row_number"] = number
+        row["source_row_number"] = number[-1] if isinstance(number, tuple) else number  # (sheet, row) for xlsx_census
         yield row
 
 
@@ -200,13 +204,14 @@ def count_file_rows(store, config, source_sha256):
 
 
 def merge_rows(store, config, rows):
-    """Insert rows whose (source_sha256, source_row_number) is not already in Bronze."""
+    """Insert rows whose key (contract.row_key: source_sha256, source_row_number) is not already in Bronze."""
     columns = store.columns(SCHEMA, config["bronze_table"])
+    on = " AND ".join(f"t.{c} = s.{c}" for c in row_key(config))
     for chunk in _chunks(rows, config.get("max_stage_bytes")):
         store.stage("bronze_stage", columns, chunk)
         store.sql(
             f"MERGE INTO {bronze_table(config)} AS t USING bronze_stage AS s "
-            "ON t.source_sha256 = s.source_sha256 AND t.source_row_number = s.source_row_number "
+            f"ON {on} "
             "WHEN NOT MATCHED THEN INSERT *"
         )
 
@@ -238,18 +243,46 @@ def reconcile(store, config, prepared):
     Row numbers must be exactly the file's: 1..n data rows for a CSV, the
     Excel rows of the whole sheet (for example 1..1641) for a workbook. For a
     workbook, each row kind (units, banners, header, footer) is reconciled too.
+    For a format that loads several sheets (xlsx_census), duplicates, row
+    numbers and row kinds are reconciled sheet by sheet.
     """
     sha = prepared.data_member_sha256
     n = len(prepared.rows)
+    nulls = " OR ".join(f"`{c}` IS NULL" for c in provenance_columns(config))
+    where = f"FROM {bronze_table(config)} WHERE source_sha256 = '{sha}'"
+    total, missing_provenance = store.query(
+        f"SELECT COUNT(*), COUNT(CASE WHEN {nulls} THEN 1 END) {where}")[0]
+    results = [("bronze_rows_match_source", total == n, n, total)]
+    if "source_sheet" in row_key(config):
+        by_sheet = {}
+        for (sheet, number), _ in prepared.rows:
+            by_sheet.setdefault(sheet, []).append(number)
+        found = {sheet: (count, distinct, low, high) for sheet, count, distinct, low, high in store.query(
+            f"SELECT source_sheet, COUNT(*), COUNT(DISTINCT source_row_number), MIN(source_row_number), "
+            f"MAX(source_row_number) {where} GROUP BY source_sheet")}
+        extra = sorted(set(found) - set(by_sheet))
+        results.append(("bronze_sheets_match_source", not extra, sorted(by_sheet), sorted(found)))
+        for sheet, numbers in by_sheet.items():
+            count, distinct, low, high = found.get(sheet, (0, 0, None, None))
+            span = (min(numbers), max(numbers))
+            results += [
+                (f"{sheet}: no_pipeline_duplicates", count == distinct, 0, count - distinct),
+                (f"{sheet}: row_numbers_complete", (low, high) == span and distinct == len(numbers),
+                 f"{span[0]}..{span[1]} ({len(numbers)} rows)", f"{low}..{high} ({distinct} rows)"),
+            ]
+        results.append(("provenance_complete", missing_provenance == 0, 0, missing_provenance))
+        expected = {f"{sheet}: {kind}": c for (sheet, kind), c in sorted(prepared.kind_counts().items())}
+        actual = {f"{sheet}: {kind}": c for sheet, kind, c in store.query(
+            f"SELECT source_sheet, source_row_kind, COUNT(*) {where} "
+            "GROUP BY source_sheet, source_row_kind ORDER BY source_sheet, source_row_kind")}
+        results.append(("bronze_row_kinds_match_source", actual == expected, expected, actual))
+        return results
+
     numbers = [number for number, _ in prepared.rows]
     span = (min(numbers), max(numbers)) if numbers else (None, None)
-    nulls = " OR ".join(f"`{c}` IS NULL" for c in provenance_columns(config))
-    total, distinct, low, high, missing_provenance = store.query(
-        f"SELECT COUNT(*), COUNT(DISTINCT source_row_number), MIN(source_row_number), MAX(source_row_number), "
-        f"COUNT(CASE WHEN {nulls} THEN 1 END) "
-        f"FROM {bronze_table(config)} WHERE source_sha256 = '{sha}'")[0]
-    results = [
-        ("bronze_rows_match_source", total == n, n, total),
+    distinct, low, high = store.query(
+        f"SELECT COUNT(DISTINCT source_row_number), MIN(source_row_number), MAX(source_row_number) {where}")[0]
+    results += [
         ("no_pipeline_duplicates", total == distinct, 0, total - distinct),
         ("row_numbers_complete", (low, high) == span, f"{span[0]}..{span[1]}", f"{low}..{high}"),
         ("provenance_complete", missing_provenance == 0, 0, missing_provenance),
@@ -257,7 +290,7 @@ def reconcile(store, config, prepared):
     if hasattr(prepared, "row_kinds"):
         expected = dict(sorted(prepared.kind_counts().items()))
         actual = dict(store.query(
-            f"SELECT source_row_kind, COUNT(*) FROM {bronze_table(config)} WHERE source_sha256 = '{sha}' "
+            f"SELECT source_row_kind, COUNT(*) {where} "
             "GROUP BY source_row_kind ORDER BY source_row_kind"))
         results.append(("bronze_row_kinds_match_source", actual == expected, expected, actual))
     return results
