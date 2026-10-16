@@ -1,15 +1,17 @@
 # Entity-relationship diagram
 
-The business entities the project tracks and how they relate. This is the logical view of the Gold galaxy schema in the [data model](data-model.md) (#138), with the agreed review changes noted below. Each entity maps to a Gold table (see [Entities](#entities)). Keep column names, allowed values, and NULL rules aligned with the data model as both are updated. The entities follow the team's alignment decisions in #45.
+The real-world entities the project tracks and how they relate. This is the conceptual view. How each entity is stored in Gold, including technical geography members for unmatched schools, match statuses, availability flags, and every column, is in the [data model](data-model.md) (#138). One entity can be stored across several Gold tables, and one Gold table can hold several entities: region, province, and city or municipality are all stored in `dim_city_municipality` (see [Entities](#entities)).
 
-The team edits the diagram on [dbdiagram.io](https://dbdiagram.io/d/ReachED-ERD-6acf49c2aebfe7a21fe5f61c); [`erd.dbml`](erd.dbml) is a copy of its code. The diagram below is the same model in Mermaid so GitHub renders it. Change both in the same pull request, and keep them in step with the data model.
+The team edits the diagram on [dbdiagram.io](https://dbdiagram.io/d/ReachED-ERD-6acf49c2aebfe7a21fe5f61c); [`erd.dbml`](erd.dbml) is a copy of its code. The diagram below is the same model in Mermaid so GitHub renders it. Change both in the same pull request.
 
-In short: a city or municipality has many barangays; each school is located in a city and barangay **for each school year** (`school_location`); and each school location has enrollment and teacher records by education level and one classroom record.
+In short: a region has provinces and cities or municipalities; a province has cities or municipalities; a city or municipality has barangays; each school is located in a barangay **for each school year** (`school_location`); and each school location has enrollment and teacher records by education level and one classroom record. A city or municipality also has its population, school-age population, and poverty estimates.
 
 ```mermaid
 erDiagram
+    region ||--o{ province : "has"
+    region ||--o{ city_municipality : "has"
+    province |o--o{ city_municipality : "has"
     city_municipality ||--o{ barangay : "has"
-    city_municipality ||--o{ school_location : "locates"
     barangay ||--o{ school_location : "locates"
     school ||--o{ school_location : "is located, per year"
     school_year ||--o{ school_location : "dates"
@@ -20,31 +22,33 @@ erDiagram
     education_level ||--o{ personnel_record : "classifies"
     city_municipality ||--o{ population_record : "has"
     city_municipality ||--o{ school_age_population_record : "has"
-    city_municipality ||--o| city_poverty : "has"
+    city_municipality ||--o{ poverty_estimate : "has"
 
+    region {
+        varchar region_psgc_code PK
+        varchar region_name "not null"
+    }
+    province {
+        varchar province_psgc_code PK
+        varchar province_name "not null"
+        varchar region_psgc_code FK "not null"
+    }
     city_municipality {
-        varchar city_mun_psgc_code PK "PSGC code or technical-member code"
+        varchar city_mun_psgc_code PK
         varchar city_mun_name "not null"
-        varchar province_psgc_code
-        varchar province_name
-        varchar region_psgc_code
-        varchar region_name
-        varchar lgu_type
-        varchar city_class "HUC/ICC/CC, NULL for a municipality"
-        varchar income_class "1st-5th, NULL when not classified"
-        boolean income_class_retained
+        varchar lgu_type "City or Municipality"
+        varchar city_class "HUC/ICC/CC"
+        varchar income_class "1st-5th"
         decimal land_area_sqkm
-        varchar land_area_source
-        boolean is_sga
-        varchar member_type "not null, regular/unknown/excluded"
-        varchar source_psgc_quarter
+        boolean is_sga "Special Geographic Area"
+        varchar province_psgc_code FK "NULL for HUC, ICC, and most of NCR"
+        varchar region_psgc_code FK "not null"
     }
     barangay {
         varchar barangay_psgc_code PK
         varchar barangay_name "not null"
-        varchar city_mun_psgc_code FK "not null"
         varchar urban_rural "U/R"
-        varchar member_type "not null, regular/unknown/excluded"
+        varchar city_mun_psgc_code FK "not null"
     }
     school {
         varchar school_id PK
@@ -54,9 +58,6 @@ erDiagram
         varchar school_year PK "e.g. 2023-2024"
         integer start_year "not null"
         integer end_year "not null"
-        boolean has_enrollment "not null"
-        boolean has_facilities "not null"
-        boolean has_personnel "not null"
     }
     education_level {
         varchar education_level_code PK "ES/JHS/SHS"
@@ -65,10 +66,8 @@ erDiagram
     school_location {
         varchar school_id PK, FK
         varchar school_year PK, FK
-        varchar city_mun_psgc_code FK "not null; real or technical member"
-        varchar barangay_psgc_code FK "not null; inside that city"
-        varchar psgc_match_status "not null"
-        varchar sector
+        varchar barangay_psgc_code FK "not null"
+        varchar sector "Public/Private/SUC-LUC/PSO"
         varchar annex_status
     }
     enrollment_record {
@@ -76,33 +75,26 @@ erDiagram
         varchar school_year PK, FK
         varchar education_level_code PK, FK
         boolean is_offered
-        bigint learner_count "NULL only when all level counts are blank"
+        bigint learner_count
     }
     classroom_record {
         varchar school_id PK, FK
         varchar school_year PK, FK
-        integer instructional_classrooms_total "NULL only when all three source counts are blank"
+        integer instructional_classrooms_total
         integer temporary_learning_spaces
-        integer classes_using_temporary_learning_spaces
         integer makeshift_rooms
-        integer classes_using_makeshift_rooms
     }
     personnel_record {
         varchar school_id PK, FK
         varchar school_year PK, FK
         varchar education_level_code PK, FK
         integer teacher_count "D-047 teaching roles"
-        integer sef_provincial_teacher_count "subset of teacher_count"
-        integer sef_city_municipal_teacher_count "subset of teacher_count"
-        integer lgu_funded_teacher_count "subset of teacher_count"
-        integer other_funded_teacher_count "subset of teacher_count"
+        integer locally_funded_teacher_count "part of teacher_count"
     }
     population_record {
         varchar city_mun_psgc_code PK, FK
-        integer reference_year PK
+        integer reference_year PK "2024"
         bigint population
-        varchar estimate_status "not null"
-        varchar status_reason
     }
     school_age_population_record {
         varchar city_mun_psgc_code PK, FK "provisional"
@@ -110,76 +102,59 @@ erDiagram
         integer age PK "single year of age"
         varchar sex PK "male/female"
         bigint population
-        varchar psgc_match_status "not null"
     }
-    city_poverty {
-        varchar city_mun_psgc_code PK, FK "one row per PSGC city/municipality"
-        integer estimate_year "not null, 2023"
-        decimal poverty_incidence "percent of persons; NULL unless estimated"
+    poverty_estimate {
+        varchar city_mun_psgc_code PK, FK
+        integer estimate_year PK "Gold uses 2023"
+        decimal poverty_incidence "percent of persons"
         decimal poverty_ci90_lower
         decimal poverty_ci90_upper
         decimal poverty_cv
-        boolean poverty_cv_over_20 "NULL unless estimated"
-        varchar estimate_status "not null"
-        varchar status_reason "NULL when estimated"
     }
 ```
 
-Every `school_location` points to a city or municipality and a barangay, either a regular PSGC member or a technical member, so records with unmatched, ambiguous, or excluded locations are kept in every join. The barangay must belong to the recorded city or municipality; the DBML enforces this with a composite reference on (`barangay_psgc_code`, `city_mun_psgc_code`), which Mermaid cannot show.
-
 ## Entities
 
-| Entity | Gold table | One row per | Key | Source or derivation |
-|---|---|---|---|---|
-| `city_municipality` | `dim_city_municipality` | City or municipality, plus technical members | `city_mun_psgc_code` | `psa_psgc` Silver ([D-035](../governance/decisions.md#d-035-psgc-silver)); land area from `hdx_boundaries` (D-042); members added in Integration |
-| `barangay` | `dim_barangay` | Barangay, plus technical members | `barangay_psgc_code` | `psa_psgc` Silver (D-035); members added in Integration |
-| `school` | `dim_school` | School | `school_id` | DepEd Silver |
-| `school_year` | `dim_school_year` | School year | `school_year` | School years in DepEd Silver, with source-coverage indicators |
-| `education_level` | `dim_education_level` | Reporting level | `education_level_code` | Reviewed list: ES, JHS, SHS ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)) |
-| `school_location` | Proposed: the location, `sector`, and `annex_status` columns of `fact_school_enrollment` in #138, or a separate `fact_school_year` table (to be agreed with #138) | School and school year | `school_id`, `school_year` | `deped_enrollment` Silver for `sector` and `annex_status`; location from the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk), [D-031](../governance/decisions.md#d-031-special-geographic-area-schools-at-city-or-municipality-level), #91) |
-| `enrollment_record` | `fact_school_enrollment` | School, school year, and education level | `school_id`, `school_year`, `education_level_code` | `deped_enrollment` Silver |
-| `classroom_record` | `fact_school_classroom_capacity` | School and school year | `school_id`, `school_year` | `deped_facilities` Silver ([D-038](../governance/decisions.md#d-038-deped-facilities-silver)) |
-| `personnel_record` | `fact_school_teacher_capacity` | School, school year, and education level | `school_id`, `school_year`, `education_level_code` | `deped_personnel` Silver ([D-041](../governance/decisions.md#d-041-deped-personnel-silver)) |
-| `population_record` | `fact_city_population` | City or municipality and reference year | `city_mun_psgc_code`, `reference_year` | PSGC's `2024 Population` column, `psa_psgc` Silver ([D-033](../governance/decisions.md#d-033-barangay-population-source)) |
-| `school_age_population_record` | `fact_city_school_age_population` | City or municipality, reference year, single year of age, and sex | `city_mun_psgc_code`, `reference_year`, `age`, `sex` | **Provisional.** PSA Total Population by Single-Year Age, Sex, and City/Municipality, 2020 CPH and 2024 POPCEN ([source](../business/dataset-use-map.md#school-age-population-source)). Found, not yet profiled or ingested; requires name matching to PSGC using an approach consistent with [D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk) |
-| `city_poverty` | `dim_city_poverty` | PSGC city or municipality (2023), including those not in the PSA file | `city_mun_psgc_code` | `psa_poverty_stat` Silver ([D-034](../governance/decisions.md#d-034-psa-poverty-stat-silver-unpivot-to-one-row-per-unit-and-estimate-year)), following D-046 (#151) |
-
-## Technical geography members
-
-`member_type` is `regular` for a PSGC city, municipality, or barangay, and `unknown` or `excluded` for a technical member.
-
-| A school location whose… | Points to city / municipality | And barangay |
-|---|---|---|
-| City and barangay matched | The PSGC city or municipality | The PSGC barangay |
-| City matched, barangay not | The PSGC city or municipality | That city's own `unknown` barangay, so it still rolls up to the city |
-| City not matched (`unmatched` or `ambiguous`) | The global `unknown` city or municipality | The `unknown` barangay under it |
-| Place is a Special Geographic Area ([D-031](../governance/decisions.md#d-031-special-geographic-area-schools-at-city-or-municipality-level)) | The `excluded` city or municipality | The `excluded` barangay under it |
-
-`psgc_match_status` preserves the location-match outcome in every case; using a technical member does not erase it.
+| Entity | Gold table(s) | One per | Source |
+|---|---|---|---|
+| `region` | `dim_city_municipality` (region columns) | Region | `psa_psgc` Silver ([D-035](../governance/decisions.md#d-035-psgc-silver)) |
+| `province` | `dim_city_municipality` (province columns) | Province | `psa_psgc` Silver ([D-035](../governance/decisions.md#d-035-psgc-silver)) |
+| `city_municipality` | `dim_city_municipality` | City or municipality | `psa_psgc` Silver ([D-035](../governance/decisions.md#d-035-psgc-silver)); land area from `hdx_boundaries` (D-042) |
+| `barangay` | `dim_barangay` | Barangay | `psa_psgc` Silver ([D-035](../governance/decisions.md#d-035-psgc-silver)) |
+| `school` | `dim_school` | School | DepEd Silver |
+| `school_year` | `dim_school_year` | School year | DepEd Silver |
+| `education_level` | `dim_education_level` | Reporting level | Reviewed list ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)) |
+| `school_location` | `fact_school_enrollment` (location, `sector`, and `annex_status` columns) | School and school year | `deped_enrollment` Silver; barangay from the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk), #91) |
+| `enrollment_record` | `fact_school_enrollment` | School, school year, and education level | `deped_enrollment` Silver |
+| `classroom_record` | `fact_school_classroom_capacity` | School and school year | `deped_facilities` Silver ([D-038](../governance/decisions.md#d-038-deped-facilities-silver)) |
+| `personnel_record` | `fact_school_teacher_capacity` | School, school year, and education level | `deped_personnel` Silver ([D-041](../governance/decisions.md#d-041-deped-personnel-silver)) |
+| `population_record` | `fact_city_population` | City or municipality and reference year | PSGC's `2024 Population` column ([D-033](../governance/decisions.md#d-033-barangay-population-source)) |
+| `school_age_population_record` | `fact_city_school_age_population` | City or municipality, reference year, age, and sex | **Provisional.** PSA Total Population by Single-Year Age, Sex, and City/Municipality, 2020 CPH and 2024 POPCEN ([source](../business/dataset-use-map.md#school-age-population-source)); not yet profiled or ingested |
+| `poverty_estimate` | `dim_city_poverty` (2023 only) | City or municipality and estimate year | `psa_poverty_stat` Silver ([D-034](../governance/decisions.md#d-034-psa-poverty-stat-silver-unpivot-to-one-row-per-unit-and-estimate-year)); D-046 (#151) |
 
 ## Definitions
 
-- **Education levels** ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)): ES is Kindergarten, Grades 1–6, and ES non-graded; JHS is Grades 7–10 and JHS non-graded; SHS is Grades 11–12. `education_level_code` holds only these three values, never individual grades or strands.
-- **`learner_count`**: the sum of the level's grade and non-graded counts that are not blank. NULL only when all of them are blank; NULL is never read as zero ([D-023](../governance/decisions.md#d-023-silver-never-invents-a-value)). `is_offered` indicates whether the school offers the level, distinguishing a level not offered from a missing count.
-- **`instructional_classrooms_total`**: the sum of the ES, JHS, and SHS instructional-room counts that are not blank. NULL only when all three are blank. The temporary-space and makeshift measures are retained separately and never substituted into this total.
-- **`teacher_count`**: Teacher I–III, Master Teacher I–IV, Head Teacher I–VI, SPED/SNED teachers, Special Science teachers, Instructors, and locally funded teachers, counted by level (Kindergarten locally funded teachers under ES). Principals and non-teaching staff are excluded (D-047). The four funding columns are subsets of `teacher_count` and must never be added to it again.
-- **School-age population `sex`**: `male` or `female`. The PSA workbooks also contain a both-sexes total, which is not stored, so summing by sex does not double-count children. Analytics sums both sexes and ages 5–17 for AP4.
-- **Population `estimate_status`**: `available`, `missing`, `provisional`, or `excluded`, with `status_reason` explaining why a value is not available (for example, City of Isabela's `#N/A` in PSGC, profile O-4).
-- **Poverty** (D-046): one 2023 row for every PSGC city or municipality (1,642), including the 44 that are not in the PSA file. `estimate_status` is `estimated`, `no_estimate`, or `not_in_source`. When no estimate is available, `poverty_incidence`, confidence intervals, CV, and `poverty_cv_over_20` remain NULL rather than being set to zero. `status_reason` explains why no estimate is available and is NULL when estimated. The CV flag identifies estimates with a coefficient of variation above 20, which should be presented as less precise. Poverty is contextual information only; it is not used to rank, flag, or score locations. Technical geography members have no poverty row.
+- **Education levels** ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)): ES is Kindergarten, Grades 1–6, and ES non-graded; JHS is Grades 7–10 and JHS non-graded; SHS is Grades 11–12.
+- **`learner_count`**: learners enrolled at the level. `is_offered` tells a level the school does not offer apart from a missing count.
+- **`instructional_classrooms_total`**: instructional rooms across ES, JHS, and SHS. Temporary learning spaces and makeshift rooms are kept beside it, never added to it.
+- **`teacher_count`**: Teacher I–III, Master Teacher I–IV, Head Teacher I–VI, SPED/SNED teachers, Special Science teachers, Instructors, and locally funded teachers, by level (D-047). Principals and non-teaching staff are not teachers. `locally_funded_teacher_count` is part of `teacher_count`.
+- **School-age population**: by single year of age and by sex (`male`, `female`). AP4 uses ages 5–17, both sexes.
+- **Poverty**: context only, never used to rank, flag, or score. PSA publishes 2018, 2021, and 2023; Gold uses 2023 (D-046).
 
-## Modeling assumptions
+Missing learner, classroom, and teacher counts are missing, never zero ([D-023](../governance/decisions.md#d-023-silver-never-invents-a-value)).
 
-- **Location is stored per school year, on `school_location`.** A school's city or municipality can change between school years, and AP4 compares years, so location, `psgc_match_status`, `sector`, and `annex_status` describe the school in a given school year, not the school itself. Storing them once per school year, rather than on every education-level row, keeps the levels of a school in one place. DepEd's published place names remain in the Integration crosswalk ([D-029](../governance/decisions.md#d-029-one-set-of-match-columns-for-every-crosswalk)), not in Gold.
-- **Every enrollment, classroom, and personnel record has a school location for its school year.** A school that appears in facilities or personnel but not in that year's enrollment still gets a `school_location` row, pointing to the `unknown` members, so no record is lost.
-- **DepEd has no PSGC code.** Geographic codes come from the Integration crosswalk (#91).
-- **Population is at city/municipality level**, because AP1 ranks cities and municipalities.
-- **School-sector filters are applied in Analytics.** AP1–AP3 use public schools; AP4 uses all sectors except PSO (D-047). Annexes count as schools and are labelled using `annex_status`.
-- **Every PSGC city or municipality has a poverty row; technical members do not**, so the relationship is optional on the poverty side (`||--o|` in the Mermaid). DBML's `-` marks the link as one-to-one but cannot mark a side as optional, so the Mermaid shows the full cardinality.
+## Notes
+
+- **A school's location can change between school years**, and AP4 compares 2020 with 2024, so the school's barangay is recorded per school year in `school_location`, not on `school`. The barangay gives the city or municipality.
+- **Barangays without a public elementary school** (AP1, D-045) come from the barangay → school location link.
+- **Not every city or municipality has a province.** Highly urbanized and independent component cities, and most of NCR, report directly to their region in PSGC, so every city or municipality links to its region and only some to a province.
+- **Population, school-age population, and poverty are at city/municipality level**, because AP1 to AP4 rank cities and municipalities.
+- **Storage rules are in the data model, not here**: how schools that could not be matched to a barangay or city are kept, the match status of each school, which sources cover each school year, and the status of each population and poverty value. See [data-model.md](data-model.md).
 
 ## Resolved questions
 
 Answered from the team's decisions (#45):
 
-1. **Year alignment.** Gold has a school-year dimension (`school_year`). PSA tables retain their own reference years, and pairing is done in Analytics: D-027 for poverty, and the two census points for AP4 (2020 with SY 2020–21 and 2024 with SY 2024–25).
-2. **School-age population.** AP4 uses ages 5–17 at city/municipality level from the PSA 2020 and 2024 tables. This source remains provisional until it is profiled and ingested.
-3. **Missing counts.** Missing learner, classroom, and teacher counts remain missing, never zero ([D-023](../governance/decisions.md#d-023-silver-never-invents-a-value)).
+1. **Year alignment.** School years and PSA reference years stay separate. Pairing is done in Analytics: D-027 for poverty, and the two census points for AP4 (2020 with SY 2020–21 and 2024 with SY 2024–25).
+2. **School-age population.** AP4 uses ages 5–17 at city/municipality level from the PSA 2020 and 2024 tables. The source remains provisional until it is profiled and ingested.
+3. **Missing counts.** Missing learner, classroom, and teacher counts remain missing, never zero.
