@@ -98,13 +98,22 @@ def test_two_datasets_may_not_cover_the_same_census():
 
 # --- One workbook: rows and checks ------------------------------------------------
 
+EXPECTED_WARNINGS = {
+    "2020": ["2020 Household Pop: known_issue_source_line_misspelled",
+             "2020 Total Pop: known_issue_source_line_misspelled"],
+    "2024": ["2024 Household Pop: known_issue_place_label_footnote_marker",
+             "2024 Household Pop: known_issue_title_names_only_city_municipality",
+             "2024 Total Pop: known_issue_place_label_footnote_marker"],
+}
+
+
 @pytest.mark.parametrize("year", ["2020", "2024"])
 def test_a_valid_workbook_passes_every_layout_check(tmp_path, year):
     prepared = prepared_for(tmp_path, year)
     failed = [c for c in prepared.checks if c.status == FAIL]
     assert failed == []
-    warned = [c.check_name for c in prepared.checks if c.status == WARN]
-    assert warned == []   # known issues match their (made-up) profiled counts
+    warned = sorted(c.check_name for c in prepared.checks if c.status == WARN)
+    assert warned == EXPECTED_WARNINGS[year]   # only the publisher quirks the fixture carries, as the real files do
     assert len(prepared.rows) == sum(default_sheet_rows(year, c) for c in ("Total Pop", "Household Pop"))
 
 
@@ -133,8 +142,11 @@ def test_known_issues_warn_with_the_profiled_count_beside_the_actual(tmp_path):
     approve(config, path, "2024")
     found = checks(prepare_delivery(config, registry_entry(SOURCE), path))
     check = found["2024 Total Pop: known_issue_place_label_footnote_marker"]
-    assert (check.status, check.expected, check.actual) == (WARN, "11 (profiled, O-6)", "2")
-    assert found["2024 Household Pop: known_issue_title_names_only_city_municipality"].status == PASS
+    assert (check.status, check.expected, check.actual) == (WARN, "0 (profiled: 11, O-6)", "2")
+    title = found["2024 Household Pop: known_issue_title_names_only_city_municipality"]
+    assert (title.status, title.actual) == (WARN, "1")
+    # A sheet without the quirk passes.
+    assert found["2024 Total Pop: known_issue_title_names_only_city_municipality"].status == PASS
 
 
 @pytest.mark.parametrize("year, break_it, failing", [

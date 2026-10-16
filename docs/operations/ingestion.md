@@ -1407,7 +1407,7 @@ As for the other sources ([Runbook](#runbook)): the batch and check queries with
 
 `psa_school_age_population` loads through the same pipeline from its own contract, `config/ingestion/psa_school_age_population.json` (`format: xlsx_census`). What differs is in `src/ingestion/xlsx_census.py` (reading and checking every sheet of a census workbook) and the `XlsxCensus` class in `src/ingestion/formats.py`. Issue: #157; source card and profile: #154.
 
-**Status:** implemented and tested locally with made-up workbooks of both layouts (`tests/test_ingestion_school_age.py`). The first local run on the real workbooks (2026-10-16) passed every layout check and reported each sheet's row count: 1,748 and 1,748 (2020 Total Pop, Household Pop), 6,994 and 6,991 (2024). Those counts are now pinned as `sheet_rows` in the contract and on the card. Not yet run on Databricks. The source stays `profiled`.
+**Status:** implemented and tested locally with made-up workbooks of both layouts (`tests/test_ingestion_school_age.py`). The first local run on the real workbooks (2026-10-16) passed every layout check and reported each sheet's row count: 1,748 and 1,748 (2020 Total Pop, Household Pop), 6,994 and 6,991 (2024). Those counts are now pinned as `sheet_rows` in the contract and on the card. On Databricks `dev` (2026-10-16, commit `3dcdd8d`) the lane loaded the same 3,496 and 13,985 rows, and a second run skipped both workbooks. The source stays `profiled`.
 
 ### The flow (school-age population)
 

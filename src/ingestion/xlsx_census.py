@@ -511,6 +511,6 @@ def check_workbook(config, delivery, version, names, opened, prepared):
         for issue in config["known_issues"]:
             n = KNOWN_ISSUE_CHECKS[issue["check"]](rows, issue, config)
             profiled = issue["profiled"].get(name, 0)
-            add(prefix + f"known_issue_{issue['name']}", n == profiled, f"{profiled} (profiled, {issue['finding']})",
+            add(prefix + f"known_issue_{issue['name']}", n == 0, f"0 (profiled: {profiled}, {issue['finding']})",
                 n, warn_only=True)
     return checks
