@@ -22,7 +22,7 @@ Raw files are kept in raw storage, never in git. Record exactly what arrived.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx` | xlsx, one sheet `DB` | n/a | 24,527,420 | 60,275 schools (sheet rows 9-60293; see profile O-1, O-2) | `746d69530d228d2324590be10abbe6d75a94176c1745ef74335a4d6db550acd5` | `RAW_DATA_DIR/deped/original/` (local). Not yet uploaded to the Databricks volume |
+| `SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx` | xlsx, one sheet `DB` | n/a | 24,527,420 | 60,285 rows below the header (range A1:CJ60293): 60,275 schools, 9 blank, 1 with no school ID (row 60176); see profile O-1, O-2 | `746d69530d228d2324590be10abbe6d75a94176c1745ef74335a4d6db550acd5` | `RAW_DATA_DIR/deped/original/` (local); `/Volumes/edu_access/00-source/raw/deped/` (uploaded by @maeveylain, loaded on `dev` 2026-10-16) |
 
 ## Publisher documentation
 
@@ -79,8 +79,20 @@ Summary only; evidence lives in [profile.md](profile.md).
 - **Observed:** two urban/rural columns that disagree, one undocumented (O-9); income class has a `1St` typo (O-8).
 - **Suspected:** far-off coordinates are wrong locations (S-1); private-school coordinates come from somewhere other than NSBI (S-2).
 
+## Ingestion
+
+| Field | Value |
+|---|---|
+| Contract (approved deliveries, schema versions) | [`config/ingestion/deped_enrollment_psgc.json`](../../../../config/ingestion/deped_enrollment_psgc.json), format `xlsx_report` |
+| Bronze table | `` edu_access.`02-bronze`.deped_enrollment_psgc_raw ``: every sheet row below the header (rows 9 to 60293) as text, each with its Excel row number and its kind (`unit`, `blank`, `no_identifier`) |
+| Schema versions | `v1` (SY 2023-24): the 88 headers of row 8, mapped by position to Bronze names; columns AA and AB, which share a header, become `income_class` and `income_class_long` |
+| Known characteristics | WARN checks at their profiled counts (O-2 to O-13), never corrections: nothing is padded, trimmed, or typed in Bronze |
+| Loaded | Locally and on Databricks `dev`, 2026-10-16: 60,285 rows, then a skip ([local](../../../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-local-idempotency.md), [`dev`](../../../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-databricks-idempotency.md)) |
+| Runbook | [ingestion.md, DepEd EMISD workbook](../../../operations/ingestion.md#deped-emisd-workbook-xlsx_report) |
+
 ## Limitations for analysis
 
+- Licensing is UNVERIFIED (EMISD sent the file "for your information and reference"). Keep its values out of published dashboard outputs until EMISD confirms the terms.
 - Adds no enrollment information beyond deped_enrollment SY 2023-24; only location columns are new.
 - One school year only. Other years still need name matching to PSGC.
 - Coordinates are not fit for distance or travel-time measures until checked against boundaries (S-1), and their absence is not random: NCR and private schools are missing most often (O-10).

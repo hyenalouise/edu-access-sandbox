@@ -106,6 +106,20 @@ source_tables:
       clean_file: 06_clean_hdx_adm3.sql
       validate_file: 90_validate_hdx_adm3_clean.sql
 
+  - source_id: deped_enrollment_psgc
+    dataset: DepEd EMISD enrollment with PSGC and coordinates
+    scope:
+      school_years: [2023-24]
+      workbook: EMISD xlsx
+      sheet: DB
+      note: >-
+        Loaded for its PSGC codes and coordinates, not its counts (#137, option B). No silver
+        entry until the Silver issue settles the crosswalk's table names.
+    bronze:
+      table: deped_enrollment_psgc_raw
+      create_file: 07_create_deped_enrollment_psgc_raw.sql
+      validate_file: 90_validate_deped_enrollment_psgc_raw.sql
+
 # Candidates only. Keep them out of executable ETL until their keys, review
 # workflow, and grains are approved.
 draft_integration_tables:

@@ -32,6 +32,7 @@ import duckdb
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
+from src.ingestion.xlsx_table import mojibake
 from src.profiling.xlsx import column_letter, read_sheet
 
 raw_dir = os.environ.get("RAW_DATA_DIR")
@@ -298,6 +299,18 @@ show("O-12", "schools whose PSGC region is not the usual one for their DepEd reg
     one("SELECT count(*) FROM g JOIN usual u USING (region) WHERE g.psgc_reg_name <> u.psgc_reg_name")) + counts(
     "SELECT g.region || ' -> ' || g.psgc_reg_name, count(*) FROM g JOIN usual u USING (region) "
     "WHERE g.psgc_reg_name <> u.psgc_reg_name GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 8"))
+
+# %% O-13 Mojibake: UTF-8 text stored as if it were Windows-1252 ('Ã‘' for 'Ñ')
+# The same test the Bronze contract counts (src/ingestion/xlsx_table.mojibake), over every cell below the header.
+broken = [(r, c, v) for r, cells in rows[HEADER_ROW:] for c, v in cells.items() if mojibake(v)]
+by_column = {}
+for _, c, _ in broken:
+    by_column[COLS[c - 1] if c <= len(COLS) else column_letter(c)] = by_column.get(COLS[c - 1] if c <= len(COLS) else column_letter(c), 0) + 1
+show("O-13", "cells with mojibake below the header: {:,} in {:,} rows; header cells: {}; by column: {}".format(
+    len(broken), len({r for r, _, _ in broken}), sum(mojibake(v) for v in header.values()),
+    ", ".join(f"{k} {n:,}" for k, n in sorted(by_column.items(), key=lambda kv: (-kv[1], kv[0])))))
+show("O-13", "distinct broken values: {:,}; examples: {}".format(
+    len({v for _, _, v in broken}), "; ".join(sorted({v for _, _, v in broken})[:5])))
 
 # %% X-1 Comparison with deped_enrollment SY 2023-24 (enrollment_2023-24.csv)
 zip_path = ORIGINAL / ENROLLMENT_ZIP

@@ -14,6 +14,7 @@ without pretending that the business problem or analytical questions are final.
 | PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
 | PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
+| DepEd EMISD enrollment with PSGC and coordinates | `deped_enrollment_psgc_raw` | not named yet (its Silver issue, #137) | not named yet |
 
 Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
 the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
@@ -69,6 +70,24 @@ These are working names only:
 | `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed. Gold and Analytics names remain deferred
-until the business problem, analytical questions, measures, and grains are
-approved.
+and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
+in [`docs/architecture/data-model.md`](../architecture/data-model.md). They
+remain design-only until the team and mentor approve the ERD and Integration
+prerequisite #44 is ready. Analytics names remain deferred until the metric
+contract is approved.
+
+## Proposed Gold names
+
+| Table | Grain |
+|---|---|
+| `dim_city_municipality` | One PSGC city or municipality, plus technical members |
+| `dim_barangay` | One PSGC barangay, plus technical members |
+| `dim_school` | One DepEd school |
+| `dim_school_year` | One school year |
+| `dim_education_level` | One education reporting level: ES, JHS, or SHS |
+| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context |
+| `fact_school_enrollment` | School x school year x education level |
+| `fact_school_classroom_capacity` | School x school year |
+| `fact_school_teacher_capacity` | School x school year x education level |
+| `fact_city_population` | City or municipality x reference year |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
