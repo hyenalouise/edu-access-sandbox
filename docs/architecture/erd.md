@@ -41,7 +41,7 @@ erDiagram
         varchar income_class "1st-5th"
         decimal land_area_sqkm
         boolean is_sga "Special Geographic Area"
-        varchar province_psgc_code FK "NULL for HUC, ICC, and most of NCR"
+        varchar province_psgc_code FK "NULL for HUCs, Pateros, Isabela City, and SGA"
         varchar region_psgc_code FK "not null"
     }
     barangay {
@@ -147,7 +147,7 @@ Missing learner, classroom, and teacher counts are missing, never zero ([D-023](
 
 - **A school's location can change between school years**, and AP4 compares 2020 with 2024, so the school's barangay is recorded per school year in `school_location`, not on `school`. The barangay gives the city or municipality.
 - **Barangays without a public elementary school** (AP1, D-045) come from the barangay → school location link.
-- **Not every city or municipality has a province.** Highly urbanized and independent component cities, and most of NCR, report directly to their region in PSGC, so every city or municipality links to its region and only some to a province.
+- **Not every city or municipality has a province.** In PSGC, the 33 highly urbanized cities (16 of them in NCR), Pateros, the City of Isabela, and the 8 Special Geographic Area municipalities have no province; the independent component cities (Dagupan, Santiago, Naga, Ormoc, Cotabato) do. So every city or municipality links to its region, and all but these to a province.
 - **Population, school-age population, and poverty are at city/municipality level**, because AP1 to AP4 rank cities and municipalities.
 - **Storage rules are in the data model, not here**: how schools that could not be matched to a barangay or city are kept, the match status of each school, which sources cover each school year, and the status of each population and poverty value. See [data-model.md](data-model.md).
 

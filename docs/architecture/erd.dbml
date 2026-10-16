@@ -22,7 +22,7 @@ Table city_municipality {
   income_class varchar(3) [note: '1st to 5th']
   land_area_sqkm decimal(18,4)
   is_sga boolean [note: 'Special Geographic Area municipality (D-031)']
-  province_psgc_code varchar(10) [note: 'NULL for highly urbanized and independent component cities, and most of NCR']
+  province_psgc_code varchar(10) [note: 'NULL for the 33 highly urbanized cities (16 in NCR), Pateros, the City of Isabela, and the 8 Special Geographic Area municipalities']
   region_psgc_code varchar(10) [not null]
 }
 
