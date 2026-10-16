@@ -164,7 +164,7 @@ def empty_config(source_id=DEFAULT):
 
 
 def fake_repo(root, config):
-    """A throwaway repository root: the real registries, Silver mappings, and etl/ SQL, with `config` as the contract."""
+    """A throwaway repository root: the real registries, mappings, and etl/ SQL, with `config` as the contract."""
     import shutil
 
     root = Path(root)
@@ -173,7 +173,7 @@ def fake_repo(root, config):
         shutil.copy(REPO_ROOT / "config" / name, root / "config" / name)
     shutil.copytree(REPO_ROOT / "config" / "mappings", root / "config" / "mappings", dirs_exist_ok=True)
     write_config(root, config)
-    for stage in ("01_control", "02_bronze", "03_silver"):
+    for stage in ("01_control", "02_bronze", "03_silver", "04_integration"):
         shutil.copytree(REPO_ROOT / "etl" / stage, root / "etl" / stage, dirs_exist_ok=True)
     return root
 

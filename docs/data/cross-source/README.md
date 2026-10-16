@@ -23,6 +23,7 @@ docs/data/cross-source/
 | [coverage.md](coverage.md) | For every source: how it names places, its level, years, grain, join keys, and PSGC match. Also join paths, limits, time alignment, conflicts between documents, and open questions with the decisions they led to | C, BP, AG, CM, HB | several, below |
 | [deped-dataset-research.md](deped-dataset-research.md) | How DepEd SY 2023-24 place names match PSGC, and how the DepEd school files join on `school_id` | A, B | [`cross_source_deped.py`](../../../analysis/cross_source/cross_source_deped.py) |
 | [deped-year-comparison.md](deped-year-comparison.md) | What changes across DepEd enrollment SY 2023-24, 2024-25, and 2025-26: labels, blank counts, school IDs, places, and the PSGC match per year | Y | [`cross_source_deped_years.py`](../../../analysis/cross_source/cross_source_deped_years.py) |
+| [deped-annex-mother.md](deped-annex-mother.md) | Whether the acquired DepEd releases can link annexes to mother schools, and the safe fallback when they cannot | AN | [`cross_source_deped_annex.py`](../../../analysis/cross_source/cross_source_deped_annex.py) |
 | [barmm-dataset-research.md](barmm-dataset-research.md) | What the BPDA, PSA, and other sources can say about BARMM, and how they join | none (BPDA label matches were done by hand) | none |
 
 ### Generated lists, in [`generated/`](generated/) (never edit by hand; rerun the script)
@@ -31,6 +32,7 @@ docs/data/cross-source/
 |---|---|---|
 | [deped_psgc_unmatched.md](generated/deped_psgc_unmatched.md) | DepEd SY 2023-24 place names not matched to PSGC, with school counts | [`cross_source_deped.py`](../../../analysis/cross_source/cross_source_deped.py) |
 | [deped_year_changes.md](generated/deped_year_changes.md) | School IDs dropped or added between years, place names that change for the same school, and names newly unmatched in later years | [`cross_source_deped_years.py`](../../../analysis/cross_source/cross_source_deped_years.py) |
+| [deped_annexes_without_mother.md](generated/deped_annexes_without_mother.md) | Every annex school-year that has no mother-school link in the acquired releases | [`cross_source_deped_annex.py`](../../../analysis/cross_source/cross_source_deped_annex.py) |
 | [psa_population_psgc_unmatched.md](generated/psa_population_psgc_unmatched.md) | Barangay population rows not matched to PSGC by their exact name, and how each was settled | [`cross_source_psa_population_per_barangay.py`](../../../analysis/cross_source/cross_source_psa_population_per_barangay.py) |
 | [dti_cmci_psgc_match.md](generated/dti_cmci_psgc_match.md) | CMCI suffix readings, CMCI LGUs not matched by exact name, and PSGC units with no CMCI LGU | [`cross_source_dti_cmci.py`](../../../analysis/cross_source/cross_source_dti_cmci.py) |
 | [hdx_boundaries_psgc_unmatched.md](generated/hdx_boundaries_psgc_unmatched.md) | COD-AB ADM3 and ADM4 units not matched to PSGC, and ADM4 code matches whose names differ (to review) | [`cross_source_hdx_boundaries.py`](../../../analysis/cross_source/cross_source_hdx_boundaries.py) |
@@ -56,6 +58,7 @@ A finding ID such as `A-5` or `Y-6` is printed by a script in front of the numbe
 | `A-n` | `cross_source_deped.py` | DepEd SY 2023-24 place names to PSGC 2Q 2026 |
 | `B-n` | `cross_source_deped.py` | DepEd `school_id` joins between enrollment, facilities, personnel, ELLNA, and NAT Grade 6 |
 | `Y-n` | `cross_source_deped_years.py` | DepEd enrollment across the three acquired school years |
+| `AN-n` | `cross_source_deped_annex.py` | DepEd annex-to-mother source availability and unmatched annexes |
 | `C-n` | `cross_source_coverage.py` | Checks that span sources: schools without a poverty estimate (C-1), Special Geographic Area schools (C-2), PSGC population (C-3), Manila sub-municipalities rolled up to the City of Manila (C-4) |
 | `BP-n` | `cross_source_psa_population_per_barangay.py` | PSA barangay population against PSGC |
 | `AG-n` | `cross_source_psa_population_per_age_group.py` | PSA age-group population's OpenSTAT codes against PSGC |
