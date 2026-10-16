@@ -179,7 +179,8 @@ for t in ENROLLMENT:
     data = raw_bytes[t]
     show("O-6", f"{t}: lines failing UTF-8 = {utf8_failures(data):,}, CRLF line endings = {CRLF in data}")
 
-base = set(columns("enr_2023_24"))
+base_order = columns("enr_2023_24")
+base = set(base_order)
 for t in [t for t in ENROLLMENT if t != "enr_2023_24"]:
     cols = set(columns(t))
     show("O-7", f"{t} vs enr_2023_24: added={sorted(cols - base)} removed={sorted(base - cols)} "
@@ -208,6 +209,9 @@ show("O-10", f"schools in NIR in 2024-25, by 2023-24 region: {origins}; other re
 moves = q("""SELECT a.region, b.region, a.division, b.division, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
              WHERE a.region <> b.region GROUP BY ALL ORDER BY 5 DESC""")
 show("O-10", f"region changes 2020-21 -> 2023-24 (region, region, division, division, schools): {moves}")
+by_sector = q("""SELECT a.division, a.sector, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
+                 WHERE a.region <> b.region GROUP BY ALL ORDER BY 1, 3 DESC""")
+show("O-10", f"those schools by 2020-21 division and sector: {by_sector}")
 
 for t in ENROLLMENT:
     show("O-11", f"{t}: distinct provinces = {one(f'SELECT count(DISTINCT province) FROM {t}')}")
