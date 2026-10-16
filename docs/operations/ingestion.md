@@ -71,6 +71,8 @@ Raw files are kept exactly as downloaded and are never overwritten (D-016, provi
 
 A re-download of a published file therefore sits beside the earlier one. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so the layout does not matter to it, and it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
 
+**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. In use: SY 2020-21 enrollment, `raw/_holding/deped/2026-10-16/` (#161).
+
 ## Validation
 
 Before anything is written to Bronze (`src/ingestion/validate.py`):
@@ -383,7 +385,7 @@ Silver's two SQL tasks run right after this source's Bronze gate task, only if i
 ## Runbook
 
 **1. How do I add a new DepEd school year?**
-Download the zip from the official page; do not rename or open-and-save it. Profile it and update the source card (checksums, encoding, rows). Add the delivery to `config/ingestion/deped_enrollment.json` (and a schema version if the header changed; then regenerate the DDL), and merge the pull request. Upload the zip to `raw/deped/<download date>/`, never over an existing file. Run the job. An older year loads as `backfill`, a newer one as `incremental`; other years are untouched.
+Download the zip from the official page; do not rename or open-and-save it. Profile it and update the source card (checksums, encoding, rows). If it is uploaded before the next step, put it in `raw/_holding/deped/<download date>/`, never in `raw/deped/` ([Storage layout](#storage-layout)). Add the delivery to `config/ingestion/deped_enrollment.json` (and a schema version if the header changed; then regenerate the DDL), and merge the pull request. Upload the zip to `raw/deped/<download date>/` (or move it there from `_holding/`), never over an existing file. Run the job. An older year loads as `backfill`, a newer one as `incremental`; other years are untouched.
 
 **2. How do I know whether it was already processed?**
 `python -m src.ingestion.cli status --source deped_enrollment` locally, or the first validation query on Databricks. Look up the file's SHA-256: `succeeded` means processed.
