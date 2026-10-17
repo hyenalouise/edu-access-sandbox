@@ -74,6 +74,10 @@ def test_a_row_is_identified_by_its_sheet_too():
     (lambda c: c["schema_versions"]["v1"]["bands"].update(BJ="Total"), "band(s)"),
     (lambda c: c["schema_versions"]["v2"].pop("sex_labels"), "sex_labels"),
     (lambda c: c["known_issues"].append({"name": "x", "check": "guess", "finding": "-", "profiled": {}}), "is not one of"),
+    (lambda c: c["known_issues"][1].pop("value"), "needs a non-empty text 'value'"),
+    (lambda c: c["known_issues"][2].update(value=""), "needs a non-empty text 'value'"),
+    (lambda c: c["known_issues"][0]["profiled"].update({"2024 Total Pops": 1}), "profiled names sheet(s)"),
+    (lambda c: c["known_issues"][1]["profiled"].update({"Total Pop": 1}), "profiled names sheet(s)"),
 ])
 def test_contract_refuses_ambiguous_config(break_it, message):
     config = real_config()

@@ -111,6 +111,8 @@ KNOWN_ISSUE_CHECKS = {
     "source_line_contains": _source_contains,
     "title_lacks": _title_lacks,
 }
+# Checks that compare against a text given in the contract as "value".
+KNOWN_ISSUE_VALUE_CHECKS = {"source_line_contains", "title_lacks"}
 
 
 def _config_error(message):
@@ -209,6 +211,8 @@ def validate_contract(config, registry_entry):
                 raise _config_error(f"{label} is missing {key!r}.")
         if issue["check"] not in KNOWN_ISSUE_CHECKS:
             raise _config_error(f"{label}: check {issue['check']!r} is not one of {sorted(KNOWN_ISSUE_CHECKS)}.")
+        if issue["check"] in KNOWN_ISSUE_VALUE_CHECKS and not (isinstance(issue.get("value"), str) and issue["value"]):
+            raise _config_error(f"{label}: check {issue['check']!r} needs a non-empty text 'value'.")
         if not isinstance(issue["profiled"], dict) or not all(
                 isinstance(n, int) and n >= 0 for n in issue["profiled"].values()):
             raise _config_error(f"{label}: profiled must map sheet names to whole-number counts.")
@@ -253,6 +257,16 @@ def validate_contract(config, registry_entry):
         seen_sha.add(d["workbook_sha256"])
         seen_version.add(key)
         by_dataset.setdefault(d["logical_dataset"], []).append(d)
+
+    # A profiled sheet must be named as a workbook sheet is ('<year> <suffix>'), so a misspelling cannot pass
+    # and later read as a profiled count of 0. The year's delivery may not be approved yet.
+    suffixes = sorted(config["sheet_suffixes"].values())
+    for issue in config["known_issues"]:
+        unknown = sorted(n for n in issue["profiled"]
+                         if not (CENSUS_YEAR.match(n[:4]) and n[4:5] == " " and n[5:] in suffixes))
+        if unknown:
+            raise _config_error(f"known issue {issue['name']!r}: profiled names sheet(s) {unknown}; a sheet is "
+                                f"'<census year> <suffix>' with a suffix in {suffixes}.")
 
     years = {}
     for dataset, deliveries in by_dataset.items():
