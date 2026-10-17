@@ -106,10 +106,10 @@ erDiagram
     poverty_estimate {
         varchar city_mun_psgc_code PK, FK
         integer estimate_year PK "Gold uses 2023"
-        decimal poverty_incidence "percent of persons"
-        decimal poverty_ci90_lower
-        decimal poverty_ci90_upper
-        decimal poverty_cv
+        double poverty_incidence "percent of persons"
+        double poverty_ci90_lower
+        double poverty_ci90_upper
+        double poverty_cv
     }
 ```
 

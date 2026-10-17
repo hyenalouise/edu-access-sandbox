@@ -32,7 +32,7 @@ without a separate decision.
 | `dim_school` | One DepEd school | `school_id` | Stable school identifier and latest available reported name |
 | `dim_school_year` | One school year | `school_year` | Start and end calendar years, plus source availability for enrollment, facilities, and personnel |
 | `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, or `SHS`, with the included grades documented below |
-| `dim_city_poverty` | One city or municipality | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
+| `dim_city_poverty` | One regular city or municipality; none for technical members | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
 
 `member_type` on both geography dimensions is one of `regular`, `unknown`, or
 `excluded`. Each regular city or municipality has its own unknown-barangay
@@ -174,20 +174,23 @@ key, so no `ALL` education-level member is needed.
 |---|---|
 | `city_mun_psgc_code` | STRING |
 | `estimate_year` | INT |
-| `poverty_incidence` | DECIMAL(12,6) |
-| `poverty_ci90_lower` | DECIMAL(12,6) |
-| `poverty_ci90_upper` | DECIMAL(12,6) |
-| `poverty_cv` | DECIMAL(12,6) |
+| `poverty_incidence` | DOUBLE |
+| `poverty_ci90_lower` | DOUBLE |
+| `poverty_ci90_upper` | DOUBLE |
+| `poverty_cv` | DOUBLE |
 | `cv_over_20` | BOOLEAN |
-| `estimate_status` | STRING |
+| `poverty_status` | STRING |
 | `status_reason` | STRING |
 
-The selected estimate year is 2023. `estimate_status` is `estimated`,
-`no_estimate`, or `not_in_source`, following D-046. This contextual dimension
-has one row for every city or municipality, including those without an estimate.
-`cv_over_20` supports the dashboard's `less precise` label. `status_reason` is
-shown when no estimate is available. This table follows D-046 if that decision
-changes before #151 is merged.
+The selected estimate year is 2023. `poverty_status` is `estimated`,
+`no_estimate`, or `not_in_source`, following D-046; it is not named
+`estimate_status` because `fact_city_population` uses that name for other
+values. This contextual dimension has one row for every regular city or
+municipality (1,642), including those without an estimate, and none for the
+`unknown` and `excluded` members. The measures keep Silver's DOUBLE type
+(D-034), so published values are not rounded. `cv_over_20` supports the
+dashboard's `less precise` label. `status_reason` is NULL when estimated and
+otherwise one of the reasons listed in D-046.
 
 ### `fact_school_enrollment`
 
@@ -354,12 +357,12 @@ erDiagram
   dim_city_poverty {
     string city_mun_psgc_code PK,FK
     int estimate_year
-    decimal poverty_incidence
-    decimal poverty_ci90_lower
-    decimal poverty_ci90_upper
-    decimal poverty_cv
+    double poverty_incidence
+    double poverty_ci90_lower
+    double poverty_ci90_upper
+    double poverty_cv
     boolean cv_over_20
-    string estimate_status
+    string poverty_status
     string status_reason
   }
   fact_school_enrollment {

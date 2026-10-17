@@ -85,7 +85,7 @@ contract is approved.
 | `dim_school` | One DepEd school |
 | `dim_school_year` | One school year |
 | `dim_education_level` | One education reporting level: ES, JHS, or SHS |
-| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context |
+| `dim_city_poverty` | One regular city or municipality with its selected 2023 poverty context; none for technical members |
 | `fact_school_enrollment` | School x school year x education level |
 | `fact_school_classroom_capacity` | School x school year |
 | `fact_school_teacher_capacity` | School x school year x education level |
