@@ -22,8 +22,8 @@ Raw files are kept in raw storage, never in git. Record exactly what arrived.
 
 | File | Format | Encoding | Size (bytes) | Row count | SHA-256 | Raw storage location |
 |---|---|---|---|---|---|---|
-| `2020 School-Age Population by Single Year Age, Sex, and City Municipality.xlsx` | xlsx, sheets `2020 Total Pop`, `2020 Household Pop` | n/a | 1,206,376 | 1,742 places per sheet, one row each (profile O-1, O-2) | `e40d71839b951926cd3c9515c1edafbb6a2121f734670716e3b21bd3f9dcd35f` | `RAW_DATA_DIR/psa/original/` (local). Not yet uploaded to the Databricks volume |
-| `2024 School-Age Population by Single Year Age, Sex, and City Municipality.xlsx` | xlsx, sheets `2024 Total Pop`, `2024 Household Pop` | n/a | 1,558,482 | 1,744 places per sheet, four rows each (O-1, O-2) | `49d15bb0cdd191cd6aef4a14f4b063da247ba791b32caa653c37c464dff15954` | `RAW_DATA_DIR/psa/original/` (local). Not yet uploaded to the Databricks volume |
+| `2020 School-Age Population by Single Year Age, Sex, and City Municipality.xlsx` | xlsx, sheets `2020 Total Pop`, `2020 Household Pop` | n/a | 1,206,376 | 1,742 places per sheet, one row each (profile O-1, O-2); `2020 Total Pop` 1,748 rows, `2020 Household Pop` 1,748 rows (first local run, 2026-10-16) | `e40d71839b951926cd3c9515c1edafbb6a2121f734670716e3b21bd3f9dcd35f` | Databricks volume `/Volumes/edu_access/00-source/raw/psa/` (uploaded 2026-10-16; loaded by the `dev` job, which verifies the SHA-256). Local copy: `RAW_DATA_DIR/psa/original/` |
+| `2024 School-Age Population by Single Year Age, Sex, and City Municipality.xlsx` | xlsx, sheets `2024 Total Pop`, `2024 Household Pop` | n/a | 1,558,482 | 1,744 places per sheet, four rows each (O-1, O-2); `2024 Total Pop` 6,994 rows, `2024 Household Pop` 6,991 rows (first local run, 2026-10-16) | `49d15bb0cdd191cd6aef4a14f4b063da247ba791b32caa653c37c464dff15954` | Databricks volume `/Volumes/edu_access/00-source/raw/psa/` (uploaded 2026-10-16; loaded by the `dev` job, which verifies the SHA-256). Local copy: `RAW_DATA_DIR/psa/original/` |
 
 ## Publisher documentation
 

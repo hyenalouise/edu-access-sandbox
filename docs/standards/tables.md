@@ -15,6 +15,7 @@ without pretending that the business problem or analytical questions are final.
 | PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
 | DepEd EMISD enrollment with PSGC and coordinates | `deped_enrollment_psgc_raw` | not named yet (its Silver issue, #137) | not named yet |
+| PSA school-age population, 2020 and 2024 census workbooks | `psa_school_age_population_raw` | not named yet (its Silver issue) | not named yet |
 
 Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
 the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
