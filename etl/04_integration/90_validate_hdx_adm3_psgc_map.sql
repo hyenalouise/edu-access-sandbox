@@ -18,15 +18,23 @@ INSERT INTO edu_access.`01-control`.data_quality_results
 SELECT :run_id, CAST(NULL AS STRING), 'hdx_boundaries', 'integration', 'edu_access.04-integration.hdx_adm3_psgc_map_candidate', check_name, status, expected, actual,
        current_timestamp(), :code_revision
 FROM (
-WITH hdx AS (SELECT adm3_pcode, valid_on FROM edu_access.`03-silver`.hdx_adm3_clean),
-units AS (SELECT psgc_code, correspondence_code FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference AND geographic_level IN ('City', 'Mun')),
+WITH hdx AS (SELECT adm3_pcode, adm2_pcode, valid_on, rpad(substr(adm2_pcode, 3), 10, '0') AS prov10 FROM edu_access.`03-silver`.hdx_adm3_clean),
+psgc AS (SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference),
+units AS (SELECT psgc_code, name, correspondence_code FROM psgc WHERE geographic_level IN ('City', 'Mun')),
+province AS (
+  SELECT h.adm3_pcode, h.valid_on, substr(COALESCE(MIN(p1.psgc_code), MIN(p2.psgc_code)), 1, 5) AS prov5
+  FROM hdx AS h
+  LEFT JOIN psgc AS p1 ON p1.psgc_code = h.prov10
+  LEFT JOIN psgc AS p2 ON substr(h.prov10, 3, 1) = '0' AND p2.correspondence_code = substr(h.prov10, 1, 2) || substr(h.prov10, 4, 2) || substr(h.prov10, 6, 2) || substr(h.prov10, 8, 3)
+  GROUP BY h.adm3_pcode, h.valid_on
+),
 overrides AS (SELECT * FROM (VALUES ('PH0907226', DATE '2025-02-13', '0907226000', 'code_renamed', 'renamed LGU: COD-AB Bacungan (Leon T. Postigo) is PSGC Leon T. Postigo, Zamboanga del Norte'), ('PH1004217', DATE '2025-02-13', '1004217000', 'code_renamed', 'renamed LGU: COD-AB Don Victoriano Chiongbian (Don Mariano Marcos) is PSGC Don Victoriano, Misamis Occidental'), ('PH1102324', DATE '2025-02-13', '1102324000', 'code_renamed', 'renamed LGU: COD-AB San Isidro is PSGC Sawata, Davao del Norte'), ('PH1705323', DATE '2025-02-13', '1705323000', 'code_renamed', 'renamed LGU: COD-AB Rizal (Marcos) is PSGC Dr. Jose P. Rizal, Palawan'), ('PH1909901', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Carmen): no PSGC equivalent until a spatial check (D-031)'), ('PH1909902', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Kabacan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909903', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909904', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Midsayap II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909905', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pigkawayan): no PSGC equivalent until a spatial check (D-031)'), ('PH1909906', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit I): no PSGC equivalent until a spatial check (D-031)'), ('PH1909907', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit II): no PSGC equivalent until a spatial check (D-031)'), ('PH1909908', DATE '2025-02-13', CAST(NULL AS STRING), CAST(NULL AS STRING), 'Special Geographic Area unit (SGA - Pikit III): no PSGC equivalent until a spatial check (D-031)')) AS v(adm3_pcode, source_reference_date, psgc_code, match_method, reason)),
 totals AS (
   SELECT (SELECT COUNT(*) FROM hdx) AS hdx_rows, (SELECT COUNT(*) FROM units) AS psgc_units,
          (SELECT COUNT(*) FROM overrides AS o JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode AND h.valid_on = o.source_reference_date) AS overrides_present,
          (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode AND h.valid_on = o.source_reference_date
           WHERE h.adm3_pcode IS NULL) AS overrides_missing,
-         (SELECT COUNT(DISTINCT publication_period) FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference) AS master_periods,
+         (SELECT COUNT(DISTINCT publication_period) FROM psgc) AS master_periods,
          -- Per HDX release: each (release, PSGC unit) pair with no matched feature in that release.
          (SELECT COUNT(*) FROM (SELECT DISTINCT valid_on FROM hdx) AS r CROSS JOIN units AS u
           LEFT JOIN (SELECT DISTINCT source_reference_date, psgc_code FROM edu_access.`04-integration`.hdx_adm3_psgc_map_candidate WHERE match_status = 'matched') AS mm
@@ -45,6 +53,8 @@ agg AS (
     COUNT_IF((m.match_status = 'matched' AND (m.match_method IS NULL OR m.match_method NOT IN ('code', 'code_renamed', 'code_region_moved', 'correspondence_code', 'name_exact', 'name_old', 'name_normalized', 'reviewed_alias', 'spatial'))) OR (m.match_status = 'ambiguous' AND m.match_method IS NOT NULL)) AS bad_method,
     COUNT_IF(m.review_status IS NULL OR m.review_status NOT IN ('rule', 'reviewed', 'pending')) AS bad_review,
     COUNT_IF(NOT COALESCE((m.match_status = 'matched' AND m.review_status IN ('rule', 'reviewed') AND m.match_method IS NOT NULL AND m.psgc_code IS NOT NULL) OR (m.match_status = 'ambiguous' AND m.review_status = 'pending' AND m.match_method IS NULL AND m.psgc_code IS NULL) OR (m.match_status = 'unmatched' AND m.review_status IN ('pending', 'reviewed') AND m.match_method IS NULL AND m.psgc_code IS NULL), FALSE)) AS bad_combination,
+    COUNT_IF(m.match_status = 'matched' AND (m.psgc_name IS NULL OR u.name IS NULL OR m.psgc_name <> u.name)) AS psgc_name_mismatch,
+    COUNT_IF(COALESCE(m.match_method IN ('name_exact', 'name_old', 'name_normalized') AND (pr.prov5 IS NULL OR substr(m.psgc_code, 1, 5) <> pr.prov5), FALSE)) AS name_province_mismatch,
     COUNT_IF(m.match_method = 'code' AND m.review_status = 'rule' AND m.psgc_code <> m.code_candidate) AS code_mismatch,
     COUNT_IF(m.match_method = 'correspondence_code' AND m.review_status = 'rule' AND (u.correspondence_code IS NULL OR u.correspondence_code <> substr(m.code_candidate, 1, 2) || substr(m.code_candidate, 4, 2) || substr(m.code_candidate, 6, 2) || substr(m.code_candidate, 8, 3))) AS correspondence_mismatch,
     COUNT_IF(m.match_method = 'code_region_moved' AND m.review_status = 'rule' AND (m.code_candidate NOT LIKE '19%' OR m.psgc_code <> '09' || substr(m.code_candidate, 3))) AS region_mismatch,
@@ -65,6 +75,7 @@ agg AS (
     COUNT_IF(m.match_status = 'matched' AND m.match_method = 'spatial') AS method_spatial
   FROM edu_access.`04-integration`.hdx_adm3_psgc_map_candidate AS m
   LEFT JOIN units AS u ON u.psgc_code = m.psgc_code
+  LEFT JOIN province AS pr ON pr.adm3_pcode = m.adm3_pcode AND pr.valid_on = m.source_reference_date
 ),
 stats AS (SELECT * FROM agg CROSS JOIN totals),
 checks AS (
@@ -78,6 +89,8 @@ checks AS (
   UNION ALL SELECT 'method_valid' AS check_name, CASE WHEN bad_method = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_method AS STRING) AS actual FROM stats
   UNION ALL SELECT 'review_status_valid' AS check_name, CASE WHEN bad_review = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_review AS STRING) AS actual FROM stats
   UNION ALL SELECT 'status_combination_valid' AS check_name, CASE WHEN bad_combination = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(bad_combination AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'psgc_name_matches_unit' AS check_name, CASE WHEN psgc_name_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(psgc_name_mismatch AS STRING) AS actual FROM stats
+  UNION ALL SELECT 'name_match_inside_province' AS check_name, CASE WHEN name_province_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(name_province_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'code_is_the_pcode' AS check_name, CASE WHEN code_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(code_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'correspondence_is_the_old_code' AS check_name, CASE WHEN correspondence_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(correspondence_mismatch AS STRING) AS actual FROM stats
   UNION ALL SELECT 'region_moved_is_sulu' AS check_name, CASE WHEN region_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(region_mismatch AS STRING) AS actual FROM stats
