@@ -503,3 +503,79 @@ def test_cli_exit_codes_for_setup_problems(tmp_path):
     assert cli.main(["ingest", "--source", "deped_enrollment", "--environment", "dev",
                      "--code-revision", REVISION, *landing, *db]) == 0
     assert cli.main(["ingest", "--source", "no_such_source", *landing, *db]) == 2
+
+
+# --- SY 2020-21, the fourth approved delivery -------------------------------------
+
+def test_the_contract_approves_the_four_deliveries_on_the_source_card():
+    """Checksums, row counts and encodings are copied from the profiled source card, never typed afresh."""
+    import yaml
+    config = real_config()
+    years = {d["school_year"]: d for d in config["deliveries"]}
+    assert {sy: (d["delivery_version"], d["schema_version"], d["encoding"], d["row_count"]) for sy, d in years.items()} == {
+        "2020-21": (1, "v1", "utf-8", 60957),
+        "2023-24": (1, "v1", "utf-8", 60167),
+        "2024-25": (1, "v1", "utf-8", 60129),
+        "2025-26": (1, "v2", "cp1252", 60204),
+    }
+    card = (REPO_ROOT / "docs" / "data" / "source-inventory" / "deped_enrollment" / "README.md").read_text(encoding="utf-8")
+    lines = card.splitlines()
+    for d in config["deliveries"]:
+        archive = next(line for line in lines if line.startswith(f"| `{d['archive']}` |"))
+        member = next(line for line in lines if line.startswith(f"| ↳ `{d['data_member']}` |"))
+        assert f"`{d['archive_sha256']}`" in archive
+        assert f"`{d['data_member_sha256']}`" in member and f"| {d['row_count']:,} |" in member
+        assert all(f"`{sha}`" in card for sha in d["document_sha256"].values())
+    registry = yaml.safe_load((REPO_ROOT / "config" / "tables.yml").read_text(encoding="utf-8"))
+    entry = next(s for s in registry["source_tables"] if s["source_id"] == "deped_enrollment")
+    assert entry["scope"]["school_years"] == sorted(years)
+
+
+def test_sy_2020_21_has_the_v1_header():
+    """The same 78 columns, in the same order, as SY 2023-24 (profile O-7): no new schema version."""
+    config = real_config()
+    by_year = {d["school_year"]: d["schema_version"] for d in config["deliveries"]}
+    assert by_year["2020-21"] == by_year["2023-24"] == "v1"
+    assert len(config["schema_versions"]["v1"]["columns"]) == 78
+    assert config["schema_versions"]["v1"]["first_school_year"] == "2020-21"
+
+
+def test_sy_2020_21_loads_as_a_v1_backfill_and_leaves_the_later_years_untouched(env):
+    env.deliver("2023-24", n_rows=4)
+    env.deliver("2024-25", n_rows=3, first_id=910001)
+    env.deliver("2025-26", "v2", encoding="cp1252", line_ending="\r\n", first_id=920001)
+    assert env.run().status == "succeeded"
+    later = f"SELECT * FROM {BRONZE} WHERE school_year <> '2020-21' ORDER BY source_sha256, source_row_number"
+    batches = (f"SELECT school_year, batch_id, status, load_type, source_rows, bronze_rows, first_run_id "
+               f"FROM {CONTROL}.ingestion_batches ORDER BY school_year")
+    before, batches_before = env.q(later), env.q(batches)
+
+    env.deliver("2020-21", n_rows=5, first_id=880001)
+    added = env.run()
+    assert added.status == "succeeded"
+    assert {o.school_year: (o.action, o.load_type) for o in added.outcomes if o.action == "load"} == {
+        "2020-21": ("load", "backfill")}
+    assert env.q(later) == before                                  # the three later years: not one value changed
+    assert env.q(batches)[1:] == batches_before
+    assert env.q(f"SELECT DISTINCT schema_version FROM {BRONZE} WHERE school_year = '2020-21'") == [("v1",)]
+    assert env.one(f"SELECT COUNT(DISTINCT schema_fingerprint) FROM {BRONZE} "
+                   "WHERE school_year IN ('2020-21', '2023-24')") == 1
+    assert env.bronze_rows("school_year = '2020-21' AND g11_sshs_acad_male IS NULL") == 5    # not in v1
+
+    # Per-year reconciliation: every year's Bronze rows equal its file and its approved row_count.
+    per_year = env.q(f"SELECT b.school_year, b.expected_rows, b.source_rows, b.bronze_rows, COUNT(r.school_id) "
+                     f"FROM {CONTROL}.ingestion_batches AS b JOIN {BRONZE} AS r ON r.batch_id = b.batch_id "
+                     "GROUP BY ALL ORDER BY 1")
+    assert per_year == [("2020-21", 5, 5, 5, 5), ("2023-24", 4, 4, 4, 4), ("2024-25", 3, 3, 3, 3),
+                        ("2025-26", 3, 3, 3, 3)]
+    results = env.q(f"SELECT check_name, status FROM {CONTROL}.data_quality_results "
+                    f"WHERE run_id = '{added.run_id}' AND batch_id IS NULL ORDER BY 1")
+    assert ("succeeded_batches_reconcile", "PASS") in results and all(s != "FAIL" for _, s in results)
+
+    # A rerun inserts nothing and changes nothing.
+    content = f"SELECT * EXCLUDE (run_id, ingested_at_utc) FROM {BRONZE} ORDER BY source_sha256, source_row_number"
+    snapshot = env.q(content)
+    again = env.run()
+    assert again.status == "succeeded"
+    assert {(o.action, o.rows_inserted) for o in again.outcomes} == {("skip", 0)}
+    assert env.q(content) == snapshot and env.bronze_rows() == 15
