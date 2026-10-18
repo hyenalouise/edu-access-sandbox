@@ -16,7 +16,7 @@
   "rule_order": {
     "city_mun": [
       "A reviewed override for the school's DepEd place, if one is listed below; it picks the unit, and the method follows the side it uses (code when the name match agrees, otherwise code_name_differs)",
-      "Special Geographic Area school (BARMM / NORTH COTABATO, D-031): matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's municipality, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
+      "Special Geographic Area school (D-031): one DepEd files under a special_geographic_area source place below, or whose EMISD code is in a Special Geographic Area municipality (psgc_prefix; SY 2020-21 still files these schools under Region XII). Matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's municipality, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
       "EMISD code and name match give the same unit: matched, method code",
       "They give different units: matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's city or municipality (the place moved, e.g. a newer municipality or Embo), method code_name_differs; otherwise ambiguous",
       "Only one of them is found: matched by it (code_name_differs for the code, or the name tier's method)",
@@ -45,6 +45,12 @@
     "word City ignored": "name_normalized",
     "truncated at 40": "name_normalized",
     "reviewed alias": "reviewed_alias"
+  },
+  "special_geographic_area": {
+    "decision": "D-031",
+    "psgc_prefix": "19999",
+    "source_places": [["BARMM", "NORTH COTABATO"], ["BARMM", "(SGA - North Cotabato)"]],
+    "evidence": "SY 2023-24 files all 112 schools coded 19999 under BARMM / NORTH COTABATO; SY 2024-25 and 2025-26 add BARMM / (SGA - North Cotabato) (7 and 8 schools, 5 and 6 of them not in the EMISD crosswalk); SY 2020-21 files the 111 schools coded 19999 under Region XII / NORTH COTABATO. See evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md."
   },
   "locality_aliases": [
     {"deped_name": "TONDO", "psgc_code": "1380601000", "reason": "Tondo I/II, a City of Manila sub-municipality", "evidence": "Reviewed DepEd name-match alias from #8 and PR #153"},

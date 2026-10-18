@@ -78,6 +78,8 @@ class MapSpec:
     psgc_table: str
     aliases: list[Alias]
     overrides: list[Override]
+    sga_prefix: str
+    sga_places: list[tuple[str, str]]
     rules: dict = field(repr=False)
 
     @property
@@ -116,14 +118,19 @@ def build_spec(rules):
             raise _error(f"override {key!r} needs reason, evidence, and reviewer.")
         override_keys.add(key)
         overrides.append(Override(*key, item["use"], item["reason"], item["reviewer"]))
-    literals = [a.deped_name for a in aliases] + [a.reason for a in aliases]
+    sga = rules.get("special_geographic_area", {})
+    sga_prefix, sga_places = sga.get("psgc_prefix", ""), [tuple(p) for p in sga.get("source_places", [])]
+    if not re.fullmatch(r"[0-9]{5}", sga_prefix) or not sga_places or any(len(p) != 2 or not all(p) for p in sga_places):
+        raise _error("special_geographic_area needs a five-digit psgc_prefix and [region, province] source_places (D-031).")
+    literals = [a.deped_name for a in aliases] + [a.reason for a in aliases] + [v for p in sga_places for v in p]
     literals += [v for o in overrides for v in (o.level, o.province, o.municipality, o.barangay, o.use, o.reason, o.reviewer)]
     if any(not SAFE.match(v) or "--" in v for v in literals):
         raise _error("aliases and overrides may not contain backslashes, semicolons, or SQL comments.")
     required = ("enrollment", "crosswalk", "psgc")
     if not rules.get("map_table") or any(not inputs.get(k) for k in required):
         raise _error("map_table and all three inputs are required.")
-    return MapSpec(rules["map_table"], inputs["enrollment"], inputs["crosswalk"], inputs["psgc"], aliases, overrides, rules)
+    return MapSpec(rules["map_table"], inputs["enrollment"], inputs["crosswalk"], inputs["psgc"], aliases, overrides,
+                   sga_prefix, sga_places, rules)
 
 
 def ref(schema, table):
@@ -209,6 +216,8 @@ def build_sql(spec):
     enr, cross, psgc = ref(SILVER, spec.enrollment_table), ref(SILVER, spec.crosswalk_table), ref(SILVER, spec.psgc_table)
     candidate = ref(SCHEMA, spec.candidate)
     keys_p = _key_ctes("p", "x.name").replace("FROM p_input", "FROM psgc_input")
+    sga_places = " OR ".join(f"(upper(s.region) = {lit(r.upper())} AND upper(s.province) = {lit(p.upper())})"
+                             for r, p in spec.sga_places)
     # Old-name keys are separate because a NULL old name must remain NULL through every key.
     sql = f"""
 DECLARE OR REPLACE VARIABLE integration_run_id STRING;
@@ -385,6 +394,10 @@ school_units AS (
                OR (s.barangay_possibly_truncated AND cb.k_fold LIKE s.b_fold || '%'))
               THEN TRUE ELSE FALSE END AS code_bgy_name_agrees,
          cb.city_municipality_code AS code_bgy_parent,
+         -- D-031: a school DepEd files under a Special Geographic Area place, or one whose EMISD code is
+         -- in a Special Geographic Area municipality (SY 2020-21 still files these under Region XII).
+         COALESCE(NOT s.is_overseas AND (s.code_city LIKE '{spec.sga_prefix}%' OR s.code_bgy LIKE '{spec.sga_prefix}%'
+           OR {sga_places}), FALSE) AS is_sga,
          o.use_side AS bgy_override_side, o.reason AS bgy_override_reason, o.reviewer AS bgy_override_reviewer
   FROM school_input AS s
   LEFT JOIN units AS cc ON cc.psgc_code = s.code_city AND cc.geographic_level IN ('City', 'Mun', 'SubMun')
@@ -396,14 +409,14 @@ school_units AS (
 city_decided AS (
   SELECT s.*,
     CASE WHEN s.is_overseas THEN 'excluded'
-         WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
+         WHEN s.is_sga
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN 'matched' ELSE 'excluded' END
          WHEN s.code_city_roll IS NOT NULL AND s.code_city_roll = s.name_city_roll THEN 'matched'
          WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NOT NULL
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN 'matched' ELSE 'ambiguous' END
          WHEN COALESCE(s.code_city_roll, s.name_city_roll) IS NOT NULL THEN 'matched' ELSE 'unmatched' END AS city_status,
     CASE WHEN s.is_overseas THEN NULL
-         WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
+         WHEN s.is_sga
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN s.code_city_roll END
          WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NOT NULL AND s.code_city_roll <> s.name_city_roll
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN s.code_city_roll END
@@ -415,7 +428,7 @@ city_decided AS (
          ELSE s.name_city_method END AS city_method,
     -- The reasons repeat the match_detail wording of the reviewed analysis rule (PR #153).
     CASE WHEN s.is_overseas THEN 'Philippine Schools Overseas'
-         WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
+         WHEN s.is_sga
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city
                      THEN 'Special Geographic Area{SEMI}{BGY_SUPPORTS}' ELSE 'Special Geographic Area (D-031)' END
          WHEN s.code_city_roll IS NOT NULL AND s.code_city_roll = s.name_city_roll THEN 'code and name agree'
