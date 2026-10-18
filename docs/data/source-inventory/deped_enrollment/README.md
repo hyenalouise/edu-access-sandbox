@@ -84,7 +84,7 @@ See [profile.md](profile.md) for evidence.
 - **Observed:** 192 schools in Cotabato City and North Cotabato's Special Geographic Area are in Region XII in SY 2020-21 and in BARMM from SY 2021-22.
 - **Observed:** SY 2022-23 has one seven-digit school ID, `1404066`, an extra row of 8 Kindergarten learners for a school that also has its six-digit row `404066`; Silver quarantines it.
 - **Observed:** `Local Government` management appears only in SY 2020-21 to 2022-23 (154, 155, and 106 schools).
-- **Observed:** about 1% of school IDs appear or disappear between consecutive years; 2,517 SY 2020-21 IDs (1,711 private) are gone by SY 2023-24, 1,129 of them already in SY 2021-22.
+- **Observed:** about 1% of school IDs appear or disappear between consecutive years; 2,517 SY 2020-21 IDs (1,711 private) are gone by SY 2023-24, 1,064 of them already in SY 2021-22.
 - **Suspected:** schools with zero enrollment (439 in SY 2020-21, 206 in 2021-22, 153 in 2022-23, and 115 in 2023-24, mostly private) may be closed or non-reporting.
 
 ## Ingestion
