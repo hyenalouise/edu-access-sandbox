@@ -4,7 +4,7 @@ Issue #183 (part of #43) · local run (DuckDB) only; nothing has run on Databric
 
 ## The claim
 
-SY 2021-22 and 2022-23 are the fifth and sixth approved deliveries of `deped_enrollment`. They load into the existing `deped_enrollment_raw` table under schema `v1` through the existing task, with no new task, table, or schema version. Each school year's Bronze rows equal its file and its approved `row_count`. Bronze keeps SY 2022-23's seven-digit school ID `1404066` (profile O-1) and WARNs on it; nothing fails. The four other years' Bronze rows are identical to a run of `main` on the same four files. A second job run inserts no Bronze rows.
+SY 2021-22 and 2022-23 are the fifth and sixth approved deliveries of `deped_enrollment`. They load into the existing `deped_enrollment_raw` table under schema `v1` through the existing task, with no new task, table, or schema version. Each school year's Bronze rows equal its file and its approved `row_count`. Bronze keeps SY 2022-23's seven-digit school ID `1404066` (profile O-1) and WARNs on it; nothing fails. The four other years' Bronze rows are identical to the [2026-10-16 record](2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md) and to a run of `main` on the same four files. A second job run inserts no Bronze rows.
 
 ## What was run
 
@@ -54,14 +54,16 @@ The one WARN is `school_id_format` on the SY 2022-23 batch: expected `0 not matc
 
 ### The other four years are unchanged
 
-Content hash over every Bronze column except the run stamp (`run_id`, `ingested_at_utc`, `code_revision`), in school year and row order, with the query from the [2026-10-09 record](2026-10-09-deped-enrollment-bronze-to-silver.md):
+Content hash over every Bronze column except the run stamp (`run_id`, `ingested_at_utc`, `code_revision`), with the query from the [2026-10-09 record](2026-10-09-deped-enrollment-bronze-to-silver.md), in two row orders:
 
-| Bronze rows | This branch, after run 1 | After run 2 | `main` at `988ef0d`, same four files |
-|---|---|---|---|
-| All six years (362,023) | `04bc4517a2817dcb6e45e20e1635568c` | same | n/a |
-| SY 2020-21 and 2023-24 to 2025-26 (241,457) | `c7cd6f96e7424452155aa749fbd345b6` | same | `c7cd6f96e7424452155aa749fbd345b6` |
+| Bronze rows | Row order | This branch, after runs 1 and 2 | `main` at `988ef0d`, same four files | `98487d6` (the 2026-10-16 commit), same four files | [2026-10-16 record](2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md) |
+|---|---|---|---|---|---|
+| SY 2020-21 and 2023-24 to 2025-26 (241,457) | `source_sha256, source_row_number` | `df759ca3119a5e0ed3ac676355de75c8` | same | same | `df759ca3119a5e0ed3ac676355de75c8` |
+| SY 2020-21 and 2023-24 to 2025-26 (241,457) | `school_year, source_row_number` | `c7cd6f96e7424452155aa749fbd345b6` | same | same | n/a |
+| All six years (362,023) | `source_sha256, source_row_number` | `f120b6b023ef00d6709e1b3692e0beaf` | n/a | n/a | n/a |
+| All six years (362,023) | `school_year, source_row_number` | `04bc4517a2817dcb6e45e20e1635568c` | n/a | n/a | n/a |
 
-The `main` run used a copy of the landing folder without the two new zips, because `main` blocks them as `unregistered_delivery`. The four-year hash differs from the `df759ca3…75c8` in the [2026-10-16 record](2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md), and `main` gives the same value as this branch. So that difference comes from code merged to `main` since 2026-10-16, not from this branch.
+In the 2026-10-16 record's row order, the four other years hash to its value exactly, so adding SY 2021-22 and 2022-23 changed none of their Bronze rows. That record describes its order as school year and row order, but its value reproduces only in `source_sha256, source_row_number` order; the Bronze data has not changed since. The `main` and `98487d6` runs used a copy of the landing folder without the two new zips, because both block them as `unregistered_delivery`.
 
 The Silver build and gate ran in both job runs and passed with 2 WARN and 0 FAIL. The Silver results, including the quarantined `1404066`, are recorded in the Silver pull request.
 
