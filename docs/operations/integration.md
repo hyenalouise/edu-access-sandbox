@@ -39,21 +39,24 @@ python -m src.integration.deped_school_psgc sql > etl/04_integration/01_map_depe
 python -m src.integration.deped_school_psgc gate > etl/04_integration/90_validate_deped_school_psgc_map.sql
 ```
 
-The gate fails on row loss or multiplication, repeated keys, missing levels,
+The gate fails on row loss or multiplication, any missing or extra source key,
+repeated keys, missing levels,
 invalid status/method combinations, a matched code absent from the master PSGC
 quarter, a wrong PSGC level, a barangay outside the accepted city, mixed PSGC
-versions, incomplete lineage, rows from another run, or a match rate (matched
+versions, a master PSGC version different from the rules file, incomplete
+lineage, rows from another run, or a match rate (matched
 over rows not excluded) below the rules file's `gate.min_match_rate_pct`
 (99.0) for any school year and level. It compares matched / ambiguous /
 unmatched / excluded per school year and level with `gate.profiled_counts`:
-PASS at those counts, WARN when they change, so a new delivery or rule change
-is reviewed and the counts updated in its pull request. Unmatched, ambiguous,
+PASS at those counts and FAIL before publication when they change, so a new
+delivery or rule change is reviewed and the counts updated in its pull request.
+Unmatched, ambiguous,
 excluded, pending-review, overrides that find no unit, and overrides that match
 no school are WARN.
 
 Local made-up validation is in `tests/test_integration_deped_school_psgc.py`:
-one school per branch of the reviewed rule, and a negative test for each FAIL
-check. The real-data reconciliation is
+one school per branch of the reviewed rule, plus targeted negative mutations
+for the publication-critical gate checks. The real-data reconciliation is
 [evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md](../../evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md).
 Two Databricks `dev` runs are still required before this draft is ready to
 merge.
