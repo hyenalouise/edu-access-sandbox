@@ -78,6 +78,8 @@ Counts are from the local run on the real Bronze data, current batches only (ver
 
 Silver keeps "(Capital)" on 5,450 / 5,454 / 5,446 rows and every other place spelling, so Integration can match them to PSGC.
 
+**`Local Government` (SY 2020-21 only).** 154 public schools publish `school_management = Local Government`, a label no later year uses; 149 of them are `DepEd` in SY 2023-24 and the other 5 are not in SY 2023-24 or 2024-25 (profile O-8). Silver keeps it as its own standard value. Mapping it to `DepEd` would claim a management the file does not publish for that year, and mapping it to `LUC` would mix it with a SUC/LUC-sector label. Bronze keeps the published value. The facilities and personnel mappings share this standard set, so it is listed there too, although their SY 2023-24 files never publish it. Whether a year-over-year management comparison should treat it as `DepEd` is a question for Gold.
+
 ### What the Bronze data showed beyond the profile
 
 Profiling Bronze rather than the raw files confirmed every count above, and found three things the profile does not say (to add to [profile.md](../data/source-inventory/deped_enrollment/profile.md) with the profiling script, D-007):
@@ -255,6 +257,7 @@ What Gold must respect:
 - `barangay_possibly_truncated` and NULL `barangay`: barangay-level results for these schools are uncertain.
 - NULL counts: "not published"; in SY 2025-26 usually "level not offered". Use `schema_version` to tell a column the year lacks from a blank, and NULL-safe filters (`IS NOT TRUE`) on nullable booleans.
 - Region is as published: NIR exists from SY 2024-25 (O-10); compare regions across years only through PSGC (D-012).
+- `school_management = 'Local Government'` exists only in SY 2020-21 (154 public schools). Filter public schools on `sector`, not on `school_management = 'DepEd'`, or SY 2020-21 loses them.
 - School IDs change between years (O-12): a missing ID is not a closed school.
 - Unpivot grade, sex, and strand there (D-021), and decide how `g11_sshs_*` relates to the older strand columns.
 
