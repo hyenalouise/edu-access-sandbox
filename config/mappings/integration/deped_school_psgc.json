@@ -46,6 +46,17 @@
     "truncated at 40": "name_normalized",
     "reviewed alias": "reviewed_alias"
   },
+  "gate": {
+    "min_match_rate_pct": 99.0,
+    "min_match_rate_note": "matched / (rows - excluded) per school year and level; the gate FAILs and publishes nothing below it. The lowest on the 2026-10-19 deliveries is SY 2020-21 barangay, 99.63%.",
+    "profiled_counts_note": "Reviewed matched / ambiguous / unmatched / excluded counts per school year and level, from evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md. The gate PASSes at these counts and WARNs when they change; update them in the pull request that changes them.",
+    "profiled_counts": {
+      "2020-21": {"city_mun": {"matched": 60877, "ambiguous": 28, "unmatched": 16, "excluded": 36}, "bgy": {"matched": 60693, "ambiguous": 153, "unmatched": 75, "excluded": 36}},
+      "2023-24": {"city_mun": {"matched": 60108, "ambiguous": 12, "unmatched": 4, "excluded": 43}, "bgy": {"matched": 60050, "ambiguous": 56, "unmatched": 18, "excluded": 43}},
+      "2024-25": {"city_mun": {"matched": 60060, "ambiguous": 1, "unmatched": 5, "excluded": 63}, "bgy": {"matched": 60040, "ambiguous": 13, "unmatched": 13, "excluded": 63}},
+      "2025-26": {"city_mun": {"matched": 60122, "ambiguous": 3, "unmatched": 14, "excluded": 65}, "bgy": {"matched": 60039, "ambiguous": 71, "unmatched": 29, "excluded": 65}}
+    }
+  },
   "special_geographic_area": {
     "decision": "D-031",
     "psgc_prefix": "19999",

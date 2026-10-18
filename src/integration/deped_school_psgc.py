@@ -80,6 +80,8 @@ class MapSpec:
     overrides: list[Override]
     sga_prefix: str
     sga_places: list[tuple[str, str]]
+    min_match_rate_pct: float
+    profiled: list[tuple[str, str, int, int, int, int]]
     rules: dict = field(repr=False)
 
     @property
@@ -125,6 +127,19 @@ def build_spec(rules):
     sga_prefix, sga_places = sga.get("psgc_prefix", ""), [tuple(p) for p in sga.get("source_places", [])]
     if not re.fullmatch(r"[0-9]{5}", sga_prefix) or not sga_places or any(len(p) != 2 or not all(p) for p in sga_places):
         raise _error("special_geographic_area needs a five-digit psgc_prefix and [region, province] source_places (D-031).")
+    gate = rules.get("gate", {})
+    rate = gate.get("min_match_rate_pct")
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate <= 100:
+        raise _error("gate.min_match_rate_pct must be a number from 0 (no floor) to 100.")
+    profiled = []
+    for year, levels in gate.get("profiled_counts", {}).items():
+        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}", year) or set(levels) != set(LEVELS):
+            raise _error(f"gate.profiled_counts[{year!r}] needs a YYYY-YY school year and both levels {LEVELS}.")
+        for level in LEVELS:
+            counts = [levels[level].get(k) for k in ("matched", "ambiguous", "unmatched", "excluded")]
+            if any(not isinstance(n, int) or n < 0 for n in counts):
+                raise _error(f"gate.profiled_counts[{year!r}][{level!r}] needs matched, ambiguous, unmatched and excluded counts.")
+            profiled.append((year, level, *counts))
     literals = [a.deped_name for a in aliases] + [a.reason for a in aliases] + [v for p in sga_places for v in p]
     literals += [v for o in overrides for v in (o.level, o.province, o.municipality, o.barangay, o.use, o.reason, o.reviewer)]
     if any(not SAFE.match(v) or "--" in v for v in literals):
@@ -133,7 +148,7 @@ def build_spec(rules):
     if not rules.get("map_table") or any(not inputs.get(k) for k in required):
         raise _error("map_table and all three inputs are required.")
     return MapSpec(rules["map_table"], inputs["enrollment"], inputs["crosswalk"], inputs["psgc"], aliases, overrides,
-                   sga_prefix, sga_places, rules)
+                   sga_prefix, sga_places, float(rate), profiled, rules)
 
 
 def ref(schema, table):
@@ -538,6 +553,9 @@ def gate_sql(spec):
     enr = ref(SILVER, spec.enrollment_table)
     psgc = ref(SILVER, spec.psgc_table)
     candidate, published = ref(SCHEMA, spec.candidate), ref(SCHEMA, spec.map_table)
+    profile = _values([tuple(str(v) for v in row) for row in spec.profiled],
+                      ("school_year", "geographic_level", "matched", "ambiguous", "unmatched", "excluded"))
+    overrides = _values([(o.province, o.municipality, o.barangay) for o in spec.overrides], ("province", "municipality", "barangay"))
     status_list = ", ".join(lit(v) for v in STATUSES)
     method_list = ", ".join(lit(v) for v in METHODS)
     sql = f"""
@@ -552,6 +570,8 @@ FROM (
 WITH e AS (SELECT school_year, school_id FROM {enr}),
 p AS (SELECT psgc_code, geographic_level, city_municipality_code, publication_period FROM {psgc} WHERE is_master_reference),
 m AS (SELECT * FROM {candidate}),
+profile AS ({profile}),
+overrides AS ({overrides}),
 stats AS (
   SELECT
     (SELECT COUNT(*) FROM e) AS enrollment_rows,
@@ -575,8 +595,18 @@ stats AS (
     COUNT_IF(m.match_status = 'unmatched') AS unmatched_rows,
     COUNT_IF(m.match_status = 'ambiguous') AS ambiguous_rows,
     COUNT_IF(m.match_status = 'excluded') AS excluded_rows,
-    COUNT_IF(m.review_status = 'pending') AS pending_rows
+    COUNT_IF(m.review_status = 'pending') AS pending_rows,
+    COUNT_IF(m.reason = 'reviewed override: no unit') AS override_no_unit_rows,
+    (SELECT COUNT(*) FROM overrides AS o WHERE NOT EXISTS (SELECT 1 FROM {enr} AS x WHERE x.province = o.province
+       AND x.municipality = o.municipality AND x.barangay = o.barangay)) AS overrides_without_school
   FROM m LEFT JOIN p ON p.psgc_code = m.psgc_code
+),
+level_counts AS (
+  SELECT school_year, geographic_level,
+         CAST(COUNT_IF(match_status = 'matched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'ambiguous') AS STRING) || '/'
+           || CAST(COUNT_IF(match_status = 'unmatched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'excluded') AS STRING) AS counts,
+         100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
+  FROM m GROUP BY school_year, geographic_level
 ),
 hierarchy AS (
   SELECT COUNT_IF(NOT (b.psgc_code IS NULL OR c.psgc_code IS NULL OR pb.city_municipality_code = c.psgc_code
@@ -606,14 +636,25 @@ checks AS (
   UNION ALL SELECT 'ambiguous', CASE WHEN ambiguous_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(ambiguous_rows AS STRING) FROM s
   UNION ALL SELECT 'excluded', CASE WHEN excluded_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(excluded_rows AS STRING) FROM s
   UNION ALL SELECT 'review_pending', CASE WHEN pending_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(pending_rows AS STRING) FROM s
+  UNION ALL SELECT 'override_without_unit', CASE WHEN override_no_unit_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(override_no_unit_rows AS STRING) FROM s
+  UNION ALL SELECT 'override_without_school', CASE WHEN overrides_without_school = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(overrides_without_school AS STRING) FROM s
 ),
+-- matched / (rows - excluded) per school year and level; below the rules file's floor the map is not published.
 rates AS (
-  SELECT 'match_rate_' || school_year || '_' || geographic_level AS check_name, 'PASS' AS status,
-         CAST(NULL AS STRING) AS expected,
-         CAST(ROUND(100.0 * COUNT_IF(match_status = 'matched') / COUNT(*), 2) AS STRING) AS actual
-  FROM m GROUP BY school_year, geographic_level
+  SELECT 'match_rate_' || school_year || '_' || geographic_level AS check_name,
+         CASE WHEN COALESCE(match_rate, 0) >= {spec.min_match_rate_pct} THEN 'PASS' ELSE 'FAIL' END AS status,
+         '>= {spec.min_match_rate_pct}' AS expected, CAST(ROUND(match_rate, 2) AS STRING) AS actual
+  FROM level_counts
+),
+-- matched/ambiguous/unmatched/excluded against the reviewed counts in the rules file: WARN when they change.
+profiled AS (
+  SELECT 'profiled_' || COALESCE(c.school_year, f.school_year) || '_' || COALESCE(c.geographic_level, f.geographic_level) AS check_name,
+         CASE WHEN c.counts = f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded THEN 'PASS' ELSE 'WARN' END AS status,
+         COALESCE(f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded, 'not profiled') AS expected,
+         COALESCE(c.counts, 'no rows') AS actual
+  FROM level_counts AS c FULL OUTER JOIN profile AS f ON f.school_year = c.school_year AND f.geographic_level = c.geographic_level
 )
-SELECT * FROM checks UNION ALL SELECT * FROM rates
+SELECT * FROM checks UNION ALL SELECT * FROM rates UNION ALL SELECT * FROM profiled
 ) AS results;
 
 MERGE INTO {CONTROL}.pipeline_runs AS t
