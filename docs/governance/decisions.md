@@ -281,9 +281,10 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
     | Value | Meaning | Used by |
     |---|---|---|
-    | `code` | The source's code is the PSGC code, and the names agree | Age-group population, HDX |
+    | `code` | The source's code is the PSGC code, and the names agree | Age-group population, HDX, DepEd (EMISD codes) |
+    | `code_name_differs` | The source's code is the PSGC code, but the source's name does not find that unit, and the code is accepted only on a stated condition: the name match finds nothing, or it finds another unit while DepEd's barangay name matches the code's barangay and that barangay lies inside the code's city or municipality; a reviewed override that uses the code where the names differ also gets it | DepEd (EMISD codes, #91) |
     | `code_renamed` | The code agrees, and the unit was renamed since the source's version | HDX (4 renamed LGUs) |
-    | `code_region_moved` | The code agrees once Sulu's region `19` is read as `09` | HDX |
+    | `code_region_moved` | The code agrees once Sulu's region `19` is read as `09` | HDX, DepEd |
     | `correspondence_code` | The source's old 9-digit code equals PSGC's `Correspondence Code` (D-030) | Poverty, HDX |
     | `name_exact` | The name equals the PSGC name inside the matched parent | DepEd, barangay population, CMCI |
     | `name_old` | The name equals a PSGC `Old names` entry inside the parent | DepEd |
@@ -294,7 +295,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
   - `population_concept` (`total`, `household`), for population sources only
 - **Reason:** One set of columns lets every source's match rate be read the same way, and keeps every reviewed choice visible. The `match_method` list combines the proposal on #74 with @maeveylain's and @saraevcldn's suggestions: `name_in_parent` is split into the three name values, and `manual` is `reviewed_alias`.
-- **Consequence:** #44's mapping tables follow this list; a new method is added here first. **Revisit** when the first mapping table is built (#44, #93). Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09; the combined `match_method` list is new in this entry.
+- **Consequence:** #44's mapping tables follow this list; a new method is added here first. **Revisit** when the first mapping table is built (#44, #93). Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09; the combined `match_method` list is new in this entry. `code_name_differs` was added on 2026-10-18 for the #91 rule (PR #153), so `code` keeps meaning that the names agree.
 - **Revisited 2026-10-16:** the first map to PSGC, `hdx_adm3_psgc_map` (D-052), carries every column above, with `source_row_ref` = `<adm3_pcode>/<source_reference_date>`, and adds `code_candidate`, `review_status` and `reason`, with the batch and row lineage of both Silver rows. Later maps follow that shape unless their own decision says otherwise.
 
 ## D-030: Joins through `Correspondence Code`
@@ -315,7 +316,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Problem:** All 112 SY 2023-24 schools DepEd files under `BARMM` / `NORTH COTABATO` match a Cotabato municipality in Region XII by name: Pikit 46, Midsayap 20, Pigkawayan 17, Kabacan 14, Carmen 12, Aleosan 3. They are in the eight Special Geographic Area municipalities made from those barangays, so a city- or municipality-level join would give them another place's poverty or CMCI values.
 - **Decision:** Mark them `match_status = excluded` (D-029) in city- and municipality-level joins until their barangays are matched to the eight Special Geographic Area municipalities. Keep them in school-level and BARMM results.
 - **Reason:** A Region XII value describes a different place, and a footnote is easy to miss.
-- **Consequence:** City- and municipality-level counts leave them out and say so. The 8 Special Geographic Area units in HDX also stay unmatched until a spatial check, since their barangays differ from PSGC's new municipalities. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09. Revisited on 2026-10-16: under D-049 all 112 schools carry a code in one of the eight Special Geographic Area municipalities (`1999901000` to `1999908000`), so once #44 matches them by that code they meet this decision's condition and return to city- and municipality-level results.
+- **Consequence:** City- and municipality-level counts leave them out and say so. The 8 Special Geographic Area units in HDX also stay unmatched until a spatial check, since their barangays differ from PSGC's new municipalities. Agreed on #74 by @maeveylain and @saraevcldn on 2026-10-09. Revisited on 2026-10-16: under D-049 all 112 schools carry a code in one of the eight Special Geographic Area municipalities (`1999901000` to `1999908000`), so once #44 matches them by that code they meet this decision's condition and return to city- and municipality-level results. The #91 rule (PR #153) matches a school by that code only when its DepEd barangay name matches the code's barangay; the rest stay `excluded`, with `psgc_code` NULL.
 
 ## D-032: OSM scope
 
