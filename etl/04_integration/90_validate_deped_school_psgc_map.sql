@@ -28,7 +28,7 @@ stats AS (
     COUNT_IF(m.match_status = 'matched' AND p.psgc_code IS NULL) AS matched_without_psgc,
     COALESCE(COUNT_IF((m.geographic_level = 'city_mun' AND p.geographic_level NOT IN ('City', 'Mun'))
              OR (m.geographic_level = 'bgy' AND p.geographic_level <> 'Bgy')), 0) AS wrong_psgc_level,
-    COUNT_IF(m.source_row_ref IS NULL OR m.batch_id IS NULL OR m.source_sha256 IS NULL OR m.source_row_number IS NULL
+    COUNT_IF(m.source_row_ref IS NULL OR m.source_reference_date IS NULL OR m.batch_id IS NULL OR m.source_sha256 IS NULL OR m.source_row_number IS NULL
              OR m.run_id IS NULL OR m.built_at_utc IS NULL OR m.code_revision IS NULL
              OR (m.psgc_code IS NOT NULL AND m.psgc_batch_id IS NULL)) AS missing_lineage,
     COUNT_IF(m.run_id <> :run_id OR m.run_id IS NULL) AS other_run_rows,
