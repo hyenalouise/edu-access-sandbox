@@ -1,0 +1,110 @@
+{
+  "source_id": "psa_school_age_population",
+  "generator": "psa_school_age_population",
+  "silver_table": "psa_school_age_population_clean",
+  "quarantine_table": "psa_school_age_population_quarantine",
+  "owner": "@saraevcldn",
+  "note": "Reviewed Silver rules for the PSA school-age population census workbooks (#158, D-053). The generator src/silver/psa_school_age_population.py writes etl/03_silver/08_clean_psa_school_age_population.sql, etl/03_silver/90_validate_psa_school_age_population_clean.sql and docs/data/silver/psa-school-age-population-clean.md from this file and config/ingestion/psa_school_age_population.json. Change a rule here, then regenerate; tests/test_silver_school_age.py fails until the files match.",
+  "grain": {
+    "key": [
+      "census_year",
+      "population_concept",
+      "place_name",
+      "parent_name",
+      "sex",
+      "age"
+    ],
+    "rule": "One row per count cell: census year, population concept (the sheet), place, sex and single-year age 5-24. The 2020 wide rows (60 counts) and the 2024 Total / Male / Female rows (20 counts each) give the same grain.",
+    "finding": "O-1, O-6"
+  },
+  "population_concept": {
+    "rule": "From the sheet: '<year> Total Pop' is total, '<year> Household Pop' is household (the contract's sheet_suffixes). Both are kept, never mixed (D-029).",
+    "finding": "O-5"
+  },
+  "place_row_kind": "place",
+  "sexes": {
+    "both": {
+      "wide_prefix": "both_sexes",
+      "long_row_kind": "sex_total"
+    },
+    "male": {
+      "wide_prefix": "male",
+      "long_row_kind": "sex_male"
+    },
+    "female": {
+      "wide_prefix": "female",
+      "long_row_kind": "sex_female"
+    }
+  },
+  "structural_row_kinds": [
+    "title",
+    "header",
+    "note",
+    "source",
+    "blank"
+  ],
+  "label": {
+    "footnote_pattern": " ([a-z0-9]{1,2}/)$",
+    "bracket_pattern": "[(][ ]*([^()]*[^() ])[ ]*[)]",
+    "capital": "CAPITAL",
+    "rule": "place_label keeps the published label, whitespace normalized. footnote is a trailing marker such as '1/' or 'a/'. is_capital is TRUE when a bracket holds Capital in any case. old_name is the text of every other bracket, ', '-separated (mostly an old name; for a region, its abbreviation). place_name drops the marker and every bracket, then upper-cases.",
+    "finding": "O-6"
+  },
+  "levels": {
+    "by_depth": [
+      "country",
+      "region",
+      "province"
+    ],
+    "leaf": "city_municipality",
+    "leaf_depths": [
+      2,
+      3
+    ],
+    "rule": "A place is an aggregate when the places right after it add up to it in all 60 cells, each nested aggregate counted once; its children are those places. An aggregate's level is its depth (country, region, province); a place with no children is a city or municipality, under a province (depth 3) or directly under its region (depth 2). Any other shape gets no level and the gate fails. The level is the place's position in the tree, not a verified PSGC geographic level: place_status marks the places at a province or city position that are not PSGC provinces or LGUs.",
+    "finding": "O-2"
+  },
+  "place_status": {
+    "special_geographic_area": {
+      "level": "province",
+      "names": [
+        "INTERIM PROVINCE",
+        "SPECIAL GEOGRAPHIC AREA"
+      ]
+    },
+    "sga_cluster": {
+      "level": "city_municipality",
+      "pattern": " CLUSTER( [IVX]+)?$"
+    },
+    "rule": "standard for every place but these. special_geographic_area: the 2020 INTERIM PROVINCE and the 2024 SPECIAL GEOGRAPHIC AREA, at the province position but not a PSGC province (PSGC Silver keeps the SGA with no level, level_blank). sga_cluster: a 2020 place under it whose name ends in CLUSTER (with an optional Roman numeral): PSA's grouping of the SGA barangays by former Cotabato town, not an LGU, with no PSGC counterpart. The level stays the tree position, so the pinned level counts still hold; the counts per status are pinned too. The 8 SGA municipalities of 2024 are PSGC municipalities and stay standard.",
+    "finding": "O-7, S-1"
+  },
+  "expected_levels": [
+    {
+      "census_year": "2020",
+      "workbook_sha256": "e40d71839b951926cd3c9515c1edafbb6a2121f734670716e3b21bd3f9dcd35f",
+      "country": 1,
+      "region": 17,
+      "province": 82,
+      "city_municipality": 1642,
+      "special_geographic_area": 1,
+      "sga_cluster": 8
+    },
+    {
+      "census_year": "2024",
+      "workbook_sha256": "49d15bb0cdd191cd6aef4a14f4b063da247ba791b32caa653c37c464dff15954",
+      "country": 1,
+      "region": 18,
+      "province": 83,
+      "city_municipality": 1642,
+      "special_geographic_area": 1,
+      "sga_cluster": 0
+    }
+  ],
+  "count": {
+    "pattern": "^[0-9]{1,9}$",
+    "negative_pattern": "^-[0-9]+$",
+    "rule": "Whole numbers as stored become INT. Zero stays 0, a real count (Kalayaan, O-3). A blank, negative or other value quarantines the cell, and any quarantined cell fails the gate: every count is complete in the profile.",
+    "finding": "O-3"
+  }
+}
