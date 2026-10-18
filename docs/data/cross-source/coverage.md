@@ -24,7 +24,7 @@ Every number carries one evidence label:
 | Source | Owner | Status | Place identifier | Geographic level | Years | Time basis | Grain |
 |---|---|---|---|---|---|---|---|
 | **DepEd** | | | | | | | |
-| [deped_enrollment](../source-inventory/deped_enrollment/) | @hyenalouise | profiled | Names only: region, division, province, city or municipality, barangay | School | SY 2020-21, 2023-24, 2024-25, 2025-26 acquired | School year (BOSY count) | One row per school per school year |
+| [deped_enrollment](../source-inventory/deped_enrollment/) | @hyenalouise | profiled | Names only: region, division, province, city or municipality, barangay | School | SY 2020-21 to 2025-26 acquired | School year (BOSY count) | One row per school per school year |
 | [deped_facilities](../source-inventory/deped_facilities/) | @hyenalouise | profiled | None; location comes from enrollment | School | SY 2023-24 only | School year | One row per school; facility measures for public schools only |
 | [deped_personnel](../source-inventory/deped_personnel/) | @mafelisilda | profiled | None; location comes from enrollment | School | SY 2023-24 only | School year | One row per school |
 | [deped_ellna](../source-inventory/deped_ellna/) | @mafelisilda | profiled | Region and division labels | School (selected schools) | SY 2023-24 (given May 2024) | School year | One row per assessed school |
