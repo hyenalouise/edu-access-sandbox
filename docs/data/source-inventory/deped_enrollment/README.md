@@ -57,7 +57,7 @@ Published years: SY 2017-18 to SY 2025-26. Acquired so far: the six years below,
 | Field | Value |
 |---|---|
 | Apparent grain | One row per school per school year |
-| Candidate primary key | `school_id` (6 digits; unique within each file) |
+| Candidate primary key | `school_id` (unique within each file; expected to be 6 digits, with one documented seven-digit exception in SY 2022-23) |
 | Candidate join keys | `school_id` to other DepEd school datasets. Location names to PSGC (by name matching only) |
 | PSGC available? | **No.** Location is names only |
 | Personally identifiable or sensitive fields | None found. Counts are aggregated per school |
@@ -81,8 +81,8 @@ See [profile.md](profile.md) for evidence.
 - **Observed:** about 173 place names per year contain mangled characters (`Ã‘` for `Ñ`), and barangay names appear to be capped at 40 characters.
 - **Observed:** SY 2025-26 differs in encoding, columns, and category labels.
 - **Observed:** Negros Island Region (NIR) appears from SY 2024-25; 2,704 schools moved into it from Regions VI and VII.
-- **Observed:** 192 schools in Cotabato City and North Cotabato's Special Geographic Area are in Region XII in SY 2020-21 and in BARMM from SY 2021-22.
-- **Observed:** SY 2022-23 has one seven-digit school ID, `1404066`, an extra row of 8 Kindergarten learners for a school that also has its six-digit row `404066`; Silver's six-digit rule quarantines it.
+- **Observed:** 192 schools in Cotabato City and North Cotabato's Special Geographic Area change from Region XII in SY 2020-21 to BARMM in SY 2021-22. Of those, 191 remain present in SY 2023-24; `405811`, Menang Institute of Technology, is absent by then.
+- **Observed:** SY 2022-23 has one seven-digit school ID, `1404066`, with 8 Kindergarten learners. The same file has the same school name under six-digit ID `404066`, but the source does not confirm that the IDs identify the same school; Silver's six-digit rule quarantines `1404066` rather than merging it.
 - **Observed:** `Local Government` management appears only in SY 2020-21 to 2022-23 (154, 155, and 106 schools).
 - **Observed:** about 1% of school IDs appear or disappear between consecutive years; 2,517 SY 2020-21 IDs (1,711 private) are gone by SY 2023-24, 1,064 of them already in SY 2021-22.
 - **Suspected:** schools with zero enrollment (439 in SY 2020-21, 206 in 2021-22, 153 in 2022-23, and 115 in 2023-24, mostly private) may be closed or non-reporting.
