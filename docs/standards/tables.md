@@ -56,7 +56,7 @@ The exact future file names are recorded beside each table in
 `config/tables.yml`. A registry entry does not mean the SQL file has been
 implemented.
 
-## Integration drafts
+## Integration tables
 
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
@@ -70,11 +70,11 @@ Implemented: `psa_school_age_population_psgc_map` (`05_map_psa_school_age_popula
 one row per census year and city or municipality of the PSA school-age population, with its
 reviewed PSGC match, the PSGC parent it was searched in, review status, and reason (D-055).
 
-These are working names only:
+Implemented tables and remaining working names:
 
 | Candidate table | Candidate file | Intended grain |
 |---|---|---|
-| `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
+| `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One row per enrollment school, school year, and geographic level (`city_mun`, `bgy`), including explicit unmatched, ambiguous, and excluded rows (implemented, #91) |
 
 Do not create these tables until their keys, match statuses, review workflow,
 and PSGC-version behavior are agreed; they follow the shape of `hdx_adm3_psgc_map`
