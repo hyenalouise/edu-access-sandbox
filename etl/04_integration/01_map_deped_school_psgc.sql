@@ -205,18 +205,21 @@ city_decided AS (
          ELSE COALESCE(s.code_city_roll, s.name_city_roll) END AS city_code,
     CASE WHEN s.is_overseas THEN NULL
          WHEN s.code_city_level = 'SubMun' OR (s.code_city_roll IS NULL AND s.name_city_level = 'SubMun') THEN 'rollup'
-         WHEN s.code_city_roll IS NOT NULL THEN CASE WHEN s.psgc_recoded THEN 'code_region_moved'
+         WHEN s.code_city_roll IS NOT NULL THEN CASE WHEN s.psgc_recoded AND s.code_city LIKE '09066%' THEN 'code_region_moved'
               WHEN s.name_city_roll = s.code_city_roll THEN 'code' ELSE 'code_name_differs' END
          ELSE s.name_city_method END AS city_method,
+    -- The reasons repeat the match_detail wording of the reviewed analysis rule (PR #153).
     CASE WHEN s.is_overseas THEN 'Philippine Schools Overseas'
          WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
-              AND NOT (s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city) THEN 'Special Geographic Area (D-031)'
-         WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NOT NULL AND s.code_city_roll <> s.name_city_roll
-              AND NOT (s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city) THEN 'code and name differ'
-         WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NULL THEN 'code only'
-         WHEN s.code_city_roll IS NULL AND s.name_city_roll IS NOT NULL THEN 'name only'
-         WHEN s.code_city_roll IS NULL AND s.name_city_roll IS NULL THEN COALESCE(s.name_city_reason, 'no code or name match')
-         ELSE 'code and name agree' END AS city_reason
+           THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city
+                     THEN 'Special Geographic Area' || chr(59) || ' DepEd barangay name matches the code''s barangay' ELSE 'Special Geographic Area (D-031)' END
+         WHEN s.code_city_roll IS NOT NULL AND s.code_city_roll = s.name_city_roll THEN 'code and name agree'
+         WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NOT NULL
+           THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city
+                     THEN 'code' || chr(59) || ' DepEd barangay name matches the code''s barangay' ELSE 'code and name differ' END
+         WHEN s.code_city_roll IS NOT NULL THEN 'code only'
+         WHEN s.name_city_roll IS NOT NULL THEN 'name only'
+         ELSE COALESCE(s.name_city_reason, 'no code, no name match') END AS city_reason
   FROM school_units AS s
 ),
 bgy_pre AS (
@@ -235,18 +238,19 @@ bgy_pre AS (
          WHEN c.code_bgy IS NULL THEN c.name_bgy_code END AS bgy_code0,
     CASE WHEN c.city_status <> 'matched' THEN NULL
          WHEN (c.bgy_override_side = 'code' AND c.code_bgy IS NOT NULL)
-           OR (c.bgy_override_side IS NULL AND c.code_bgy IS NOT NULL) THEN CASE WHEN c.psgc_recoded THEN 'code_region_moved'
+           OR (c.bgy_override_side IS NULL AND c.code_bgy IS NOT NULL) THEN CASE WHEN c.psgc_recoded AND c.code_bgy LIKE '09066%' THEN 'code_region_moved'
               WHEN c.name_bgy_code = c.code_bgy OR c.code_bgy_name_agrees THEN 'code' ELSE 'code_name_differs' END
          WHEN (c.bgy_override_side = 'name' AND c.name_bgy_code IS NOT NULL)
            OR (c.bgy_override_side IS NULL AND c.code_bgy IS NULL) THEN c.name_bgy_method END AS bgy_method0,
     CASE WHEN c.city_status <> 'matched' THEN 'city or municipality ' || c.city_status
          WHEN c.bgy_override_side IS NOT NULL AND COALESCE(CASE WHEN c.bgy_override_side = 'code' THEN c.code_bgy ELSE c.name_bgy_code END, '') <> '' THEN 'reviewed override'
          WHEN c.bgy_override_side IS NOT NULL THEN 'reviewed override: no unit'
-         WHEN c.code_bgy IS NOT NULL AND c.name_bgy_code IS NOT NULL AND c.code_bgy <> c.name_bgy_code AND NOT c.code_bgy_name_agrees THEN 'code and name differ'
-         WHEN c.code_bgy IS NOT NULL AND c.name_bgy_code IS NULL THEN 'code only'
-         WHEN c.code_bgy IS NULL AND c.name_bgy_code IS NOT NULL THEN 'name only'
-         WHEN c.code_bgy IS NULL AND c.name_bgy_code IS NULL THEN COALESCE(c.name_bgy_reason, 'no code or name match')
-         ELSE 'code and name agree' END AS bgy_reason0
+         WHEN c.code_bgy IS NOT NULL AND c.code_bgy = c.name_bgy_code THEN 'code and name agree'
+         WHEN c.code_bgy IS NOT NULL AND c.code_bgy_name_agrees THEN 'code' || chr(59) || ' DepEd barangay name matches'
+         WHEN c.code_bgy IS NOT NULL AND c.name_bgy_code IS NOT NULL THEN 'code and name differ'
+         WHEN c.code_bgy IS NOT NULL THEN 'code only'
+         WHEN c.name_bgy_code IS NOT NULL THEN 'name only'
+         ELSE COALESCE(c.name_bgy_reason, 'no code, no name match') END AS bgy_reason0
   FROM city_decided AS c
 ),
 bgy_decided AS (
@@ -265,7 +269,8 @@ bgy_decided AS (
 ),
 decisions AS (
   SELECT b.*, 'city_mun' AS geographic_level, b.code_city AS code_candidate, b.city_code AS psgc_code,
-         b.city_status AS match_status, CASE WHEN b.city_code IS NULL THEN NULL ELSE b.city_method END AS match_method, b.city_reason AS reason,
+         b.city_status AS match_status, CASE WHEN b.city_code IS NULL THEN NULL ELSE b.city_method END AS match_method,
+         b.city_reason || CASE WHEN b.city_code IS NOT NULL AND b.city_method = 'rollup' THEN '' || chr(59) || ' Manila sub-municipality rolled up' ELSE '' END AS reason,
          CAST(NULL AS STRING) AS override_reason, CAST(NULL AS STRING) AS override_reviewer
   FROM bgy_decided AS b
   UNION ALL
