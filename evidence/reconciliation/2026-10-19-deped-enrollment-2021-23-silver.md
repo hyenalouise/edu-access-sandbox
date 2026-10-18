@@ -84,7 +84,7 @@ Rule and flag counts, as the gate recorded them (the other four years are unchan
 
 The rule counts are per Bronze row, so SY 2022-23's include the quarantined row.
 
-Kept as published, for Integration or Analytics to disclose: the 192 Cotabato City and Special Geographic Area schools labelled `BARMM` from SY 2021-22 (O-10); 2,525 and 2,520 `Region XII` rows; the 1,481 SY 2021-22 and 698 SY 2022-23 school IDs absent from SY 2023-24, and so from the EMISD crosswalk (O-12); 206 and 153 zero-enrollment schools (S-1); the 6 SY 2021-22 rows with province `Davao Occidental` in mixed case (O-5); the school `305365` placed in Pampanga from SY 2022-23 (S-2); and 32 PSO rows per year.
+Kept as published, for Integration or Analytics to disclose: the 192 Cotabato City and Special Geographic Area schools labelled `BARMM` from SY 2021-22 (O-10); 2,525 and 2,520 `Region XII` rows; the 1,481 SY 2021-22 and 698 SY 2022-23 clean school IDs absent from SY 2023-24, and so from the EMISD crosswalk (O-12 counts 699 for SY 2022-23, including the quarantined `1404066`); 206 and 153 zero-enrollment schools (S-1); the 6 SY 2021-22 rows with province `Davao Occidental` in mixed case (O-5); the school `305365` placed in Pampanga from SY 2022-23 (S-2); and 32 PSO rows per year.
 
 The verification query in [Silver, Running on Databricks](../../docs/operations/silver.md#running-on-databricks), updated in this branch for six deliveries, ran through the local store after run 2 with the commit above filled in. All 25 rows were `OK`.
 
@@ -107,7 +107,7 @@ The four-year, SY 2020-21, and three-year hashes equal the [2026-10-16 record](2
 ## Why it holds
 
 1. The Silver build and gate are generated from the contract and the mapping, with no school year in them, and read `current_batches`, so every approved year is processed. This branch changes only evidence and rule text in the mapping; the regenerated SQL is byte-identical (`tests/test_silver.py::test_silver_files_match_the_mapping`).
-2. Every label both years publish is already mapped (checked against Bronze for `region`, `legislative_district`, `sector`, `school_management`, `annex_status`, and the three `offers_*` booleans), so no `labels_mapped_*` check can fail.
+2. Every label both years publish is already mapped (checked against Bronze for `region`, `legislative_district`, `sector`, `school_management`, `annex_status`, and `offers_es`, and against the published files for `offers_jhs` and `offers_shs`), so no `labels_mapped_*` check can fail.
 3. The quarantine rule for a malformed `school_id` is D-024's, unchanged. One row of 60,137 is 0.002%, far below the 1% FAIL.
 4. Skips and rebuilds: see the [2026-10-09 record](2026-10-09-deped-enrollment-bronze-to-silver.md#why-it-holds).
 
