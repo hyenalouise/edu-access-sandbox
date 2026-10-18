@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
-from factories import hdx_geojson, psa_workbooks, psgc_workbooks
+from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
@@ -50,7 +50,7 @@ def repo(tmp_path):
     # The EMISD workbook is Bronze only so far (#152): its lane runs with nothing approved, as personnel's does.
     write_config(root, empty_config("deped_enrollment_psgc"))
     # PSA school-age population is Bronze only so far too (#157).
-    write_config(root, empty_config("psa_school_age_population"))
+    write_config(root, census_workbooks.empty_config())
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
