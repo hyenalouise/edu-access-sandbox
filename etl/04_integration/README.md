@@ -16,8 +16,9 @@ enrollment school, school year, and level (`city_mun`, `bgy`), including
 unmatched, ambiguous, excluded, and overseas schools. It matches cities once
 per distinct (province, municipality) and barangays once per distinct place
 before joining decisions back to schools, avoiding a school-by-PSGC cross
-product on a small SQL warehouse. Its gate also fails a match rate below the
-rules file's floor and warns when the reviewed counts change.
+product on a small SQL warehouse. Its gate also requires exact source-key
+membership and the configured master PSGC version, fails a match rate below
+the rules file's floor, and blocks publication when reviewed counts change.
 
 The HDX ADM3 to PSGC map is `03_map_hdx_adm3_psgc.sql` and
 `90_validate_hdx_adm3_psgc_map.sql` (#93, D-052), generated from
