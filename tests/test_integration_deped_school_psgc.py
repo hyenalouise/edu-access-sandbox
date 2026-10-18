@@ -21,6 +21,9 @@ CONTROL = "edu_access.`01-control`"
 MAP = "edu_access.`04-integration`.deped_school_psgc_map"
 CANDIDATE = "edu_access.`04-integration`.deped_school_psgc_map_candidate"
 RULES = json.loads((REPO_ROOT / "config" / "mappings" / "integration" / "deped_school_psgc.json").read_text(encoding="utf-8"))
+# The made-up schools are a handful of edge cases, so their match rate and counts are not the real ones.
+MADE_UP_RULES = copy.deepcopy(RULES)
+MADE_UP_RULES["gate"] |= {"min_match_rate_pct": 0, "profiled_counts": {}}
 
 # code, name, old_names, level, region, province, city parent
 PSGC = [
@@ -79,7 +82,7 @@ class Env:
                        "psgc_barangay STRING, psgc_recoded BOOLEAN, batch_id STRING, source_row_number BIGINT)")
         for i, row in enumerate(CROSSWALK, 1):
             self.store.sql("INSERT INTO edu_access.`03-silver`.deped_enrollment_psgc_clean VALUES (?, ?, ?, ?, 'X1', ?)", [*row, i])
-        spec = deped.build_spec(rules or RULES)
+        spec = deped.build_spec(rules or MADE_UP_RULES)
         self.build, self.gate = tmp_path / "build.sql", tmp_path / "gate.sql"
         self.build.write_text(deped.build_sql(spec), encoding="utf-8")
         self.gate.write_text(deped.gate_sql(spec), encoding="utf-8")

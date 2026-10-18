@@ -12,6 +12,8 @@ FROM (
 WITH e AS (SELECT school_year, school_id FROM edu_access.`03-silver`.deped_enrollment_clean),
 p AS (SELECT psgc_code, geographic_level, city_municipality_code, publication_period FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference),
 m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
+profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
+overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE')) AS v(province, municipality, barangay)),
 stats AS (
   SELECT
     (SELECT COUNT(*) FROM e) AS enrollment_rows,
@@ -35,8 +37,18 @@ stats AS (
     COUNT_IF(m.match_status = 'unmatched') AS unmatched_rows,
     COUNT_IF(m.match_status = 'ambiguous') AS ambiguous_rows,
     COUNT_IF(m.match_status = 'excluded') AS excluded_rows,
-    COUNT_IF(m.review_status = 'pending') AS pending_rows
+    COUNT_IF(m.review_status = 'pending') AS pending_rows,
+    COUNT_IF(m.reason = 'reviewed override: no unit') AS override_no_unit_rows,
+    (SELECT COUNT(*) FROM overrides AS o WHERE NOT EXISTS (SELECT 1 FROM edu_access.`03-silver`.deped_enrollment_clean AS x WHERE x.province = o.province
+       AND x.municipality = o.municipality AND x.barangay = o.barangay)) AS overrides_without_school
   FROM m LEFT JOIN p ON p.psgc_code = m.psgc_code
+),
+level_counts AS (
+  SELECT school_year, geographic_level,
+         CAST(COUNT_IF(match_status = 'matched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'ambiguous') AS STRING) || '/'
+           || CAST(COUNT_IF(match_status = 'unmatched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'excluded') AS STRING) AS counts,
+         100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
+  FROM m GROUP BY school_year, geographic_level
 ),
 hierarchy AS (
   SELECT COUNT_IF(NOT (b.psgc_code IS NULL OR c.psgc_code IS NULL OR pb.city_municipality_code = c.psgc_code
@@ -66,14 +78,25 @@ checks AS (
   UNION ALL SELECT 'ambiguous', CASE WHEN ambiguous_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(ambiguous_rows AS STRING) FROM s
   UNION ALL SELECT 'excluded', CASE WHEN excluded_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(excluded_rows AS STRING) FROM s
   UNION ALL SELECT 'review_pending', CASE WHEN pending_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(pending_rows AS STRING) FROM s
+  UNION ALL SELECT 'override_without_unit', CASE WHEN override_no_unit_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(override_no_unit_rows AS STRING) FROM s
+  UNION ALL SELECT 'override_without_school', CASE WHEN overrides_without_school = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(overrides_without_school AS STRING) FROM s
 ),
+-- matched / (rows - excluded) per school year and level; below the rules file's floor the map is not published.
 rates AS (
-  SELECT 'match_rate_' || school_year || '_' || geographic_level AS check_name, 'PASS' AS status,
-         CAST(NULL AS STRING) AS expected,
-         CAST(ROUND(100.0 * COUNT_IF(match_status = 'matched') / COUNT(*), 2) AS STRING) AS actual
-  FROM m GROUP BY school_year, geographic_level
+  SELECT 'match_rate_' || school_year || '_' || geographic_level AS check_name,
+         CASE WHEN COALESCE(match_rate, 0) >= 99.0 THEN 'PASS' ELSE 'FAIL' END AS status,
+         '>= 99.0' AS expected, CAST(ROUND(match_rate, 2) AS STRING) AS actual
+  FROM level_counts
+),
+-- matched/ambiguous/unmatched/excluded against the reviewed counts in the rules file: WARN when they change.
+profiled AS (
+  SELECT 'profiled_' || COALESCE(c.school_year, f.school_year) || '_' || COALESCE(c.geographic_level, f.geographic_level) AS check_name,
+         CASE WHEN c.counts = f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded THEN 'PASS' ELSE 'WARN' END AS status,
+         COALESCE(f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded, 'not profiled') AS expected,
+         COALESCE(c.counts, 'no rows') AS actual
+  FROM level_counts AS c FULL OUTER JOIN profile AS f ON f.school_year = c.school_year AND f.geographic_level = c.geographic_level
 )
-SELECT * FROM checks UNION ALL SELECT * FROM rates
+SELECT * FROM checks UNION ALL SELECT * FROM rates UNION ALL SELECT * FROM profiled
 ) AS results;
 
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t

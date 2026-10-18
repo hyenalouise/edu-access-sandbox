@@ -16,6 +16,7 @@ from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
+from src.integration import deped_school_psgc
 from src.integration import psa_school_age_population_psgc
 from src.silver import psa_school_age_population
 
@@ -86,6 +87,14 @@ def repo(tmp_path):
     (folder / "05_map_psa_school_age_population_psgc.sql").write_text(psa_school_age_population_psgc.build_sql(spec), encoding="utf-8")
     (folder / "90_validate_psa_school_age_population_psgc_map.sql").write_text(
         psa_school_age_population_psgc.gate_sql(spec), encoding="utf-8")
+    # The made-up schools are not in the made-up PSGC, so the DepEd map's floor and profiled counts are
+    # set for this job and its gate regenerated, as a reviewer would for a new delivery.
+    rules = root / "config" / "mappings" / "integration" / "deped_school_psgc.json"
+    deped_rules = json.loads(rules.read_text(encoding="utf-8"))
+    deped_rules["gate"] |= {"min_match_rate_pct": 0, "profiled_counts": {}}
+    rules.write_text(json.dumps(deped_rules, indent=2), encoding="utf-8")
+    (root / "etl" / "04_integration" / "90_validate_deped_school_psgc_map.sql").write_text(
+        deped_school_psgc.gate_sql(deped_school_psgc.load_spec(root)), encoding="utf-8")
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
