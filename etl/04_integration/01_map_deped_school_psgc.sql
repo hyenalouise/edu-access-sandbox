@@ -286,6 +286,7 @@ decisions AS (
 SELECT
   'deped_enrollment' AS source_id,
   d.school_year || '/' || d.school_id || '/' || d.geographic_level AS source_row_ref,
+  d.school_year AS source_reference_date,  -- D-029; DepEd's reference period is the school year
   d.school_year, d.school_id, d.school_name,
   d.region AS source_region, d.province AS source_province,
   d.municipality AS source_city_municipality, d.barangay AS source_barangay,
