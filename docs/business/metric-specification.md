@@ -16,6 +16,7 @@ The proposed ratio structures are reasonable analytical candidates, but they are
 | **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
 | **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions are set | The source cannot show whether one person is counted in two columns, blanks are ambiguous, outliers remain under review, and without a mother-school ID the ratio is project-defined, not DepEd's indicator |
 | **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found for 2020 and 2024; SY 2024-25 enrollment is acquired | The PSA workbooks are profiled (`psa_school_age_population`) but not yet ingested, and carry names only, with no PSGC codes; SY 2020-21 enrollment is not yet acquired |
+| **Poverty 2023 · Context** | PSA's 2023 estimate, 90% interval, and CV for 1,597 of the 1,642 cities and municipalities; the status of the other 45 is defined (D-046) | `dim_city_poverty` is not built yet (#174), and the model stays provisional until the team mentor approves the ERD; it is context only and never an analytical result |
 | **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
 
 The DepEd evidence for these limitations is recorded in the source cards for [enrollment](../data/source-inventory/deped_enrollment/README.md#limitations-for-analysis), [facilities](../data/source-inventory/deped_facilities/README.md#limitations-for-analysis), and [personnel](../data/source-inventory/deped_personnel/README.md#limitations-for-analysis), with observed tests in their linked profiles.
@@ -188,6 +189,24 @@ For Negros, Sulu, and Maguindanao the cities and municipalities themselves did n
 
 **Validation status:** method defined; calculation blocked pending ingestion and profiling of the PSA 2020 and 2024 single-year-age workbooks, a name match of their cities and municipalities to PSGC, and acquisition of SY 2020-21 enrollment. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
 
+### Context · Poverty 2023
+
+Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, peer group, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)).
+
+| Item | Contract |
+|---|---|
+| Definition | Share of persons whose per capita income is below the poverty threshold: PSA's 2023 small-area estimate, not computed by us |
+| Unit | % of persons |
+| Grain | City or municipality, one value per regular PSGC 2Q 2026 member (1,642) |
+| Source | `dim_city_poverty` (`poverty_incidence`, `poverty_ci90_lower`, `poverty_ci90_upper`, `poverty_cv`, `cv_over_20`, `poverty_status`, `status_reason`), from `psa_poverty_stat` Silver (D-034) |
+| Period | 2023, labelled "Poverty 2023" next to "SY 2023-24" (D-027); the sector, education level, and school-year filters do not change it |
+| Aggregation | None: no region or province figure, no average of areas, and the 14 Manila district estimates are not combined into a City of Manila value |
+| Uncertainty | The published 90% interval is always shown. "Less precise" when the CV is above 20 (150 of 1,597 estimated areas), a team label, not a PSA rule. A published lower limit below 0 (Ivana, Batanes) is stored as published and shown as 0.0% with a note |
+| Missing | `estimated` 1,597; `no_estimate` 1 (Kalayaan); `not_in_source` 44 (D-028). A missing value is shown with its `status_reason`, never as 0, and is never imputed |
+| Wording | Descriptive only: "Poverty incidence 2023: 30% (90% interval 25 to 35%)". No sentence may say or imply that poverty causes or explains a classroom or teacher gap |
+
+**Validation status:** decided (D-046, provisional until the team mentor approves the ERD); built in #174. The counts are recounted in the [2023 recount evidence](../../evidence/reconciliation/2026-10-16-psa-poverty-2023-city-recount.md).
+
 ## Comparison and prioritization methods
 
 The dashboard may show four distinct evidence types without treating them as interchangeable:
@@ -236,6 +255,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Candidate for SY 2023-24 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Candidate (project-defined) for SY 2023-24 |
 | **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending ingestion and profiling |
+| **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
 | **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |
 | **Priority label** | relative-pressure band or benchmark status, affected enrollment | sort rule/version, missingness and quality warnings | Blocked until ranking rule approval |
 
@@ -250,6 +270,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 7. Peer criteria, density bands, minimum group size, fallback, and percentile convention. The land-area source is HDX.
 8. Relative-priority sorting or banding rule; a combined score remains out of scope unless separately approved.
 9. BARMM coverage and geography treatment.
+10. **Set (D-046):** poverty 2023 is context only, never a ranking, flag, peer criterion, or score input; see Context · Poverty 2023.
 
 ## Validation gate
 

@@ -1,2 +1,0 @@
--- PLACEHOLDER: proposed validation gate for fact_poverty_estimate.
--- Remove "placeholder_" from the filename only when the fact and gate are implemented.

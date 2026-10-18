@@ -69,6 +69,7 @@ These are working names only:
 | `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
 | `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
 | `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
+| `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
 and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
@@ -86,9 +87,10 @@ contract is approved.
 | `dim_school` | One DepEd school |
 | `dim_school_year` | One school year |
 | `dim_education_level` | One education reporting level: ES, JHS, or SHS |
-| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context |
+| `dim_city_poverty` | One regular city or municipality with its selected 2023 poverty context; none for technical members |
 | `fact_school_enrollment` | School x school year x education level |
 | `fact_school_classroom_capacity` | School x school year |
 | `fact_school_teacher_capacity` | School x school year x education level |
 | `fact_city_population` | City or municipality x reference year |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
+| `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |

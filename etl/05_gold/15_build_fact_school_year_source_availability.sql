@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build fact_school_year_source_availability (D-051). School year x DepEd source; reads the
+-- enrollment, facilities, and personnel Silver tables. Only the dashboard reads it.

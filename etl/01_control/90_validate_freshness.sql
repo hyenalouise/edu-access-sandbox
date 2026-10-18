@@ -2,7 +2,7 @@
 --   python -m src.job.freshness > etl/01_control/90_validate_freshness.sql
 -- Do not edit by hand; tests/test_freshness.py fails if it differs.
 --
--- Runs after the source-lane fan-in has finished, passed or not (run_if: ALL_DONE), so every run
+-- Runs once the fan-in has finished, passed or not (run_if: ALL_DONE), after every Bronze load, so every run
 -- records one result per loaded source in data_quality_results (layer 'control'): PASS when the
 -- source's latest succeeded batch in current_batches succeeded within its limit, WARN when it is older
 -- or the source has none. It never fails the task: stale data is still correct, only possibly out of

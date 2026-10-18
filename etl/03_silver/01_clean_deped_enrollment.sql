@@ -210,6 +210,7 @@ typed AS (
       WHEN 'SUC' THEN 'SUC'
       WHEN 'SUC Managed' THEN 'SUC'
       WHEN 'LUC' THEN 'LUC'
+      WHEN 'Local Government' THEN 'Local Government'
       WHEN 'DOST' THEN 'DOST'
       WHEN 'DOST Managed' THEN 'DOST'
       WHEN 'Other GA' THEN 'Other GA'

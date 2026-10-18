@@ -2,7 +2,7 @@
 
 The committed SQL must equal what src/job/fan_in.py writes from databricks.yml and
 config/tables.yml, so a Silver lane switched on in the job is always checked, and
-none can drop out unnoticed (D-039). How the task behaves in a run is tested in
+none can drop out unnoticed (D-039, D-051). How the task behaves in a run is tested in
 tests/test_local_job.py.
 """
 

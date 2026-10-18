@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for fact_city_school_age_population; every foreign key must resolve to a dimension member.
+-- Implement the gate and its data_quality_results writes before activating this task.

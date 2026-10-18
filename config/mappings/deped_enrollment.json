@@ -16,7 +16,7 @@
     "plausible_max": 10000,
     "finding": "O-2, O-16",
     "note": "Every publisher column ending in _male or _female is a learner count, typed INT. A blank stays NULL, never 0. A value that is not 1 to 9 digits, or is above plausible_max, quarantines the row. Counts are not trimmed: a value with surrounding whitespace (e.g. ' 5') is not a whole number and quarantines the row as count_uncastable. No profiled value has it.",
-    "plausible_max_evidence": "Of 9,260,590 published cells (current batches, all three years), the largest is 4,097; 10 exceed 2,000 and none exceed 5,000 (p99.99 = 1,059). 10,000 leaves 2.4 times headroom and catches a count with an extra digit, which no year has."
+    "plausible_max_evidence": "Of 9,260,590 published cells (current batches, SY 2023-24 to 2025-26), the largest is 4,097; 10 exceed 2,000 and none exceed 5,000 (p99.99 = 1,059). SY 2020-21 adds 3,535,506 cells: the largest is 2,228, 8 exceed 2,000. 10,000 leaves 2.4 times headroom and catches a count with an extra digit, which no year has."
   },
   "renames": {
     "Modified Curricular Offering Classification": {
@@ -39,34 +39,34 @@
       "published": "Ã‘",
       "standard": "Ñ",
       "finding": "O-17",
-      "evidence": "UTF-8 bytes of Ñ read as Windows-1252. Bronze, current batches: in barangay 260 / 261 / 263 rows and street_address 2 / 2 / 1 rows (SY 2023-24 / 2024-25 / 2025-26), in every year including the Windows-1252 file, so it is in the published data. Never a legitimate sequence in a Philippine place name."
+      "evidence": "UTF-8 bytes of Ñ read as Windows-1252. Bronze, current batches: in barangay 265 / 260 / 261 / 263 rows and street_address 2 / 2 / 2 / 1 rows (SY 2020-21 / 2023-24 / 2024-25 / 2025-26), in every year including the Windows-1252 file, so it is in the published data. Never a legitimate sequence in a Philippine place name."
     },
     {
       "published": "Ã±",
       "standard": "ñ",
       "finding": "O-17",
-      "evidence": "The same error for lowercase ñ. In school_name 11 / 11 / 10 rows and street_address 4 / 4 / 3 rows (e.g. 'NiÃ±o', 'DoÃ±a'); these are the school names the profile counts under O-17."
+      "evidence": "The same error for lowercase ñ. In school_name 15 / 11 / 11 / 10 rows and street_address 6 / 4 / 4 / 3 rows (SY 2020-21 / 2023-24 / 2024-25 / 2025-26; e.g. 'NiÃ±o', 'DoÃ±a'); these are the school names the profile counts under O-17."
     }
   ],
   "placeholders": {
     "street_address": {
       "values": ["-", "n/a", "N/A"],
       "finding": "O-14",
-      "evidence": "SY 2025-26 has no blank street_address but '-' 2,234, 'n/a' 685, 'N/A' 636, where SY 2023-24 has 5,203 blanks. Matched exactly after whitespace normalization. Other candidates (none, not applicable, NA) are an open question in docs/operations/silver.md."
+      "evidence": "SY 2025-26 has no blank street_address but '-' 2,234, 'n/a' 685, 'N/A' 636, where SY 2023-24 has 5,203 blanks and SY 2020-21 5,782 blanks and none of the three placeholders. Matched exactly after whitespace normalization. Other candidates (none, not applicable, NA) are an open question in docs/operations/silver.md."
     }
   },
   "barangay": {
     "column": "barangay",
     "length_cap": 40,
     "finding": "O-18",
-    "note": "A published barangay of exactly 40 characters may be cut off (24 / 25 / 25 rows, 13 distinct names per year). Flagged, never repaired."
+    "note": "A published barangay of exactly 40 characters may be cut off (25 / 24 / 25 / 25 rows in SY 2020-21 / 2023-24 / 2024-25 / 2025-26, 13 distinct names per year). Flagged, never repaired."
   },
   "booleans": {
     "columns": ["offers_es", "offers_jhs", "offers_shs"],
     "true": ["True", "Yes"],
     "false": ["False", "No"],
     "finding": "O-8",
-    "evidence": "True/False in SY 2023-24 and 2024-25, Yes/No in SY 2025-26. Of the schools in both SY 2024-25 and 2025-26, offers_es True became Yes for 48,819 and False became No for 10,754; 80 schools changed offering, as schools can."
+    "evidence": "True/False in SY 2020-21, 2023-24, and 2024-25, Yes/No in SY 2025-26. Of the schools in both SY 2024-25 and 2025-26, offers_es True became Yes for 48,819 and False became No for 10,754; 80 schools changed offering, as schools can."
   },
   "overseas": {
     "finding": "O-13",
@@ -75,7 +75,7 @@
       "region": "PSO",
       "school_management": "PSO"
     },
-    "note": "Any marker makes is_overseas TRUE. All three agree on 33 / 35 / 36 rows. In SY 2025-26 these schools are published in CITY OF PASIG, 'Lone District', so Gold must use is_overseas, not place names."
+    "note": "Any marker makes is_overseas TRUE. All three agree on 33 / 33 / 35 / 36 rows (SY 2020-21 / 2023-24 / 2024-25 / 2025-26). In SY 2025-26 these schools are published in CITY OF PASIG, 'Lone District', so Gold must use is_overseas, not place names."
   },
   "categories": {
     "region": {
@@ -87,45 +87,45 @@
         "Region XII", "CARAGA", "BARMM", "PSO"
       ],
       "labels": [
-        {"published": "NCR", "standard": "NCR", "evidence": "All three years."},
-        {"published": "CAR", "standard": "CAR", "evidence": "All three years."},
-        {"published": "Region I", "standard": "Region I", "evidence": "All three years."},
-        {"published": "Region II", "standard": "Region II", "evidence": "All three years."},
-        {"published": "Region III", "standard": "Region III", "evidence": "All three years."},
-        {"published": "Region IV-A", "standard": "Region IV-A", "evidence": "All three years."},
-        {"published": "MIMAROPA", "standard": "MIMAROPA", "evidence": "All three years."},
-        {"published": "Region V", "standard": "Region V", "evidence": "All three years."},
-        {"published": "Region VI", "standard": "Region VI", "evidence": "All three years."},
+        {"published": "NCR", "standard": "NCR", "evidence": "All four years."},
+        {"published": "CAR", "standard": "CAR", "evidence": "All four years."},
+        {"published": "Region I", "standard": "Region I", "evidence": "All four years."},
+        {"published": "Region II", "standard": "Region II", "evidence": "All four years."},
+        {"published": "Region III", "standard": "Region III", "evidence": "All four years."},
+        {"published": "Region IV-A", "standard": "Region IV-A", "evidence": "All four years."},
+        {"published": "MIMAROPA", "standard": "MIMAROPA", "evidence": "All four years."},
+        {"published": "Region V", "standard": "Region V", "evidence": "All four years."},
+        {"published": "Region VI", "standard": "Region VI", "evidence": "All four years."},
         {"published": "NIR", "standard": "NIR", "evidence": "From SY 2024-25 (O-10): 2,732 / 2,746 rows."},
-        {"published": "Region VII", "standard": "Region VII", "evidence": "All three years."},
-        {"published": "Region VIII", "standard": "Region VIII", "evidence": "All three years."},
-        {"published": "Region IX", "standard": "Region IX", "evidence": "All three years."},
-        {"published": "Region X", "standard": "Region X", "evidence": "All three years."},
-        {"published": "Region XI", "standard": "Region XI", "evidence": "All three years."},
-        {"published": "Region XII", "standard": "Region XII", "evidence": "All three years."},
-        {"published": "CARAGA", "standard": "CARAGA", "evidence": "All three years."},
-        {"published": "BARMM", "standard": "BARMM", "evidence": "All three years."},
-        {"published": "PSO", "standard": "PSO", "evidence": "Philippine Schools Overseas, all three years (O-13)."}
+        {"published": "Region VII", "standard": "Region VII", "evidence": "All four years."},
+        {"published": "Region VIII", "standard": "Region VIII", "evidence": "All four years."},
+        {"published": "Region IX", "standard": "Region IX", "evidence": "All four years."},
+        {"published": "Region X", "standard": "Region X", "evidence": "All four years."},
+        {"published": "Region XI", "standard": "Region XI", "evidence": "All four years."},
+        {"published": "Region XII", "standard": "Region XII", "evidence": "All four years."},
+        {"published": "CARAGA", "standard": "CARAGA", "evidence": "All four years."},
+        {"published": "BARMM", "standard": "BARMM", "evidence": "All four years."},
+        {"published": "PSO", "standard": "PSO", "evidence": "Philippine Schools Overseas, all four years (O-13)."}
       ]
     },
     "legislative_district": {
       "finding": "O-8, O-9",
-      "rule": "Kept as published. 'PSO' marks an overseas school in SY 2023-24 and 2024-25; in SY 2025-26 those schools say 'Lone District'.",
+      "rule": "Kept as published. 'PSO' marks an overseas school in SY 2020-21, 2023-24, and 2024-25; in SY 2025-26 those schools say 'Lone District'.",
       "standard": [
         "1st District", "2nd District", "3rd District", "4th District", "5th District", "6th District",
         "7th District", "Lone District", "No Legislative District", "PSO"
       ],
       "labels": [
-        {"published": "1st District", "standard": "1st District", "evidence": "All three years."},
-        {"published": "2nd District", "standard": "2nd District", "evidence": "All three years."},
-        {"published": "3rd District", "standard": "3rd District", "evidence": "All three years."},
-        {"published": "4th District", "standard": "4th District", "evidence": "All three years."},
-        {"published": "5th District", "standard": "5th District", "evidence": "All three years."},
-        {"published": "6th District", "standard": "6th District", "evidence": "All three years."},
-        {"published": "7th District", "standard": "7th District", "evidence": "All three years."},
-        {"published": "Lone District", "standard": "Lone District", "evidence": "All three years."},
+        {"published": "1st District", "standard": "1st District", "evidence": "All four years."},
+        {"published": "2nd District", "standard": "2nd District", "evidence": "All four years."},
+        {"published": "3rd District", "standard": "3rd District", "evidence": "All four years."},
+        {"published": "4th District", "standard": "4th District", "evidence": "All four years."},
+        {"published": "5th District", "standard": "5th District", "evidence": "All four years."},
+        {"published": "6th District", "standard": "6th District", "evidence": "All four years."},
+        {"published": "7th District", "standard": "7th District", "evidence": "All four years."},
+        {"published": "Lone District", "standard": "Lone District", "evidence": "All four years."},
         {"published": "No Legislative District", "standard": "No Legislative District", "evidence": "SY 2024-25 (6) and 2025-26 (7): the BARMM Special Geographic Area, province '(SGA - North Cotabato)'."},
-        {"published": "PSO", "standard": "PSO", "evidence": "Overseas schools in SY 2023-24 (33) and 2024-25 (35)."}
+        {"published": "PSO", "standard": "PSO", "evidence": "Overseas schools in SY 2020-21 (33), 2023-24 (33), and 2024-25 (35)."}
       ]
     },
     "sector": {
@@ -133,53 +133,54 @@
       "rule": "Standard set is DepEd's README list: Public, Private, SUC/LUC, PSO.",
       "standard": ["Public", "Private", "SUC/LUC", "PSO"],
       "labels": [
-        {"published": "Public", "standard": "Public", "evidence": "All three years."},
-        {"published": "Private", "standard": "Private", "evidence": "All three years."},
-        {"published": "SUC/LUC", "standard": "SUC/LUC", "evidence": "SY 2023-24 and 2024-25; DepEd README wording."},
+        {"published": "Public", "standard": "Public", "evidence": "All four years."},
+        {"published": "Private", "standard": "Private", "evidence": "All four years."},
+        {"published": "SUC/LUC", "standard": "SUC/LUC", "evidence": "SY 2020-21, 2023-24, and 2024-25; DepEd README wording."},
         {"published": "SUCsLUCs", "standard": "SUC/LUC", "evidence": "SY 2025-26 only. All 171 schools labelled SUC/LUC in SY 2024-25 and present in SY 2025-26 are SUCsLUCs."},
-        {"published": "PSO", "standard": "PSO", "evidence": "All three years."}
+        {"published": "PSO", "standard": "PSO", "evidence": "All four years."}
       ]
     },
     "school_management": {
       "finding": "O-8, O-9",
-      "rule": "Standard set is the SY 2023-24 and 2024-25 labels (two of three years; DepEd's README matches no year exactly, O-9). Trailing spaces are removed before mapping.",
-      "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "DOST", "Other GA", "International School", "PSO"],
+      "rule": "Standard set is the SY 2020-21, 2023-24, and 2024-25 labels (three of four years; DepEd's README matches no year exactly, O-9). Trailing spaces are removed before mapping. 'Local Government' (SY 2020-21 only) is kept as its own value, not merged into DepEd or LUC.",
+      "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "Local Government", "DOST", "Other GA", "International School", "PSO"],
       "labels": [
-        {"published": "DepEd", "standard": "DepEd", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "DepEd", "standard": "DepEd", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "DepED Managed", "standard": "DepEd", "evidence": "SY 2025-26. 47,786 schools DepEd in SY 2024-25 are DepED Managed in SY 2025-26."},
-        {"published": "Non-Sectarian", "standard": "Non-Sectarian", "evidence": "SY 2023-24 and 2024-25; SY 2025-26 publishes 'Non-Sectarian ' (trailing space, removed by trimming): 8,114 of the same schools."},
-        {"published": "Sectarian", "standard": "Sectarian", "evidence": "SY 2023-24 and 2024-25; SY 2025-26 publishes 'Sectarian ' (trailing space): 3,490 of the same schools."},
-        {"published": "SUC", "standard": "SUC", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "Non-Sectarian", "standard": "Non-Sectarian", "evidence": "SY 2020-21, 2023-24, and 2024-25; SY 2025-26 publishes 'Non-Sectarian ' (trailing space, removed by trimming): 8,114 of the same schools."},
+        {"published": "Sectarian", "standard": "Sectarian", "evidence": "SY 2020-21, 2023-24, and 2024-25; SY 2025-26 publishes 'Sectarian ' (trailing space): 3,490 of the same schools."},
+        {"published": "SUC", "standard": "SUC", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "SUC Managed", "standard": "SUC", "evidence": "SY 2025-26. All 163 schools SUC in SY 2024-25 and present in SY 2025-26."},
-        {"published": "LUC", "standard": "LUC", "evidence": "All three years."},
-        {"published": "DOST", "standard": "DOST", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "LUC", "standard": "LUC", "evidence": "All four years. Sector SUC/LUC in every year."},
+        {"published": "Local Government", "standard": "Local Government", "evidence": "SY 2020-21 only (O-8): 154 schools, all sector Public. 149 of them are DepEd in SY 2023-24; the other 5 are in neither SY 2023-24 nor 2024-25. Not merged into LUC, which is a SUC/LUC-sector label, nor into DepEd, which would assert a management the file does not publish for that year."},
+        {"published": "DOST", "standard": "DOST", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "DOST Managed", "standard": "DOST", "evidence": "SY 2025-26. All 15 schools DOST in SY 2024-25."},
-        {"published": "Other GA", "standard": "Other GA", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "Other GA", "standard": "Other GA", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "Other GA Managed", "standard": "Other GA", "evidence": "SY 2025-26. 1 of the 2 Other GA schools of SY 2024-25 (the other became DepED Managed)."},
-        {"published": "International School", "standard": "International School", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "International School", "standard": "International School", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "Local International School", "standard": "International School", "evidence": "SY 2025-26. The same 6 schools as International School in SY 2024-25."},
-        {"published": "PSO", "standard": "PSO", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "PSO", "standard": "PSO", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "SCHOOL ABROAD", "standard": "PSO", "evidence": "SY 2025-26. All 35 PSO schools of SY 2024-25 present in SY 2025-26; sector and region still say PSO."}
       ]
     },
     "annex_status": {
       "finding": "O-8",
-      "rule": "Standard set is DepEd's README list, which the SY 2023-24 and 2024-25 labels match exactly.",
+      "rule": "Standard set is DepEd's README list, which the SY 2020-21, 2023-24, and 2024-25 labels match exactly.",
       "standard": ["Standalone School", "Mother School", "Annex/Extension School", "Mobile School/Center"],
       "labels": [
-        {"published": "Standalone School", "standard": "Standalone School", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "Standalone School", "standard": "Standalone School", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "School with no Annexes", "standard": "Standalone School", "evidence": "SY 2025-26. 56,908 schools Standalone in SY 2024-25."},
-        {"published": "Mother School", "standard": "Mother School", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "Mother School", "standard": "Mother School", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "Mother school", "standard": "Mother School", "evidence": "SY 2025-26 (capitalization only). 1,933 schools Mother School in SY 2024-25."},
-        {"published": "Annex/Extension School", "standard": "Annex/Extension School", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "Annex/Extension School", "standard": "Annex/Extension School", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "Annex or Extension school(s)", "standard": "Annex/Extension School", "evidence": "SY 2025-26. 722 schools Annex/Extension in SY 2024-25."},
-        {"published": "Mobile School/Center", "standard": "Mobile School/Center", "evidence": "SY 2023-24 and 2024-25."},
+        {"published": "Mobile School/Center", "standard": "Mobile School/Center", "evidence": "SY 2020-21, 2023-24, and 2024-25."},
         {"published": "Mobile School(s)/Center(s)", "standard": "Mobile School/Center", "evidence": "SY 2025-26. All 14 Mobile School/Center schools of SY 2024-25."}
       ]
     },
     "modified_curricular_offering_classification": {
       "finding": "O-7",
-      "rule": "Undocumented by DepEd; kept as published. Each label matches exactly one combination of offers_es, offers_jhs, offers_shs (data dictionary). NULL in SY 2023-24 and 2024-25 means the column was not published (schema v1).",
+      "rule": "Undocumented by DepEd; kept as published. Each label matches exactly one combination of offers_es, offers_jhs, offers_shs (data dictionary). NULL in SY 2020-21, 2023-24, and 2024-25 means the column was not published (schema v1).",
       "standard": ["Purely ES", "Purely JHS", "Purely SHS", "ES and JHS", "ES with SHS", "JHS with SHS", "All Offering"],
       "labels": [
         {"published": "Purely ES", "standard": "Purely ES", "evidence": "SY 2025-26."},

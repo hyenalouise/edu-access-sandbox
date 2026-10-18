@@ -1,0 +1,3 @@
+-- PLACEHOLDER: build dim_school_year (D-048). One enrollment school year; reads enrollment Silver only, so a
+-- facilities or personnel failure cannot stop it (D-051). Source availability is fact_school_year_source_availability.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.
