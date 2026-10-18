@@ -53,17 +53,21 @@ def real_config():
     return json.loads((REPO_ROOT / "config" / "ingestion" / f"{SOURCE}.json").read_text(encoding="utf-8"))
 
 
+# The known issues' counts on the made-up workbooks. A sheet's counts join the contract when its
+# delivery is approved, as the contract only accepts profiled counts for approved sheets.
+FIXTURE_PROFILED = {
+    "place_label_footnote_marker": {"2024 Total Pop": 2, "2024 Household Pop": 2},
+    "source_line_misspelled": {"2020 Total Pop": 1, "2020 Household Pop": 1},
+    "title_names_only_city_municipality": {"2024 Household Pop": 1},
+}
+
+
 def empty_config():
-    """The real contract with no deliveries, and known issues profiled on the made-up workbooks' counts."""
+    """The real contract with no deliveries and nothing profiled yet."""
     config = copy.deepcopy(real_config())
     config["deliveries"] = []
-    profiled = {
-        "place_label_footnote_marker": {"2024 Total Pop": 2, "2024 Household Pop": 2},
-        "source_line_misspelled": {"2020 Total Pop": 1, "2020 Household Pop": 1},
-        "title_names_only_city_municipality": {"2024 Household Pop": 1},
-    }
     for issue in config["known_issues"]:
-        issue["profiled"] = profiled[issue["name"]]
+        issue["profiled"] = {}
     return config
 
 
@@ -193,4 +197,7 @@ def approve(config, path, year, delivery_version=1, supersedes=None, place_rows=
     }
     entry.update(overrides)
     config["deliveries"].append(entry)
+    sheets = {s["sheet"] for s in entry["sheets"]}
+    for issue in config["known_issues"]:
+        issue["profiled"].update({k: n for k, n in FIXTURE_PROFILED.get(issue["name"], {}).items() if k in sheets})
     return entry

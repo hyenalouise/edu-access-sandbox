@@ -258,15 +258,14 @@ def validate_contract(config, registry_entry):
         seen_version.add(key)
         by_dataset.setdefault(d["logical_dataset"], []).append(d)
 
-    # A profiled sheet must be named as a workbook sheet is ('<year> <suffix>'), so a misspelling cannot pass
-    # and later read as a profiled count of 0. The year's delivery may not be approved yet.
-    suffixes = sorted(config["sheet_suffixes"].values())
+    # A profiled count must name a sheet an approved delivery declares, so a wrong year or a misspelling
+    # cannot pass and later read as a profiled count of 0. Profile a delivery when it is approved.
+    approved_sheets = sorted({s["sheet"] for d in config["deliveries"] for s in d["sheets"]})
     for issue in config["known_issues"]:
-        unknown = sorted(n for n in issue["profiled"]
-                         if not (CENSUS_YEAR.match(n[:4]) and n[4:5] == " " and n[5:] in suffixes))
+        unknown = sorted(set(issue["profiled"]) - set(approved_sheets))
         if unknown:
-            raise _config_error(f"known issue {issue['name']!r}: profiled names sheet(s) {unknown}; a sheet is "
-                                f"'<census year> <suffix>' with a suffix in {suffixes}.")
+            raise _config_error(f"known issue {issue['name']!r}: profiled names sheet(s) {unknown} that no approved "
+                                f"delivery declares; approved sheets are {approved_sheets}.")
 
     years = {}
     for dataset, deliveries in by_dataset.items():
