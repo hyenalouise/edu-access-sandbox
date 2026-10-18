@@ -35,7 +35,7 @@ resources:
       name: edu_access_pipeline
       description: >-
         Validates and ingests eight approved education and geography sources
-        through Bronze; six continue through Silver. Each Integration, Gold, and
+        through Bronze; seven continue through Silver. Each Integration, Gold, and
         Analytics task starts from the gates it reads (D-051); placeholders stay
         visible but disabled.
 
@@ -542,8 +542,7 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # 07 - DepEd EMISD enrollment with PSGC and coordinates. Bronze is live; the planned
-        # Silver crosswalk stays disabled until #163 implements and reviews its contract.
+        # 07 - DepEd EMISD enrollment with PSGC and coordinates: the school-to-PSGC crosswalk (D-049)
         - task_key: 07_create_deped_enrollment_psgc_raw
           depends_on:
             - task_key: 05_create_current_batches
@@ -590,7 +589,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 07_clean_deped_enrollment_psgc
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_psgc_raw
           run_if: ALL_SUCCESS
@@ -601,7 +599,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_deped_enrollment_psgc_clean
-          disabled: true
           depends_on:
             - task_key: 07_clean_deped_enrollment_psgc
           run_if: ALL_SUCCESS

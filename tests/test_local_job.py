@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
-from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks
+from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks, report_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
@@ -47,9 +47,14 @@ def repo(tmp_path):
     features = [hdx_geojson.silver_feature(i) for i in range(1, 4)]
     hdx_geojson.approve(hdx, hdx_geojson.write_features(tmp_path / "landing" / "admin_boundaries", features), 3)
     write_config(root, hdx)
-    # The EMISD workbook is Bronze only so far (#152): its lane runs with nothing approved, as personnel's does.
-    write_config(root, empty_config("deped_enrollment_psgc"))
-    # PSA school-age population is Bronze only so far too (#157).
+    # The EMISD crosswalk runs through Silver too (#163), and its gate fails a build with no current batch,
+    # so the job always has one made-up workbook approved for it: two ordinary schools, nothing quarantined.
+    emisd = report_workbooks.empty_config()
+    workbook = report_workbooks.make_workbook(tmp_path / "landing" / "deped" / "original",
+                                              rows={9: report_workbooks.school(100001), 10: report_workbooks.school(100002)})
+    report_workbooks.approve(emisd, workbook, row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
+    write_config(root, emisd)
+    # PSA school-age population is Bronze only so far (#157).
     write_config(root, census_workbooks.empty_config())
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
@@ -80,7 +85,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_enrollment_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build' "
-                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_facilities", "succeeded"),
+                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_enrollment_psgc", "succeeded"),
+                                         ("deped_facilities", "succeeded"),
                                          ("deped_personnel", "succeeded"), ("hdx_boundaries", "succeeded"),
                                          ("psa_poverty_stat", "succeeded"), ("psa_psgc", "succeeded")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_facilities_clean") == [(3, "job-run-1")]
@@ -90,20 +96,19 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
-        ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("deped_personnel", "PASS"),
-        ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
+        ("deped_personnel", "PASS"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
         ("psa_psgc", "PASS")]   # one per Silver lane on
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
     # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
-    # the fake repository approves no personnel, EMISD or school-age population delivery, so those three have none.
+    # the fake repository approves no personnel or school-age population delivery, so those two have none.
     assert [(source, status) for source, status, _ in fresh] == [
-        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "WARN"), ("deped_facilities", "PASS"),
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
         ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS"),
         ("psa_school_age_population", "WARN")]
     assert all(actual.startswith("last succeeded ") for _, status, actual in fresh if status == "PASS")
     assert dict((s, a) for s, _, a in fresh)["deped_personnel"] == "no succeeded batch"
-    assert dict((s, a) for s, _, a in fresh)["deped_enrollment_psgc"] == "no succeeded batch"
     assert dict((s, a) for s, _, a in fresh)["psa_school_age_population"] == "no succeeded batch"
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
@@ -125,7 +130,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
-        == [("load", 5), ("skip", 5)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX
+        == [("load", 6), ("skip", 6)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX, EMISD
     store.close()
 
 
@@ -147,7 +152,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("silver_build", 6)]   # one filter, both layers; EMISD and school-age population are Bronze only
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("silver_build", 7)]   # one filter, both layers; school-age population is Bronze only
     store.close()
 
 
@@ -187,9 +192,10 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
         ("succeeded_batches_reconcile",)]
     assert store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-2' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
-        ("deped_enrollment", "FAIL", "not run"), ("deped_facilities", "PASS", "succeeded"),
-        ("deped_personnel", "PASS", "succeeded"), ("hdx_boundaries", "PASS", "succeeded"),
-        ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]
+        ("deped_enrollment", "FAIL", "not run"), ("deped_enrollment_psgc", "PASS", "succeeded"),
+        ("deped_facilities", "PASS", "succeeded"), ("deped_personnel", "PASS", "succeeded"),
+        ("hdx_boundaries", "PASS", "succeeded"), ("psa_poverty_stat", "PASS", "succeeded"),
+        ("psa_psgc", "PASS", "succeeded")]
     store.close()
 
 

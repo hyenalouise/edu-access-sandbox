@@ -113,8 +113,8 @@ source_tables:
       workbook: EMISD xlsx
       sheet: DB
       note: >-
-        Loaded for its PSGC codes and coordinates, not its counts (#137, option B). The Silver
-        contract remains disabled until #163 implements and reviews it.
+        Loaded for its PSGC codes and coordinates, not its counts (D-049). Silver is the
+        school_id to PSGC crosswalk, one row per school (#163).
     bronze:
       table: deped_enrollment_psgc_raw
       create_file: 07_create_deped_enrollment_psgc_raw.sql
