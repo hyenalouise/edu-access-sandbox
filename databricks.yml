@@ -608,8 +608,8 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # 08 - PSA school-age population. Bronze is live (#157); the Silver lane stays disabled
-        # until #158 provides its transforms and validation gate.
+        # 08 - PSA school-age population. Bronze is live (#157), and Silver (#158): one row per count cell,
+        # each place's level and parent from the sums (D-053).
         - task_key: 08_create_psa_school_age_population_raw
           depends_on:
             - task_key: 05_create_current_batches
@@ -656,7 +656,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 08_clean_psa_school_age_population
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_school_age_population_raw
           run_if: ALL_SUCCESS
@@ -667,7 +666,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_psa_school_age_population_clean
-          disabled: true
           depends_on:
             - task_key: 08_clean_psa_school_age_population
           run_if: ALL_SUCCESS

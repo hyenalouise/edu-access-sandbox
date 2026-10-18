@@ -75,16 +75,19 @@ def counts(seed, n):
     return [str(100 + seed * 7 + i) for i in range(n)]
 
 
-def sheet_grid(year, concept, places=None, blank_after_header=True, extra=None):
-    """{row: {column: text}} for one sheet. extra: {(row, column): text} written over everything else."""
+def sheet_grid(year, concept, places=None, blank_after_header=True, extra=None, values=None):
+    """{row: {column: text}} for one sheet. extra: {(row, column): text} written over everything else.
+    values: per place, its 60 counts (both sexes, male, female, ages 5-24 each) instead of made-up ones."""
     places = PLACES[year] if places is None else places
+    if values is not None:
+        values = [[str(v) for v in place] for place in values]
     grid = {1: {1: TITLES[(year, concept)]}}
     if year == "2020":
         grid[2] = {1: "Region, Province, City/Municipality and Barangay", 2: "Both Sexes", 22: "Male", 42: "Female"}
         grid[3] = {c: str(AGES[(c - 2) % 20]) for c in range(2, 62)}
         r = 5 if blank_after_header else 4
         for i, name in enumerate(places):
-            grid[r] = {1: name, **{c: v for c, v in zip(range(2, 62), counts(i, 60))}}
+            grid[r] = {1: name, **{c: v for c, v in zip(range(2, 62), values[i] if values else counts(i, 60))}}
             r += 1
         r += 1
         grid[r] = {1: SOURCE_LINE[year]}
@@ -95,7 +98,8 @@ def sheet_grid(year, concept, places=None, blank_after_header=True, extra=None):
         for i, name in enumerate(places):
             grid[r] = {1: name}
             for j, sex in enumerate(("Total", "Male", "Female")):
-                grid[r + 1 + j] = {1: sex, **{c: v for c, v in zip(range(2, 22), counts(i * 3 + j, 20))}}
+                cells = values[i][j * 20:(j + 1) * 20] if values else counts(i * 3 + j, 20)
+                grid[r + 1 + j] = {1: sex, **{c: v for c, v in zip(range(2, 22), cells)}}
             r += 4
         r += 1
         for line in NOTES_2024 if concept == "Total Pop" else NOTES_2024[:1] + NOTES_2024[2:]:
@@ -201,3 +205,84 @@ def approve(config, path, year, delivery_version=1, supersedes=None, place_rows=
     for issue in config["known_issues"]:
         issue["profiled"].update({k: n for k, n in FIXTURE_PROFILED.get(issue["name"], {}).items() if k in sheets})
     return entry
+
+
+# --- A place tree whose counts close, for Silver -------------------------------------------
+# (2020 label, 2024 label, parent index). Like the real workbooks (profile O-2, O-6): a region with a
+# province and a city directly under it, a region of cities only (NCR), a name repeated under two
+# provinces, a capital, an old name in brackets (2020), and footnote markers (2024).
+TREE = [
+    ("PHILIPPINES", "PHILIPPINES a/", None),
+    ("REGION I (TEST REGION)", "REGION I - TEST REGION", 0),
+    ("PROVINCE ONE", "PROVINCE ONE", 1),
+    ("ALPHA (Capital)", "ALPHA (CAPITAL)", 2),
+    ("BRAVO (OLD BRAVO)", "BRAVO", 2),
+    ("SAN TEST", "SAN TEST", 2),
+    ("CITY OF HUC", "CITY OF HUC 1/", 1),
+    ("NATIONAL CAPITAL REGION (NCR)", "NATIONAL CAPITAL REGION (NCR)", 0),
+    ("CITY OF ONE", "CITY OF ONE", 7),
+    ("PATEROS", "PATEROS", 7),
+    ("REGION II", "REGION II 2/", 0),
+    ("PROVINCE TWO", "PROVINCE TWO", 10),
+    ("SAN TEST", "SAN TEST", 11),
+    ("CHARLIE", "CHARLIE", 11),
+]
+TREE_LEVELS = {"country": 1, "region": 3, "province": 2, "city_municipality": 8}
+
+
+def tree_labels(year):
+    return [entry[0 if year == "2020" else 1] for entry in TREE]
+
+
+def tree_values(concept="Total Pop", leaves=None):
+    """Per TREE place, its 60 counts: both sexes, male, female (ages 5-24 each). Leaves get made-up counts
+    (or `leaves`: {place index: 60 counts}); every aggregate is the sum of the places under it, and both
+    sexes is male + female. Household is total less a few people in some places, never more."""
+    children = {i: [j for j, e in enumerate(TREE) if e[2] == i] for i in range(len(TREE))}
+    values = [None] * len(TREE)
+    for i in range(len(TREE) - 1, -1, -1):
+        if children[i]:
+            values[i] = [sum(values[j][k] for j in children[i]) for k in range(60)]
+            continue
+        if leaves and i in leaves:
+            values[i] = list(leaves[i])
+            continue
+        male = [40 + 7 * i + 3 * a + (i * a) % 5 for a in AGES]
+        female = [38 + 5 * i + 2 * a + (i + a) % 4 for a in AGES]
+        if concept == "Household Pop" and i % 3 == 1:
+            male = [m - a % 2 for m, a in zip(male, AGES)]
+        values[i] = [m + f for m, f in zip(male, female)] + male + female
+    return values
+
+
+def tree_grids(year, values=None):
+    """{sheet name: grid} for both sheets of a tree workbook. values: {concept: per-place counts}."""
+    values = values or {}
+    return {f"{year} {c}": sheet_grid(year, c, places=tree_labels(year), blank_after_header=c == "Total Pop",
+                                      values=values.get(c) or tree_values(c))
+            for c in CONCEPTS}
+
+
+def write_tree_workbook(folder, year, values=None):
+    return write_workbook(folder, year, grids=tree_grids(year, values))
+
+
+def approve_tree(config, path, year, values=None, **overrides):
+    """Approve a tree workbook: its place and sheet row counts differ from the default workbook's."""
+    grids = tree_grids(year, values)
+    return approve(config, path, year, place_rows=len(TREE),
+                   sheet_rows={c: max(grids[f"{year} {c}"]) for c in CONCEPTS}, **overrides)
+
+
+# The made-up tree has no Special Geographic Area: every place is standard.
+TREE_STATUSES = {"special_geographic_area": 0, "sga_cluster": 0}
+
+
+def pin_tree_levels(mapping, workbooks, levels=None, statuses=None):
+    """The Silver rules with the level and place_status counts of these approved tree workbooks pinned, and
+    no others, as a reviewer would pin them. workbooks: [(census year, path)]; statuses: {census year: counts}."""
+    mapping = copy.deepcopy(mapping)
+    mapping["expected_levels"] = [{"census_year": year, "workbook_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                                   **(levels or TREE_LEVELS), **{**TREE_STATUSES, **(statuses or {}).get(year, {})}}
+                                  for year, path in workbooks]
+    return mapping

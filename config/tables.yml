@@ -135,7 +135,7 @@ source_tables:
       sheets: ["<year> Total Pop", "<year> Household Pop"]
       note: >-
         Both sheets of each workbook are one logical source table; a row is identified by its sheet too (#157).
-        Bronze is live (#157). The silver names are placeholders until #158 confirms them, and the Silver tasks stay disabled until it lands.
+        Bronze is live (#157), and Silver (#158): one row per count cell, with each place's level and parent from the sums (D-053).
     bronze:
       table: psa_school_age_population_raw
       create_file: 08_create_psa_school_age_population_raw.sql
