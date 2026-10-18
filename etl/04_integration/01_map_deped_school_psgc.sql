@@ -180,6 +180,10 @@ school_units AS (
                OR (s.barangay_possibly_truncated AND cb.k_fold LIKE s.b_fold || '%'))
               THEN TRUE ELSE FALSE END AS code_bgy_name_agrees,
          cb.city_municipality_code AS code_bgy_parent,
+         -- D-031: a school DepEd files under a Special Geographic Area place, or one whose EMISD code is
+         -- in a Special Geographic Area municipality (SY 2020-21 still files these under Region XII).
+         COALESCE(NOT s.is_overseas AND (s.code_city LIKE '19999%' OR s.code_bgy LIKE '19999%'
+           OR (upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO') OR (upper(s.region) = 'BARMM' AND upper(s.province) = '(SGA - NORTH COTABATO)')), FALSE) AS is_sga,
          o.use_side AS bgy_override_side, o.reason AS bgy_override_reason, o.reviewer AS bgy_override_reviewer
   FROM school_input AS s
   LEFT JOIN units AS cc ON cc.psgc_code = s.code_city AND cc.geographic_level IN ('City', 'Mun', 'SubMun')
@@ -191,14 +195,14 @@ school_units AS (
 city_decided AS (
   SELECT s.*,
     CASE WHEN s.is_overseas THEN 'excluded'
-         WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
+         WHEN s.is_sga
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN 'matched' ELSE 'excluded' END
          WHEN s.code_city_roll IS NOT NULL AND s.code_city_roll = s.name_city_roll THEN 'matched'
          WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NOT NULL
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN 'matched' ELSE 'ambiguous' END
          WHEN COALESCE(s.code_city_roll, s.name_city_roll) IS NOT NULL THEN 'matched' ELSE 'unmatched' END AS city_status,
     CASE WHEN s.is_overseas THEN NULL
-         WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
+         WHEN s.is_sga
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN s.code_city_roll END
          WHEN s.code_city_roll IS NOT NULL AND s.name_city_roll IS NOT NULL AND s.code_city_roll <> s.name_city_roll
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city THEN s.code_city_roll END
@@ -210,7 +214,7 @@ city_decided AS (
          ELSE s.name_city_method END AS city_method,
     -- The reasons repeat the match_detail wording of the reviewed analysis rule (PR #153).
     CASE WHEN s.is_overseas THEN 'Philippine Schools Overseas'
-         WHEN upper(s.region) = 'BARMM' AND upper(s.province) = 'NORTH COTABATO'
+         WHEN s.is_sga
            THEN CASE WHEN s.code_bgy_name_agrees AND s.code_bgy_parent = s.code_city
                      THEN 'Special Geographic Area' || chr(59) || ' DepEd barangay name matches the code''s barangay' ELSE 'Special Geographic Area (D-031)' END
          WHEN s.code_city_roll IS NOT NULL AND s.code_city_roll = s.name_city_roll THEN 'code and name agree'
