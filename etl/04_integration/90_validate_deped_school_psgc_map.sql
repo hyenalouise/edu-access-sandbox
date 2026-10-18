@@ -14,11 +14,21 @@ p AS (SELECT psgc_code, geographic_level, city_municipality_code, publication_pe
 m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
 profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
 overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE')) AS v(province, municipality, barangay)),
+expected_keys AS (
+  SELECT e.school_year, e.school_id, l.geographic_level
+  FROM e CROSS JOIN (VALUES ('city_mun'), ('bgy')) AS l(geographic_level)
+),
+key_membership AS (
+  SELECT COUNT_IF(m.school_id IS NULL) AS missing_keys, COUNT_IF(x.school_id IS NULL) AS extra_keys
+  FROM expected_keys AS x FULL OUTER JOIN m
+    ON m.school_year = x.school_year AND m.school_id = x.school_id AND m.geographic_level = x.geographic_level
+),
 stats AS (
   SELECT
     (SELECT COUNT(*) FROM e) AS enrollment_rows,
     (SELECT COUNT(*) FROM p) AS psgc_rows,
     (SELECT COUNT(DISTINCT publication_period) FROM p) AS psgc_periods,
+    (SELECT MIN(publication_period) FROM p) AS psgc_period,
     COUNT(*) AS map_rows,
     COUNT(DISTINCT m.school_year || '/' || m.school_id || '/' || m.geographic_level) AS map_keys,
     COUNT_IF(m.geographic_level = 'city_mun') AS city_rows,
@@ -57,7 +67,7 @@ hierarchy AS (
     AND b.geographic_level = 'bgy' AND c.geographic_level = 'city_mun'
   LEFT JOIN p AS pb ON pb.psgc_code = b.psgc_code
 ),
-s AS (SELECT * FROM stats CROSS JOIN hierarchy),
+s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership),
 checks AS (
   SELECT 'inputs_present' AS check_name, CASE WHEN enrollment_rows > 0 AND psgc_rows > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'enrollment and master PSGC rows' AS expected, CAST(enrollment_rows AS STRING) || ' / ' || CAST(psgc_rows AS STRING) AS actual FROM s
@@ -66,12 +76,16 @@ checks AS (
   UNION ALL SELECT 'both_levels_present', CASE WHEN city_rows = enrollment_rows AND bgy_rows = enrollment_rows AND bad_level = 0 THEN 'PASS' ELSE 'FAIL' END,
                    CAST(enrollment_rows AS STRING) || ' / ' || CAST(enrollment_rows AS STRING) || ' / 0',
                    CAST(city_rows AS STRING) || ' / ' || CAST(bgy_rows AS STRING) || ' / ' || CAST(bad_level AS STRING) FROM s
+  UNION ALL SELECT 'source_keys_match', CASE WHEN missing_keys = 0 AND extra_keys = 0 THEN 'PASS' ELSE 'FAIL' END,
+                   '0 missing / 0 extra', CAST(missing_keys AS STRING) || ' missing / ' || CAST(extra_keys AS STRING) || ' extra' FROM s
   UNION ALL SELECT 'status_valid', CASE WHEN bad_status = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_status AS STRING) FROM s
   UNION ALL SELECT 'status_combination_valid', CASE WHEN bad_combination = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_combination AS STRING) FROM s
   UNION ALL SELECT 'matched_has_psgc_unit', CASE WHEN matched_without_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(matched_without_psgc AS STRING) FROM s
   UNION ALL SELECT 'psgc_level_valid', CASE WHEN wrong_psgc_level = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(wrong_psgc_level AS STRING) FROM s
   UNION ALL SELECT 'barangay_inside_city', CASE WHEN bad_parent = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_parent AS STRING) FROM s
   UNION ALL SELECT 'one_psgc_version', CASE WHEN psgc_periods = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(psgc_periods AS STRING) FROM s
+  UNION ALL SELECT 'master_psgc_version', CASE WHEN psgc_period = '2026-Q2' THEN 'PASS' ELSE 'FAIL' END,
+                   '2026-Q2', COALESCE(psgc_period, 'none') FROM s
   UNION ALL SELECT 'lineage_complete', CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(missing_lineage AS STRING) FROM s
   UNION ALL SELECT 'rows_built_by_this_run', CASE WHEN other_run_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(other_run_rows AS STRING) FROM s
   UNION ALL SELECT 'unmatched', CASE WHEN unmatched_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unmatched_rows AS STRING) FROM s
@@ -88,13 +102,14 @@ rates AS (
          '>= 99.0' AS expected, CAST(ROUND(match_rate, 2) AS STRING) AS actual
   FROM level_counts
 ),
--- matched/ambiguous/unmatched/excluded against the reviewed counts in the rules file: WARN when they change.
+-- matched/ambiguous/unmatched/excluded against the reviewed counts: drift must be reviewed before publication.
 profiled AS (
   SELECT 'profiled_' || COALESCE(c.school_year, f.school_year) || '_' || COALESCE(c.geographic_level, f.geographic_level) AS check_name,
-         CASE WHEN c.counts = f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded THEN 'PASS' ELSE 'WARN' END AS status,
+         CASE WHEN c.counts = f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded THEN 'PASS' ELSE 'FAIL' END AS status,
          COALESCE(f.matched || '/' || f.ambiguous || '/' || f.unmatched || '/' || f.excluded, 'not profiled') AS expected,
          COALESCE(c.counts, 'no rows') AS actual
   FROM level_counts AS c FULL OUTER JOIN profile AS f ON f.school_year = c.school_year AND f.geographic_level = c.geographic_level
+  WHERE EXISTS (SELECT 1 FROM profile)
 )
 SELECT * FROM checks UNION ALL SELECT * FROM rates UNION ALL SELECT * FROM profiled
 ) AS results;
