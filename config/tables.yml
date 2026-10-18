@@ -9,8 +9,8 @@ source_tables:
   - source_id: deped_enrollment
     dataset: DepEd enrollment
     scope:
-      school_years: [2020-21, 2023-24, 2024-25, 2025-26]
-      note: All four deliveries share one table and are distinguished by school_year.
+      school_years: [2020-21, 2021-22, 2022-23, 2023-24, 2024-25, 2025-26]
+      note: All six deliveries share one table and are distinguished by school_year.
     bronze:
       table: deped_enrollment_raw
       create_file: 01_create_deped_enrollment_raw.sql
