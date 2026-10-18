@@ -208,7 +208,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 ## Running on Databricks
 
-**Current job: `edu_access_pipeline` (D-020).** Last confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**Current job: `edu_access_pipeline` (D-020).** Last run on 2026-10-18 at `135c1ac`, with every enabled task succeeding ([evidence](../../evidence/pipeline-runs/2026-10-18-per-lane-job.md)). First confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
@@ -252,7 +252,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped (the job starts it for its SQL tasks), and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
 
-`databricks bundle validate` was last run on 2026-10-08 at `bb040a9` and passed; both commit values resolved to the same SHA.
+`databricks bundle validate` was last run on 2026-10-18 at `135c1ac` and passed; the job's git commit and `code_revision` both resolved to that commit.
 
 ### First Databricks run
 

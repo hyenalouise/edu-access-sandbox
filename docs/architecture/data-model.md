@@ -30,7 +30,7 @@ without a separate decision.
 | `dim_city_municipality` | One PSGC city or municipality, plus technical members | `city_mun_psgc_code` | City names, parent province and region, LGU classifications, land area, and the PSGC reference quarter |
 | `dim_barangay` | One PSGC barangay, plus technical members | `barangay_psgc_code` | Barangay name, city or municipality parent, and urban/rural classification |
 | `dim_school` | One DepEd school | `school_id` | Stable school identifier and latest available reported name |
-| `dim_school_year` | One school year | `school_year` | Start and end calendar years, plus source availability for enrollment, facilities, and personnel |
+| `dim_school_year` | One school year | `school_year` | Start and end calendar years of each enrollment school year |
 | `dim_education_level` | One reporting level | `education_level_code` | `ES`, `JHS`, or `SHS`, with the included grades documented below |
 | `dim_city_poverty` | One regular city or municipality; none for technical members | `city_mun_psgc_code` | Selected 2023 poverty estimate, uncertainty, and availability status for dashboard context |
 
@@ -51,6 +51,7 @@ geography keys.
 | `fact_school_teacher_capacity` | School x school year x education level | (`school_id`, `school_year`, `education_level_code`) | Approved teaching roles by level, including head teachers, with the four published local-funding categories kept separately |
 | `fact_city_population` | City or municipality x reference year | (`city_mun_psgc_code`, `reference_year`) | PSGC total population and its availability status |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | (`city_mun_psgc_code`, `reference_year`, `age`, `sex`) | PSA single-year-age population for AP4; Analytics selects ages 5–17 |
+| `fact_school_year_source_availability` | School year x DepEd source | (`school_year`, `source_id`) | Whether the reviewed enrollment, facilities, or personnel source has data for the school year, for dashboard `not available` states. Added by D-051, which revises D-048 |
 
 `fact_school_enrollment` has exactly one row for each school, school year, and
 reporting level (`ES`, `JHS`, and `SHS`). A level that is not offered has
@@ -147,14 +148,11 @@ It is a current display label, not a historical attribute.
 | `school_year` | STRING |
 | `start_year` | INT |
 | `end_year` | INT |
-| `has_enrollment` | BOOLEAN |
-| `has_facilities` | BOOLEAN |
-| `has_personnel` | BOOLEAN |
 
-The three availability flags indicate whether the corresponding reviewed source
-has data for the school year. They support dashboard `not available` states for
-years without facilities or personnel data. They do not assert that every school
-or education level has a usable value; fact-level coverage must still be shown.
+The members come from enrollment Silver alone, the source that defines which
+school years exist, so a failed facilities or personnel lane cannot stop this
+dimension or the facts that join it (D-051). Which sources have data for each
+year is in `fact_school_year_source_availability`.
 
 ### `dim_education_level`
 
@@ -295,6 +293,22 @@ including the Makati/Taguig transfer and the new Special Geographic Area
 municipalities, prevent a like-for-like trend. This fact must not be filled by
 interpolating or substituting the broader PSA ages 5–24 category.
 
+### `fact_school_year_source_availability`
+
+| Column | Type |
+|---|---|
+| `school_year` | STRING |
+| `source_id` | STRING |
+| `has_data` | BOOLEAN |
+
+One row for each school year in `dim_school_year` and each of `deped_enrollment`,
+`deped_facilities`, and `deped_personnel`. `has_data` is true when that reviewed
+source has data for the school year. It supports dashboard `not available` states
+for years without facilities or personnel data. It does not assert that every
+school or education level has a usable value; fact-level coverage must still be
+shown. It is built after the three DepEd Silver gates, apart from the dimension,
+so only this table waits for facilities and personnel (D-051).
+
 ## ERD
 
 ```mermaid
@@ -311,6 +325,7 @@ erDiagram
   dim_school_year ||--o{ fact_school_enrollment : dates
   dim_school_year ||--o{ fact_school_classroom_capacity : dates
   dim_school_year ||--o{ fact_school_teacher_capacity : dates
+  dim_school_year ||--o{ fact_school_year_source_availability : covers
   dim_education_level ||--o{ fact_school_enrollment : classifies
   dim_education_level ||--o{ fact_school_teacher_capacity : classifies
 
@@ -346,9 +361,6 @@ erDiagram
     string school_year PK
     int start_year
     int end_year
-    boolean has_enrollment
-    boolean has_facilities
-    boolean has_personnel
   }
   dim_education_level {
     string education_level_code PK
@@ -411,6 +423,11 @@ erDiagram
     bigint population
     string psgc_match_status
     boolean is_2020_2024_geography_comparable
+  }
+  fact_school_year_source_availability {
+    string school_year PK,FK
+    string source_id PK
+    boolean has_data
   }
 ```
 

@@ -1,0 +1,2 @@
+-- PLACEHOLDER (#163): clean the EMISD school-to-PSGC crosswalk at one row per school_id.
+-- Implement the reviewed typing, code normalization, quarantine, and lineage rules before activation.

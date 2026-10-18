@@ -1,0 +1,2 @@
+-- PLACEHOLDER (#157): validate the PSA school-age population Bronze table.
+-- Implement reconciliation and data_quality_results writes before enabling this task.

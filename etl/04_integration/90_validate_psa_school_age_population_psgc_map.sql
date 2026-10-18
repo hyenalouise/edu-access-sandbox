@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validate the school-age-population-to-PSGC mapping's uniqueness and coverage.
+-- Implement the gate and its data_quality_results writes before activating this task.

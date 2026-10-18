@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build dim_school (D-048). One school; reads enrollment Silver.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

@@ -6,8 +6,9 @@
 -- always records the whole job run: one result per Silver lane in data_quality_results
 -- (layer 'control'). A lane passes when its silver_build run in this job run succeeded. A failed or
 -- unfinished run fails, and so does a missing one: when a lane's Bronze gate failed, its Silver never
--- ran. On any FAIL the task stops, so Integration, which starts only from this task, does not run
--- (D-039). Lanes checked, the Silver gates this task waits for that are switched on:
+-- ran. On any FAIL the task stops, so the job run fails. Only freshness follows this task; each
+-- Integration, Gold, and Analytics task starts from the gates it reads (D-051). Lanes checked, the
+-- Silver gates this task waits for that are switched on:
 --   deped_enrollment (90_validate_deped_enrollment_clean)
 --   deped_facilities (90_validate_deped_facilities_clean)
 --   deped_personnel (90_validate_deped_personnel_clean)

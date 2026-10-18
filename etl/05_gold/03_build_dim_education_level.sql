@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build dim_education_level (D-048). One education level; reads the reviewed level list (D-047).
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

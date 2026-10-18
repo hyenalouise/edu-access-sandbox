@@ -1,2 +1,0 @@
--- PLACEHOLDER: proposed geography dimension; grain and columns are not yet approved.
--- Remove "placeholder_" from the filename only when the business model is implemented.

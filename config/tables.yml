@@ -113,12 +113,40 @@ source_tables:
       workbook: EMISD xlsx
       sheet: DB
       note: >-
-        Loaded for its PSGC codes and coordinates, not its counts (#137, option B). No silver
-        entry until the Silver issue settles the crosswalk's table names.
+        Loaded for its PSGC codes and coordinates, not its counts (#137, option B). The Silver
+        contract remains disabled until #163 implements and reviews it.
     bronze:
       table: deped_enrollment_psgc_raw
       create_file: 07_create_deped_enrollment_psgc_raw.sql
       validate_file: 90_validate_deped_enrollment_psgc_raw.sql
+    silver:
+      table: deped_enrollment_psgc_clean
+      quarantine_table: deped_enrollment_psgc_quarantine
+      candidate_table: deped_enrollment_psgc_clean_candidate
+      candidate_quarantine_table: deped_enrollment_psgc_quarantine_candidate
+      clean_file: 07_clean_deped_enrollment_psgc.sql
+      validate_file: 90_validate_deped_enrollment_psgc_clean.sql
+
+  - source_id: psa_school_age_population
+    dataset: PSA school-age population by single-year age, sex and city/municipality
+    scope:
+      census_years: [2020, 2024]
+      workbook: one xlsx per census
+      sheets: ["<year> Total Pop", "<year> Household Pop"]
+      note: >-
+        Both sheets of each workbook are one logical source table; a row is identified by its sheet too (#157).
+        The silver names are placeholders until #158 confirms them; every task stays disabled until #157 and #158 land.
+    bronze:
+      table: psa_school_age_population_raw
+      create_file: 08_create_psa_school_age_population_raw.sql
+      validate_file: 90_validate_psa_school_age_population_raw.sql
+    silver:
+      table: psa_school_age_population_clean
+      quarantine_table: psa_school_age_population_quarantine
+      candidate_table: psa_school_age_population_clean_candidate
+      candidate_quarantine_table: psa_school_age_population_quarantine_candidate
+      clean_file: 08_clean_psa_school_age_population.sql
+      validate_file: 90_validate_psa_school_age_population_clean.sql
 
 # Candidates only. Keep them out of executable ETL until their keys, review
 # workflow, and grains are approved.
@@ -132,6 +160,9 @@ draft_integration_tables:
   - table: hdx_adm3_psgc_map
     candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
+  - table: psa_school_age_population_psgc_map
+    candidate_file: 05_map_psa_school_age_population_psgc.sql
+    purpose: Reviewed mapping from PSA school-age population places to PSGC cities and municipalities.
 
 integration_tables:
   - table: deped_annex_mother_map
