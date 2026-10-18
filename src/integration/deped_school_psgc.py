@@ -260,100 +260,101 @@ p4 AS (
 ),
 p5 AS (SELECT x.*, CASE WHEN x.ok_exact IS NULL THEN NULL ELSE {_fold('x.ok_exact')} END AS ok_fold FROM p4 AS x),
 units AS (SELECT * FROM p5),
-source_input AS (
-  SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
-  FROM {enr} WHERE NOT is_overseas
+-- Cities are matched once per DepEd (province, municipality) pair: the match never reads the barangay.
+city_input AS (
+  SELECT DISTINCT province, municipality FROM {enr} WHERE NOT is_overseas
 ),
-source0 AS (SELECT x.*, {_base('x.province')} AS prov_exact, {_base('x.municipality')} AS k_exact,
-                  {_base('x.barangay')} AS b_exact FROM source_input AS x),
-source1 AS (SELECT x.*, {_fold('x.prov_exact')} AS prov_fold, {_fold('x.k_exact')} AS k_fold,
-                  {_fold('x.b_exact')} AS b_fold FROM source0 AS x),
-source2 AS (SELECT x.*, {_brackets('x.k_fold')} AS k_brackets, {_brackets('x.b_fold')} AS b_brackets FROM source1 AS x),
-source3 AS (SELECT x.*, {_no_city('x.k_brackets')} AS k_city, {_no_city('x.b_brackets')} AS b_city FROM source2 AS x),
+city0 AS (SELECT x.*, {_base('x.province')} AS prov_exact, {_base('x.municipality')} AS k_exact FROM city_input AS x),
+city1 AS (SELECT x.*, {_fold('x.prov_exact')} AS prov_fold, {_fold('x.k_exact')} AS k_fold FROM city0 AS x),
+city2 AS (SELECT x.*, {_brackets('x.k_fold')} AS k_brackets FROM city1 AS x),
+city3 AS (SELECT x.*, {_no_city('x.k_brackets')} AS k_city FROM city2 AS x),
 aliases AS ({aliases}),
 overrides AS ({overrides}),
 province_pairs AS (
-  SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code,
+  SELECT s.province, s.municipality, u.psgc_code,
     CASE WHEN s.prov_exact = u.k_exact THEN 1 WHEN s.prov_exact = u.ok_exact THEN 2
          WHEN s.prov_fold = u.k_fold THEN 3 WHEN s.prov_fold = u.ok_fold THEN 4 END AS tier
-  FROM source3 AS s JOIN units AS u ON (u.geographic_level = 'Prov' OR u.psgc_code = '0990100000')
+  FROM city3 AS s JOIN units AS u ON (u.geographic_level = 'Prov' OR u.psgc_code = '0990100000')
     AND (s.prov_exact = u.k_exact OR s.prov_exact = u.ok_exact OR s.prov_fold = u.k_fold OR s.prov_fold = u.ok_fold)
   UNION ALL
-  SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code, 1
-  FROM source3 AS s JOIN units AS u ON upper(s.province) = 'MAGUINDANAO'
+  SELECT s.province, s.municipality, u.psgc_code, 1
+  FROM city3 AS s JOIN units AS u ON upper(s.province) = 'MAGUINDANAO'
     AND u.geographic_level = 'Prov' AND u.name IN ('Maguindanao del Norte', 'Maguindanao del Sur')
 ),
 province_best AS (
-  SELECT province, municipality, barangay, barangay_possibly_truncated, MIN(tier) AS tier
-  FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2,3,4
+  SELECT province, municipality, MIN(tier) AS tier
+  FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2
 ),
 province_hits AS (
-  SELECT b.province, b.municipality, b.barangay, b.barangay_possibly_truncated,
-         COUNT(DISTINCT p.psgc_code) AS hits, MIN(p.psgc_code) AS psgc_code
-  FROM province_best AS b JOIN province_pairs AS p USING (province, municipality, barangay, barangay_possibly_truncated, tier)
-  GROUP BY 1,2,3,4
+  SELECT b.province, b.municipality, COUNT(DISTINCT p.psgc_code) AS hits, MIN(p.psgc_code) AS psgc_code
+  FROM province_best AS b JOIN province_pairs AS p USING (province, municipality, tier)
+  GROUP BY 1,2
 ),
 province_scope AS (
-  SELECT DISTINCT b.province, b.municipality, b.barangay, b.barangay_possibly_truncated,
-         substr(p.psgc_code, 1, 5) AS province_prefix
-  FROM province_best AS b
-  JOIN province_pairs AS p USING (province, municipality, barangay, barangay_possibly_truncated, tier)
+  SELECT DISTINCT b.province, b.municipality, substr(p.psgc_code, 1, 5) AS province_prefix
+  FROM province_best AS b JOIN province_pairs AS p USING (province, municipality, tier)
 ),
 city_pairs AS (
-  SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code, u.geographic_level,
+  SELECT s.province, s.municipality, u.psgc_code, u.geographic_level,
          CASE WHEN regexp_like(upper(s.province), 'NCR') AND u.psgc_code LIKE '13%' THEN 1
               WHEN ps.province_prefix IS NOT NULL THEN 1
               WHEN u.geographic_level = 'City' AND (ph.hits IS NULL OR substr(u.psgc_code, 6) = '00000') THEN 2 ELSE 9 END AS scope_rank,
          LEAST(COALESCE({_tier('s', 'u')}, 99), COALESCE({_tier('s', 'u', old=True)}, 99)) AS tier
-  FROM source3 AS s
-  LEFT JOIN province_hits AS ph USING (province, municipality, barangay, barangay_possibly_truncated)
+  FROM city3 AS s
+  LEFT JOIN province_hits AS ph USING (province, municipality)
   JOIN units AS u ON u.geographic_level IN ('City', 'Mun', 'SubMun')
     AND (s.k_exact = u.k_exact OR s.k_exact = u.ok_exact OR s.k_fold = u.k_fold OR s.k_fold = u.ok_fold
          OR s.k_brackets = u.k_brackets OR s.k_city = u.k_city)
   LEFT JOIN province_scope AS ps ON ps.province IS NOT DISTINCT FROM s.province
-    AND ps.municipality IS NOT DISTINCT FROM s.municipality AND ps.barangay IS NOT DISTINCT FROM s.barangay
-    AND ps.barangay_possibly_truncated = s.barangay_possibly_truncated
-    AND ps.province_prefix = substr(u.psgc_code, 1, 5)
+    AND ps.municipality IS NOT DISTINCT FROM s.municipality AND ps.province_prefix = substr(u.psgc_code, 1, 5)
 ),
 city_scope AS (
-  SELECT province, municipality, barangay, barangay_possibly_truncated, MIN(scope_rank) AS scope_rank
-  FROM city_pairs WHERE scope_rank < 9 AND tier < 99 GROUP BY 1,2,3,4
+  SELECT province, municipality, MIN(scope_rank) AS scope_rank
+  FROM city_pairs WHERE scope_rank < 9 AND tier < 99 GROUP BY 1,2
 ),
 city_best AS (
-  SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, s.scope_rank, MIN(c.tier) AS tier
-  FROM city_scope AS s JOIN city_pairs AS c USING (province, municipality, barangay, barangay_possibly_truncated, scope_rank)
-  WHERE c.tier < 99 GROUP BY 1,2,3,4,5
+  SELECT s.province, s.municipality, s.scope_rank, MIN(c.tier) AS tier
+  FROM city_scope AS s JOIN city_pairs AS c USING (province, municipality, scope_rank)
+  WHERE c.tier < 99 GROUP BY 1,2,3
 ),
 city_hits AS (
-  SELECT b.province, b.municipality, b.barangay, b.barangay_possibly_truncated,
-         COUNT(DISTINCT c.psgc_code) AS hits, MIN(c.psgc_code) AS psgc_code,
+  SELECT b.province, b.municipality, COUNT(DISTINCT c.psgc_code) AS hits, MIN(c.psgc_code) AS psgc_code,
          MIN(c.geographic_level) AS geographic_level, b.scope_rank, b.tier
-  FROM city_best AS b JOIN city_pairs AS c USING (province, municipality, barangay, barangay_possibly_truncated, scope_rank, tier)
-  GROUP BY 1,2,3,4,8,9
+  FROM city_best AS b JOIN city_pairs AS c USING (province, municipality, scope_rank, tier)
+  GROUP BY 1,2,6,7
 ),
 city_named AS (
-  SELECT s.*, COALESCE(a.psgc_code, CASE WHEN c.hits = 1 THEN c.psgc_code END) AS name_city_code,
+  SELECT s.province, s.municipality, COALESCE(a.psgc_code, CASE WHEN c.hits = 1 THEN c.psgc_code END) AS name_city_code,
          COALESCE(au.geographic_level, c.geographic_level) AS name_city_level,
          CASE WHEN a.psgc_code IS NOT NULL THEN 'reviewed_alias'
               WHEN c.scope_rank = 2 THEN 'name_exact' ELSE {_method('c.tier')} END AS name_city_method,
          COALESCE(a.reason, CASE WHEN c.hits > 1 THEN CAST(c.hits AS STRING) || ' PSGC localities match the best name tier' END) AS name_city_reason
-  FROM source3 AS s
-  LEFT JOIN province_hits AS ph USING (province, municipality, barangay, barangay_possibly_truncated)
+  FROM city3 AS s
+  LEFT JOIN province_hits AS ph USING (province, municipality)
   LEFT JOIN aliases AS a ON a.deped_name = s.k_exact AND
     (regexp_like(upper(s.province), 'NCR') AND a.psgc_code LIKE '13%'
      OR ph.hits = 1 AND substr(a.psgc_code, 1, 5) = substr(ph.psgc_code, 1, 5)
      OR substr(a.psgc_code, 6) = '00000')
   LEFT JOIN units AS au ON au.psgc_code = a.psgc_code
-  LEFT JOIN city_hits AS c USING (province, municipality, barangay, barangay_possibly_truncated)
+  LEFT JOIN city_hits AS c USING (province, municipality)
 ),
+-- Barangays are matched once per (province, municipality, barangay, truncation flag), inside the named city.
+source_input AS (
+  SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
+  FROM {enr} WHERE NOT is_overseas
+),
+source0 AS (SELECT x.*, {_base('x.barangay')} AS b_exact FROM source_input AS x),
+source1 AS (SELECT x.*, {_fold('x.b_exact')} AS b_fold FROM source0 AS x),
+source2 AS (SELECT x.*, {_brackets('x.b_fold')} AS b_brackets FROM source1 AS x),
+source3 AS (SELECT x.*, {_no_city('x.b_brackets')} AS b_city FROM source2 AS x),
 barangay_pairs AS (
   SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code,
          LEAST(COALESCE(CASE WHEN s.b_exact = u.k_exact THEN 1 WHEN s.b_fold = u.k_fold THEN 3
                             WHEN s.b_brackets = u.k_brackets THEN 5 WHEN s.b_city = u.k_city THEN 6
                             WHEN s.barangay_possibly_truncated AND u.k_fold LIKE s.b_fold || '%' THEN 7 END, 99),
                COALESCE(CASE WHEN s.b_exact = u.ok_exact THEN 2 WHEN s.b_fold = u.ok_fold THEN 4 END, 99)) AS tier
-  FROM city_named AS s JOIN units AS u ON u.geographic_level = 'Bgy'
-   AND u.city_municipality_code = s.name_city_code
+  FROM source3 AS s JOIN city_named AS c USING (province, municipality)
+  JOIN units AS u ON u.geographic_level = 'Bgy' AND u.city_municipality_code = c.name_city_code
 ),
 barangay_best AS (
   SELECT province, municipality, barangay, barangay_possibly_truncated, MIN(tier) AS tier
@@ -366,10 +367,13 @@ barangay_hits AS (
   GROUP BY 1,2,3,4,7
 ),
 places AS (
-  SELECT c.*, CASE WHEN b.hits = 1 THEN b.psgc_code END AS name_bgy_code,
+  SELECT s.*, c.name_city_code, c.name_city_level, c.name_city_method, c.name_city_reason,
+         CASE WHEN b.hits = 1 THEN b.psgc_code END AS name_bgy_code,
          {_method('b.tier')} AS name_bgy_method,
          CASE WHEN b.hits > 1 THEN CAST(b.hits AS STRING) || ' PSGC barangays match the best name tier' END AS name_bgy_reason
-  FROM city_named AS c LEFT JOIN barangay_hits AS b USING (province, municipality, barangay, barangay_possibly_truncated)
+  FROM source3 AS s
+  LEFT JOIN city_named AS c USING (province, municipality)
+  LEFT JOIN barangay_hits AS b USING (province, municipality, barangay, barangay_possibly_truncated)
 ),
 school_input AS (
   SELECT e.school_year, e.school_id, e.school_name, e.region, e.province, e.municipality, e.barangay,
@@ -527,7 +531,7 @@ SELECT * FROM deped_school_psgc_matched;
 COMMENT ON TABLE {candidate} IS 'Unpublished build for the Integration gate. Do not read: use {spec.map_table}.';
 ALTER TABLE {candidate} OWNER TO `{OWNER_GROUP}`;
 """
-    return "\n".join(_header("Integration build", "sql", f"etl/04_integration/{BUILD_FILE}")) + "\n--\n-- Distinct place tuples are matched once, then reused by every school-year row.\n" + sql.lstrip()
+    return "\n".join(_header("Integration build", "sql", f"etl/04_integration/{BUILD_FILE}")) + "\n--\n-- Cities are matched once per distinct (province, municipality) and barangays once per distinct place, then\n-- reused by every school-year row.\n" + sql.lstrip()
 
 
 def gate_sql(spec):
