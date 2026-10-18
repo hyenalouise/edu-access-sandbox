@@ -5,7 +5,8 @@
 #   RAW_DATA_DIR=~/Projects/reached-hq/raw-data python analysis/profiling/profile_deped_enrollment_psgc.py
 #
 # RAW_DATA_DIR must contain deped/original/ with FILE. The cross-checks (X-*) also use
-# deped/original/Enrollment-in-SY-2023-2024.zip and psa/original/ (PSGC 2Q 2026 workbook
+# deped/original/Enrollment-in-SY-2023-2024.zip (S-3 and X-4 also the SY 2020-21, 2024-25, and
+# 2025-26 zips) and psa/original/ (PSGC 2Q 2026 workbook
 # and Q4_2023 API extract); each is skipped with a message when its file is absent.
 # X-3 reuses the team's name matching by running analysis/cross_source/cross_source_deped.py,
 # so it needs that script's files too (all five DepEd zips in deped/original/); running it
@@ -56,6 +57,10 @@ LATER_YEARS = {
     "2025-26": ("Enrollment-in-SY-2025-2026.zip", "ab4d7e24b3a46a99db2c76dee5279a976e4c3a76062e79f7217e70dc6dd1b450",
                 "Enrollment-in-SY-2025-2026/enrollment_2025-26.csv", "cp1252"),
 }
+# The earlier deped_enrollment year (S-3, X-4): AP4's 2020 point pairs the 2020 Census with
+# SY 2020-21 (D-042), so X-4 also measures how many of its schools and learners get no code.
+EARLIER_YEAR = ("2020-21", ("Enrollment-in-SY-2020-2021.zip", "65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241",
+                            "Enrollment in SY 2020-2021/enrollment_2020-21.csv", "utf-8"))
 PSGC_2Q2026 = ("PSGC-2Q-2026-Publication-Datafile.xlsx", "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d")
 PSGC_Q4_2023 = ("PSGC-Q4_2023-API-all.csv", "38a92ceba5120fe10fb45ba23a8f74458ee076829306db795044beeb40715335")
 
@@ -372,6 +377,19 @@ for year, (zip_name, zip_sha, member, encoding) in LATER_YEARS.items():
     show("S-3", f"appended school IDs found in deped_enrollment SY {year}: {len(seen[year])} of {len(appended_ids)}")
 if len(seen) == len(LATER_YEARS):
     show("S-3", f"appended school IDs in no later year: {len(appended_ids - set().union(*seen.values()))} of {len(appended_ids)}")
+earlier = {}  # school_id -> (sector, region, learners) for SY 2020-21, also used in X-4
+year, (zip_name, zip_sha, member, encoding) = EARLIER_YEAR
+zp = ORIGINAL / zip_name
+if not zp.exists() or sha256(zp) != zip_sha:
+    show("S-3", f"skipped SY {year}: {zip_name} with the SHA-256 on the deped_enrollment card is not in {ORIGINAL}")
+else:
+    with zipfile.ZipFile(zp) as zf:
+        for r in csv.DictReader(io.StringIO(zf.read(member).decode(encoding), newline="")):
+            learners = sum(int(v) for k, v in r.items() if k.endswith(("_male", "_female")) and v.strip())
+            earlier[r["school_id"]] = (r["sector"], r["region"], learners)
+    found = collections.Counter(earlier[i][0] for i in appended_ids & earlier.keys())
+    show("S-3", f"appended school IDs found in deped_enrollment SY {year}: {sum(found.values())} of {len(appended_ids)}; by sector: "
+         + ", ".join(f"{k} {n}" for k, n in found.most_common()))
 
 # %% X-2 PSGC codes against PSA PSGC versions (psa_psgc)
 psa = RAW / "psa" / "original"
@@ -462,5 +480,22 @@ for year, sectors in years.items():
         len(public), len(coded & public), len(coded & public) / len(public)))
 if len(later) < len(LATER_YEARS):
     show("X-4", "later years skipped above (S-3) are not shown")
+if earlier:
+    # Overseas schools (region PSO) are left out: they are outside geographic analysis (deped_enrollment O-13).
+    home = {i: v for i, v in earlier.items() if v[1] != "PSO"}
+    all_learners = sum(v[2] for v in home.values())
+    in_main = {i for (i,) in q(f"SELECT school_id FROM d WHERE {main}")}
+    groups = {"gone by SY 2023-24": home.keys() - in_main, "in this file with no barangay code": (home.keys() & in_main) - coded}
+    groups["without a code, total"] = home.keys() - coded
+    for label, ids in groups.items():
+        n = sum(home[i][2] for i in ids)
+        by_sector = collections.Counter()
+        for i in ids:
+            by_sector[home[i][0]] += home[i][2]
+        show("X-4", "SY {} (overseas excluded, {:,} schools, {:,} learners), {}: schools {:,} ({:.1%}), learners {:,} ({:.1%}); learners by sector: {}".format(
+            EARLIER_YEAR[0], len(home), all_learners, label, len(ids), len(ids) / len(home), n, n / all_learners,
+            ", ".join(f"{k} {v:,}" for k, v in by_sector.most_common())))
+else:
+    show("X-4", f"SY {EARLIER_YEAR[0]} skipped above (S-3) is not shown")
 
 workdir.cleanup()

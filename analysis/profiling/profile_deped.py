@@ -225,6 +225,12 @@ for a, b in [("enr_2020_21", "enr_2023_24")] + CONSECUTIVE:
 for side, keep, other in [("dropped", "enr_2020_21", "enr_2023_24"), ("new", "enr_2023_24", "enr_2020_21")]:
     show("O-12", f"2020-21 -> 2023-24 {side} by sector = "
          f"{q(f'SELECT sector, count(*) FROM {keep} WHERE school_id NOT IN (SELECT school_id FROM {other}) GROUP BY 1 ORDER BY 2 DESC')}")
+# AP4 counts learners, not schools (D-042), so the dropped IDs are also measured in learners.
+learners_2020 = total_expr(count_columns("enr_2020_21"))
+r = q(f"""SELECT sum({learners_2020}) FILTER (WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24)), sum({learners_2020})
+          FROM enr_2020_21""")[0]
+show("O-12", f"2020-21 -> 2023-24 dropped: learners {r[0]:,} of {r[1]:,} ({r[0] / r[1]:.1%}); by sector = "
+     f"{q(f'SELECT sector, sum({learners_2020}) FROM enr_2020_21 WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24) GROUP BY 1 ORDER BY 2 DESC')}")
 
 for t in ["enr_2020_21", "enr_2023_24"]:
     show("O-13", f"{t} rows with region PSO: {one(f'SELECT count(*) FROM {t} WHERE region = {chr(39)}PSO{chr(39)}')}")
