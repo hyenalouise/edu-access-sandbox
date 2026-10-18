@@ -88,6 +88,7 @@ Summary only; evidence lives in [profile.md](profile.md).
 | Schema versions | `v1` (SY 2023-24): the 88 headers of row 8, mapped by position to Bronze names; columns AA and AB, which share a header, become `income_class` and `income_class_long` |
 | Known characteristics | WARN checks at their profiled counts (O-2 to O-13), never corrections: nothing is padded, trimmed, or typed in Bronze |
 | Loaded | Locally and on Databricks `dev`, 2026-10-16: 60,285 rows, then a skip ([local](../../../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-local-idempotency.md), [`dev`](../../../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-databricks-idempotency.md)) |
+| Silver table | `` edu_access.`03-silver`.deped_enrollment_psgc_clean ``: the school-to-PSGC crosswalk, one row per school, codes padded to 10 digits, Sulu recoded, coordinates flagged ([dictionary](../../silver/deped-enrollment-psgc-clean.md), [rules](../../../operations/silver.md#deped-school-to-psgc-crosswalk), D-049, #163) |
 | Runbook | [ingestion.md, DepEd EMISD workbook](../../../operations/ingestion.md#deped-emisd-workbook-xlsx_report) |
 
 ## Limitations for analysis
