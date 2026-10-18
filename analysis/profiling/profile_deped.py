@@ -239,6 +239,10 @@ for a, b in CONSECUTIVE[:3]:
     moves = q(f"""SELECT x.region, y.region, x.division, y.division, count(*) FROM {a} x JOIN {b} y USING (school_id)
                   WHERE x.region <> y.region GROUP BY ALL ORDER BY 5 DESC""")
     show("O-10", f"region changes {a} -> {b} (region, region, division, division, schools): {moves}")
+relabelled_gone = q("""SELECT x.school_id, x.school_name, x.sector, x.division FROM enr_2020_21 x JOIN enr_2021_22 y USING (school_id)
+            WHERE x.region <> y.region AND x.school_id NOT IN (SELECT school_id FROM enr_2023_24)""")
+show("O-10", f"relabelled 2020-21 -> 2021-22 but absent from enr_2023_24, so 192 there vs 191 in the direct comparison "
+     f"(school, name, sector, division): {relabelled_gone}")
 moved = q("""SELECT x.school_id, x.school_name, x.sector, x.municipality, y.municipality FROM enr_2021_22 x JOIN enr_2022_23 y USING (school_id)
              WHERE x.region = 'NCR' AND y.region <> 'NCR'""")
 show("O-10", f"enr_2021_22 NCR schools outside NCR in enr_2022_23 (school, name, sector, municipality, municipality): {moved}")
