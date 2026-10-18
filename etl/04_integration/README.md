@@ -13,9 +13,11 @@ The DepEd school geography spine is `01_map_deped_school_psgc.sql` and
 `90_validate_deped_school_psgc_map.sql` (#91, D-049), generated from
 `config/mappings/integration/deped_school_psgc.json`. It keeps one row per
 enrollment school, school year, and level (`city_mun`, `bgy`), including
-unmatched, ambiguous, excluded, and overseas schools. It matches distinct
-source place tuples once before joining decisions back to schools, avoiding a
-school-by-PSGC cross product on a small SQL warehouse.
+unmatched, ambiguous, excluded, and overseas schools. It matches cities once
+per distinct (province, municipality) and barangays once per distinct place
+before joining decisions back to schools, avoiding a school-by-PSGC cross
+product on a small SQL warehouse. Its gate also fails a match rate below the
+rules file's floor and warns when the reviewed counts change.
 
 The HDX ADM3 to PSGC map is `03_map_hdx_adm3_psgc.sql` and
 `90_validate_hdx_adm3_psgc_map.sql` (#93, D-052), generated from
