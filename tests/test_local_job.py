@@ -125,6 +125,11 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
         (len(psgc_workbooks.UNITS), "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
+    # Every enrollment school-year has a city/municipality row and a barangay row, even when the
+    # made-up PSGC has no match. The map runs only after enrollment, EMISD, and PSGC Silver gates.
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".deped_school_psgc_map") == [(6, "job-run-1")]
+    assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
+                       "AND source_id = 'deped_enrollment'") == [("succeeded",)]
     # The HDX map runs after the HDX and PSGC Silver gates (D-051): every made-up HDX feature has one map row (#93, D-052).
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".psa_poverty_psgc_map") == [(18, "job-run-1")]
@@ -196,7 +201,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 3), ("silver_build", 8)]   # one filter, both layers; the HDX, poverty and school-age maps write their own runs
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 4), ("silver_build", 8)]   # one filter, both layers; the DepEd school, HDX, poverty and school-age maps write their own runs
     store.close()
 
 
