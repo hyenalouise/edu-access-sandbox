@@ -78,6 +78,7 @@ def test_a_row_is_identified_by_its_sheet_too():
     (lambda c: c["known_issues"][2].update(value=""), "needs a non-empty text 'value'"),
     (lambda c: c["known_issues"][0]["profiled"].update({"2024 Total Pops": 1}), "profiled names sheet(s)"),
     (lambda c: c["known_issues"][1]["profiled"].update({"Total Pop": 1}), "profiled names sheet(s)"),
+    (lambda c: c["known_issues"][2]["profiled"].update({"2025 Household Pop": 1}), "no approved delivery declares"),
 ])
 def test_contract_refuses_ambiguous_config(break_it, message):
     config = real_config()
@@ -141,9 +142,9 @@ def test_2024_rows_are_kinded_from_the_long_layout(tmp_path):
 
 def test_known_issues_warn_with_the_profiled_count_beside_the_actual(tmp_path):
     config = empty_config()
-    config["known_issues"][0]["profiled"] = {"2024 Total Pop": 11, "2024 Household Pop": 10}
     path = write_workbook(tmp_path / "psa", "2024")
     approve(config, path, "2024")
+    config["known_issues"][0]["profiled"] = {"2024 Total Pop": 11, "2024 Household Pop": 10}
     found = checks(prepare_delivery(config, registry_entry(SOURCE), path))
     check = found["2024 Total Pop: known_issue_place_label_footnote_marker"]
     assert (check.status, check.expected, check.actual) == (WARN, "0 (profiled: 11, O-6)", "2")
