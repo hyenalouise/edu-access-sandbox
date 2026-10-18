@@ -61,6 +61,8 @@ implemented.
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
 provide no reliable link, and lists every unmatched annex with evidence (D-044).
+Implemented: `hdx_adm3_psgc_map` (`03_map_hdx_adm3_psgc.sql`), one row per HDX ADM3
+feature with its reviewed PSGC match, review status, and reason (D-052).
 
 These are working names only:
 
@@ -68,11 +70,11 @@ These are working names only:
 |---|---|---|
 | `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
 | `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
-| `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
 | `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
+and PSGC-version behavior are agreed; they follow the shape of `hdx_adm3_psgc_map`
+(D-052) unless their own decision says otherwise. Gold names proposed in #45 are documented
 in [`docs/architecture/data-model.md`](../architecture/data-model.md). They
 remain design-only until the team and mentor approve the ERD and Integration
 prerequisite #44 is ready. Analytics names remain deferred until the metric
