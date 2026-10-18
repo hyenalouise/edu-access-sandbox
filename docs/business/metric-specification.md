@@ -30,7 +30,7 @@ Every published measure must declare:
 3. **numerator and denominator** — exact approved fields and filters, covering the same schools, education level, school scope, geography, and period;
 4. **aggregation** — calculate ratios from aggregated sums, not the unweighted average of school ratios;
 5. **missingness** — NULL remains missing and is never converted to zero without publisher evidence;
-6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3;
+6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3, and the share of active public schools with complete all-level enrollment accompanies AP1 for the [priority rule](#priority-rule);
 7. **geography** — the school-to-PSGC match version and unmatched/excluded counts;
 8. **period** — school year or population reference year shown on every result; and
 9. **quality status** — unresolved outliers, annex handling, and definition mismatches remain visible.
@@ -305,9 +305,9 @@ For each measure, the national same-type median, interquartile range, and the LG
 
 The priority rule is D-0XX. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
 
-1. **Coverage gate.** A measure is ranked only when at least 90% of the LGU's learners are in schools with a usable value for it: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures pass; otherwise its tier is **Data review** and the measures it could compute are still shown.
+1. **Coverage gate.** A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
 2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it.
-3. **High.** A measure is high at a percentile of 0.90 or above. AP3 is high if any level is high, and the output names the level.
+3. **High.** A measure is high at a percentile of 0.90 or above. AP3 is high when any level that passes the gate is high, and the output names the level. AP3 is not high only when every offered level passes and none is high; otherwise it is not assessed.
 4. **Tier.** Priority A (3 high), Priority B (2), Targeted (1, naming the measure), no high measure (0), or Data review. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
 5. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
 6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Priority A both ways is marked Stable; the tier shown is always the within-type one.
