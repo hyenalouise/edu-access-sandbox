@@ -213,6 +213,10 @@ for t in ENROLLMENT:
 lg = q("""SELECT coalesce(b.school_management, '(not in 2021-22)'), count(*) FROM enr_2020_21 a LEFT JOIN enr_2021_22 b USING (school_id)
           WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
 show("O-8", f"enr_2020_21 'Local Government' schools, by 2021-22 school_management: {lg}")
+for a, b in CONSECUTIVE[1:3]:
+    lg = q(f"""SELECT coalesce(y.school_management, '(not in {b})'), count(*) FROM {a} x LEFT JOIN {b} y USING (school_id)
+               WHERE x.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
+    show("O-8", f"{a} 'Local Government' schools, by {b} school_management: {lg}")
 show("O-8", f"enr_2020_21 'Local Government' schools in neither enr_2023_24 nor enr_2024_25 (sector, region, municipality, schools): {gone}")
 show("O-9", "compare the school_management values above with the README, which lists 'DepEd Managed'")
 
@@ -232,6 +236,12 @@ for a, b in CONSECUTIVE[:3]:
     moves = q(f"""SELECT x.region, y.region, x.division, y.division, count(*) FROM {a} x JOIN {b} y USING (school_id)
                   WHERE x.region <> y.region GROUP BY ALL ORDER BY 5 DESC""")
     show("O-10", f"region changes {a} -> {b} (region, region, division, division, schools): {moves}")
+moved = q("""SELECT x.school_id, x.school_name, x.sector, x.municipality, y.municipality FROM enr_2021_22 x JOIN enr_2022_23 y USING (school_id)
+             WHERE x.region = 'NCR' AND y.region <> 'NCR'""")
+show("O-10", f"enr_2021_22 NCR schools outside NCR in enr_2022_23 (school, name, sector, municipality, municipality): {moved}")
+for t in ENROLLMENT:
+    show("O-10", f"{t}: division labels of North Cotabato's BARMM schools = "
+         f"{q(f'SELECT region, division, count(*) FROM {t} WHERE province LIKE {chr(39)}%COTABATO%{chr(39)} AND region = {chr(39)}BARMM{chr(39)} AND division NOT LIKE {chr(39)}Cotabato City%{chr(39)} GROUP BY ALL ORDER BY 3 DESC')}")
 
 for t in ENROLLMENT:
     show("O-11", f"{t}: distinct provinces = {one(f'SELECT count(DISTINCT province) FROM {t}')}")
@@ -245,6 +255,9 @@ for a, b in [("enr_2020_21", "enr_2023_24")] + CONSECUTIVE:
 for side, keep, other in [("dropped", "enr_2020_21", "enr_2023_24"), ("new", "enr_2023_24", "enr_2020_21")]:
     show("O-12", f"2020-21 -> 2023-24 {side} by sector = "
          f"{q(f'SELECT sector, count(*) FROM {keep} WHERE school_id NOT IN (SELECT school_id FROM {other}) GROUP BY 1 ORDER BY 2 DESC')}")
+for a, b in CONSECUTIVE[:3]:
+    show("O-12", f"{a} -> {b} dropped by sector = "
+         f"{q(f'SELECT sector, count(*) FROM {a} WHERE school_id NOT IN (SELECT school_id FROM {b}) GROUP BY 1 ORDER BY 2 DESC')}")
 # AP4 counts learners, not schools (D-042), so the dropped IDs are also measured in learners.
 learners_2020 = total_expr(count_columns("enr_2020_21"))
 r = q(f"""SELECT sum({learners_2020}) FILTER (WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24)), sum({learners_2020})
@@ -266,6 +279,10 @@ for t in ENROLLMENT:
     show("O-14", f"{t}: blank street_address = {blank_count(t, 'street_address'):,}")
 top = q("SELECT street_address, count(*) FROM enr_2025_26 GROUP BY 1 ORDER BY 2 DESC LIMIT 3")
 show("O-14", f"enr_2025_26 most common street_address: {top}")
+
+r = q("""SELECT school_id, school_name, sector, municipality, kinder_male, kinder_female FROM enr_2022_23 WHERE length(school_id) <> 6""")
+show("O-1", f"enr_2022_23 school_id not 6 digits (school, name, sector, municipality, kinder male, kinder female): {r}; "
+     f"same name in the same file: {q(f'SELECT school_id FROM enr_2022_23 WHERE school_name = {chr(39)}{r[0][1]}{chr(39)} AND length(school_id) = 6')}")
 
 for t in ENROLLMENT:
     show("O-15", f"{t}: blank barangay = {blank_count(t, 'barangay')}")
