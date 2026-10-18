@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for fact_school_classroom_capacity; every foreign key must resolve, and room coverage is checked against fact_school_enrollment.
+-- Implement the gate and its data_quality_results writes before activating this task.

@@ -645,6 +645,65 @@ def test_the_gate_stops_before_publishing_and_publishes_clean_last():
     assert order == sorted(order)
 
 
+# --- SY 2020-21, the fourth delivery ---------------------------------------------------
+
+def test_local_government_is_kept_as_its_own_school_management_value(env):
+    """SY 2020-21 alone publishes 'Local Government' (O-8): never folded into DepEd or LUC."""
+    env.deliver("2020-21", rows=v1_rows(3, {1: {"school_management": "Local Government"},
+                                            2: {"school_management": "LUC", "sector": "SUC/LUC"}}))
+    env.bronze()
+    summary = env.silver()
+    assert summary.status == "succeeded"
+    got = {r["school_id"]: r for r in env.rows(f"SELECT * FROM {CLEAN}")}
+    assert [got[i]["school_management"] for i in ("900001", "900002", "900003")] == ["DepEd", "Local Government", "LUC"]
+    assert (got["900002"]["sector"], got["900002"]["is_overseas"]) == ("Public", False)
+    assert env.one(f"SELECT school_management FROM {BRONZE} WHERE school_id = '900002'") == "Local Government"
+    checks = env.checks(summary.run_id)
+    assert {r["status"] for (name, _), r in checks.items() if name == "labels_mapped_school_management"} == {"PASS"}
+
+
+def test_four_years_reconcile_per_year_and_adding_sy_2020_21_leaves_the_others_unchanged(env):
+    env.deliver("2023-24", rows=v1_rows(5))
+    env.deliver("2024-25", rows=v1_rows(4))
+    env.deliver("2025-26", "v2", rows=[v2_row(i) for i in range(3)])
+    env.bronze()
+    assert env.silver().status == "succeeded"
+    content = ("SELECT * EXCLUDE (run_id, cleaned_at_utc, code_revision) FROM {} {} "
+               "ORDER BY school_year, source_row_number")
+    later = "WHERE school_year <> '2020-21'"
+    before = (env.q(content.format(CLEAN, later)), env.q(content.format(QUARANTINE, later)))
+
+    env.deliver("2020-21", rows=v1_rows(150, {2: {"g1_male": "-1"}, 7: {"school_management": "Local Government"}}))
+    env.bronze()
+    first = env.silver()
+    assert first.status == "succeeded"
+    assert (env.q(content.format(CLEAN, later)), env.q(content.format(QUARANTINE, later))) == before
+
+    # Per year: every Bronze row is in clean or quarantine, never both, never lost; learners reconcile.
+    per_year = env.q(
+        f"SELECT b.school_year, COUNT(*), COUNT(c.school_id), COUNT(q.school_id) FROM {BRONZE} AS b "
+        f"LEFT JOIN {CLEAN} AS c ON c.source_sha256 = b.source_sha256 AND c.source_row_number = b.source_row_number "
+        f"LEFT JOIN {QUARANTINE} AS q ON q.source_sha256 = b.source_sha256 AND q.source_row_number = b.source_row_number "
+        "GROUP BY 1 ORDER BY 1")
+    assert per_year == [("2020-21", 150, 149, 1), ("2023-24", 5, 5, 0), ("2024-25", 4, 4, 0), ("2025-26", 3, 3, 0)]
+    checks = env.checks(first.run_id)
+    year_of = dict(env.q(f"SELECT batch_id, school_year FROM {CONTROL}.current_batches"))
+    for name in ("rows_reconcile", "learners_reconcile", "labels_mapped_school_management"):
+        results = {year_of[b]: r for (n, b), r in checks.items() if n == name}
+        assert sorted(results) == ["2020-21", "2023-24", "2024-25", "2025-26"]
+        assert all(r["status"] == "PASS" and r["expected"] == r["actual"] for r in results.values()), name
+    rate = {year_of[b]: r["status"] for (n, b), r in checks.items() if n == "quarantine_rate"}
+    assert rate == {"2020-21": "WARN", "2023-24": "PASS", "2024-25": "PASS", "2025-26": "PASS"}
+    assert env.one(f"SELECT quarantine_reasons FROM {QUARANTINE}") == ["count_negative"]
+
+    # A rerun rebuilds the same rows (D-025).
+    snapshot = (env.q(content.format(CLEAN, "")), env.q(content.format(QUARANTINE, "")))
+    env.bronze()
+    again = env.silver()
+    assert again.status == "succeeded" and again.run_id != first.run_id
+    assert (env.q(content.format(CLEAN, "")), env.q(content.format(QUARANTINE, ""))) == snapshot
+
+
 # --- The committed SQL, the mapping, and the command line ------------------------------------
 
 MAPPINGS = sorted((REPO_ROOT / "config" / "mappings").glob("*.json"))

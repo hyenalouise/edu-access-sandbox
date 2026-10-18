@@ -71,7 +71,7 @@ Raw files are kept exactly as downloaded and are never overwritten (D-016, provi
 
 A re-download of a published file therefore sits beside the earlier one. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so the layout does not matter to it, and it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
 
-**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. In use: SY 2020-21 enrollment, `raw/_holding/deped/2026-10-16/` (#161).
+**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. In use: SY 2020-21 enrollment, `raw/_holding/deped/2026-10-16/` (#161). Its delivery is in the contract from 2026-10-16; the file moves after that pull request merges ([proposed steps](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md#awaiting-authorization)).
 
 ## Validation
 
@@ -186,7 +186,7 @@ To run the whole job as Databricks would, every task of `databricks.yml` in orde
 RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
 ```
 
-Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing.
+Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing. On 2026-10-16, with SY 2020-21 added: 60,957 + 60,167 + 60,129 + 60,204 rows in about 11 seconds, all checks PASS; the second run skipped all four and inserted nothing ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)).
 
 After changing a schema version in the contract, regenerate the Bronze DDL and gate (a test fails until you do):
 
@@ -208,7 +208,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 ## Running on Databricks
 
-**Current job: `edu_access_pipeline` (D-020).** Last confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**Current job: `edu_access_pipeline` (D-020).** Last run on 2026-10-18 at `135c1ac`, with every enabled task succeeding ([evidence](../../evidence/pipeline-runs/2026-10-18-per-lane-job.md)). First confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
@@ -252,7 +252,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped (the job starts it for its SQL tasks), and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
 
-`databricks bundle validate` was last run on 2026-10-08 at `bb040a9` and passed; both commit values resolved to the same SHA.
+`databricks bundle validate` was last run on 2026-10-18 at `135c1ac` and passed; the job's git commit and `code_revision` both resolved to that commit.
 
 ### First Databricks run
 
@@ -284,7 +284,7 @@ SELECT r.started_at_utc, r.status, a.batch_id, a.action, a.outcome, a.rows_inser
 FROM edu_access.`01-control`.ingestion_batch_attempts AS a JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
 ORDER BY r.started_at_utc, a.batch_id;
 
--- Row counts reconcile to the approved files: expect 60,167 / 60,129 / 60,204
+-- Row counts reconcile to the approved files: expect 60,957 / 60,167 / 60,129 / 60,204 (60,167 / 60,129 / 60,204 before SY 2020-21 is loaded)
 SELECT school_year, delivery_version, COUNT(*) AS rows FROM edu_access.`02-bronze`.deped_enrollment_raw GROUP BY ALL ORDER BY 1, 2;
 
 -- No pipeline duplicates: expect 0
@@ -318,7 +318,7 @@ GROUP BY ALL ORDER BY r.started_at_utc DESC;
 SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMapping.mode');
 ```
 
-All checks in one query, each marked `OK` or `CHECK`. The expected values are for the three approved deliveries after one loading run; replace the commit with the one that loaded them:
+All checks in one query, each marked `OK` or `CHECK`. The expected values are for the first loading run of the three deliveries approved on 2026-10-06 (`e681c5b`); after later runs or the SY 2020-21 backfill, use the row-count query above and the Silver verification query instead. Replace the commit with the one that loaded them:
 
 ```sql
 WITH r AS (SELECT * FROM edu_access.`02-bronze`.deped_enrollment_raw),
@@ -419,7 +419,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 - Approval is manual by design: a new year needs a profile update and a pull request before it loads.
 - A revision reloads all rows of the school year (about 60,000), even if one value changed.
 - No `prod` target yet; `dev` is the only deploy target.
-- SY 2017-18 to 2022-23 are published but not acquired; their headers are unknown and will likely need new schema versions.
+- SY 2017-18 to 2019-20, 2021-22, and 2022-23 are published but not acquired; their headers are unknown and may need new schema versions (SY 2020-21 turned out to be `v1`).
 
 ## Open questions
 

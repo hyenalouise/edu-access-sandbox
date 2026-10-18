@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build fact_school_teacher_capacity (D-048). School x school year x level; reads personnel Silver and the school, school-year, and level dimensions.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

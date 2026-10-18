@@ -1,0 +1,2 @@
+-- PLACEHOLDER (#158): clean PSA school-age population to the approved year x place x age x sex grain.
+-- Implement typing, reconciliation, quarantine, and lineage rules before activation.

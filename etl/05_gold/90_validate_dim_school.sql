@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for dim_school, including a uniqueness check on its declared key.
+-- Implement the gate and its data_quality_results writes before activating this task.
