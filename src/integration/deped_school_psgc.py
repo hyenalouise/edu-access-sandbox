@@ -112,6 +112,9 @@ def build_spec(rules):
         key = (item.get("level"), item.get("deped_province"), item.get("deped_municipality"), item.get("deped_barangay"))
         if key in override_keys or key[0] not in LEVELS:
             raise _error(f"override {key!r} is repeated or has an invalid level.")
+        if key[0] == "city_mun":
+            raise _error(f"override {key!r}: city_mun overrides are not applied by the Integration SQL; add them to "
+                         "src/integration/deped_school_psgc.py and its tests before listing one.")
         if item.get("use") not in ("code", "name"):
             raise _error(f"override {key!r} must use code or name.")
         if not item.get("reason") or not item.get("evidence") or not item.get("reviewer"):
@@ -493,7 +496,8 @@ decisions AS (
   FROM bgy_decided AS b
   UNION ALL
   SELECT b.*, 'bgy', b.code_bgy, b.bgy_code, b.bgy_status, b.bgy_method, b.bgy_reason,
-         b.bgy_override_reason, b.bgy_override_reviewer
+         CASE WHEN b.city_status = 'matched' THEN b.bgy_override_reason END,
+         CASE WHEN b.city_status = 'matched' THEN b.bgy_override_reviewer END
   FROM bgy_decided AS b
 )
 SELECT
@@ -506,7 +510,8 @@ SELECT
   (SELECT MIN(publication_period) FROM psgc_input) AS psgc_version,
   d.psgc_code, p.name AS psgc_name,
   d.match_status, d.match_method,
-  CASE WHEN d.override_reviewer IS NOT NULL THEN 'reviewed' WHEN d.match_status = 'matched' THEN 'rule' ELSE 'pending' END AS review_status,
+  -- An override that finds no unit, or a barangay outside the city, still needs review.
+  CASE WHEN d.match_status <> 'matched' THEN 'pending' WHEN d.override_reviewer IS NOT NULL THEN 'reviewed' ELSE 'rule' END AS review_status,
   d.reason, d.override_reason, d.override_reviewer,
   d.batch_id, d.source_sha256, d.source_row_number,
   d.crosswalk_batch_id, d.crosswalk_source_row_number,
