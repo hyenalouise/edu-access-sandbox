@@ -50,35 +50,35 @@ One row per school per school year, key (`school_id`, `school_year`), wide as pu
 
 ## Cleaning rules
 
-Counts are from the local run on the real Bronze data, current batches only (version 1 of each school year), on 2026-10-07; SY 2020-21 from the local run of 2026-10-16, which reproduced the other three years exactly ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)). Every build records the same numbers in `data_quality_results`. Action: **transform** changes a value, **flag** adds a column and keeps the row, **quarantine** sets the row aside, **fail** stops the run.
+Counts are from the local run on the real Bronze data, current batches only (version 1 of each school year), on 2026-10-07; SY 2020-21 from the local run of 2026-10-16, which reproduced the other three years exactly ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)); SY 2021-22 and 2022-23 from the local run of 2026-10-19, which reproduced the other four years exactly ([evidence](../../evidence/reconciliation/2026-10-19-deped-enrollment-2021-23-silver.md)). Every build records the same numbers in `data_quality_results`. Action: **transform** changes a value, **flag** adds a column and keeps the row, **quarantine** sets the row aside, **fail** stops the run.
 
-| Rule | Finding | Action | Why | SY 2020-21 | SY 2023-24 | SY 2024-25 | SY 2025-26 | Information that may be lost (all of it stays in Bronze) |
-|---|---|---|---|---:|---:|---:|---:|---|
-| Read only the current batch of each school year | D-015 | transform | Older versions stay in Bronze, never in Silver | 60,957 rows | 60,167 | 60,129 | 60,204 | Superseded versions (none yet) |
-| `school_id` kept as text, exactly six digits, unique per year | O-1 | quarantine | A key that is blank, malformed, or repeated cannot be trusted | 0 | 0 | 0 | 0 | The quarantined rows, until resolved |
-| Counts to INT when 1–9 digits | O-2 | transform | Whole numbers type without loss | 0 not castable | 0 | 0 | 0 | None |
-| Negative or non-whole count | O-2 | quarantine | A count cannot be negative or fractional | 0 | 0 | 0 | 0 | The quarantined rows |
-| Count above 10,000 (`plausible_max`) | O-2 | quarantine | The largest published count is 4,097; above 10,000 is a count with an extra digit, which reconciliation cannot see | 0 | 0 | 0 | 0 | The quarantined rows |
-| Blank count stays NULL, not 0 (rows with a blank count) | O-16, Bronze | transform | Never invent a value; in SY 2025-26 blank means "not published". In SY 2020-21 and 2023-24 the four unique-strand columns (`g11_unique_*`, `g12_unique_*`) are blank in every row and no other count is blank, so those years publish no unique-strand enrollment: NULL, not 0 | 60,957 | 60,167 | 0 | 48,709 | None |
-| Column absent from the year's file stays NULL (rows) | O-7 | transform | Told apart from a blank by `schema_version` (`v1`) | 60,957 | 60,167 | 60,129 | 0 | None |
-| Learners unchanged by cleaning (`learners_reconcile`) | O-3 | fail if not | Cleaning must move no learner | 26,227,022 | 27,081,292 | 26,400,182 | 25,935,863 | — |
-| Labels mapped to one standard set (rows with any relabel) | O-8, O-9 | transform; unmapped **fails** | One label per category across years | 0 | 0 | 0 | 60,204 | The year's own wording |
-| `True`/`Yes` → TRUE, `False`/`No` → FALSE, blank → NULL | O-8 | transform; unmapped **fails** | One boolean representation | 0 unmapped | 0 | 0 | 0 | None |
-| Trim, collapse spaces, tabs, no-break spaces (rows) | O-5 | transform | Spacing differences break joins (`NCR   SECOND DISTRICT`, `Non-Sectarian `) | 5 | 6 | 4 | 13,958 | Exact spacing |
-| Repair `Ã‘` → `Ñ` and `Ã±` → `ñ` in free text (rows) | O-17 | transform | Mangled in the published data, every year | 281 | 273 | 274 | 274 | The mangled bytes |
-| Blank text → NULL (rows; `street_address` 5,782 / 5,203 / 5,038 / 0 and `barangay` 84 / 70 / 65 / 7) | O-14, O-15 | transform | Make missingness explicit | 5,859 | 5,266 | 5,096 | 7 | None |
-| `street_address` `-`, `n/a`, `N/A` → NULL | O-14 | transform | Placeholders mean no address | 0 | 0 | 0 | 3,555 | The placeholder spelling |
-| `is_overseas` (PSO, SCHOOL ABROAD) | O-13 | flag | Placed in Pasig City in SY 2025-26; Gold excludes from geography | 33 | 33 | 35 | 36 | None |
-| `enrollment_status = 'all_zero'` | S-1 | flag | Possibly closed or non-reporting; never dropped | 439 | 115 | 24 | 0 | None |
-| `enrollment_status = 'no_counts'` | S-1, Bronze | flag | No count published at all | 0 | 0 | 0 | 46 | None |
-| `barangay_possibly_truncated` (published length exactly 40) | O-18 | flag | Cannot be repaired | 25 | 24 | 25 | 25 | None |
-| Blank `barangay` (NULL) | O-15 | flag (NULL) | Placement below the municipality is unknown | 84 | 70 | 65 | 7 | None |
-| Region and province changes (191 SY 2020-21 schools labelled Region XII, BARMM by SY 2023-24), `(Capital)` and other place-name spelling | O-10, O-11, O-5 | none | Comparability and matching belong to Integration and Gold (D-012) | kept | kept | kept | kept | — |
-| School ID churn (2,517 SY 2020-21 IDs absent from SY 2023-24) | O-12 | none | Not a data error; Gold reports it | — | — | — | — | — |
+| Rule | Finding | Action | Why | SY 2020-21 | SY 2021-22 | SY 2022-23 | SY 2023-24 | SY 2024-25 | SY 2025-26 | Information that may be lost (all of it stays in Bronze) |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|---|
+| Read only the current batch of each school year | D-015 | transform | Older versions stay in Bronze, never in Silver | 60,957 rows | 60,429 | 60,137 | 60,167 | 60,129 | 60,204 | Superseded versions (none yet) |
+| `school_id` kept as text, exactly six digits, unique per year | O-1 | quarantine | A key that is blank, malformed, or repeated cannot be trusted | 0 | 0 | 1 (`1404066`) | 0 | 0 | 0 | The quarantined rows, until resolved |
+| Counts to INT when 1–9 digits | O-2 | transform | Whole numbers type without loss | 0 not castable | 0 | 0 | 0 | 0 | 0 | None |
+| Negative or non-whole count | O-2 | quarantine | A count cannot be negative or fractional | 0 | 0 | 0 | 0 | 0 | 0 | The quarantined rows |
+| Count above 10,000 (`plausible_max`) | O-2 | quarantine | The largest published count is 4,097; above 10,000 is a count with an extra digit, which reconciliation cannot see | 0 | 0 | 0 | 0 | 0 | 0 | The quarantined rows |
+| Blank count stays NULL, not 0 (rows with a blank count) | O-16, Bronze | transform | Never invent a value; in SY 2025-26 blank means "not published". In SY 2020-21 to 2023-24 the four unique-strand columns (`g11_unique_*`, `g12_unique_*`) are blank in every row and no other count is blank, so those years publish no unique-strand enrollment: NULL, not 0 | 60,957 | 60,429 | 60,137 | 60,167 | 0 | 48,709 | None |
+| Column absent from the year's file stays NULL (rows) | O-7 | transform | Told apart from a blank by `schema_version` (`v1`) | 60,957 | 60,429 | 60,137 | 60,167 | 60,129 | 0 | None |
+| Learners unchanged by cleaning (`learners_reconcile`) | O-3 | fail if not | Cleaning must move no learner | 26,227,022 | 27,560,661 | 27,794,274 (the file's 27,794,282 less the quarantined row's 8) | 27,081,292 | 26,400,182 | 25,935,863 | — |
+| Labels mapped to one standard set (rows with any relabel) | O-8, O-9 | transform; unmapped **fails** | One label per category across years | 0 | 0 | 0 | 0 | 0 | 60,204 | The year's own wording |
+| `True`/`Yes` → TRUE, `False`/`No` → FALSE, blank → NULL | O-8 | transform; unmapped **fails** | One boolean representation | 0 unmapped | 0 | 0 | 0 | 0 | 0 | None |
+| Trim, collapse spaces, tabs, no-break spaces (rows) | O-5 | transform | Spacing differences break joins (`NCR   SECOND DISTRICT`, `Non-Sectarian `) | 5 | 5 | 5 | 6 | 4 | 13,958 | Exact spacing |
+| Repair `Ã‘` → `Ñ` and `Ã±` → `ñ` in free text (rows) | O-17 | transform | Mangled in the published data, every year | 281 | 277 | 275 | 273 | 274 | 274 | The mangled bytes |
+| Blank text → NULL (rows; `street_address` 5,782 / 5,672 / 5,412 / 5,203 / 5,038 / 0 and `barangay` 84 / 75 / 75 / 70 / 65 / 7) | O-14, O-15 | transform | Make missingness explicit | 5,859 | 5,741 | 5,481 | 5,266 | 5,096 | 7 | None |
+| `street_address` `-`, `n/a`, `N/A` → NULL | O-14 | transform | Placeholders mean no address | 0 | 0 | 0 | 0 | 0 | 3,555 | The placeholder spelling |
+| `is_overseas` (PSO, SCHOOL ABROAD) | O-13 | flag | Placed in Pasig City in SY 2025-26; Gold excludes from geography | 33 | 32 | 32 | 33 | 35 | 36 | None |
+| `enrollment_status = 'all_zero'` | S-1 | flag | Possibly closed or non-reporting; never dropped | 439 | 206 | 153 | 115 | 24 | 0 | None |
+| `enrollment_status = 'no_counts'` | S-1, Bronze | flag | No count published at all | 0 | 0 | 0 | 0 | 0 | 46 | None |
+| `barangay_possibly_truncated` (published length exactly 40) | O-18 | flag | Cannot be repaired | 25 | 25 | 25 | 24 | 25 | 25 | None |
+| Blank `barangay` (NULL) | O-15 | flag (NULL) | Placement below the municipality is unknown | 84 | 75 | 75 | 70 | 65 | 7 | None |
+| Region and province changes (192 Cotabato City and Special Geographic Area schools labelled Region XII in SY 2020-21, BARMM from SY 2021-22), `(Capital)` and other place-name spelling | O-10, O-11, O-5 | none | Comparability and matching belong to Integration and Gold (D-012) | kept | kept | kept | kept | kept | kept | — |
+| School ID churn (2,517 SY 2020-21, 1,481 SY 2021-22, and 698 SY 2022-23 IDs absent from SY 2023-24) | O-12 | none | Not a data error; Gold reports it | — | — | — | — | — | — | — |
 
-Silver keeps "(Capital)" on 5,541 / 5,450 / 5,454 / 5,446 rows (SY 2020-21 to 2025-26) and every other place spelling, so Integration can match them to PSGC.
+Silver keeps "(Capital)" on 5,541 / 5,487 / 5,455 / 5,450 / 5,454 / 5,446 rows (SY 2020-21 to 2025-26) and every other place spelling, so Integration can match them to PSGC.
 
-**`Local Government` (SY 2020-21 only).** 154 public schools publish `school_management = Local Government`, a label no later year uses; 149 of them are `DepEd` in SY 2023-24 and the other 5 are not in SY 2023-24 or 2024-25 (profile O-8). Silver keeps it as its own standard value. Mapping it to `DepEd` would claim a management the file does not publish for that year, and mapping it to `LUC` would mix it with a SUC/LUC-sector label. Bronze keeps the published value. The facilities and personnel mappings share this standard set, so it is listed there too, although their SY 2023-24 files never publish it. Whether a year-over-year management comparison should treat it as `DepEd` is a question for Gold.
+**`Local Government` (SY 2020-21 to 2022-23).** 154, 155, and 106 public schools publish `school_management = Local Government`, a label no year from SY 2023-24 uses. All 154 of SY 2020-21 keep it in SY 2021-22; 47 of SY 2021-22's become `DepEd` in SY 2022-23, and 102 of SY 2022-23's are `DepEd` in SY 2023-24. Over SY 2020-21 to 2023-24, 149 of the 154 become `DepEd`, and the other 5 are not in SY 2023-24 or 2024-25 (profile O-8). Silver keeps it as its own standard value. Mapping it to `DepEd` would claim a management the file does not publish for that year, and mapping it to `LUC` would mix it with a SUC/LUC-sector label. Bronze keeps the published value. The facilities and personnel mappings share this standard set, so it is listed there too, although their SY 2023-24 files never publish it. Whether a year-over-year management comparison should treat it as `DepEd` is a question for Gold.
 
 ### What the Bronze data showed beyond the profile
 
@@ -90,7 +90,7 @@ Profiling Bronze rather than the raw files confirmed every count above, and foun
 
 ## Quarantine
 
-`deped_enrollment_quarantine` holds `school_year`, `school_id` as published, `quarantine_reasons` (every reason that applies), the Bronze lineage, and the run stamp. Read the published values from Bronze by `source_sha256` and `source_row_number`. Reasons: `school_id_blank`, `school_id_malformed`, `school_id_duplicated`, `count_negative`, `count_uncastable`, `count_above_plausible_max` (D-024). The four approved years quarantine nothing.
+`deped_enrollment_quarantine` holds `school_year`, `school_id` as published, `quarantine_reasons` (every reason that applies), the Bronze lineage, and the run stamp. Read the published values from Bronze by `source_sha256` and `source_row_number`. Reasons: `school_id_blank`, `school_id_malformed`, `school_id_duplicated`, `count_negative`, `count_uncastable`, `count_above_plausible_max` (D-024). Of the six approved years, only SY 2022-23 quarantines a row: `1404066` (`school_id_malformed`), a seven-digit ID with 8 Kindergarten learners, published beside the school's six-digit `404066` (profile O-1). It is not merged into `404066`, because the file does not say the two IDs are the same school; its learners stay in Bronze.
 
 A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR school_id = ''`), and the reasons string is never NULL, so the split into the two tables cannot lose a row whose `school_id` is NULL; `tests/test_silver.py` proves it with such a row.
 
@@ -122,11 +122,11 @@ A row's reasons are decided with explicit NULL handling (`school_id IS NULL OR s
 | WARN | Rows were quarantined (at most 1% of a year) | Recorded; the build is published; the source owner reviews the reasons |
 | FAIL | The candidate build cannot be trusted | The gate task fails before publishing and `pipeline_runs` says `failed`; the Silver tables keep the last build that passed, and the failed one waits in the candidate tables until the next run. Other source lanes are independent and keep running |
 
-The local run on the real data recorded 116 results for three years, all PASS (2026-10-09), and 153 for four years, all PASS (2026-10-16): 5 table checks and 37 per school year.
+The local run on the real data recorded 116 results for three years, all PASS (2026-10-09), 153 for four years, all PASS (2026-10-16), and 227 for six years, 225 PASS and 2 WARN, `quarantine_rate` and `quarantine_reason_school_id_malformed` for SY 2022-23 (2026-10-19): 5 table checks and 37 per school year.
 
 ## Every run rebuilds, and every run is recorded
 
-Silver rebuilds both candidate tables on every job run with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches, and publishes them when the gate passes (D-025): the same Bronze gives the same rows, so a rerun changes nothing but the run stamp, and a revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. On the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `311b445851533467fd7e669d3cf6e537` after both of two job runs ([evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md), with the query). With SY 2020-21 added, all 241,457 clean rows hash to `caf188b7ec19d4be1f900332e17bcfdc` after both of two runs, and the three earlier years alone still hash to `311b4458…` ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)).
+Silver rebuilds both candidate tables on every job run with `CREATE OR REPLACE TABLE ... AS SELECT` from the current batches, and publishes them when the gate passes (D-025): the same Bronze gives the same rows, so a rerun changes nothing but the run stamp, and a revised delivery (`delivery_version` 2) replaces its school year because `current_batches` points to it. On the real data, the MD5 of all 180,500 clean rows (without the run stamp) was `311b445851533467fd7e669d3cf6e537` after both of two job runs ([evidence](../../evidence/reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md), with the query). With SY 2020-21 added, all 241,457 clean rows hash to `caf188b7ec19d4be1f900332e17bcfdc` after both of two runs, and the three earlier years alone still hash to `311b4458…` ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)). With SY 2021-22 and 2022-23 added, all 362,022 clean rows hash to `9e4f1f463db3d2880ae7e586ebb8febd` after both of two runs, and the other four years alone still hash to `caf188b7…` ([evidence](../../evidence/reconciliation/2026-10-19-deped-enrollment-2021-23-silver.md)).
 
 Each published table is one Delta commit; the pair is not, so the run row is the commit marker, as `ingestion_batches` is for Bronze. Its `run_id` is the job run id, which every source's build in that job run shares, so the row is keyed by `run_id`, `pipeline_name`, and `source_id`, and `job_run_id` holds the same id, so filtering `pipeline_runs` on `job_run_id` finds a job run's Bronze loads and Silver builds together (D-020):
 
@@ -191,7 +191,7 @@ The tables go to `local_state/edu_access.duckdb` (`--db <path>` for another file
 
 What only Databricks can show, all confirmed by the 2026-10-09 runs: Spark's behavior for the shared SQL (`regexp_like`, `translate`, `chr(160)`, session variables, the CTE inside `INSERT`, `MERGE` with variables), job parameters reaching SQL file tasks, `CREATE OR REPLACE TABLE` and ownership on existing Unity Catalog tables, and the real cost of the warehouse tasks.
 
-All checks in one query, each marked `OK` or `CHECK`, for the four approved deliveries after two runs. Replace the commit with the one that ran:
+All checks in one query, each marked `OK` or `CHECK`, for the six approved deliveries after two runs. Replace the commit with the one that ran:
 
 ```sql
 WITH c AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean),
@@ -202,28 +202,35 @@ WITH c AS (SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean),
            WHERE layer = 'silver' AND source_id = 'deped_enrollment' AND run_id = (SELECT run_id FROM last_run)),
 checks AS (
   SELECT 'clean rows SY 2020-21' AS check_name, '60957' AS expected, CAST(COUNT_IF(school_year = '2020-21') AS STRING) AS actual FROM c
+  UNION ALL SELECT 'clean rows SY 2021-22', '60429', CAST(COUNT_IF(school_year = '2021-22') AS STRING) FROM c
+  UNION ALL SELECT 'clean rows SY 2022-23', '60136', CAST(COUNT_IF(school_year = '2022-23') AS STRING) FROM c
   UNION ALL SELECT 'clean rows SY 2023-24', '60167', CAST(COUNT_IF(school_year = '2023-24') AS STRING) FROM c
   UNION ALL SELECT 'clean rows SY 2024-25', '60129', CAST(COUNT_IF(school_year = '2024-25') AS STRING) FROM c
   UNION ALL SELECT 'clean rows SY 2025-26', '60204', CAST(COUNT_IF(school_year = '2025-26') AS STRING) FROM c
-  UNION ALL SELECT 'quarantined rows', '0', CAST(COUNT(*) AS STRING) FROM q
+  UNION ALL SELECT 'quarantined rows', '1', CAST(COUNT(*) AS STRING) FROM q
+  UNION ALL SELECT 'quarantined school_id, SY 2022-23', '1404066', MAX(CASE WHEN school_year = '2022-23' THEN school_id END) FROM q
   UNION ALL SELECT 'repeated keys', '0', CAST(COUNT(*) - COUNT(DISTINCT school_id || school_year) AS STRING) FROM c
-  UNION ALL SELECT 'learners SY 2020-21 / 2023-24 / 2024-25 / 2025-26', '26227022 / 27081292 / 26400182 / 25935863',
-    MAX(CASE WHEN batch_id LIKE '%2020-21%' THEN actual END) || ' / ' || MAX(CASE WHEN batch_id LIKE '%2023-24%' THEN actual END) || ' / ' || MAX(CASE WHEN batch_id LIKE '%2024-25%' THEN actual END)
+  UNION ALL SELECT 'learners SY 2020-21 / 2021-22 / 2022-23 / 2023-24 / 2024-25 / 2025-26', '26227022 / 27560661 / 27794274 / 27081292 / 26400182 / 25935863',
+    MAX(CASE WHEN batch_id LIKE '%2020-21%' THEN actual END) || ' / ' || MAX(CASE WHEN batch_id LIKE '%2021-22%' THEN actual END) || ' / ' || MAX(CASE WHEN batch_id LIKE '%2022-23%' THEN actual END)
+    || ' / ' || MAX(CASE WHEN batch_id LIKE '%2023-24%' THEN actual END) || ' / ' || MAX(CASE WHEN batch_id LIKE '%2024-25%' THEN actual END)
     || ' / ' || MAX(CASE WHEN batch_id LIKE '%2025-26%' THEN actual END) FROM d WHERE check_name = 'learners_reconcile'
   UNION ALL SELECT 'blank SHS counts kept NULL, SY 2025-26', '47352', CAST(COUNT_IF(school_year = '2025-26' AND g11_stem_male IS NULL) AS STRING) FROM c
-  UNION ALL SELECT 'absent v2 column NULL in v1 rows', '181253', CAST(COUNT_IF(schema_version = 'v1' AND g11_sshs_acad_male IS NULL) AS STRING) FROM c
+  UNION ALL SELECT 'absent v2 column NULL in v1 rows', '301818', CAST(COUNT_IF(schema_version = 'v1' AND g11_sshs_acad_male IS NULL) AS STRING) FROM c
   UNION ALL SELECT 'standard labels, school_management, SY 2025-26', '9', CAST(COUNT(DISTINCT CASE WHEN school_year = '2025-26' THEN school_management END) AS STRING) FROM c
-  UNION ALL SELECT 'Local Government kept, SY 2020-21', '154', CAST(COUNT_IF(school_year = '2020-21' AND school_management = 'Local Government') AS STRING) FROM c
+  UNION ALL SELECT 'Local Government kept, SY 2020-21 / 2021-22 / 2022-23', '154 / 155 / 106',
+    CAST(COUNT_IF(school_year = '2020-21' AND school_management = 'Local Government') AS STRING) || ' / '
+    || CAST(COUNT_IF(school_year = '2021-22' AND school_management = 'Local Government') AS STRING) || ' / '
+    || CAST(COUNT_IF(school_year = '2022-23' AND school_management = 'Local Government') AS STRING) FROM c
   UNION ALL SELECT 'mangled Ã‘ left', '0', CAST(COUNT_IF(barangay LIKE '%Ã‘%' OR street_address LIKE '%Ã‘%') AS STRING) FROM c
-  UNION ALL SELECT 'overseas flagged', '137', CAST(COUNT_IF(is_overseas) AS STRING) FROM c
+  UNION ALL SELECT 'overseas flagged', '201', CAST(COUNT_IF(is_overseas) AS STRING) FROM c
   UNION ALL SELECT 'no counts published, SY 2025-26', '46', CAST(COUNT_IF(enrollment_status = 'no_counts') AS STRING) FROM c
-  UNION ALL SELECT 'checks in the last run', '153', CAST(COUNT(*) AS STRING) FROM d
-  UNION ALL SELECT 'checks in the last run not PASS', '0', CAST(COUNT_IF(status <> 'PASS') AS STRING) FROM d
-  UNION ALL SELECT 'rows from the last run', '241457', CAST(COUNT_IF(run_id = (SELECT run_id FROM last_run)) AS STRING) FROM c
+  UNION ALL SELECT 'checks in the last run', '227', CAST(COUNT(*) AS STRING) FROM d
+  UNION ALL SELECT 'checks in the last run not PASS (the two SY 2022-23 quarantine WARNs)', '2', CAST(COUNT_IF(status <> 'PASS') AS STRING) FROM d
+  UNION ALL SELECT 'rows from the last run', '362022', CAST(COUNT_IF(run_id = (SELECT run_id FROM last_run)) AS STRING) FROM c
   UNION ALL SELECT 'rows from another commit', '0', CAST(COUNT_IF(code_revision <> '<commit that ran>') AS STRING) FROM c
   UNION ALL SELECT 'last silver run', 'succeeded', MAX(status) FROM pr WHERE run_id = (SELECT run_id FROM last_run)
   UNION ALL SELECT 'silver runs succeeded at this commit', '2', CAST(COUNT_IF(status = 'succeeded' AND code_revision = '<commit that ran>') AS STRING) FROM pr
-  UNION ALL SELECT 'published rows from a succeeded run', '241457', CAST(COUNT(*) AS STRING)
+  UNION ALL SELECT 'published rows from a succeeded run', '362022', CAST(COUNT(*) AS STRING)
     FROM c JOIN pr ON pr.run_id = c.run_id AND pr.status = 'succeeded'
   UNION ALL SELECT 'candidate rows not published', '0', CAST(COUNT(*) AS STRING) FROM (
     SELECT * FROM edu_access.`03-silver`.deped_enrollment_clean_candidate EXCEPT ALL SELECT * FROM c)
@@ -258,12 +265,13 @@ What Gold must respect:
 - `enrollment_status`: `all_zero` and `no_counts` schools are kept in Silver; decide per measure whether they count as schools (S-1).
 - `barangay_possibly_truncated` and NULL `barangay`: barangay-level results for these schools are uncertain.
 - NULL counts: "not published"; in SY 2025-26 usually "level not offered". Use `schema_version` to tell a column the year lacks from a blank, and NULL-safe filters (`IS NOT TRUE`) on nullable booleans.
-- Region is as published: NIR exists from SY 2024-25, and 191 Cotabato City and Special Geographic Area schools are Region XII in SY 2020-21 and BARMM from SY 2023-24 (O-10); compare regions across years only through PSGC (D-012).
-- `school_management = 'Local Government'` exists only in SY 2020-21 (154 public schools). Filter public schools on `sector`, not on `school_management = 'DepEd'`, or SY 2020-21 loses them.
-- School IDs change between years (O-12): a missing ID is not a closed school. 2,517 SY 2020-21 IDs (1,711 private) are not in SY 2023-24, so they are not in the EMISD crosswalk either.
+- Region is as published: NIR exists from SY 2024-25, and 192 Cotabato City and Special Geographic Area schools are Region XII in SY 2020-21 and BARMM from SY 2021-22 (O-10); compare regions across years only through PSGC (D-012).
+- `school_management = 'Local Government'` exists only in SY 2020-21 to 2022-23 (154, 155, and 106 public schools). Filter public schools on `sector`, not on `school_management = 'DepEd'`, or those years lose them.
+- School IDs change between years (O-12): a missing ID is not a closed school. 2,517 SY 2020-21 IDs (1,711 private), 1,481 SY 2021-22 IDs (963 private), and 698 SY 2022-23 IDs (393 private) are not in SY 2023-24, so they are not in the EMISD crosswalk either.
+- SY 2022-23's `1404066` is in the quarantine, not the clean table: SY 2022-23 Silver has 8 fewer Kindergarten learners than the file (O-1, O-3).
 - Unpivot grade, sex, and strand there (D-021), and decide how `g11_sshs_*` relates to the older strand columns.
 
-**SY 2020-21 downstream (not built here).** SY 2020-21 Silver feeds the DepEd school-to-PSGC Integration (#91), then `fact_school_enrollment` (#46), then AP1 to AP4 (#143); AP4 pairs it with the 2020 Census (D-042). That Integration must place a school by the EMISD crosswalk (`deped_enrollment_psgc`, D-049) when its `school_id` is there, and by reviewed place-name matching otherwise; the crosswalk is keyed on SY 2023-24 IDs, so the 2,517 SY 2020-21 IDs absent from SY 2023-24 need the name match. It must exclude `is_overseas` schools from Philippine geographic analysis without deleting them from the source-aligned tables. Silver deliberately leaves these SY 2020-21 conditions as published, for Integration or Analytics to disclose: the 191 Region XII schools that are BARMM from SY 2023-24, the 2,517 IDs absent from SY 2023-24, the 439 zero-enrollment schools, historical municipality, province, and barangay names, and the 33 PSO rows.
+**SY 2020-21 to 2022-23 downstream (not built here).** SY 2021-22 and 2022-23 follow the same path as SY 2020-21 below, with their own IDs absent from SY 2023-24 needing the name match. **SY 2020-21.** SY 2020-21 Silver feeds the DepEd school-to-PSGC Integration (#91), then `fact_school_enrollment` (#46), then AP1 to AP4 (#143); AP4 pairs it with the 2020 Census (D-042). That Integration must place a school by the EMISD crosswalk (`deped_enrollment_psgc`, D-049) when its `school_id` is there, and by reviewed place-name matching otherwise; the crosswalk is keyed on SY 2023-24 IDs, so the 2,517 SY 2020-21 IDs absent from SY 2023-24 need the name match. It must exclude `is_overseas` schools from Philippine geographic analysis without deleting them from the source-aligned tables. Silver deliberately leaves these SY 2020-21 conditions as published, for Integration or Analytics to disclose: the 191 Region XII schools that are BARMM from SY 2023-24, the 2,517 IDs absent from SY 2023-24, the 439 zero-enrollment schools, historical municipality, province, and barangay names, and the 33 PSO rows.
 
 What Integration still has to do: match `province`, `municipality`, and `barangay` to PSGC 2Q 2026 (D-012) using the names as Silver keeps them (spacing normalized, `Ñ` repaired, `(Capital)` and other suffixes kept), apply the 40-character prefix rule to truncated barangays (O-18), and report unmatched names ([generated list](../data/cross-source/generated/deped_psgc_unmatched.md)).
 
