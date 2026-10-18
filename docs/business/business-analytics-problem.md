@@ -70,7 +70,7 @@ Classroom and teacher priorities remain separate. A city or municipality may sho
 
 ## Implementation boundary
 
-This document fixes the approved business and analytical meaning; it does not approve formulas or dashboard fields. The separate [metric and dashboard specification](metric-specification.md) owns candidate calculations, required columns, comparison rules, validation status, and unresolved choices. The [dataset use map](dataset-use-map.md) owns source routing and source gaps.
+This document fixes the approved business and analytical meaning; it does not approve formulas or dashboard fields. The separate [metric and dashboard specification](metric-specification.md) owns implementation-ready calculations, required columns, comparison rules, validation status, and unresolved choices. The [dataset use map](dataset-use-map.md) owns source routing and source gaps.
 
 Follow-on workstreams use those contracts as follows:
 
