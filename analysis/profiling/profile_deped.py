@@ -203,7 +203,7 @@ show("O-7", "enr_2025_26 Modified Curricular Offering Classification: " + "; ".j
 
 for col in ["sector", "school_management", "annex_status", "offers_es"]:
     for t in ENROLLMENT:
-        vals = q(f"SELECT '[' || coalesce({col}, 'NULL') || ']', count(*) FROM {t} GROUP BY 1 ORDER BY 2 DESC")
+        vals = q(f"SELECT '[' || coalesce({col}, 'NULL') || ']', count(*) FROM {t} GROUP BY 1 ORDER BY 2 DESC, 1")
         show("O-8", f"{t}.{col}: " + "; ".join(f"{v} {n:,}" for v, n in vals))
 lg = q("""SELECT b.school_management, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
           WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
