@@ -322,11 +322,13 @@ def test_the_gate_warns_on_what_needs_review(tmp_path):
 
 @pytest.mark.parametrize("check,change", [
     ("rows_reconcile", f"DELETE FROM {CANDIDATE} WHERE school_id = '100001' AND geographic_level = 'bgy'"),
+    ("source_keys_match", f"UPDATE {CANDIDATE} SET school_id = '999999', source_row_ref = school_year || '/999999/' || geographic_level WHERE school_id = '100001'"),
     ("barangay_inside_city", f"UPDATE {CANDIDATE} SET psgc_code = '0102802001' WHERE school_id = '100001' AND geographic_level = 'bgy'"),
     ("status_combination_valid", f"UPDATE {CANDIDATE} SET match_status = 'ambiguous' WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
     ("psgc_level_valid", f"UPDATE {CANDIDATE} SET psgc_code = '0102800000' WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
     ("lineage_complete", f"UPDATE {CANDIDATE} SET source_reference_date = NULL WHERE school_id = '100001'"),
     ("rows_built_by_this_run", f"UPDATE {CANDIDATE} SET run_id = 'an-earlier-run' WHERE school_id = '100001'"),
+    ("master_psgc_version", "UPDATE edu_access.`03-silver`.psa_psgc_clean SET publication_period = '2026-Q3'"),
 ])
 def test_a_failed_check_keeps_the_last_published_map(tmp_path, check, change):
     env = Env(tmp_path)
@@ -348,7 +350,7 @@ def test_a_match_rate_below_the_floor_fails_and_publishes_nothing(tmp_path):
     assert not env.published()
 
 
-def test_profiled_counts_pass_when_unchanged_and_warn_when_they_change(tmp_path):
+def test_profiled_counts_pass_when_unchanged_and_block_publication_when_they_change(tmp_path):
     env = Env(tmp_path)
     assert env.run()[1] is None
     counts = {}
@@ -360,13 +362,15 @@ def test_profiled_counts_pass_when_unchanged_and_warn_when_they_change(tmp_path)
     env.write(rules, tmp_path)
     run_id, error = env.run()
     assert error is None
+    before = env.map()
     profiled = {k: v["status"] for k, v in env.checks(run_id).items() if k.startswith("profiled_")}
     assert profiled and set(profiled.values()) == {"PASS"}
     rules["gate"]["profiled_counts"]["2023-24"]["bgy"]["matched"] += 1
     env.write(rules, tmp_path)
     run_id, error = env.run()
-    assert error is None
-    assert env.checks(run_id)["profiled_2023-24_bgy"]["status"] == "WARN"
+    assert "Integration gate failed" in error
+    assert env.checks(run_id)["profiled_2023-24_bgy"]["status"] == "FAIL"
+    assert env.map() == before
 
 
 def test_an_override_for_a_place_with_no_school_warns(tmp_path):
@@ -383,6 +387,7 @@ def test_an_override_for_a_place_with_no_school_warns(tmp_path):
     (lambda r: r["overrides"][0].update(level="city_mun"), "city_mun overrides"),
     (lambda r: r.pop("special_geographic_area"), "special_geographic_area"),
     (lambda r: r["gate"].update(min_match_rate_pct=101), "min_match_rate_pct"),
+    (lambda r: r.update(psgc_version="2Q 2026"), "psgc_version"),
     (lambda r: r["gate"]["profiled_counts"].update({"2023-24": {"bgy": {}}}), "profiled_counts"),
 ])
 def test_config_refuses_incomplete_rules(change, message):
