@@ -151,9 +151,6 @@ source_tables:
 # Candidates only. Keep them out of executable ETL until their keys, review
 # workflow, and grains are approved.
 draft_integration_tables:
-  - table: deped_school_psgc_map
-    candidate_file: 01_map_deped_school_psgc.sql
-    purpose: Reviewed mapping from DepEd school geography to the selected PSGC version.
   - table: hdx_adm3_psgc_map
     candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
@@ -174,6 +171,11 @@ integration_tables:
     validate_file: 90_validate_psa_school_age_population_psgc_map.sql
     grain: One row per census year and city or municipality of psa_school_age_population_clean (census_year, place_name, parent_name).
     purpose: PSA school-age population places matched to PSGC by name inside a reviewed parent, overrides in config (D-055).
+  - table: deped_school_psgc_map
+    build_file: 01_map_deped_school_psgc.sql
+    validate_file: 90_validate_deped_school_psgc_map.sql
+    grain: One row per enrollment school_id, school_year, and geographic_level (city_mun or bgy).
+    purpose: DepEd enrollment schools matched to PSGC cities and barangays, EMISD code first, then reviewed name matching (D-049).
 
 deferred_layers:
   - gold
