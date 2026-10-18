@@ -132,6 +132,8 @@ erDiagram
 | `school_age_population_record` | `fact_city_school_age_population` | City or municipality, reference year, age, and sex | **Provisional.** PSA Total Population by Single-Year Age, Sex, and City/Municipality, 2020 CPH and 2024 POPCEN ([source](../business/dataset-use-map.md#school-age-population-source)); not yet profiled or ingested |
 | `poverty_estimate` | `dim_city_poverty` (2023 only) | City or municipality and estimate year | `psa_poverty_stat` Silver ([D-034](../governance/decisions.md#d-034-psa-poverty-stat-silver-unpivot-to-one-row-per-unit-and-estimate-year)); D-046 (#151) |
 
+`fact_school_year_source_availability` ([D-051](../governance/decisions.md#d-051-each-downstream-task-starts-from-the-gates-it-reads-the-source-lane-fan-in-is-an-audit)) has no business entity: it records which DepEd source has data for each school year, so the dashboard can label a year `not available`.
+
 ## Definitions
 
 - **Education levels** ([D-047](../governance/decisions.md#d-047-question-v1-metric-counting-rules)): ES is Kindergarten, Grades 1–6, and ES non-graded; JHS is Grades 7–10 and JHS non-graded; SHS is Grades 11–12.

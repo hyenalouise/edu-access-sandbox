@@ -1,0 +1,2 @@
+-- PLACEHOLDER: validation gate for fact_school_year_source_availability: one row per school year and source,
+-- and every school_year resolves to dim_school_year. Implement the gate and its data_quality_results writes first.

@@ -1,0 +1,2 @@
+-- PLACEHOLDER (#157): create the Bronze table for PSA school-age population.
+-- Keep this task disabled until the ingestion contract and reviewed DDL land.

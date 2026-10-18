@@ -1,0 +1,2 @@
+-- PLACEHOLDER (#163): validate the EMISD school-to-PSGC Silver crosswalk.
+-- Implement grain, uniqueness, reconciliation, and data_quality_results checks before activation.

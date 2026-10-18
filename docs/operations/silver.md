@@ -24,9 +24,9 @@ bronze_deped_enrollment             Python: check and load the deliveries       
                                          then pipeline_runs 'succeeded'
    │
    ▼  this source lane is complete; other source lanes run independently in parallel
-      90_validate_control is the fan-in: it records every Silver lane and fails if one did not succeed (D-039);
-      Integration starts only from it, and Integration and Gold read a Silver table only when
-      the run its rows carry succeeded
+      90_validate_control is the fan-in: it records every Silver lane and fails if one did not succeed;
+      only freshness follows it. Each Integration and Gold task starts from the Silver gates it reads (D-051),
+      and reads a Silver table only when the run its rows carry succeeded
 ```
 
 Code: `src/silver/` ([module list](../../src/silver/README.md)). SQL: `etl/03_silver/` ([files](../../etl/03_silver/README.md)), generated from the Bronze contract and the [Silver mapping](../../config/mappings/deped_enrollment.json). Columns: [data dictionary](../data/silver/deped-enrollment-clean.md). The job: D-020; Silver: D-021 to D-025 in [decisions.md](../governance/decisions.md).
@@ -292,7 +292,7 @@ bronze_psa_poverty_stat             Python: check and load the workbook (skip wh
                                          nothing published; else publish quarantine, then clean, then 'succeeded'
 ```
 
-The lane does not wait for any other source; `90_validate_control` is the fan-in (D-039).
+The lane does not wait for any other source; `90_validate_control` is the fan-in (D-051).
 
 ### Grain and shape (PSA)
 
@@ -440,7 +440,7 @@ bronze_psa_psgc               Python: check and load the workbook (skip when alr
                                    then 'succeeded'
 ```
 
-The lane does not wait for any other source; `90_validate_control` is the fan-in (D-039). The mapping tasks of Integration (`01_map_deped_school_psgc`, `02_map_psa_poverty_psgc`, `03_map_hdx_adm3_psgc`) need PSGC and start only from the fan-in, which checks this lane.
+The lane does not wait for any other source; `90_validate_control` is the fan-in (D-051). The mapping tasks of Integration that need PSGC (`01_map_deped_school_psgc`, `02_map_psa_poverty_psgc`, `03_map_hdx_adm3_psgc`, `05_map_psa_school_age_population_psgc`) start from this lane's gate, together with the gate of the other source each one reads.
 
 ### Grain and shape (PSGC)
 

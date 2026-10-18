@@ -68,6 +68,7 @@ These are working names only:
 | `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
 | `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
 | `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
+| `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
 and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
@@ -91,3 +92,4 @@ contract is approved.
 | `fact_school_teacher_capacity` | School x school year x education level |
 | `fact_city_population` | City or municipality x reference year |
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
+| `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |

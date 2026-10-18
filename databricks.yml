@@ -35,9 +35,9 @@ resources:
       name: edu_access_pipeline
       description: >-
         Validates and ingests six approved education and geography sources
-        through Bronze and Silver. Implemented Integration tasks run after the
-        source fan-in; remaining Integration, Gold, and Analytics placeholders
-        stay visible but disabled.
+        through Bronze and Silver. Each Integration, Gold, and Analytics task
+        starts from the gates it reads (D-051); placeholders stay visible but
+        disabled.
 
       parameters:
         - name: code_revision
@@ -542,7 +542,8 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # 07 - DepEd EMISD enrollment with PSGC and coordinates (Bronze only until its Silver issue)
+        # 07 - DepEd EMISD enrollment with PSGC and coordinates. Bronze is live; the planned
+        # Silver crosswalk stays disabled until #163 implements and reviews its contract.
         - task_key: 07_create_deped_enrollment_psgc_raw
           depends_on:
             - task_key: 05_create_current_batches
@@ -588,9 +589,104 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # Source-lane fan-in: after every Silver gate has finished, passed or not, it records each
-        # Silver lane that is switched on and fails if any did not succeed. Integration starts only
-        # from it (D-039). Generated: python -m src.job.fan_in.
+        - task_key: 07_clean_deped_enrollment_psgc
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_deped_enrollment_psgc_raw
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/03_silver/07_clean_deped_enrollment_psgc.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 90_validate_deped_enrollment_psgc_clean
+          disabled: true
+          depends_on:
+            - task_key: 07_clean_deped_enrollment_psgc
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/03_silver/90_validate_deped_enrollment_psgc_clean.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        # 08 - PSA school-age population. The complete future lane stays visible but disabled
+        # until #157 and #158 provide the ingestion contract, transforms, and validation gates.
+        - task_key: 08_create_psa_school_age_population_raw
+          disabled: true
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/08_create_psa_school_age_population_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: bronze_psa_school_age_population
+          disabled: true
+          depends_on:
+            - task_key: 08_create_psa_school_age_population_raw
+          run_if: ALL_SUCCESS
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --no-gate
+              - --no-setup
+              - --backend
+              - spark
+              - --source
+              - psa_school_age_population
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
+
+        - task_key: 90_validate_psa_school_age_population_raw
+          disabled: true
+          depends_on:
+            - task_key: bronze_psa_school_age_population
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/90_validate_psa_school_age_population_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 08_clean_psa_school_age_population
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_psa_school_age_population_raw
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/03_silver/08_clean_psa_school_age_population.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 90_validate_psa_school_age_population_clean
+          disabled: true
+          depends_on:
+            - task_key: 08_clean_psa_school_age_population
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/03_silver/90_validate_psa_school_age_population_clean.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        # Source-lane fan-in, an audit (D-051): after every Silver gate has finished, passed or not, it
+        # records each Silver lane that is switched on and fails if any did not succeed, so the job run
+        # shows as failed. Only freshness follows it; no Integration, Gold, or Analytics task waits for it.
+        # Generated: python -m src.job.fan_in.
         - task_key: 90_validate_control
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
@@ -599,6 +695,8 @@ resources:
             - task_key: 90_validate_psa_psgc_clean
             - task_key: 90_validate_psa_poverty_stat_clean
             - task_key: 90_validate_hdx_adm3_clean
+            - task_key: 90_validate_deped_enrollment_psgc_clean
+            - task_key: 90_validate_psa_school_age_population_clean
           run_if: ALL_DONE
           sql_task:
             file:
@@ -606,9 +704,10 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
-        # Source freshness, once the fan-in has finished, passed or not, so a run
-        # that stopped at the fan-in still says which sources are stale. Records
-        # WARN rows only, never fails (D-043). Generated by src/job/freshness.py.
+        # Source freshness, once the fan-in has finished, passed or not, so a run that failed at the
+        # fan-in still says which sources are stale. The fan-in waits for every Silver gate, and Databricks
+        # resolves a disabled gate only after the tasks before it, so every Bronze load has finished by
+        # then. Records WARN rows only, never fails (D-043). Generated by src/job/freshness.py.
         - task_key: 90_validate_freshness
           depends_on:
             - task_key: 90_validate_control
@@ -618,19 +717,19 @@ resources:
               path: etl/01_control/90_validate_freshness.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        # Integration maps fan out after their required clean source outputs.
+        # Integration maps start from the Silver gates of the sources they read (D-051).
         - task_key: 01_map_deped_school_psgc
           disabled: true
           depends_on:
-            - task_key: 90_validate_control
+            - task_key: 90_validate_deped_enrollment_clean
+            - task_key: 90_validate_deped_enrollment_psgc_clean
+            - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/04_integration/01_map_deped_school_psgc.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_deped_school_psgc_map
           disabled: true
           depends_on:
@@ -641,18 +740,17 @@ resources:
               path: etl/04_integration/90_validate_deped_school_psgc_map.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 02_map_psa_poverty_psgc
           disabled: true
           depends_on:
-            - task_key: 90_validate_control
+            - task_key: 90_validate_psa_poverty_stat_clean
+            - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/04_integration/02_map_psa_poverty_psgc.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_psa_poverty_psgc_map
           disabled: true
           depends_on:
@@ -663,18 +761,17 @@ resources:
               path: etl/04_integration/90_validate_psa_poverty_psgc_map.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 03_map_hdx_adm3_psgc
           disabled: true
           depends_on:
-            - task_key: 90_validate_control
+            - task_key: 90_validate_hdx_adm3_clean
+            - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/04_integration/03_map_hdx_adm3_psgc.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_hdx_adm3_psgc_map
           disabled: true
           depends_on:
@@ -685,17 +782,15 @@ resources:
               path: etl/04_integration/90_validate_hdx_adm3_psgc_map.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 04_map_deped_annex_mother
           depends_on:
-            - task_key: 90_validate_control
+            - task_key: 90_validate_deped_enrollment_clean
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/04_integration/04_map_deped_annex_mother.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_deped_annex_mother_map
           depends_on:
             - task_key: 04_map_deped_annex_mother
@@ -705,160 +800,279 @@ resources:
               path: etl/04_integration/90_validate_deped_annex_mother_map.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        # Integrated education and geography outputs.
-        - task_key: 10_integrate_deped_school_year
+        - task_key: 05_map_psa_school_age_population_psgc
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_psa_school_age_population_clean
+            - task_key: 90_validate_psa_psgc_clean
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/04_integration/05_map_psa_school_age_population_psgc.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_psa_school_age_population_psgc_map
+          disabled: true
+          depends_on:
+            - task_key: 05_map_psa_school_age_population_psgc
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/04_integration/90_validate_psa_school_age_population_psgc_map.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        # Gold dimensions (D-048), each from the gates it reads.
+        - task_key: 01_build_dim_school
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_deped_enrollment_clean
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/01_build_dim_school.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_school
+          disabled: true
+          depends_on:
+            - task_key: 01_build_dim_school
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_school.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 02_build_dim_school_year
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_deped_enrollment_clean
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/02_build_dim_school_year.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_school_year
+          disabled: true
+          depends_on:
+            - task_key: 02_build_dim_school_year
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_school_year.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 03_build_dim_education_level
+          disabled: true
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/03_build_dim_education_level.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_education_level
+          disabled: true
+          depends_on:
+            - task_key: 03_build_dim_education_level
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_education_level.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 04_build_dim_city_municipality
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_psa_psgc_clean
+            - task_key: 90_validate_hdx_adm3_psgc_map
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/04_build_dim_city_municipality.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_city_municipality
+          disabled: true
+          depends_on:
+            - task_key: 04_build_dim_city_municipality
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_city_municipality.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 05_build_dim_barangay
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_psa_psgc_clean
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/05_build_dim_barangay.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_barangay
+          disabled: true
+          depends_on:
+            - task_key: 05_build_dim_barangay
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_barangay.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 06_build_dim_city_poverty
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_psa_poverty_psgc_map
+            - task_key: 90_validate_psa_poverty_stat_clean
+            - task_key: 90_validate_dim_city_municipality
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/06_build_dim_city_poverty.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_city_poverty
+          disabled: true
+          depends_on:
+            - task_key: 06_build_dim_city_poverty
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_city_poverty.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        # Gold facts (D-048), each from its Silver or Integration gate and the dimension gates it joins.
+        - task_key: 10_build_fact_school_enrollment
           disabled: true
           depends_on:
             - task_key: 90_validate_deped_school_psgc_map
-            - task_key: 90_validate_psa_poverty_psgc_map
-            - task_key: 90_validate_hdx_adm3_psgc_map
+            - task_key: 90_validate_dim_school
+            - task_key: 90_validate_dim_school_year
+            - task_key: 90_validate_dim_education_level
+            - task_key: 90_validate_dim_city_municipality
+            - task_key: 90_validate_dim_barangay
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/04_integration/10_integrate_deped_school_year.sql
+              path: etl/05_gold/10_build_fact_school_enrollment.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 90_validate_deped_school_year_integrated
+        - task_key: 90_validate_fact_school_enrollment
           disabled: true
           depends_on:
-            - task_key: 10_integrate_deped_school_year
+            - task_key: 10_build_fact_school_enrollment
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/04_integration/90_validate_deped_school_year_integrated.sql
+              path: etl/05_gold/90_validate_fact_school_enrollment.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 20_integrate_education_geography
+        - task_key: 11_build_fact_school_classroom_capacity
           disabled: true
           depends_on:
-            - task_key: 90_validate_deped_school_year_integrated
-            - task_key: 90_validate_psa_poverty_psgc_map
-            - task_key: 90_validate_hdx_adm3_psgc_map
+            - task_key: 90_validate_deped_facilities_clean
+            - task_key: 90_validate_dim_school
+            - task_key: 90_validate_dim_school_year
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/04_integration/20_integrate_education_geography.sql
+              path: etl/05_gold/11_build_fact_school_classroom_capacity.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 90_validate_education_geography_integrated
+        - task_key: 90_validate_fact_school_classroom_capacity
           disabled: true
           depends_on:
-            - task_key: 20_integrate_education_geography
+            - task_key: 11_build_fact_school_classroom_capacity
+            - task_key: 90_validate_fact_school_enrollment
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/04_integration/90_validate_education_geography_integrated.sql
+              path: etl/05_gold/90_validate_fact_school_classroom_capacity.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        # Gold dimensions and facts.
-        - task_key: 01_placeholder_dim_geography
+        - task_key: 12_build_fact_school_teacher_capacity
           disabled: true
           depends_on:
-            - task_key: 90_validate_education_geography_integrated
+            - task_key: 90_validate_deped_personnel_clean
+            - task_key: 90_validate_dim_school
+            - task_key: 90_validate_dim_school_year
+            - task_key: 90_validate_dim_education_level
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/05_gold/01_placeholder_dim_geography.sql
+              path: etl/05_gold/12_build_fact_school_teacher_capacity.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 90_placeholder_validate_dim_geography
+        - task_key: 90_validate_fact_school_teacher_capacity
           disabled: true
           depends_on:
-            - task_key: 01_placeholder_dim_geography
+            - task_key: 12_build_fact_school_teacher_capacity
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/05_gold/90_placeholder_validate_dim_geography.sql
+              path: etl/05_gold/90_validate_fact_school_teacher_capacity.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 02_placeholder_dim_school
+        - task_key: 13_build_fact_city_population
           disabled: true
           depends_on:
-            - task_key: 90_validate_education_geography_integrated
+            - task_key: 90_validate_psa_psgc_clean
+            - task_key: 90_validate_dim_city_municipality
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/05_gold/02_placeholder_dim_school.sql
+              path: etl/05_gold/13_build_fact_city_population.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 90_placeholder_validate_dim_school
+        - task_key: 90_validate_fact_city_population
           disabled: true
           depends_on:
-            - task_key: 02_placeholder_dim_school
+            - task_key: 13_build_fact_city_population
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/05_gold/90_placeholder_validate_dim_school.sql
+              path: etl/05_gold/90_validate_fact_city_population.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 10_placeholder_fact_school_year
+        - task_key: 14_build_fact_city_school_age_population
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_dim_geography
-            - task_key: 90_placeholder_validate_dim_school
+            - task_key: 90_validate_psa_school_age_population_psgc_map
+            - task_key: 90_validate_dim_city_municipality
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/05_gold/10_placeholder_fact_school_year.sql
+              path: etl/05_gold/14_build_fact_city_school_age_population.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 90_placeholder_validate_fact_school_year
+        - task_key: 90_validate_fact_city_school_age_population
           disabled: true
           depends_on:
-            - task_key: 10_placeholder_fact_school_year
+            - task_key: 14_build_fact_city_school_age_population
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/05_gold/90_placeholder_validate_fact_school_year.sql
+              path: etl/05_gold/90_validate_fact_city_school_age_population.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
-        - task_key: 20_placeholder_fact_poverty_estimate
-          disabled: true
-          depends_on:
-            - task_key: 90_placeholder_validate_dim_geography
-            - task_key: 90_placeholder_validate_dim_school
-          run_if: ALL_SUCCESS
-          sql_task:
-            file:
-              path: etl/05_gold/20_placeholder_fact_poverty_estimate.sql
-              source: GIT
-            warehouse_id: ${var.warehouse_id}
-
-        - task_key: 90_placeholder_validate_fact_poverty_estimate
-          disabled: true
-          depends_on:
-            - task_key: 20_placeholder_fact_poverty_estimate
-          run_if: ALL_SUCCESS
-          sql_task:
-            file:
-              path: etl/05_gold/90_placeholder_validate_fact_poverty_estimate.sql
-              source: GIT
-            warehouse_id: ${var.warehouse_id}
-
-        # Analytics outputs. Dashboard resources are added when an .lvdash.json exists.
+        # Analytics outputs, each from the fact gates it reads.
+        # Dashboard resources are added when an .lvdash.json exists.
         - task_key: 01_answer_ap1
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_fact_school_year
-            - task_key: 90_placeholder_validate_fact_poverty_estimate
+            - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_city_population
+            - task_key: 90_validate_dim_barangay
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/06_analytics/01_answer_ap1.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_ap1
           disabled: true
           depends_on:
@@ -869,19 +1083,17 @@ resources:
               path: etl/06_analytics/90_validate_ap1.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 02_answer_ap2
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_fact_school_year
-            - task_key: 90_placeholder_validate_fact_poverty_estimate
+            - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_school_classroom_capacity
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/06_analytics/02_answer_ap2.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_ap2
           disabled: true
           depends_on:
@@ -892,19 +1104,17 @@ resources:
               path: etl/06_analytics/90_validate_ap2.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 03_answer_ap3
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_fact_school_year
-            - task_key: 90_placeholder_validate_fact_poverty_estimate
+            - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_school_teacher_capacity
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/06_analytics/03_answer_ap3.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_ap3
           disabled: true
           depends_on:
@@ -915,19 +1125,17 @@ resources:
               path: etl/06_analytics/90_validate_ap3.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 04_answer_ap4
           disabled: true
           depends_on:
-            - task_key: 90_placeholder_validate_fact_school_year
-            - task_key: 90_placeholder_validate_fact_poverty_estimate
+            - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_city_school_age_population
           run_if: ALL_SUCCESS
           sql_task:
             file:
               path: etl/06_analytics/04_answer_ap4.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-
         - task_key: 90_validate_ap4
           disabled: true
           depends_on:
@@ -936,6 +1144,33 @@ resources:
           sql_task:
             file:
               path: etl/06_analytics/90_validate_ap4.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        # Which DepEd sources have data for each school year, for the dashboard only. Kept out of
+        # dim_school_year so a facilities or personnel failure does not stop every fact (D-051).
+        - task_key: 15_build_fact_school_year_source_availability
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_deped_enrollment_clean
+            - task_key: 90_validate_deped_facilities_clean
+            - task_key: 90_validate_deped_personnel_clean
+            - task_key: 90_validate_dim_school_year
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/15_build_fact_school_year_source_availability.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 90_validate_fact_school_year_source_availability
+          disabled: true
+          depends_on:
+            - task_key: 15_build_fact_school_year_source_availability
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_fact_school_year_source_availability.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
 

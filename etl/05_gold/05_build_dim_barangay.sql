@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build dim_barangay (D-048). One barangay; reads PSGC Silver.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

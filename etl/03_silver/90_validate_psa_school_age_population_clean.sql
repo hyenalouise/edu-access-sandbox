@@ -1,0 +1,2 @@
+-- PLACEHOLDER (#158): validate the PSA school-age population Silver table.
+-- Implement grain, uniqueness, reconciliation, and data_quality_results checks before activation.

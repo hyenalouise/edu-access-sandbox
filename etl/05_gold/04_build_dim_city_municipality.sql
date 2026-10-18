@@ -1,0 +1,3 @@
+-- PLACEHOLDER: build dim_city_municipality (D-048). One city or municipality; reads PSGC Silver, and the HDX
+-- map for land_area_sqkm (hdx_boundaries.area_sqkm, D-042), used for peer density once #148 lands.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.
