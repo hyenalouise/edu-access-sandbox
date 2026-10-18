@@ -43,11 +43,11 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-039 | 2026-10-11 | Integration starts only from the source-lane fan-in, which checks every Silver lane switched on and fails if one did not succeed | Superseded by D-051 | One failing source stops all Integration; the checked lanes are generated from the job |
 | D-040 | 2026-10-09 | HDX ADM3 Silver keeps the geometry as the published GeoJSON text, checks every shape on both engines, types numbers as exact DECIMALs, and has its own generator | Provisional | Silver stores no spatial type; Integration or Gold parses the text where it needs one; no shape is ever repaired |
 | D-041 | 2026-10-12 | Personnel Silver keeps one row per school, types publisher counts without changing their meaning, and runs independently of enrollment | Provisional | Blank stays NULL, zero stays 0, publisher and calculated principal totals remain separate, and Integration checks personnel against enrollment |
-| D-042 | 2026-10-14 | Approved BP/AP wording for prioritizing classroom provision and teacher allocation; peer, national, and official references are comparison methods | Provisional | Wording is mentor-approved; implementation choices remain open, and AP4's population source is in Bronze (#165), not yet in Silver |
+| D-042 | 2026-10-14 | Approved BP/AP wording for prioritizing classroom provision and teacher allocation; peer, national, and official references are comparison methods | Provisional; revised by D-0XX | Wording is mentor-approved; implementation choices remain open, and AP4's population source is in Bronze (#165), not yet in Silver |
 | D-043 | 2026-10-13 | A failed or slow run emails its deployer; a stale source is a WARN; two daily SQL alerts list FAILs and stale sources | Provisional | No address is committed; on `dev` only the deployer is told; every source the job loads needs a freshness limit |
 | D-044 | 2026-10-15 | Annex-to-mother links remain unmatched without a published crosswalk | Provisional | Integration retains every annex-school year without inventing a mother-school relationship |
-| D-045 | 2026-10-15 | Question v1 uses only official benchmarks that match its metrics; AP2 and AP3 are compared with peers and national same-type distributions | Provisional | Only the DepEd Order 40 school-presence screen is active; RA 7880 and the 2009 teacher bands stay in documentation; a new benchmark is a reviewed config entry, not a pipeline change |
-| D-046 | 2026-10-16 | PSA poverty 2023 is context only, shown in the area comparison view from a standalone `dim_city_poverty` with one row per PSGC city or municipality | Provisional | Poverty never changes a ranking, flag, peer group, or priority; every one of the 1,642 areas carries a status, and a missing value is never 0 |
+| D-045 | 2026-10-15 | Question v1 uses only official benchmarks that match its metrics; AP2 and AP3 are compared with peers and national same-type distributions | Provisional; revised by D-0XX | Only the DepEd Order 40 school-presence screen is active; RA 7880 and the 2009 teacher bands stay in documentation; a new benchmark is a reviewed config entry, not a pipeline change |
+| D-046 | 2026-10-16 | PSA poverty 2023 is context only, shown in the area comparison view from a standalone `dim_city_poverty` with one row per PSGC city or municipality | Provisional; revised by D-0XX | Poverty never changes a ranking, flag, peer group, or priority; every one of the 1,642 areas carries a status, and a missing value is never 0 |
 | D-047 | 2026-10-16 | Question v1 metric counting rules: education levels and the AP1 to AP3 definitions | Provisional | Levels, active schools, annexes, room totals, and teacher positions are fixed; AP3 is labelled project-defined because no mother-school link exists |
 | D-048 | 2026-10-16 | Gold stores time-varying school geography and source-aligned classroom, teacher, population, and poverty grains | Provisional; revised by D-051 | Integration and Analytics build on one reviewed ERD while mentor approval remains pending |
 | D-049 | 2026-10-16 | The EMISD workbook is used only as a school-to-PSGC crosswalk: Integration matches DepEd schools by its code first, then by name (revisits D-012) | Provisional | Enrollment still comes from `deped_enrollment`; name matching becomes the fallback for the schools without a code |
@@ -409,6 +409,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 ## D-042: Approved business and analytical question wording
 
+> **Revised by D-0XX** (2026-10-19): the user is LGU Local School Boards; DepEd Schools Division Offices are partners that validate results and act on teacher deployment and DepEd classroom programs. AP1 counts toward the priority tier beside AP2 and AP3, and classroom and teacher priorities appear on one list as a count of high measures, which is not a weighted score; each measure is still shown on its own. Peer groups no longer set any comparison: the national same-type distribution sets the tier, and Similar LGUs is context. The business and analytical question wording below is unchanged.
+
 - **Problem:** Metrics, Gold, the data model, the ERD, and the dashboard need one business decision and a stable set of analytical questions. Earlier drafts asked which LGUs needed more schools, classrooms, and teachers and introduced a peer-based sub-business question. Mentor review instead required an action-oriented business question, left the detailed city/municipality unit to the analytical scope, and removed the sub-business question.
 - **Decision:**
   - **Business question:** How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?
@@ -447,6 +449,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 
 ## D-045: Question v1 uses only compatible official benchmarks
 
+> **Revised by D-0XX** (2026-10-19): AP1 to AP3 are compared with the national same-type distribution, which sets the priority tier; peer distributions are replaced by Similar LGUs, shown as context only. The benchmark choices below are unchanged.
+
 - **Problem:** The [benchmark register](../business/national-benchmarks-and-indicators.md) lists several official references, but none was approved for use, so the comparison and priority outputs could not say whether a city or municipality is compared with an official standard. Using an incompatible threshold would mislabel a descriptive measure as an official shortage.
 - **Decision:**
   - DepEd Order No. 40, s. 2014 is active for AP1 as a count, per city or municipality, of barangays without a public school offering elementary, with barangay drill-down and its level, match-coverage, distance, demand, and feasibility caveats.
@@ -460,6 +464,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Consequence:** Benchmark status is "not applicable" for AP2 and AP3 until a compatible source exists. Revisit when DepEd provides a classroom count that excludes the spaces RA 7880 excludes, or confirms a current teacher deployment norm.
 
 ## D-046: PSA poverty 2023 as context in the area comparison view
+
+> **Revised by D-0XX** (2026-10-19): poverty incidence is one of the four standardized inputs to Similar LGUs, the context-only list of the 8 most similar LGUs of the same type. It still never ranks an area, sets a flag or tier, or orders a priority. Everything else below is unchanged.
 
 - **Problem:** No analytical question in Question v1 (AP1 to AP4, #9) uses poverty, but the source is already built: Bronze (#83) and Silver (#89) pass their gates, and #92 will map it to PSGC. Planners comparing areas still ask how poor a place is. #104 asked whether to use poverty or stop the pipeline.
 - **Decision:**
