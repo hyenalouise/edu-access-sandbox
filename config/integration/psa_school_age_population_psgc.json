@@ -1,0 +1,499 @@
+{
+  "map_table": "psa_school_age_population_psgc_map",
+  "owner": "@maeveylain",
+  "how_to_change": "Change a rule, a region, an alias or an override by a reviewed pull request that edits this file, then regenerate etl/04_integration (python -m src.integration.psa_school_age_population_psgc sql|gate). tests/test_integration_school_age.py fails until the files match.",
+  "source": {
+    "source_id": "psa_school_age_population",
+    "silver_table": "psa_school_age_population_clean",
+    "place_level": "city_municipality",
+    "lineage_concept": "total",
+    "note": "One map row per (census_year, place_name, parent_name) at level city_municipality, from both population concepts; none is dropped. Countries, regions and provinces are not mapped: they are sums of their cities and municipalities (D-053). The lineage columns name the place row on the total sheet."
+  },
+  "psgc": {
+    "source_id": "psa_psgc",
+    "silver_table": "psa_psgc_clean",
+    "version_rule": "Match only against the master quarter (is_master_reference = TRUE in psa_psgc_clean, today 2026-Q2), for both census years: a 2020 place is mapped to the unit that holds it today. When the master quarter changes, the map is rebuilt and the gate's records show what moved.",
+    "levels": [
+      "City",
+      "Mun"
+    ],
+    "finding": "D-012, D-035, D-052"
+  },
+  "rules": {
+    "order": [
+      "override: a reviewed entry below, for one census year, applied before every rule",
+      "region: the place's region_name is listed below for its census year, with the PSGC regions it covers today; an unlisted region gets no match",
+      "parent: a place under a province is searched only inside the PSGC province found for it: a reviewed province alias below, else the one PSGC province (or blank-level container, such as the Special Geographic Area) inside the listed regions whose name or old name matches the province name; a place directly under its region (NCR, Pateros, the highly urbanized cities, City of Isabela) only among that region's cities and municipalities that have no PSGC province",
+      "name in parent: the name matches exactly one city or municipality of that parent at the first tier that matches anything; two or more at that tier is ambiguous",
+      "unmatched: nothing above applies, or no PSGC parent was found (a name is never searched across provinces)"
+    ],
+    "name_tiers": [
+      "exact (name_exact): upper case, spaces collapsed, a trailing (Capital) dropped, 'City of X' read as 'X City'",
+      "folded (name_normalized): accents and the punctuation . - ' dropped",
+      "word City ignored (name_normalized): the words CITY and OF dropped, so a municipality that became a city matches",
+      "old name (name_old): the place name against PSGC old_names, or the place's bracketed 2020 old name against the PSGC name or old_names, folded"
+    ],
+    "finding": "#154 profile X-2: 1,602 of 1,642 (2024) and 1,585 (2020) match by cleaned name inside the province with no alias; the rest are Western Samar, the 2022 Maguindanao split, renamed or respelled LGUs (S-4, O-7), and the 8 Special Geographic Area units of each year."
+  },
+  "regions": [
+    {
+      "census_year": 2020,
+      "region_name": "BANGSAMORO AUTONOMOUS REGION IN MUSLIM MINDANAO",
+      "psgc_region_codes": [
+        "1900000000",
+        "0900000000"
+      ],
+      "reason": "BARMM; its 2020 Sulu is in Region IX in PSGC 2Q 2026 (0906600000), after the 2024 Supreme Court ruling took Sulu out of BARMM"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "CORDILLERA ADMINISTRATIVE REGION",
+      "psgc_region_codes": [
+        "1400000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "MIMAROPA REGION",
+      "psgc_region_codes": [
+        "1700000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "NATIONAL CAPITAL REGION",
+      "psgc_region_codes": [
+        "1300000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION I",
+      "psgc_region_codes": [
+        "0100000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION II",
+      "psgc_region_codes": [
+        "0200000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION III",
+      "psgc_region_codes": [
+        "0300000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION IV-A",
+      "psgc_region_codes": [
+        "0400000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION V",
+      "psgc_region_codes": [
+        "0500000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION VI",
+      "psgc_region_codes": [
+        "0600000000",
+        "1800000000"
+      ],
+      "reason": "Western Visayas; its 2020 Negros Occidental and City of Bacolod are in the Negros Island Region (18) in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION VII",
+      "psgc_region_codes": [
+        "0700000000",
+        "1800000000"
+      ],
+      "reason": "Central Visayas; its 2020 Negros Oriental and Siquijor are in the Negros Island Region (18) in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION VIII",
+      "psgc_region_codes": [
+        "0800000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION IX",
+      "psgc_region_codes": [
+        "0900000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION X",
+      "psgc_region_codes": [
+        "1000000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION XI",
+      "psgc_region_codes": [
+        "1100000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION XII",
+      "psgc_region_codes": [
+        "1200000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2020,
+      "region_name": "REGION XIII",
+      "psgc_region_codes": [
+        "1600000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "BANGSAMORO AUTONOMOUS REGION IN MUSLIM MINDANAO",
+      "psgc_region_codes": [
+        "1900000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "CORDILLERA ADMINISTRATIVE REGION",
+      "psgc_region_codes": [
+        "1400000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "MIMAROPA REGION",
+      "psgc_region_codes": [
+        "1700000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "NATIONAL CAPITAL REGION",
+      "psgc_region_codes": [
+        "1300000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "NEGROS ISLAND REGION",
+      "psgc_region_codes": [
+        "1800000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION I - ILOCOS REGION",
+      "psgc_region_codes": [
+        "0100000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION II - CAGAYAN VALLEY",
+      "psgc_region_codes": [
+        "0200000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION III - CENTRAL LUZON",
+      "psgc_region_codes": [
+        "0300000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION IVA - CALABARZON",
+      "psgc_region_codes": [
+        "0400000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION V - BICOL REGION",
+      "psgc_region_codes": [
+        "0500000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION VI - WESTERN VISAYAS",
+      "psgc_region_codes": [
+        "0600000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION VII - CENTRAL VISAYAS",
+      "psgc_region_codes": [
+        "0700000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION VIII - EASTERN VISAYAS",
+      "psgc_region_codes": [
+        "0800000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION IX - ZAMBOANGA PENINSULA",
+      "psgc_region_codes": [
+        "0900000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION X - NORTHERN MINDANAO",
+      "psgc_region_codes": [
+        "1000000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION XI - DAVAO REGION",
+      "psgc_region_codes": [
+        "1100000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION XII - SOCCSKSARGEN",
+      "psgc_region_codes": [
+        "1200000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    },
+    {
+      "census_year": 2024,
+      "region_name": "REGION XIII - CARAGA",
+      "psgc_region_codes": [
+        "1600000000"
+      ],
+      "reason": "the same region in PSGC 2Q 2026"
+    }
+  ],
+  "province_aliases": [
+    {
+      "census_year": 2024,
+      "province_name": "WESTERN SAMAR",
+      "psgc_province_codes": [
+        "0806000000"
+      ],
+      "reason": "PSA calls Samar Western Samar; PSGC 2Q 2026 0806000000 Samar lists Western Samar as its old name",
+      "evidence": "#154 profile X-2 (26 places in 2024) and X-1 (the age-group CSV calls it Samar)"
+    },
+    {
+      "census_year": 2020,
+      "province_name": "MAGUINDANAO",
+      "psgc_province_codes": [
+        "1908700000",
+        "1908800000"
+      ],
+      "reason": "Maguindanao was split in 2022 into Maguindanao del Norte and Maguindanao del Sur: each 2020 town is searched in both",
+      "evidence": "#154 profile X-2 (37 places in 2020) and O-7 (13 to del Norte and 23 to del Sur by name in 2024)"
+    }
+  ],
+  "overrides": [
+    {
+      "census_year": 2020,
+      "parent_name": "BULACAN",
+      "place_name": "BALIUAG",
+      "psgc_code": "0301403000",
+      "match_method": "reviewed_alias",
+      "reason": "respelled LGU: PSA BALIUAG is PSGC City of Baliwag, Bulacan",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. The same reviewed alias is in analysis/cross_source/cross_source_deped.py (#8)."
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "DAVAO DEL NORTE",
+      "place_name": "SAN ISIDRO",
+      "psgc_code": "1102324000",
+      "match_method": "reviewed_alias",
+      "reason": "renamed LGU: PSA SAN ISIDRO (Davao del Norte) is PSGC Sawata",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. PSGC has no San Isidro in Davao del Norte; the same reviewed alias is in analysis/cross_source/cross_source_dti_cmci.py, and the barangay population pairs San Isidro with Sawata (BP-4, docs/data/cross-source/coverage.md)."
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "MISAMIS OCCIDENTAL",
+      "place_name": "DON VICTORIANO CHIONGBIAN",
+      "psgc_code": "1004217000",
+      "match_method": "reviewed_alias",
+      "reason": "PSGC shortens the name: PSA DON VICTORIANO CHIONGBIAN is PSGC Don Victoriano, Misamis Occidental",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. The same unit is an HDX override (code_renamed, #93) and a reviewed alias in the CMCI match; the barangay population pairs them (BP-4)."
+    },
+    {
+      "census_year": 2024,
+      "parent_name": "BULACAN",
+      "place_name": "BALIUAG",
+      "psgc_code": "0301403000",
+      "match_method": "reviewed_alias",
+      "reason": "respelled LGU: PSA BALIUAG is PSGC City of Baliwag, Bulacan",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. The same reviewed alias is in analysis/cross_source/cross_source_deped.py (#8)."
+    },
+    {
+      "census_year": 2024,
+      "parent_name": "DAVAO DEL NORTE",
+      "place_name": "SAN ISIDRO",
+      "psgc_code": "1102324000",
+      "match_method": "reviewed_alias",
+      "reason": "renamed LGU: PSA SAN ISIDRO (Davao del Norte) is PSGC Sawata",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. PSGC has no San Isidro in Davao del Norte; the same reviewed alias is in analysis/cross_source/cross_source_dti_cmci.py, and the barangay population pairs San Isidro with Sawata (BP-4, docs/data/cross-source/coverage.md)."
+    },
+    {
+      "census_year": 2024,
+      "parent_name": "MISAMIS OCCIDENTAL",
+      "place_name": "DON VICTORIANO CHIONGBIAN",
+      "psgc_code": "1004217000",
+      "match_method": "reviewed_alias",
+      "reason": "PSGC shortens the name: PSA DON VICTORIANO CHIONGBIAN is PSGC Don Victoriano, Misamis Occidental",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. The same unit is an HDX override (code_renamed, #93) and a reviewed alias in the CMCI match; the barangay population pairs them (BP-4)."
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "PAMPANGA",
+      "place_name": "SANTO TOMAS",
+      "psgc_code": "0305421000",
+      "match_method": "reviewed_alias",
+      "reason": "abbreviation: PSA 2020 SANTO TOMAS (Pampanga) is PSGC Sto. Tomas, the only Santo Tomas in Pampanga",
+      "evidence": "#154 profile O-7 (the 2024 workbook writes STO. TOMAS under Pampanga, matched by name); first local run of the map, #159"
+    },
+    {
+      "census_year": 2024,
+      "parent_name": "MASBATE",
+      "place_name": "PIO V. CORPUZ",
+      "psgc_code": "0504116000",
+      "match_method": "reviewed_alias",
+      "reason": "respelled LGU: PSA PIO V. CORPUZ is PSGC Pio V. Corpus, Masbate",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. In 2020 the same place carries its old name LIMBUHAN, which is the PSGC old name of Pio V. Corpus (matched by rule); the same reviewed alias is in the CMCI match."
+    },
+    {
+      "census_year": 2024,
+      "parent_name": "PALAWAN",
+      "place_name": "RIZAL",
+      "psgc_code": "1705323000",
+      "match_method": "reviewed_alias",
+      "reason": "renamed LGU: PSA RIZAL (Palawan) is PSGC Dr. Jose P. Rizal",
+      "evidence": "#154 profile S-4 and X-2; first local run of the map, #159. PSGC has no Rizal in Palawan; in 2020 the same place carries its old name MARCOS, the PSGC old name of Dr. Jose P. Rizal (matched by rule); the same unit is an HDX override (#93) and a reviewed alias in the CMCI match."
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "CARMEN CLUSTER",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "KABACAN CLUSTER",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "MIDSAYAP CLUSTER I",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "MIDSAYAP CLUSTER II",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "PIGCAWAYAN CLUSTER",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "PIKIT CLUSTER I",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "PIKIT CLUSTER II",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    },
+    {
+      "census_year": 2020,
+      "parent_name": "INTERIM PROVINCE",
+      "place_name": "PIKIT CLUSTER III",
+      "psgc_code": null,
+      "match_method": null,
+      "reason": "2020 Interim Province cluster: a PSA grouping of Special Geographic Area barangays by former Cotabato town, not an LGU, with no PSGC counterpart (D-031)",
+      "evidence": "#154 profile O-7 and S-1 (the 8 clusters do not line up with the 8 SGA municipalities of 2024); place_status sga_cluster in Silver (D-053)"
+    }
+  ]
+}

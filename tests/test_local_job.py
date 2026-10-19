@@ -16,6 +16,7 @@ from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
+from src.integration import psa_school_age_population_psgc
 from src.silver import psa_school_age_population
 
 REVISION = "d" * 40
@@ -69,6 +70,22 @@ def repo(tmp_path):
                                                                  workbooks), indent=2), encoding="utf-8")
     (root / "etl" / "03_silver" / "90_validate_psa_school_age_population_clean.sql").write_text(
         psa_school_age_population.gate_sql(psa_school_age_population.load_spec(root)), encoding="utf-8")
+    # Its PSGC map (#159) gets rules for this made-up geography, its SQL regenerated: the committed rules name
+    # real PSGC codes, and a region or alias code missing from the master quarter fails the map's gate (#187).
+    map_rules = root / "config" / "integration" / "psa_school_age_population_psgc.json"
+    map_rules.parent.mkdir(parents=True, exist_ok=True)
+    rules = json.loads((REPO_ROOT / psa_school_age_population_psgc.CONFIG).read_text(encoding="utf-8"))
+    regions = {"2020": ("REGION I", "NATIONAL CAPITAL REGION", "REGION II"),
+               "2024": ("REGION I - TEST REGION", "NATIONAL CAPITAL REGION", "REGION II")}
+    rules.update(province_aliases=[], overrides=[], regions=[
+        {"census_year": int(year), "region_name": name, "psgc_region_codes": ["2000000000"], "reason": "made up"}
+        for year, names in regions.items() for name in names])
+    map_rules.write_text(json.dumps(rules, indent=2), encoding="utf-8")
+    spec = psa_school_age_population_psgc.load_spec(root)
+    folder = root / "etl" / "04_integration"
+    (folder / "05_map_psa_school_age_population_psgc.sql").write_text(psa_school_age_population_psgc.build_sql(spec), encoding="utf-8")
+    (folder / "90_validate_psa_school_age_population_psgc_map.sql").write_text(
+        psa_school_age_population_psgc.gate_sql(spec), encoding="utf-8")
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -110,8 +127,16 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
     # The HDX map runs after the HDX and PSGC Silver gates (D-051): every made-up HDX feature has one map row (#93, D-052).
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".psa_poverty_psgc_map") == [(18, "job-run-1")]
     assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
                        "AND source_id = 'hdx_boundaries'") == [("succeeded",)]
+    # The school-age map runs after the school-age and PSGC Silver gates (D-051): one row per made-up census place (#159).
+    places = store.query("SELECT COUNT(*) FROM (SELECT DISTINCT census_year, place_name, parent_name FROM "
+                         "edu_access.\"03-silver\".psa_school_age_population_clean WHERE level = 'city_municipality')")
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".psa_school_age_population_psgc_map") == [
+        (places[0][0], "job-run-1")]
+    assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
+                       "AND source_id = 'psa_school_age_population'") == [("succeeded",)]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
         ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
@@ -171,7 +196,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 1), ("silver_build", 8)]   # one filter, both layers; the HDX map writes its own run
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 3), ("silver_build", 8)]   # one filter, both layers; the HDX, poverty and school-age maps write their own runs
     store.close()
 
 

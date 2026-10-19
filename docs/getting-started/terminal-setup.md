@@ -435,10 +435,12 @@ Local PySpark has no Unity Catalog and no Delta tables without extra packages. U
 First accept the workspace invitation in your email, then:
 
 ```
-databricks auth login --host https://dbc-76bcfddb-1669.cloud.databricks.com --profile reached-hq
+databricks auth login --host https://dbc-2b6bf1c5-7bc3.cloud.databricks.com --profile reached-hq
 ```
 
 A browser opens; sign in and allow access. The terminal prints `Profile reached-hq was successfully saved`.
+
+**Already logged in to the old workspace?** The team moved on 2026-10-19 (D-056). Run the same command: it points your `reached-hq` profile at the new host. To keep the old workspace too, first rename its `[reached-hq]` section in `~/.databrickscfg` to `[reached-hq-old]`, then log in to it again with `--profile reached-hq-old`.
 
 **Always pass `--profile reached-hq`.** Without it, the CLI uses whichever workspace you logged into last, so a deploy can go to a personal workspace, and the error message blames a missing warehouse instead.
 

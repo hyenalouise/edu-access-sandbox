@@ -63,7 +63,7 @@ See the [source inventory](../data/source-inventory/).
 | Item | Value |
 |---|---|
 | Platform | Databricks Free Edition, one workspace shared by the team |
-| Host | `https://dbc-76bcfddb-1669.cloud.databricks.com` |
+| Host | `https://dbc-2b6bf1c5-7bc3.cloud.databricks.com` |
 | CLI profile | `reached-hq` (see [terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)) |
 | Catalog | `edu_access`: managed, Default Storage, bound to this workspace only (isolated) |
 | Owner of the catalog, schemas, and volume | The `reached-hq` group (all five teammates), so no single account is a bottleneck |
