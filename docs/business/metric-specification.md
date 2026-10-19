@@ -318,11 +318,16 @@ These checks are reported beside the ranking and never change a tier:
 
 | Check | Variation | Reported |
 |---|---|---|
-| High line | 0.85 and 0.80 | Critical count at each line, and whether every Critical LGU at 0.90 stays in |
-| Coverage gate | 95% | Critical count and the overlap with the 90% list |
+| High line | 0.85 and 0.80 | The LGUs that join Critical at each line (a lower line only adds LGUs) |
+| Coverage gate | 95% | The share of the 90% Critical list kept, and the LGUs that join |
 | Comparison | National | The Stable flag |
-| Outliers | Without the schools above Q3 + 3 × IQR on learners per room or per teacher | LGUs whose tier would change; the flagged schools stay in the published totals (rule 8) |
-| Overlap of measures | Spearman rank correlation between the three measures, by LGU type | Whether the measures repeat one signal |
+| Outliers | Without the schools above Q3 + 3 × IQR of their school-level ratio: learners per room (all levels) and learners per teacher per level, with quartiles computed within LGU type over public schools with a usable denominator, SY 2023-24 | LGUs whose tier would change; the flagged schools stay in the published totals (rule 8) and the list is saved with the run |
+| Flag rate | None | The share of LGUs high on each measure, by type; about 10% each is expected |
+| Overlap of measures | Spearman rank correlation between the three measures by type, and the share of LGUs high on one measure that are also high on another (10% expected if unrelated) | How far the measures repeat one signal; the shared learner numerator makes some overlap expected |
+
+**Revisit trigger.** The rule is revisited when, under any check, fewer than 80% of the Critical LGUs stay Critical and at least 3 leave (D-057).
+
+No significance test is used: the sources cover every public school, so there is no sampling error to test. Reporting error remains, and the coverage gate and the outlier check address it.
 
 ## Candidate resource-gap calculations — blocked
 
