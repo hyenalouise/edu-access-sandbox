@@ -43,7 +43,8 @@ stats AS (
     COUNT_IF(m.geographic_level = 'bgy') AS bgy_rows,
     COUNT_IF(m.geographic_level NOT IN ('city_mun', 'bgy')) AS bad_level,
     COUNT_IF(m.match_status NOT IN ('matched', 'unmatched', 'ambiguous', 'excluded') OR m.match_status IS NULL) AS bad_status,
-    COUNT_IF((m.match_status = 'matched' AND (m.psgc_code IS NULL OR m.match_method NOT IN ('code', 'code_name_differs', 'code_region_moved', 'rollup', 'name_exact', 'name_old', 'name_normalized', 'reviewed_alias')))
+    -- NOT IN is NULL for a NULL method, so a matched row without one is named explicitly.
+    COUNT_IF((m.match_status = 'matched' AND (m.psgc_code IS NULL OR m.match_method IS NULL OR m.match_method NOT IN ('code', 'code_name_differs', 'code_region_moved', 'rollup', 'name_exact', 'name_old', 'name_normalized', 'reviewed_alias')))
              OR (m.match_status <> 'matched' AND (m.psgc_code IS NOT NULL OR m.match_method IS NOT NULL))) AS bad_combination,
     COUNT_IF(m.match_status = 'matched' AND p.psgc_code IS NULL) AS matched_without_psgc,
     COALESCE(COUNT_IF((m.geographic_level = 'city_mun' AND p.geographic_level NOT IN ('City', 'Mun'))
