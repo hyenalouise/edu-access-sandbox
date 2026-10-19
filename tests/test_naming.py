@@ -85,6 +85,8 @@ def test_integration_registry_is_explicitly_draft(repo_root):
 def test_gold_registry_names_existing_builds_and_gates(repo_root):
     registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
     assert registry["gold_tables"]
+    names = [table["table"] for table in registry["gold_tables"]]
+    assert len(names) == len(set(names)), f"a Gold table is registered twice: {names}"
     for table in registry["gold_tables"]:
         assert SQL_FILE.fullmatch(table["build_file"])
         assert SQL_FILE.fullmatch(table["validate_file"])
