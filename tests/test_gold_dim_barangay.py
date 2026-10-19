@@ -133,3 +133,14 @@ def test_a_barangay_moved_to_another_valid_city_fails():
     assert checks["values_match_source"]["status"] == "FAIL"
     assert checks["parent_is_city_or_municipality"]["status"] == "PASS"
     assert env.dim() == good
+
+
+def test_the_gate_summary_is_dropped_after_a_pass_and_a_fail():
+    leftovers = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'"
+    env = Env()
+    _, error = env.run()
+    assert error is None and env.store.query(leftovers) == []
+    env.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES "
+                  "('0102899001', 'Orphan', 'Bgy', '0102899000', 'R', '2026-Q2', TRUE, 'S1')")
+    _, error = env.run()
+    assert error and env.store.query(leftovers) == []

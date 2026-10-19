@@ -14,6 +14,9 @@
 
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE gold_gate_summary STRING;
+SET VARIABLE gold_gate_summary = '`edu_access`.`05-gold`.`dim_city_municipality_gate_summary_r_' || sha2(:run_id, 256) || '`';
+DECLARE OR REPLACE VARIABLE gold_gate_owner_sql STRING;
 
 -- Every row as its source says it should be, column by column, built once for the full-row comparison.
 CREATE OR REPLACE TEMPORARY VIEW dim_city_municipality_expected AS
@@ -57,8 +60,12 @@ SET VARIABLE gold_dim_city_rows_not_matching = (
   (SELECT COUNT(*) FROM (SELECT city_mun_psgc_code, city_mun_name, province_psgc_code, province_name, region_psgc_code, region_name, lgu_type, city_class, income_class, income_class_retained, land_area_sqkm, land_area_source, is_sga, member_type, source_psgc_quarter FROM edu_access.`05-gold`.dim_city_municipality_candidate EXCEPT ALL SELECT * FROM dim_city_municipality_expected) AS x)
   + (SELECT COUNT(*) FROM (SELECT * FROM dim_city_municipality_expected EXCEPT ALL SELECT city_mun_psgc_code, city_mun_name, province_psgc_code, province_name, region_psgc_code, region_name, lgu_type, city_class, income_class, income_class_retained, land_area_sqkm, land_area_source, is_sga, member_type, source_psgc_quarter FROM edu_access.`05-gold`.dim_city_municipality_candidate) AS x));
 
--- The full-row comparison is computed once, above, because the summary view is read once per result row.
-CREATE OR REPLACE TEMPORARY VIEW dim_city_municipality_gate_summary AS
+-- The full-row comparison is computed once, above, because the summary is read once per result row.
+-- The one-row summary the checks read is written to a table first. Read 25 times as a temporary view, it
+-- made Databricks SQL's optimizer fail with INTERNAL_ERROR (dev run, 2026-10-20), as the DepEd PSGC gate did
+-- (c64e949). The table is this run's own (its name holds a hash of run_id) and is dropped once the checks
+-- are recorded, whether the gate passes or fails.
+CREATE OR REPLACE TABLE IDENTIFIER(session.gold_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one dim_city_municipality gate. The gate drops it once its checks are recorded in data_quality_results.' AS
 WITH psgc AS (
   SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
 ),
@@ -110,35 +117,37 @@ SELECT
   (SELECT COUNT_IF(lgu_type = 'municipality') FROM regular) AS municipalities,
   (SELECT COUNT_IF(province_psgc_code IS NULL) FROM regular) AS regular_without_province,
   (SELECT COUNT_IF(is_sga) FROM regular) AS sga_members;
+SET VARIABLE gold_gate_owner_sql = 'ALTER TABLE ' || session.gold_gate_summary || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE gold_gate_owner_sql;
 
 INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'dim_city_municipality', 'gold', 'edu_access.05-gold.dim_city_municipality', check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-  SELECT 'values_match_source' AS check_name, CASE WHEN rows_not_matching_source = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_source AS STRING) AS actual FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'regular_rows_reconcile', CASE WHEN regular_rows = source_units THEN 'PASS' ELSE 'FAIL' END, CAST(source_units AS STRING), CAST(regular_rows AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'regular_in_psgc_master', CASE WHEN regular_not_in_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(regular_not_in_psgc AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'psgc_units_present', CASE WHEN psgc_units_missing = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(psgc_units_missing AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'one_psgc_version', CASE WHEN master_periods = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(master_periods AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'source_quarter_is_master', CASE WHEN wrong_quarter = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(wrong_quarter AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'member_type_allowed', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'technical_members', CASE WHEN technical_rows = 2 AND expected_technical_rows = 2 THEN 'PASS' ELSE 'FAIL' END, '2', CAST(technical_rows AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'region_resolved', CASE WHEN region_unresolved = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(region_unresolved AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'province_name_resolved', CASE WHEN province_unresolved = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(province_unresolved AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'lgu_type_allowed', CASE WHEN bad_lgu_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_lgu_type AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'municipality_without_city_class', CASE WHEN municipality_with_city_class = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(municipality_with_city_class AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'income_class_allowed', CASE WHEN bad_income_class = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_income_class AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'land_area_positive', CASE WHEN land_area_not_positive = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(land_area_not_positive AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'land_area_has_source', CASE WHEN land_area_source_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(land_area_source_mismatch AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'land_area_one_feature', CASE WHEN units_with_two_features = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(units_with_two_features AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'sga_inside_container', CASE WHEN sga_outside_container = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(sga_outside_container AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'regular_without_land_area', CASE WHEN regular_without_land_area = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_without_land_area AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'city_without_class', CASE WHEN city_without_class = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(city_without_class AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'cities', 'PASS', CAST(NULL AS STRING), CAST(cities AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'municipalities', 'PASS', CAST(NULL AS STRING), CAST(municipalities AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'regular_without_province', 'PASS', CAST(NULL AS STRING), CAST(regular_without_province AS STRING) FROM dim_city_municipality_gate_summary
-  UNION ALL SELECT 'sga_members', 'PASS', CAST(NULL AS STRING), CAST(sga_members AS STRING) FROM dim_city_municipality_gate_summary
+  SELECT 'values_match_source' AS check_name, CASE WHEN rows_not_matching_source = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_source AS STRING) AS actual FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'regular_rows_reconcile', CASE WHEN regular_rows = source_units THEN 'PASS' ELSE 'FAIL' END, CAST(source_units AS STRING), CAST(regular_rows AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'regular_in_psgc_master', CASE WHEN regular_not_in_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(regular_not_in_psgc AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'psgc_units_present', CASE WHEN psgc_units_missing = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(psgc_units_missing AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'one_psgc_version', CASE WHEN master_periods = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(master_periods AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'source_quarter_is_master', CASE WHEN wrong_quarter = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(wrong_quarter AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'member_type_allowed', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'technical_members', CASE WHEN technical_rows = 2 AND expected_technical_rows = 2 THEN 'PASS' ELSE 'FAIL' END, '2', CAST(technical_rows AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'region_resolved', CASE WHEN region_unresolved = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(region_unresolved AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'province_name_resolved', CASE WHEN province_unresolved = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(province_unresolved AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'lgu_type_allowed', CASE WHEN bad_lgu_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_lgu_type AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'municipality_without_city_class', CASE WHEN municipality_with_city_class = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(municipality_with_city_class AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'income_class_allowed', CASE WHEN bad_income_class = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_income_class AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'land_area_positive', CASE WHEN land_area_not_positive = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(land_area_not_positive AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'land_area_has_source', CASE WHEN land_area_source_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(land_area_source_mismatch AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'land_area_one_feature', CASE WHEN units_with_two_features = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(units_with_two_features AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'sga_inside_container', CASE WHEN sga_outside_container = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(sga_outside_container AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'regular_without_land_area', CASE WHEN regular_without_land_area = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_without_land_area AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'city_without_class', CASE WHEN city_without_class = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(city_without_class AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'cities', 'PASS', CAST(NULL AS STRING), CAST(cities AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'municipalities', 'PASS', CAST(NULL AS STRING), CAST(municipalities AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'regular_without_province', 'PASS', CAST(NULL AS STRING), CAST(regular_without_province AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'sga_members', 'PASS', CAST(NULL AS STRING), CAST(sga_members AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
 ) AS results;
 
 -- Integrity rule 1 of the metric specification: one result per distinct upstream run_id read, PASS only
@@ -163,6 +172,9 @@ LEFT JOIN (
   FROM edu_access.`01-control`.pipeline_runs
   WHERE status = 'succeeded'
 ) AS p ON p.run_id = u.upstream_run_id AND p.pipeline_name = u.pipeline_name AND p.source_id = u.source_id;
+
+-- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
+DROP TABLE IF EXISTS IDENTIFIER(session.gold_gate_summary);
 
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for dim_city_municipality: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results

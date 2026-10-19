@@ -201,3 +201,13 @@ def test_the_gate_holds_the_same_territory_list_as_the_build():
     codes = lambda path: sorted(re.findall(r"\('(\d{10})'", path.read_text(encoding="utf-8")))
     assert codes(BUILD) == codes(GATE)
     assert len(codes(BUILD)) == 8
+
+
+def test_the_gate_summary_is_dropped_after_a_pass_and_a_fail():
+    leftovers = "SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'"
+    env = Env()
+    _, error = env.run()
+    assert error is None and env.store.query(leftovers) == []
+    env.store.sql("DELETE FROM edu_access.`05-gold`.dim_city_municipality WHERE city_mun_psgc_code = '1999901000'")
+    _, error = env.run()
+    assert error and env.store.query(leftovers) == []
