@@ -10,7 +10,13 @@ SELECT :run_id, CAST(NULL AS STRING), 'deped_enrollment', 'integration', 'edu_ac
        check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
 WITH e AS (SELECT school_year, school_id FROM edu_access.`03-silver`.deped_enrollment_clean),
-p AS (SELECT psgc_code, geographic_level, city_municipality_code, publication_period FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference),
+p0 AS (SELECT psgc_code, name, geographic_level, city_municipality_code, publication_period, batch_id, source_row_number
+       FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference),
+p AS (
+  SELECT x.*, CASE WHEN pp.geographic_level = 'SubMun' THEN substr(x.city_municipality_code, 1, 5) || '00000'
+                   ELSE x.city_municipality_code END AS city_roll
+  FROM p0 AS x LEFT JOIN p0 AS pp ON pp.psgc_code = x.city_municipality_code
+),
 m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
 profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2021-22', 'city_mun', '60356', '26', '12', '35'), ('2021-22', 'bgy', '60210', '129', '55', '35'), ('2022-23', 'city_mun', '60070', '24', '7', '35'), ('2022-23', 'bgy', '59978', '95', '28', '35'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
 overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE')) AS v(province, municipality, barangay)),
@@ -61,8 +67,7 @@ level_counts AS (
   FROM m GROUP BY school_year, geographic_level
 ),
 hierarchy AS (
-  SELECT COUNT_IF(NOT (b.psgc_code IS NULL OR c.psgc_code IS NULL OR pb.city_municipality_code = c.psgc_code
-                       OR (pb.city_municipality_code LIKE '13806%' AND c.psgc_code = '1380600000'))) AS bad_parent
+  SELECT COUNT_IF(NOT (b.psgc_code IS NULL OR c.psgc_code IS NULL OR COALESCE(pb.city_roll = c.psgc_code, FALSE))) AS bad_parent
   FROM m AS b JOIN m AS c ON c.school_year = b.school_year AND c.school_id = b.school_id
     AND b.geographic_level = 'bgy' AND c.geographic_level = 'city_mun'
   LEFT JOIN p AS pb ON pb.psgc_code = b.psgc_code
