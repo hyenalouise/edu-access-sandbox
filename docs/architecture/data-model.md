@@ -227,6 +227,24 @@ municipality (1,642), including those without an estimate, and none for the
 dashboard's `less precise` label. `status_reason` is NULL when estimated and
 otherwise one of the reasons listed in D-046.
 
+Built by `06_build_dim_city_poverty.sql` from `dim_city_municipality` and
+`psa_poverty_psgc_map` (D-054), which carries each Silver estimate unchanged. A
+regular member takes the 2023 map row matched to it at city or municipality
+level; with none it is `not_in_source`. The City of Manila reason goes to the
+member whose sub-municipality districts have 2023 map rows, so no code is
+written into the rule; the gate fails unless that one member is the highly
+urbanized city named City of Manila with its 14 district rows. `cv_over_20` is
+`poverty_cv > 20`, NULL without an estimate. A Silver `partial_estimate` row is
+carried as it is so the gate fails it. The gate
+`90_validate_dim_city_poverty.sql` also fails a 2023 map row at city or
+municipality level that is unmatched or ambiguous, or matched to no regular
+member, so no PSA estimate leaves Gold unseen.
+
+Not in v1: a flag for 2023 estimates whose territory changed after 2023 (the
+Special Geographic Area parent towns, Makati and Taguig after EMBO), which D-054
+leaves for Gold. D-046 defers it to #174; until then the value describes the
+2023 territory, as the limitations log says.
+
 ### `fact_school_enrollment`
 
 | Column | Type |
