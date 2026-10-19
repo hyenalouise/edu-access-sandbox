@@ -14,12 +14,20 @@ The second is the HDX ADM3 to PSGC map: `03_map_hdx_adm3_psgc.sql` and
 `config/integration/hdx_adm3_psgc.json` by `python -m src.integration.hdx_adm3_psgc sql|gate`;
 `tests/test_integration_hdx.py` fails if they differ.
 
+The third is the PSA poverty to PSGC map: `02_map_psa_poverty_psgc.sql` and
+`90_validate_psa_poverty_psgc_map.sql` (#92, D-054), written by hand. One row per
+`psa_poverty_stat_clean` row (`psgc_id`, `estimate_year`), matched by `Correspondence Code`
+only, with the estimates copied unchanged. Names are compared, never matched; Manila's 14
+districts keep their own sub-municipality codes. The gate counts the PSGC cities and
+municipalities with no PSA row per estimate year (D-028) and publishes only if no check
+fails. Tests: `tests/test_integration_poverty.py`.
+
 Each map starts from the Silver gates of the sources it reads, not from the
 source-lane fan-in (D-051). The other maps are disabled placeholders:
-`01_map_deped_school_psgc` (enrollment, the EMISD crosswalk, PSGC),
-`02_map_psa_poverty_psgc` (poverty, PSGC), and
+`01_map_deped_school_psgc` (enrollment, the EMISD crosswalk, PSGC) and
 `05_map_psa_school_age_population_psgc` (school-age population, PSGC). The HDX
-map waits for the HDX and PSGC Silver gates.
+map waits for the HDX and PSGC Silver gates, and the poverty map for the poverty
+and PSGC Silver gates.
 
 The remaining candidate mapping names are documented as drafts in the
 [ETL table registry](../../docs/standards/tables.md); they are not reserved until
