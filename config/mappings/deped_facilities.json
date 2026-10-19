@@ -79,7 +79,7 @@
     },
     "school_management": {
       "finding": "O-3",
-      "rule": "Same standard set as deped_enrollment (its SY 2020-21, 2023-24, and 2024-25 labels). Local Government is in that set for SY 2020-21 enrollment; this SY 2023-24 file does not publish it.",
+      "rule": "Same standard set as deped_enrollment (its SY 2020-21 to 2024-25 labels). Local Government is in that set for SY 2020-21 to 2022-23 enrollment; this SY 2023-24 file does not publish it.",
       "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "Local Government", "DOST", "Other GA", "International School", "PSO"],
       "labels": [
         {"published": "DepEd", "standard": "DepEd", "evidence": "47,802 rows."},
