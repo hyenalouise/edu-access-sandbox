@@ -63,7 +63,7 @@ agg AS (
          COALESCE(COUNT_IF(is_active AND total_learners IS NULL), 0) AS incomplete_total_schools,
          SUM(CASE WHEN is_active AND total_learners IS NOT NULL THEN total_learners END) AS public_learners,
          SUM(CASE WHEN is_active AND total_learners IS NULL THEN complete_level_learners END) AS incomplete_school_learners_audit,
-         COALESCE(COUNT_IF(is_active AND barangay_psgc_code LIKE 'UNK-%'), 0) AS schools_without_barangay_match
+         COALESCE(COUNT_IF(is_active AND barangay_psgc_code LIKE '%-UNKNOWN'), 0) AS schools_without_barangay_match
   FROM school
   GROUP BY city_mun_psgc_code, school_year
 ),

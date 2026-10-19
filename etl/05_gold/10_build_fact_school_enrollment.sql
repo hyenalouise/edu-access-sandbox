@@ -9,7 +9,7 @@
 -- apply from SY 2024-25 and the g11 SSHS counts from SY 2025-26 (DepEd's published start years); a column
 -- is never treated as inapplicable because it happens to be blank.
 -- Geography is the school map's (D-049) for that school year: a matched city and barangay keep their PSGC
--- codes; a matched city with no matched barangay uses the city's UNK-<code> barangay; an unmatched or
+-- codes; a matched city with no matched barangay uses the city's <code>-UNKNOWN barangay; an unmatched or
 -- ambiguous city uses UNKNOWN, and an excluded one EXCLUDED (dim_city_municipality, dim_barangay).
 -- psgc_match_status is the city-level map status, kept even where a technical member is used.
 --
@@ -87,7 +87,7 @@ geo AS (
          CASE WHEN c.match_status = 'excluded' THEN 'EXCLUDED'
               WHEN c.match_status IS DISTINCT FROM 'matched' THEN 'UNKNOWN'
               WHEN b.match_status = 'matched' THEN b.psgc_code
-              ELSE 'UNK-' || c.psgc_code END AS barangay_psgc_code
+              ELSE c.psgc_code || '-UNKNOWN' END AS barangay_psgc_code
   FROM edu_access.`03-silver`.deped_enrollment_clean AS e
   LEFT JOIN edu_access.`04-integration`.deped_school_psgc_map AS c
     ON c.school_year = e.school_year AND c.school_id = e.school_id AND c.geographic_level = 'city_mun'

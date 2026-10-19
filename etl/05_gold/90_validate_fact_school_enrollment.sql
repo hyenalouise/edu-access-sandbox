@@ -74,7 +74,7 @@ s AS (
     COALESCE(COUNT_IF(NOT c.is_offered AND c.learner_count <> 0), 0) AS not_offered_nonzero,
     COALESCE(COUNT_IF(c.education_level_code = 'ES' AND c.city_mun_psgc_code = 'UNKNOWN'), 0) AS unknown_city_schools,
     COALESCE(COUNT_IF(c.education_level_code = 'ES' AND c.city_mun_psgc_code = 'EXCLUDED'), 0) AS excluded_city_schools,
-    COALESCE(COUNT_IF(c.education_level_code = 'ES' AND c.barangay_psgc_code LIKE 'UNK-%'), 0) AS unknown_barangay_schools
+    COALESCE(COUNT_IF(c.education_level_code = 'ES' AND c.barangay_psgc_code LIKE '%-UNKNOWN'), 0) AS unknown_barangay_schools
   FROM c
   LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = c.school_id
   LEFT JOIN edu_access.`05-gold`.dim_school_year AS dy ON dy.school_year = c.school_year
