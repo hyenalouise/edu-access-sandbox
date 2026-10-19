@@ -5,6 +5,8 @@
 --    complete all-level total; AP2 and each AP3 level: learner coverage).
 -- 2. Percentile: PERCENT_RANK() within LGU type among the LGUs that pass the measure's gate. AP3 ranks each
 --    level, then re-ranks each LGU's highest passing level percentile among LGUs with a passing level.
+--    The same assessed set also supplies a descriptive same-type baseline: summed learners divided by
+--    summed schools, rooms or teachers. Relative pressure is the LGU ratio divided by that baseline.
 -- 3. High: percentile 0.90 or above. AP3 is not high only when every offered level passes and it is still
 --    not high; otherwise it is not assessed (also when the school year has no personnel data).
 -- 4. Tier: the count of high measures when all three are assessed: Critical (3), Elevated (2), Targeted
@@ -124,8 +126,10 @@ ap12 AS (
   SELECT a1.city_mun_psgc_code, a1.city_mun_name, a1.lgu_type, a1.city_class, a1.income_class,
          a1.province_name, a1.region_name, a1.school_year,
          a1.public_learners AS affected_learners,
-         a1.learners_per_public_school AS ap1_value, a1.ap1_coverage_pct,
-         a2.learners_per_room AS ap2_value, a2.learner_coverage_pct AS ap2_coverage_pct,
+         a1.learners_per_public_school AS ap1_value, a1.public_learners AS ap1_numerator,
+         a1.complete_total_schools AS ap1_denominator, a1.ap1_coverage_pct,
+         a2.learners_per_room AS ap2_value, a2.learners_in_ratio AS ap2_numerator,
+         a2.rooms_in_ratio AS ap2_denominator, a2.learner_coverage_pct AS ap2_coverage_pct,
          CAST(a2.learners_in_ratio - COALESCE(o.learners, 0) AS DOUBLE) / NULLIF(a2.rooms_in_ratio - COALESCE(o.denominator, 0), 0)
            AS ap2_value_without_outliers,
          100.0 * (a2.learners_in_ratio - COALESCE(o.learners, 0)) / NULLIF(a2.public_learners - COALESCE(o.learners, 0), 0)
@@ -137,14 +141,19 @@ ap12 AS (
   WHERE a1.school_year = '2023-24'
 ),
 m12_in AS (
-  SELECT s.scenario, s.gate_pct, x.city_mun_psgc_code, x.ap1_value, x.ap1_coverage_pct,
+  SELECT s.scenario, s.gate_pct, x.city_mun_psgc_code,
+         x.ap1_value, x.ap1_numerator, x.ap1_denominator, x.ap1_coverage_pct,
          CASE WHEN s.by_type THEN x.lgu_type ELSE 'all' END AS part,
          CASE WHEN s.scenario = 'no_outliers' THEN x.ap2_value_without_outliers ELSE x.ap2_value END AS ap2_value,
+         CASE WHEN s.scenario = 'no_outliers' THEN x.ap2_numerator - COALESCE(o.learners, 0) ELSE x.ap2_numerator END AS ap2_numerator,
+         CASE WHEN s.scenario = 'no_outliers' THEN x.ap2_denominator - COALESCE(o.denominator, 0) ELSE x.ap2_denominator END AS ap2_denominator,
          CASE WHEN s.scenario = 'no_outliers' THEN x.ap2_coverage_pct_without_outliers ELSE x.ap2_coverage_pct END AS ap2_coverage_pct
   FROM ap12 AS x CROSS JOIN scenarios AS s
+  LEFT JOIN outliers AS o ON o.city_mun_psgc_code = x.city_mun_psgc_code AND o.measure = 'AP2'
 ),
 m12 AS (
-  SELECT scenario, city_mun_psgc_code, ap1_value, ap2_value, part,
+  SELECT scenario, city_mun_psgc_code, ap1_value, ap1_numerator, ap1_denominator,
+         ap2_value, ap2_numerator, ap2_denominator, part,
          COALESCE(ap1_value IS NOT NULL AND ap1_coverage_pct >= gate_pct, FALSE) AS ap1_ok,
          COALESCE(ap2_value IS NOT NULL AND ap2_coverage_pct >= gate_pct, FALSE) AS ap2_ok
   FROM m12_in
@@ -152,7 +161,11 @@ m12 AS (
 r12 AS (
   SELECT m12.*,
          CASE WHEN ap1_ok THEN PERCENT_RANK() OVER (PARTITION BY scenario, part, ap1_ok ORDER BY ap1_value) END AS ap1_pct,
-         CASE WHEN ap2_ok THEN PERCENT_RANK() OVER (PARTITION BY scenario, part, ap2_ok ORDER BY ap2_value) END AS ap2_pct
+         CASE WHEN ap2_ok THEN PERCENT_RANK() OVER (PARTITION BY scenario, part, ap2_ok ORDER BY ap2_value) END AS ap2_pct,
+         CASE WHEN ap1_ok THEN CAST(SUM(CASE WHEN ap1_ok THEN ap1_numerator END) OVER (PARTITION BY scenario, part) AS DOUBLE)
+              / NULLIF(SUM(CASE WHEN ap1_ok THEN ap1_denominator END) OVER (PARTITION BY scenario, part), 0) END AS ap1_same_type_baseline,
+         CASE WHEN ap2_ok THEN CAST(SUM(CASE WHEN ap2_ok THEN ap2_numerator END) OVER (PARTITION BY scenario, part) AS DOUBLE)
+              / NULLIF(SUM(CASE WHEN ap2_ok THEN ap2_denominator END) OVER (PARTITION BY scenario, part), 0) END AS ap2_same_type_baseline
   FROM m12
 ),
 lvl_in AS (
@@ -162,6 +175,10 @@ lvl_in AS (
          CASE WHEN s.scenario = 'no_outliers'
               THEN CAST(t.learners_in_ratio - COALESCE(o.learners, 0) AS DOUBLE) / NULLIF(t.teachers_in_ratio - COALESCE(o.denominator, 0), 0)
               ELSE t.learners_per_teacher END AS learners_per_teacher,
+         CASE WHEN s.scenario = 'no_outliers' THEN t.learners_in_ratio - COALESCE(o.learners, 0)
+              ELSE t.learners_in_ratio END AS learners_in_ratio,
+         CASE WHEN s.scenario = 'no_outliers' THEN t.teachers_in_ratio - COALESCE(o.denominator, 0)
+              ELSE t.teachers_in_ratio END AS teachers_in_ratio,
          CASE WHEN s.scenario = 'no_outliers'
               THEN 100.0 * (t.learners_in_ratio - COALESCE(o.learners, 0)) / NULLIF(t.level_learners - COALESCE(o.learners, 0), 0)
               ELSE t.learner_coverage_pct END AS learner_coverage_pct
@@ -172,7 +189,8 @@ lvl_in AS (
   WHERE t.school_year = '2023-24'
 ),
 lvl AS (
-  SELECT scenario, city_mun_psgc_code, education_level_code, learners_per_teacher, part,
+  SELECT scenario, city_mun_psgc_code, education_level_code, learners_per_teacher,
+         learners_in_ratio, teachers_in_ratio, part,
          schools_in_scope > 0 AS offered,
          COALESCE(schools_in_scope > 0 AND learners_per_teacher IS NOT NULL AND learner_coverage_pct >= gate_pct, FALSE) AS level_ok
   FROM lvl_in
@@ -180,7 +198,11 @@ lvl AS (
 rl AS (
   SELECT lvl.*,
          CASE WHEN level_ok THEN PERCENT_RANK() OVER (PARTITION BY scenario, part, education_level_code, level_ok
-                                                      ORDER BY learners_per_teacher) END AS level_pct
+                                                      ORDER BY learners_per_teacher) END AS level_pct,
+         CASE WHEN level_ok THEN CAST(SUM(CASE WHEN level_ok THEN learners_in_ratio END)
+                                              OVER (PARTITION BY scenario, part, education_level_code) AS DOUBLE)
+              / NULLIF(SUM(CASE WHEN level_ok THEN teachers_in_ratio END)
+                           OVER (PARTITION BY scenario, part, education_level_code), 0) END AS level_same_type_baseline
   FROM lvl
 ),
 a3 AS (
@@ -188,7 +210,9 @@ a3 AS (
          COALESCE(COUNT_IF(offered), 0) AS levels_offered,
          COALESCE(COUNT_IF(level_ok), 0) AS levels_assessed,
          MAX(level_pct) AS top_level_pct,
-         MAX_BY(CASE WHEN level_ok THEN education_level_code END, COALESCE(level_pct, -1.0)) AS top_level
+         MAX_BY(CASE WHEN level_ok THEN education_level_code END, COALESCE(level_pct, -1.0)) AS top_level,
+         MAX_BY(CASE WHEN level_ok THEN learners_per_teacher END, COALESCE(level_pct, -1.0)) AS top_level_value,
+         MAX_BY(CASE WHEN level_ok THEN level_same_type_baseline END, COALESCE(level_pct, -1.0)) AS top_level_same_type_baseline
   FROM rl
   GROUP BY scenario, city_mun_psgc_code
 ),
@@ -199,7 +223,11 @@ r3 AS (
   FROM a3
 ),
 tiers AS (
-  SELECT r.scenario, l.line, r.city_mun_psgc_code, r.ap1_pct, r.ap2_pct, t.ap3_pct, t.top_level,
+  SELECT r.scenario, l.line, r.city_mun_psgc_code,
+         r.ap1_pct, r.ap1_same_type_baseline, r.ap1_value / NULLIF(r.ap1_same_type_baseline, 0) AS ap1_relative_pressure,
+         r.ap2_pct, r.ap2_same_type_baseline, r.ap2_value / NULLIF(r.ap2_same_type_baseline, 0) AS ap2_relative_pressure,
+         t.ap3_pct, t.top_level, t.top_level_same_type_baseline,
+         t.top_level_value / NULLIF(t.top_level_same_type_baseline, 0) AS ap3_relative_pressure,
          CASE WHEN NOT r.ap1_ok THEN 'not_assessed' WHEN r.ap1_pct >= l.line THEN 'high' ELSE 'not_high' END AS ap1_status,
          CASE WHEN NOT r.ap2_ok THEN 'not_assessed' WHEN r.ap2_pct >= l.line THEN 'high' ELSE 'not_high' END AS ap2_status,
          CASE WHEN t.levels_assessed > 0 AND t.ap3_pct >= l.line THEN 'high'
@@ -231,11 +259,14 @@ levels AS (
 main AS (
   SELECT x.city_mun_psgc_code, x.city_mun_name, x.lgu_type, x.city_class, x.income_class,
          x.province_name, x.region_name, x.school_year,
-         x.ap1_value AS ap1_learners_per_public_school, x.ap1_coverage_pct, m.ap1_pct AS ap1_percentile, m.ap1_status,
-         x.ap2_value AS ap2_learners_per_room, x.ap2_coverage_pct, m.ap2_pct AS ap2_percentile, m.ap2_status,
+         x.ap1_value AS ap1_learners_per_public_school, m.ap1_same_type_baseline, m.ap1_relative_pressure,
+         x.ap1_coverage_pct, m.ap1_pct AS ap1_percentile, m.ap1_status,
+         x.ap2_value AS ap2_learners_per_room, m.ap2_same_type_baseline, m.ap2_relative_pressure,
+         x.ap2_coverage_pct, m.ap2_pct AS ap2_percentile, m.ap2_status,
          lv.ap3_es_learners_per_teacher, lv.ap3_jhs_learners_per_teacher, lv.ap3_shs_learners_per_teacher,
          lv.ap3_es_coverage_pct, lv.ap3_jhs_coverage_pct, lv.ap3_shs_coverage_pct,
-         m.top_level AS ap3_highest_level, m.ap3_pct AS ap3_percentile, m.ap3_status,
+         m.top_level AS ap3_highest_level, m.top_level_same_type_baseline AS ap3_same_type_baseline,
+         m.ap3_relative_pressure, m.ap3_pct AS ap3_percentile, m.ap3_status,
          (CASE WHEN m.ap1_status = 'high' THEN 1 ELSE 0 END) + (CASE WHEN m.ap2_status = 'high' THEN 1 ELSE 0 END)
            + (CASE WHEN m.ap3_status = 'high' THEN 1 ELSE 0 END) AS high_measure_count,
          concat_ws(', ', CASE WHEN m.ap1_status = 'high' THEN 'AP1 learners per school' END,

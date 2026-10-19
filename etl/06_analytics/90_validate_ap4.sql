@@ -29,6 +29,10 @@ s AS (
     COUNT(DISTINCT city_mun_psgc_code || '/' || CAST(reference_year AS STRING)) AS keys_built,
     COALESCE(COUNT_IF(population_enrollment_gap IS DISTINCT FROM school_age_population - enrollment_all_sectors), 0) AS bad_gap,
     COALESCE(COUNT_IF(public_enrollment > enrollment_all_sectors), 0) AS public_above_total,
+    COALESCE(COUNT_IF(complete_total_schools + incomplete_total_schools <> schools_in_scope), 0) AS bad_school_split,
+    COALESCE(COUNT_IF(enrollment_school_coverage_pct < 0 OR enrollment_school_coverage_pct > 100
+                      OR (schools_in_scope > 0 AND enrollment_school_coverage_pct IS NULL)
+                      OR (schools_in_scope = 0 AND enrollment_school_coverage_pct IS NOT NULL)), 0) AS bad_coverage,
     COALESCE(COUNT_IF(school_age_population IS NULL), 0) AS no_population,
     COALESCE(COUNT_IF(population_enrollment_gap < 0), 0) AS negative_gap,
     COALESCE(COUNT_IF(reference_year = 2024 AND NOT is_2020_2024_geography_comparable), 0) AS not_comparable
@@ -39,6 +43,8 @@ SELECT 'two_rows_per_lgu' AS check_name,
        CAST(expected_rows AS STRING) AS expected, CAST(rows_built AS STRING) AS actual FROM s
 UNION ALL SELECT 'gap_is_population_minus_enrollment', CASE WHEN bad_gap = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_gap AS STRING) FROM s
 UNION ALL SELECT 'public_within_all_sectors', CASE WHEN public_above_total = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(public_above_total AS STRING) FROM s
+UNION ALL SELECT 'enrollment_school_counts_reconcile', CASE WHEN bad_school_split = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_school_split AS STRING) FROM s
+UNION ALL SELECT 'enrollment_school_coverage_valid', CASE WHEN bad_coverage = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_coverage AS STRING) FROM s
 UNION ALL SELECT 'population_reconciles_' || CAST(t.reference_year AS STRING),
                  CASE WHEN t.population = f.population THEN 'PASS' ELSE 'FAIL' END,
                  CAST(f.population AS STRING), CAST(t.population AS STRING)

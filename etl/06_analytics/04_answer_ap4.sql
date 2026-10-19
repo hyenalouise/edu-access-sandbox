@@ -8,6 +8,8 @@
 --                           left out and counted
 --   population_enrollment_gap = population - enrollment; negative is kept (a school hub)
 --   gap_share = gap / population; public_school_share = public enrollment / all-sector enrollment
+--   enrollment_school_coverage_pct = schools with complete all-level enrollment / schools in scope
+-- AP4 is context only. Its gap and coverage never enter the LGU priority tier.
 --   gap_change_2020_2024 on the 2024 row, flagged where the city's geography is not comparable
 -- Population is where people live and enrollment is where the school is: the gap is not an out-of-school
 -- count or an enrollment rate.
@@ -57,6 +59,8 @@ enrolled AS (
   SELECT city_mun_psgc_code, school_year,
          SUM(total_learners) AS enrollment_all_sectors,
          SUM(CASE WHEN sector = 'Public' THEN total_learners END) AS public_enrollment,
+         COUNT(*) AS schools_in_scope,
+         COALESCE(COUNT_IF(total_learners IS NOT NULL), 0) AS complete_total_schools,
          COALESCE(COUNT_IF(total_learners IS NULL), 0) AS incomplete_total_schools
   FROM school
   GROUP BY city_mun_psgc_code, school_year
@@ -75,6 +79,8 @@ base AS (
          pop.school_age_population,
          COALESCE(e.enrollment_all_sectors, 0) AS enrollment_all_sectors,
          COALESCE(e.public_enrollment, 0) AS public_enrollment,
+         COALESCE(e.schools_in_scope, 0) AS schools_in_scope,
+         COALESCE(e.complete_total_schools, 0) AS complete_total_schools,
          COALESCE(e.incomplete_total_schools, 0) AS incomplete_total_schools,
          COALESCE(pop.is_comparable, FALSE) AS is_2020_2024_geography_comparable
   FROM edu_access.`05-gold`.dim_city_municipality AS d
@@ -88,6 +94,7 @@ gaps AS (
          school_age_population - enrollment_all_sectors AS population_enrollment_gap,
          CAST(school_age_population - enrollment_all_sectors AS DOUBLE) / NULLIF(school_age_population, 0) AS gap_share,
          CAST(public_enrollment AS DOUBLE) / NULLIF(enrollment_all_sectors, 0) AS public_school_share,
+         100.0 * complete_total_schools / NULLIF(schools_in_scope, 0) AS enrollment_school_coverage_pct,
          CASE WHEN school_age_population IS NULL THEN 'no PSA school-age population for this census' END AS gap_null_reason
   FROM base
 )
