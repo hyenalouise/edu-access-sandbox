@@ -198,6 +198,10 @@ gold_tables:
     build_file: 05_build_dim_barangay.sql
     validate_file: 90_validate_dim_barangay.sql
     grain: One PSGC barangay of the master quarter, one unknown barangay per city or municipality, plus the UNKNOWN and EXCLUDED technical members.
+  - table: dim_city_poverty
+    build_file: 06_build_dim_city_poverty.sql
+    validate_file: 90_validate_dim_city_poverty.sql
+    grain: One row per regular city or municipality of dim_city_municipality; PSA 2023 poverty estimate and its status (D-046).
   - table: fact_school_classroom_capacity
     build_file: 11_build_fact_school_classroom_capacity.sql
     validate_file: 90_validate_fact_school_classroom_capacity.sql

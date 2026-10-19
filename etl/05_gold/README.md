@@ -14,6 +14,7 @@ Implemented dimensions whose reviewed inputs are available:
 - `dim_education_level`
 - `dim_city_municipality`
 - `dim_barangay`
+- `dim_city_poverty`
 
 Implemented facts whose reviewed inputs are available:
 
@@ -26,7 +27,6 @@ The following Gold tables are not implemented yet
 and remain assigned to follow-on work. Their disabled placeholders stay in the
 job, and no empty substitute is published:
 
-- `dim_city_poverty`
 - `fact_school_enrollment`
 - `fact_city_population`
 
