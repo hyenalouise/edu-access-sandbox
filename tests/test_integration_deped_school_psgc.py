@@ -37,6 +37,7 @@ PSGC = [
     ("0102802000", "Bacarra", None, "Mun", "0100000000", "0102800000", None),
     ("0102803000", "City of Batac", None, "City", "0100000000", "0102800000", None),
     ("0102804000", "City of Isabela", None, "City", "0100000000", "0102800000", None),  # made-up namesake: only the province scope tells them apart
+    ("0102805000", "City of Taguig", None, "City", "0100000000", "0102800000", None),  # made-up namesake: only the NCR region scope tells them apart
     ("0102801001", "Poblacion", None, "Bgy", "0100000000", "0102800000", "0102801000"),
     ("0102802001", "Poblacion", None, "Bgy", "0100000000", "0102800000", "0102802000"),
     ("0102802002", "San Roque", None, "Bgy", "0100000000", "0102800000", "0102802000"),
@@ -69,10 +70,10 @@ PSGC = [
     ("1381500001", "Central Signal Village", "Signal Village", "Bgy", "1300000000", None, "1381500000"),
     ("1381500002", "South Signal Village", None, "Bgy", "1300000000", None, "1381500000"),
     ("1500000000", "BARMM", None, "Reg", "1500000000", None, None),
-    ("1538700000", "Maguindanao del Norte", None, "Prov", "1500000000", "1538700000", None),
-    ("1538800000", "Maguindanao del Sur", None, "Prov", "1500000000", "1538800000", None),
-    ("1538701000", "Datu Odin Sinsuat", None, "Mun", "1500000000", "1538700000", None),
-    ("1538701001", "Awang", None, "Bgy", "1500000000", "1538700000", "1538701000"),
+    ("1908700000", "Maguindanao del Norte", None, "Prov", "1500000000", "1908700000", None),
+    ("1908800000", "Maguindanao del Sur", None, "Prov", "1500000000", "1908800000", None),
+    ("1908701000", "Datu Odin Sinsuat", None, "Mun", "1500000000", "1908700000", None),
+    ("1908701001", "Awang", None, "Bgy", "1500000000", "1908700000", "1908701000"),
     ("1999901000", "Pahamuddin", None, "Mun", "1900000000", None, None),
     ("1999904000", "Nabalawag", None, "Mun", "1900000000", None, None),
     ("1999901001", "Buliok", None, "Bgy", "1900000000", None, "1999901000"),
@@ -303,8 +304,8 @@ def test_two_barangays_with_the_best_name_stay_unmatched_with_the_reason(got):
 
 
 def test_maguindanao_matches_inside_both_new_provinces(got):
-    assert city(got, "100025")[:3] == ("1538701000", "matched", "name_exact")
-    assert bgy(got, "100025")[:3] == ("1538701001", "matched", "name_exact")
+    assert city(got, "100025")[:3] == ("1908701000", "matched", "name_exact")
+    assert bgy(got, "100025")[:3] == ("1908701001", "matched", "name_exact")
 
 
 def test_override_method_follows_the_code_rule_and_a_missing_unit_stays_pending(got):
@@ -318,6 +319,11 @@ def test_a_blank_level_unit_at_the_province_position_is_a_province(got):
     # reading it as the province keeps the made-up namesake in Ilocos Norte out.
     assert city(got, "100026")[:4] == ("0990101000", "matched", "name_exact", "name only")
     assert bgy(got, "100026")[:3] == ("0990101002", "matched", "name_exact")
+
+
+def test_an_ncr_district_province_is_searched_in_the_ncr_region(got):
+    # The made-up Taguig namesake in Ilocos Norte is outside the rules file's NCR region scope.
+    assert city(got, "100024")[:4] == ("1381500000", "matched", "name_exact", "name only")
 
 
 def test_overseas_schools_are_kept_and_excluded(got):
@@ -422,6 +428,8 @@ def test_an_override_for_a_place_with_no_school_warns(tmp_path):
     (lambda r: r.pop("special_geographic_area"), "special_geographic_area"),
     (lambda r: r["gate"].update(min_match_rate_pct=101), "min_match_rate_pct"),
     (lambda r: r.update(psgc_version="2Q 2026"), "psgc_version"),
+    (lambda r: r["province_splits"][0].update(psgc_codes=["1908700000"]), "province split"),
+    (lambda r: r["region_scopes"][0].pop("evidence"), "region scope"),
     (lambda r: r["gate"]["profiled_counts"].update({"2023-24": {"bgy": {}}}), "profiled_counts"),
 ])
 def test_config_refuses_incomplete_rules(change, message):

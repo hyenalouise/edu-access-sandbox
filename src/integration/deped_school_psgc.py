@@ -80,6 +80,8 @@ class MapSpec:
     overrides: list[Override]
     sga_prefix: str
     sga_places: list[tuple[str, str]]
+    province_splits: list[tuple[str, list[str]]]
+    region_scopes: list[tuple[str, str]]
     psgc_version: str
     min_match_rate_pct: float
     profiled: list[tuple[str, str, int, int, int, int]]
@@ -128,6 +130,21 @@ def build_spec(rules):
     sga_prefix, sga_places = sga.get("psgc_prefix", ""), [tuple(p) for p in sga.get("source_places", [])]
     if not re.fullmatch(r"[0-9]{5}", sga_prefix) or not sga_places or any(len(p) != 2 or not all(p) for p in sga_places):
         raise _error("special_geographic_area needs a five-digit psgc_prefix and [region, province] source_places (D-031).")
+    splits, scopes = [], []
+    for item in rules.get("province_splits", []):
+        codes = item.get("psgc_codes") or []
+        if not item.get("deped_province") or len(codes) < 2 or any(not isinstance(c, str) or not CODE.match(c) for c in codes):
+            raise _error(f"province split {item.get('deped_province')!r} needs a DepEd province and two or more ten-digit PSGC codes.")
+        if not item.get("reason") or not item.get("evidence"):
+            raise _error(f"province split {item['deped_province']!r} needs reason and evidence.")
+        splits.append((item["deped_province"].upper(), codes))
+    for item in rules.get("region_scopes", []):
+        region = item.get("psgc_region_code")
+        if not item.get("deped_province_contains") or not isinstance(region, str) or not re.fullmatch(r"[0-9]{2}00000000", region):
+            raise _error(f"region scope {item.get('deped_province_contains')!r} needs deped_province_contains and a ten-digit region code.")
+        if not item.get("reason") or not item.get("evidence"):
+            raise _error(f"region scope {item['deped_province_contains']!r} needs reason and evidence.")
+        scopes.append((item["deped_province_contains"].upper(), region))
     gate = rules.get("gate", {})
     psgc_version = rules.get("psgc_version")
     if not isinstance(psgc_version, str) or not re.fullmatch(r"[0-9]{4}-Q[1-4]", psgc_version):
@@ -145,6 +162,7 @@ def build_spec(rules):
                 raise _error(f"gate.profiled_counts[{year!r}][{level!r}] needs matched, ambiguous, unmatched and excluded counts.")
             profiled.append((year, level, *counts))
     literals = [a.deped_name for a in aliases] + [a.reason for a in aliases] + [v for p in sga_places for v in p]
+    literals += [p for p, _ in splits] + [c for c, _ in scopes]
     literals += [v for o in overrides for v in (o.level, o.province, o.municipality, o.barangay, o.use, o.reason, o.reviewer)]
     if any(not SAFE.match(v) or "--" in v for v in literals):
         raise _error("aliases and overrides may not contain backslashes, semicolons, or SQL comments.")
@@ -152,7 +170,7 @@ def build_spec(rules):
     if not rules.get("map_table") or any(not inputs.get(k) for k in required):
         raise _error("map_table and all three inputs are required.")
     return MapSpec(rules["map_table"], inputs["enrollment"], inputs["crosswalk"], inputs["psgc"], aliases, overrides,
-                   sga_prefix, sga_places, psgc_version, float(rate), profiled, rules)
+                   sga_prefix, sga_places, splits, scopes, psgc_version, float(rate), profiled, rules)
 
 
 def ref(schema, table):
@@ -211,6 +229,23 @@ def _tier(src="s", unit="u", old=False, truncated=False):
 def _method(tier):
     return (f"CASE WHEN {tier} IN (1, 8, 9) THEN 'name_exact' WHEN {tier} IN (2, 4) THEN 'name_old' "
             f"WHEN {tier} IN (3, 5, 6, 7) THEN 'name_normalized' WHEN {tier} = 10 THEN 'reviewed_alias' END")
+
+
+def _in_scope(spec, province, region):
+    """A DepEd province that names a region (rules file region_scopes) is searched inside that PSGC region."""
+    parts = [f"(instr(upper({province}), {lit(c)}) > 0 AND {region} = {lit(r)})" for c, r in spec.region_scopes]
+    return "(" + " OR ".join(parts) + ")" if parts else "FALSE"
+
+
+def _split_pairs(spec):
+    """A DepEd province PSGC has since split (rules file province_splits) is matched to every part."""
+    return "".join(
+        f"""
+  UNION ALL
+  SELECT s.province, s.municipality, u.psgc_code, 1
+  FROM city3 AS s JOIN units AS u ON upper(s.province) = {lit(p)}
+    AND u.geographic_level = 'Prov' AND u.psgc_code IN ({", ".join(lit(c) for c in codes)})"""
+        for p, codes in spec.province_splits)
 
 
 def _values(rows, columns):
@@ -293,18 +328,14 @@ city0 AS (SELECT x.*, {_base('x.province')} AS prov_exact, {_base('x.municipalit
 city1 AS (SELECT x.*, {_fold('x.prov_exact')} AS prov_fold, {_fold('x.k_exact')} AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, {_brackets('x.k_fold')} AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, {_no_city('x.k_brackets')} AS k_city FROM city2 AS x),
-aliases AS ({aliases}),
+aliases AS (SELECT v.*, u.region_code FROM ({aliases}) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
 overrides AS ({overrides}),
 province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code,
     CASE WHEN s.prov_exact = u.k_exact THEN 1 WHEN s.prov_exact = u.ok_exact THEN 2
          WHEN s.prov_fold = u.k_fold THEN 3 WHEN s.prov_fold = u.ok_fold THEN 4 END AS tier
   FROM city3 AS s JOIN units AS u ON (u.geographic_level = 'Prov' OR (u.level_blank AND u.psgc_code = u.province_code))
-    AND (s.prov_exact = u.k_exact OR s.prov_exact = u.ok_exact OR s.prov_fold = u.k_fold OR s.prov_fold = u.ok_fold)
-  UNION ALL
-  SELECT s.province, s.municipality, u.psgc_code, 1
-  FROM city3 AS s JOIN units AS u ON upper(s.province) = 'MAGUINDANAO'
-    AND u.geographic_level = 'Prov' AND u.name IN ('Maguindanao del Norte', 'Maguindanao del Sur')
+    AND (s.prov_exact = u.k_exact OR s.prov_exact = u.ok_exact OR s.prov_fold = u.k_fold OR s.prov_fold = u.ok_fold){_split_pairs(spec)}
 ),
 province_best AS (
   SELECT province, municipality, MIN(tier) AS tier
@@ -321,7 +352,7 @@ province_scope AS (
 ),
 city_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code, u.geographic_level,
-         CASE WHEN regexp_like(upper(s.province), 'NCR') AND u.psgc_code LIKE '13%' THEN 1
+         CASE WHEN {_in_scope(spec, 's.province', 'u.region_code')} THEN 1
               WHEN ps.province_prefix IS NOT NULL THEN 1
               WHEN u.geographic_level = 'City' AND (ph.hits IS NULL OR substr(u.psgc_code, 6) = '00000') THEN 2 ELSE 9 END AS scope_rank,
          LEAST(COALESCE({_tier('s', 'u')}, 99), COALESCE({_tier('s', 'u', old=True)}, 99)) AS tier
@@ -357,7 +388,7 @@ city_named AS (
   FROM city3 AS s
   LEFT JOIN province_hits AS ph USING (province, municipality)
   LEFT JOIN aliases AS a ON a.deped_name = s.k_exact AND
-    (regexp_like(upper(s.province), 'NCR') AND a.psgc_code LIKE '13%'
+    ({_in_scope(spec, 's.province', 'a.region_code')}
      OR ph.hits = 1 AND substr(a.psgc_code, 1, 5) = substr(ph.psgc_code, 1, 5)
      OR substr(a.psgc_code, 6) = '00000')
   LEFT JOIN units AS au ON au.psgc_code = a.psgc_code
