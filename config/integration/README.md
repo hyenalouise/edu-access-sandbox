@@ -5,3 +5,4 @@ One reviewed file per mapping table: the order of its rules, what it matches aga
 | File | Map table |
 |---|---|
 | `hdx_adm3_psgc.json` | `hdx_adm3_psgc_map` (#93, D-052) |
+| `psa_school_age_population_psgc.json` | `psa_school_age_population_psgc_map` (#159, D-055): also the PSGC regions each census region covers today, and the reviewed province aliases; overrides apply to one census year |

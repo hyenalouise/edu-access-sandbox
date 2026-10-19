@@ -21,6 +21,7 @@ python -m pytest tests -q
 | `test_fan_in.py` | The source-lane fan-in: the committed `90_validate_control.sql` equals what `src/job/fan_in.py` generates, it checks exactly the Silver lanes switched on, and the generator refuses a fan-in that misses or adds a lane |
 | `test_integration_hdx.py` | HDX ADM3 → PSGC crosswalk: every rule of #74, overrides, the gate, and the generated files |
 | `test_integration_poverty.py` | PSA poverty → PSGC map: the `Correspondence Code` rule, names compared but not matched, Manila's districts, estimates unchanged, coverage counts, a tampered candidate failing the gate and keeping the published map, and the job tasks |
+| `test_integration_school_age.py` | PSA school-age population → PSGC map: parents, name tiers, overrides per census year, the gate (population adds up), and the generated files |
 | `test_silver_hdx.py` | HDX ADM3 Silver: exact typing, geometry checks (DuckDB spatial), quarantine, flags, the gate, and the generated files |
 | `test_deped_school_psgc_rule.py` | The proposed #91 DepEd school-to-PSGC rule on made-up units: code versus name, the barangay check on a disagreement, `rollup`, `code_region_moved`, Special Geographic Area schools, the inside-the-city check (overrides included), the Signal Village override, unknown name tiers, and every method listed in D-029 |
 | `test_bundle.py`, `test_databricks_runtime.py` | The job's commit tracking and task order, and the Databricks runtime differences imitated locally |
