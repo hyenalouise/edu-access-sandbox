@@ -429,7 +429,7 @@ def gate_checks(spec):
     """[(check_name, status)] in the order the gate writes them."""
     fails = ["inputs_present", "rows_reconcile", "one_row_per_feature", "psgc_code_taken_once", "matched_has_psgc_unit",
              "unmatched_has_no_psgc", "status_valid", "method_valid", "review_status_valid", "status_combination_valid",
-             "code_is_the_pcode",
+             "psgc_name_matches_unit", "name_match_inside_province", "code_is_the_pcode",
              "correspondence_is_the_old_code", "region_moved_is_sulu", "overrides_applied", "one_psgc_version",
              "lineage_complete", "rows_built_by_this_run"]
     warns = ["review_pending", "unmatched", "ambiguous", "override_feature_missing", "psgc_units_without_feature"]
@@ -480,6 +480,10 @@ def gate_sql(spec):
          "(m.match_status = 'ambiguous' AND m.review_status = 'pending' AND m.match_method IS NULL AND m.psgc_code IS NULL) OR "
          "(m.match_status = 'unmatched' AND m.review_status IN ('pending', 'reviewed') AND m.match_method IS NULL "
          "AND m.psgc_code IS NULL), FALSE)) AS bad_combination"),
+        ("COUNT_IF(m.match_status = 'matched' AND (m.psgc_name IS NULL OR u.name IS NULL OR "
+         "m.psgc_name <> u.name)) AS psgc_name_mismatch"),
+        ("COUNT_IF(COALESCE(m.match_method IN ('name_exact', 'name_old', 'name_normalized') AND "
+         "(pr.prov5 IS NULL OR substr(m.psgc_code, 1, 5) <> pr.prov5), FALSE)) AS name_province_mismatch"),
         "COUNT_IF(m.match_method = 'code' AND m.review_status = 'rule' AND m.psgc_code <> m.code_candidate) AS code_mismatch",
         ("COUNT_IF(m.match_method = 'correspondence_code' AND m.review_status = 'rule' AND (u.correspondence_code IS NULL OR "
          "u.correspondence_code <> substr(m.code_candidate, 1, 2) || substr(m.code_candidate, 4, 2) || "
@@ -507,6 +511,8 @@ def gate_sql(spec):
         zero("method_valid", "bad_method"),
         zero("review_status_valid", "bad_review"),
         zero("status_combination_valid", "bad_combination"),
+        zero("psgc_name_matches_unit", "psgc_name_mismatch"),
+        zero("name_match_inside_province", "name_province_mismatch"),
         zero("code_is_the_pcode", "code_mismatch"),
         zero("correspondence_is_the_old_code", "correspondence_mismatch"),
         zero("region_moved_is_sulu", "region_mismatch"),
@@ -543,8 +549,18 @@ def gate_sql(spec):
         f"SELECT :run_id, CAST(NULL AS STRING), 'hdx_boundaries', {lit(LAYER)}, {lit(table)}, check_name, status, expected, actual,",
         "       current_timestamp(), :code_revision",
         "FROM (",
-        f"WITH hdx AS (SELECT adm3_pcode, valid_on FROM {hdx}),",
-        f"units AS (SELECT psgc_code, correspondence_code FROM {psgc} WHERE is_master_reference AND geographic_level IN ({levels})),",
+        (f"WITH hdx AS (SELECT adm3_pcode, adm2_pcode, valid_on, rpad(substr(adm2_pcode, 3), 10, '0') AS prov10 "
+         f"FROM {hdx}),"),
+        f"psgc AS (SELECT * FROM {psgc} WHERE is_master_reference),",
+        f"units AS (SELECT psgc_code, name, correspondence_code FROM psgc WHERE geographic_level IN ({levels})),",
+        "province AS (",
+        "  SELECT h.adm3_pcode, h.valid_on, substr(COALESCE(MIN(p1.psgc_code), MIN(p2.psgc_code)), 1, 5) AS prov5",
+        "  FROM hdx AS h",
+        "  LEFT JOIN psgc AS p1 ON p1.psgc_code = h.prov10",
+        ("  LEFT JOIN psgc AS p2 ON substr(h.prov10, 3, 1) = '0' AND p2.correspondence_code = "
+         "substr(h.prov10, 1, 2) || substr(h.prov10, 4, 2) || substr(h.prov10, 6, 2) || substr(h.prov10, 8, 3)"),
+        "  GROUP BY h.adm3_pcode, h.valid_on",
+        "),",
         f"overrides AS ({overrides}),",
         "totals AS (",
         "  SELECT (SELECT COUNT(*) FROM hdx) AS hdx_rows, (SELECT COUNT(*) FROM units) AS psgc_units,",
@@ -553,7 +569,7 @@ def gate_sql(spec):
         ("         (SELECT COUNT(*) FROM overrides AS o LEFT JOIN hdx AS h ON h.adm3_pcode = o.adm3_pcode "
          "AND h.valid_on = o.source_reference_date"),
         "          WHERE h.adm3_pcode IS NULL) AS overrides_missing,",
-        f"         (SELECT COUNT(DISTINCT publication_period) FROM {psgc} WHERE is_master_reference) AS master_periods,",
+        "         (SELECT COUNT(DISTINCT publication_period) FROM psgc) AS master_periods,",
         "         -- Per HDX release: each (release, PSGC unit) pair with no matched feature in that release.",
         "         (SELECT COUNT(*) FROM (SELECT DISTINCT valid_on FROM hdx) AS r CROSS JOIN units AS u",
         f"          LEFT JOIN (SELECT DISTINCT source_reference_date, psgc_code FROM {candidate} WHERE match_status = 'matched') AS mm",
@@ -565,6 +581,7 @@ def gate_sql(spec):
         joined(stats, 4),
         f"  FROM {candidate} AS m",
         "  LEFT JOIN units AS u ON u.psgc_code = m.psgc_code",
+        "  LEFT JOIN province AS pr ON pr.adm3_pcode = m.adm3_pcode AND pr.valid_on = m.source_reference_date",
         "),",
         "stats AS (SELECT * FROM agg CROSS JOIN totals),",
         "checks AS (",

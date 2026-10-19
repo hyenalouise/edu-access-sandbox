@@ -330,6 +330,26 @@ def test_a_status_combination_d052_forbids_fails_the_gate_and_the_published_map_
     assert env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY adm3_pcode") == before
 
 
+@pytest.mark.parametrize("change, failed", [
+    ("psgc_name = 'Wrong name'", "psgc_name_matches_unit"),
+    ("psgc_code = '1908712000', psgc_name = 'Parang'", "name_match_inside_province"),
+])
+def test_a_tampered_name_match_fails_the_gate_and_the_published_map_is_kept(tmp_path, change, failed):
+    """Issue #180: the gate re-checks both the PSGC name and the province scope of name-rule matches."""
+    env = Env(tmp_path)
+    assert env.run()[1] is None
+    before = env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY adm3_pcode")
+    run_id = str(uuid.uuid4())
+    params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
+    env.store.run_file(env.build, params)
+    env.store.sql(f"UPDATE {CANDIDATE} SET {change} WHERE adm3_pcode = 'PH0102899'")
+    with pytest.raises(Exception, match="Integration gate failed"):
+        env.store.run_file(env.gate, params)
+    assert env.checks(run_id)[failed]["status"] == "FAIL"
+    assert env.run_status(run_id) == "failed"
+    assert env.rows(f"SELECT * EXCLUDE (run_id, built_at_utc) FROM {MAP} ORDER BY adm3_pcode") == before
+
+
 def test_two_master_psgc_periods_fail_the_gate(tmp_path):
     """Review on #139: one_psgc_version counts the master periods in the PSGC input, not the map's own column."""
     env = Env(tmp_path)
