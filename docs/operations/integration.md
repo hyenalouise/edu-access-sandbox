@@ -27,6 +27,9 @@ in a Special Geographic Area municipality (`19999`), because SY 2020-21 files
 them under Region XII and SY 2024-25 adds `(SGA - North Cotabato)`. An override
 that finds no unit, like every row that is not matched, stays `pending`. Only
 barangay overrides are applied; the generator refuses a `city_mun` override.
+An EMISD code with no unit in the master PSGC counts as no code at either
+level, as in the reviewed rule, so the name decides; the raw code stays in
+`code_candidate`.
 
 To keep the SQL practical on a small serverless warehouse, it matches cities
 once per distinct (`province`, `municipality`) pair (1,653 on the real
@@ -51,8 +54,8 @@ unmatched / excluded per school year and level with `gate.profiled_counts`:
 PASS at those counts and FAIL before publication when they change, so a new
 delivery or rule change is reviewed and the counts updated in its pull request.
 Unmatched, ambiguous,
-excluded, pending-review, overrides that find no unit, and overrides that match
-no school are WARN.
+excluded, pending-review, EMISD codes with no master PSGC unit, overrides that
+find no unit, and overrides that match no school are WARN.
 
 Local made-up validation is in `tests/test_integration_deped_school_psgc.py`:
 one school per branch of the reviewed rule, plus targeted negative mutations

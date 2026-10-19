@@ -9,6 +9,7 @@ analysis functions; the gate tests change one candidate row and check that nothi
 import ast
 import copy
 import json
+import sys
 import uuid
 
 import pytest
@@ -318,6 +319,25 @@ def test_the_gate_warns_on_what_needs_review(tmp_path):
     assert checks["override_without_unit"]["status"] == "WARN" and checks["override_without_unit"]["actual"] == "1"
     assert checks["override_without_school"]["status"] == "PASS"
     assert {checks[n]["status"] for n in ("unmatched", "ambiguous", "excluded", "review_pending")} == {"WARN"}
+    assert checks["code_not_in_psgc"]["status"] == "PASS"
+
+
+def test_a_barangay_code_missing_from_the_psgc_counts_as_no_code(tmp_path, monkeypatch):
+    # As in the reviewed rule and at city level: the name decides, and the gate warns instead of failing.
+    monkeypatch.setattr(sys.modules[__name__], "ENROLLMENT", ENROLLMENT + [
+        school("100098", "ILOCOS NORTE", "BACARRA", "NUEVA ERA"), school("100099", "ILOCOS NORTE", "ADAMS", "NOWHERE")])
+    monkeypatch.setattr(sys.modules[__name__], "CROSSWALK", CROSSWALK + [
+        ("100098", "0102802000", "0102802999", False), ("100099", "0102801000", "0102801999", False)])
+    env = Env(tmp_path)
+    run_id, error = env.run()
+    assert error is None
+    got = env.map()
+    assert bgy(got, "100098") == ("0102802004", "matched", "name_exact", "name only", "rule")
+    assert bgy(got, "100099") == (None, "unmatched", None, "no code, no name match", "pending")
+    assert env.rows(f"SELECT code_candidate FROM {MAP} WHERE school_id = '100098' AND geographic_level = 'bgy'") == [
+        {"code_candidate": "0102802999"}]
+    checks = env.checks(run_id)
+    assert checks["code_not_in_psgc"]["status"] == "WARN" and checks["code_not_in_psgc"]["actual"] == "2"
 
 
 @pytest.mark.parametrize("check,change", [
