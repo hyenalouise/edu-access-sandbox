@@ -13,8 +13,11 @@ bundle:
 
 variables:
   warehouse_id:
-    description: SQL warehouse that runs the job's SQL tasks (Serverless Starter Warehouse)
-    default: ba94770acbbc293c
+    description: >-
+      SQL warehouse that runs the job's SQL tasks, looked up by name at deploy time so the sandbox
+      workspace needs no hard-coded ID (each Free Edition workspace has its own Serverless Starter Warehouse).
+    lookup:
+      warehouse: Serverless Starter Warehouse
   duration_warning_seconds:
     description: >-
       Email a run still going after this long (45 minutes). Observed whole runs took 6 min 43 s to
@@ -1264,4 +1267,4 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-2b6bf1c5-7bc3.cloud.databricks.com
+      host: https://dbc-44e6923e-79d3.cloud.databricks.com
