@@ -9,7 +9,9 @@ INSERT INTO edu_access.`01-control`.data_quality_results
 SELECT :run_id, CAST(NULL AS STRING), 'deped_enrollment', 'integration', 'edu_access.04-integration.deped_school_psgc_map_candidate',
        check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-WITH e AS (SELECT school_year, school_id FROM edu_access.`03-silver`.deped_enrollment_clean),
+WITH e AS (SELECT school_year, school_id, school_name, region, province, municipality, barangay,
+                  batch_id, source_sha256, source_row_number FROM edu_access.`03-silver`.deped_enrollment_clean),
+x AS (SELECT school_id, psgc_city_municipality, psgc_barangay, batch_id, source_row_number FROM edu_access.`03-silver`.deped_enrollment_psgc_clean),
 p0 AS (SELECT psgc_code, name, geographic_level, city_municipality_code, publication_period, batch_id, source_row_number
        FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference),
 p AS (
@@ -19,7 +21,7 @@ p AS (
 ),
 m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
 profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2021-22', 'city_mun', '60356', '26', '12', '35'), ('2021-22', 'bgy', '60210', '129', '55', '35'), ('2022-23', 'city_mun', '60070', '24', '7', '35'), ('2022-23', 'bgy', '59978', '95', '28', '35'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
-overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE')) AS v(province, municipality, barangay)),
+overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE', 'DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.', '@catweyine')) AS v(province, municipality, barangay, reason, reviewer)),
 expected_keys AS (
   SELECT e.school_year, e.school_id, l.geographic_level
   FROM e CROSS JOIN (VALUES ('city_mun'), ('bgy')) AS l(geographic_level)
@@ -78,7 +80,40 @@ unknown_codes AS (
   FROM m LEFT JOIN p AS pc ON pc.psgc_code = m.code_candidate
   WHERE m.code_candidate IS NOT NULL AND pc.psgc_code IS NULL
 ),
-s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes),
+-- Each candidate row against the current Silver rows it was built from, so a changed value fails even when
+-- the counts, keys and formats still hold.
+reconcile AS (
+  SELECT
+    COUNT_IF(e.school_id IS NULL
+             OR m.source_id IS DISTINCT FROM 'deped_enrollment'
+             OR m.source_row_ref IS DISTINCT FROM m.school_year || '/' || m.school_id || '/' || m.geographic_level
+             OR m.source_reference_date IS DISTINCT FROM e.school_year
+             OR m.school_name IS DISTINCT FROM e.school_name OR m.source_region IS DISTINCT FROM e.region
+             OR m.source_province IS DISTINCT FROM e.province OR m.source_city_municipality IS DISTINCT FROM e.municipality
+             OR m.source_barangay IS DISTINCT FROM e.barangay OR m.batch_id IS DISTINCT FROM e.batch_id
+             OR m.source_sha256 IS DISTINCT FROM e.source_sha256
+             OR m.source_row_number IS DISTINCT FROM e.source_row_number) AS enrollment_mismatch,
+    -- The EMISD code is the crosswalk's at that level, and its lineage names the crosswalk row; no row, no lineage.
+    COUNT_IF(m.code_candidate IS DISTINCT FROM CASE WHEN m.geographic_level = 'city_mun' THEN x.psgc_city_municipality ELSE x.psgc_barangay END
+             OR m.crosswalk_batch_id IS DISTINCT FROM x.batch_id
+             OR m.crosswalk_source_row_number IS DISTINCT FROM x.source_row_number) AS crosswalk_mismatch,
+    COUNT_IF(m.psgc_version IS DISTINCT FROM (SELECT MIN(publication_period) FROM p)
+             OR m.psgc_name IS DISTINCT FROM p.name OR m.psgc_batch_id IS DISTINCT FROM p.batch_id
+             OR m.psgc_source_row_number IS DISTINCT FROM p.source_row_number) AS psgc_mismatch,
+    -- pending when not matched, reviewed when a listed override placed it, rule otherwise.
+    COUNT_IF(m.review_status IS DISTINCT FROM CASE WHEN m.match_status <> 'matched' THEN 'pending'
+                                                   WHEN m.override_reviewer IS NOT NULL THEN 'reviewed' ELSE 'rule' END
+             -- An override's reason and reviewer are the rules file's, on a barangay row only.
+             OR m.override_reason IS DISTINCT FROM o.reason
+             OR (m.override_reviewer IS NOT NULL AND (m.geographic_level <> 'bgy' OR m.override_reviewer IS DISTINCT FROM o.reviewer))) AS review_mismatch
+  FROM m
+  LEFT JOIN e ON e.school_year = m.school_year AND e.school_id = m.school_id
+  LEFT JOIN x ON x.school_id = m.school_id
+  LEFT JOIN p ON p.psgc_code = m.psgc_code
+  LEFT JOIN overrides AS o ON o.province = m.source_province AND o.municipality = m.source_city_municipality
+    AND o.barangay = m.source_barangay AND m.override_reviewer IS NOT NULL
+),
+s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile),
 checks AS (
   SELECT 'inputs_present' AS check_name, CASE WHEN enrollment_rows > 0 AND psgc_rows > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'enrollment and master PSGC rows' AS expected, CAST(enrollment_rows AS STRING) || ' / ' || CAST(psgc_rows AS STRING) AS actual FROM s
@@ -97,6 +132,10 @@ checks AS (
   UNION ALL SELECT 'one_psgc_version', CASE WHEN psgc_periods = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(psgc_periods AS STRING) FROM s
   UNION ALL SELECT 'master_psgc_version', CASE WHEN psgc_period = '2026-Q2' THEN 'PASS' ELSE 'FAIL' END,
                    '2026-Q2', COALESCE(psgc_period, 'none') FROM s
+  UNION ALL SELECT 'enrollment_fields_reconcile', CASE WHEN enrollment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(enrollment_mismatch AS STRING) FROM s
+  UNION ALL SELECT 'crosswalk_lineage_reconciles', CASE WHEN crosswalk_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(crosswalk_mismatch AS STRING) FROM s
+  UNION ALL SELECT 'psgc_fields_reconcile', CASE WHEN psgc_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(psgc_mismatch AS STRING) FROM s
+  UNION ALL SELECT 'review_fields_valid', CASE WHEN review_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(review_mismatch AS STRING) FROM s
   UNION ALL SELECT 'lineage_complete', CASE WHEN missing_lineage = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(missing_lineage AS STRING) FROM s
   UNION ALL SELECT 'rows_built_by_this_run', CASE WHEN other_run_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(other_run_rows AS STRING) FROM s
   UNION ALL SELECT 'unmatched', CASE WHEN unmatched_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unmatched_rows AS STRING) FROM s

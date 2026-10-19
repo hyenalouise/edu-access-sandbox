@@ -369,6 +369,19 @@ def test_a_barangay_code_missing_from_the_psgc_counts_as_no_code(tmp_path, monke
     ("lineage_complete", f"UPDATE {CANDIDATE} SET source_reference_date = NULL WHERE school_id = '100001'"),
     ("rows_built_by_this_run", f"UPDATE {CANDIDATE} SET run_id = 'an-earlier-run' WHERE school_id = '100001'"),
     ("master_psgc_version", "UPDATE edu_access.`03-silver`.psa_psgc_clean SET publication_period = '2026-Q3'"),
+    # Each change below keeps the row count, keys and formats; only a value or a lineage reference is wrong.
+    ("enrollment_fields_reconcile", f"UPDATE {CANDIDATE} SET source_province = 'ILOCOS SUR' WHERE school_id = '100001'"),
+    ("enrollment_fields_reconcile", f"UPDATE {CANDIDATE} SET source_row_number = source_row_number + 1000 WHERE school_id = '100001'"),
+    ("crosswalk_lineage_reconciles", f"UPDATE {CANDIDATE} SET code_candidate = '0102802001' WHERE school_id = '100001' AND geographic_level = 'bgy'"),
+    ("crosswalk_lineage_reconciles", f"UPDATE {CANDIDATE} SET crosswalk_batch_id = 'X9' WHERE school_id = '100001'"),
+    ("crosswalk_lineage_reconciles", f"UPDATE {CANDIDATE} SET crosswalk_batch_id = NULL, crosswalk_source_row_number = NULL WHERE school_id = '100001'"),
+    ("psgc_fields_reconcile", f"UPDATE {CANDIDATE} SET psgc_name = 'Bacarra' WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
+    ("psgc_fields_reconcile", f"UPDATE {CANDIDATE} SET psgc_version = '2026-Q1' WHERE school_id = '100001'"),
+    ("psgc_fields_reconcile", f"UPDATE {CANDIDATE} SET psgc_source_row_number = psgc_source_row_number + 1 WHERE school_id = '100001' AND geographic_level = 'bgy'"),
+    ("review_fields_valid", f"UPDATE {CANDIDATE} SET review_status = 'reviewed' WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
+    ("review_fields_valid", f"UPDATE {CANDIDATE} SET override_reason = 'made up', override_reviewer = '@someone', review_status = 'reviewed' "
+                            "WHERE school_id = '100001' AND geographic_level = 'bgy'"),
+    ("review_fields_valid", f"UPDATE {CANDIDATE} SET override_reviewer = '@someone' WHERE school_id = '100004' AND geographic_level = 'bgy'"),
 ])
 def test_a_failed_check_keeps_the_last_published_map(tmp_path, check, change):
     env = Env(tmp_path)
