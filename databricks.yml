@@ -1260,11 +1260,11 @@ resources:
           level: CAN_RUN
 
   # The LGU planner dashboard (Overview, LGU Profile, Data and Method). Its datasets read the Analytics and
-  # Gold tables the job builds; the layout follows dashboards/reached_planner_v3_outline.md.
+  # Gold tables the job builds; the layout follows dashboards/reached_planner_v3_outline.md, section 12.
   dashboards:
     reached_planner:
       display_name: ReachED LGU planner
-      file_path: ./dashboards/reached_planner_v3.lvdash.json
+      file_path: ./dashboards/reached_planner_v4.lvdash.json
       warehouse_id: ${var.warehouse_id}
       permissions:
         - group_name: reached-hq
