@@ -157,9 +157,6 @@ draft_integration_tables:
   - table: hdx_adm3_psgc_map
     candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
-  - table: psa_school_age_population_psgc_map
-    candidate_file: 05_map_psa_school_age_population_psgc.sql
-    purpose: Reviewed mapping from PSA school-age population places to PSGC cities and municipalities.
 
 integration_tables:
   - table: deped_annex_mother_map
@@ -172,6 +169,11 @@ integration_tables:
     validate_file: 90_validate_psa_poverty_psgc_map.sql
     grain: One row per psa_poverty_stat_clean row (psgc_id, estimate_year).
     purpose: PSA poverty estimates matched to PSGC by Correspondence Code only, estimates carried unchanged (D-054).
+  - table: psa_school_age_population_psgc_map
+    build_file: 05_map_psa_school_age_population_psgc.sql
+    validate_file: 90_validate_psa_school_age_population_psgc_map.sql
+    grain: One row per census year and city or municipality of psa_school_age_population_clean (census_year, place_name, parent_name).
+    purpose: PSA school-age population places matched to PSGC by name inside a reviewed parent, overrides in config (D-055).
 
 deferred_layers:
   - gold
