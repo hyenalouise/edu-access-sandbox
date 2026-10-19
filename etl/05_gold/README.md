@@ -39,3 +39,5 @@ the gate publishes it only after every check passes, so a FAIL keeps the last
 good build.
 `dim_barangay` (`05_build_dim_barangay.sql`, gate
 `90_validate_dim_barangay.sql`) follows the same pattern.
+`fact_city_school_age_population` (`14_build_fact_city_school_age_population.sql`,
+gate `90_validate_fact_city_school_age_population.sql`) too.

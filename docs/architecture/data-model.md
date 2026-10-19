@@ -328,6 +328,21 @@ including the Makati/Taguig transfer and the new Special Geographic Area
 municipalities, prevent a like-for-like trend. This fact must not be filled by
 interpolating or substituting the broader PSA ages 5–24 category.
 
+Built in `etl/05_gold/14_build_fact_city_school_age_population.sql` from
+`psa_school_age_population_clean` (`population_concept = 'total'`, D-042) and
+its PSGC map (D-055). Every published age, 5 to 24, is kept. A place the map
+does not match (the 8 2020 Special Geographic Area clusters, 96,899 people)
+goes to the `UNKNOWN` city member, summed into one row per age and sex, so no
+population is dropped. `is_2020_2024_geography_comparable` is true only for a
+code matched in both census years and not in the build's reviewed list of units
+whose territory changed: Makati and Taguig (EMBO barangays) and the six
+Cotabato towns whose barangays formed the Special Geographic Area (Carmen,
+Kabacan, Midsayap, Pigkawayan, Pikit, Aleosan). The 8 Special Geographic Area
+municipalities, which exist only in 2024, and `UNKNOWN` are false: 17 codes,
+1,000 rows. The gate reconciles each year's population to Silver and each
+city, year and age's male plus female to the published total row, checks every
+key against `dim_city_municipality`, and WARNs on population held on `UNKNOWN`.
+
 ### `fact_school_year_source_availability`
 
 | Column | Type |

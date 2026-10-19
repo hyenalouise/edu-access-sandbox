@@ -184,6 +184,10 @@ gold_tables:
     build_file: 05_build_dim_barangay.sql
     validate_file: 90_validate_dim_barangay.sql
     grain: One PSGC barangay of the master quarter, one unknown barangay per city or municipality, plus the UNKNOWN and EXCLUDED technical members.
+  - table: fact_city_school_age_population
+    build_file: 14_build_fact_city_school_age_population.sql
+    validate_file: 90_validate_fact_city_school_age_population.sql
+    grain: One city or municipality, census year, single year of age, and sex (male or female).
 
 deferred_layers:
   - analytics
