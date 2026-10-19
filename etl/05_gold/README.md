@@ -38,16 +38,17 @@ Sandbox changes on top of the pull requests:
   clusters are PSA groupings with no PSGC unit, kept outside city analysis on
   purpose, which is the data model's `EXCLUDED` member. #193 uses `UNKNOWN`;
   this is the sandbox's answer to the open question there.
+- **#194's pinned checks WARN on test data.** Its pinned D-046 counts
+  (1,642 / 1,597 / 1 / 44), its two Manila checks and its two map-row checks
+  FAIL on any data but the real masters, so the local job's
+  `90_validate_dim_city_poverty` failed on the test fixtures once
+  `dim_city_municipality` was built (#193). Here they WARN when the dimension
+  has fewer than 1,000 regular members, which only test data has, and FAIL
+  otherwise, so a member added to or lost from the 1,642 still fails. The team
+  repo does not hit this yet: its poverty task waits on
+  `90_validate_dim_city_municipality`, which is still disabled on main.
 
 Left as #193 has it, to settle with Sara on #193: the 119 LGUs whose province
 or region changed (Negros Island Region, Sulu, Maguindanao) are marked not
 comparable 2020 to 2024, following the specification literally, although their
 own territory did not change.
-
-Open on #194: its pinned D-046 counts (1,642 / 1,597 / 1 / 44) and its Manila
-checks FAIL on any data but the full PSGC 2Q 2026 master and PSA 2023 file, and
-its map-row checks FAIL on the fixtures' unmatched poverty rows. So the local
-job's `90_validate_dim_city_poverty` fails on the test fixtures once
-`dim_city_municipality` is built (#193). The team repo does not hit this yet:
-its poverty task waits on `90_validate_dim_city_municipality`, which is still
-disabled on main.
