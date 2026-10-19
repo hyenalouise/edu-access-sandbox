@@ -226,8 +226,8 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) <= {"succeeded", "disabled"}  # every task runs once Gold and Analytics are built
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("analytics_build", 5), ("bronze_ingest", 8), ("gold_build", 12),
-                                                     ("integration_build", 4), ("silver_build", 8)]   # one filter, every layer; the DepEd school, HDX, poverty and school-age maps, each Gold table and each Analytics output write their own runs
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("gold_build", 12),
+                                                     ("integration_build", 4), ("silver_build", 8)]   # one filter, every layer; the DepEd school, HDX, poverty and school-age maps and each Gold table write their own runs (the #203 Analytics outputs do not)
     store.close()
 
 
