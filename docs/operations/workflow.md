@@ -250,7 +250,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 | What | Where |
 |---|---|
-| Workspace | https://dbc-76bcfddb-1669.cloud.databricks.com (details in [architecture.md](../architecture/overview.md#workspace)) |
+| Workspace | https://dbc-2b6bf1c5-7bc3.cloud.databricks.com (details in [architecture.md](../architecture/overview.md#workspace)) |
 | Catalog | `edu_access`, owned by the `reached-hq` group |
 | Schemas so far | `` `00-source` ``, `` `01-control` ``, `` `02-bronze` ``; later stages are created when they start |
 | Raw files | `/Volumes/edu_access/00-source/raw/<publisher>/` |

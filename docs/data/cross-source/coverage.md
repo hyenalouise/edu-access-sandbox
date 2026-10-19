@@ -24,7 +24,7 @@ Every number carries one evidence label:
 | Source | Owner | Status | Place identifier | Geographic level | Years | Time basis | Grain |
 |---|---|---|---|---|---|---|---|
 | **DepEd** | | | | | | | |
-| [deped_enrollment](../source-inventory/deped_enrollment/) | @hyenalouise | profiled | Names only: region, division, province, city or municipality, barangay | School | SY 2020-21, 2023-24, 2024-25, 2025-26 acquired | School year (BOSY count) | One row per school per school year |
+| [deped_enrollment](../source-inventory/deped_enrollment/) | @hyenalouise | profiled | Names only: region, division, province, city or municipality, barangay | School | SY 2020-21 to 2025-26 acquired | School year (BOSY count) | One row per school per school year |
 | [deped_facilities](../source-inventory/deped_facilities/) | @hyenalouise | profiled | None; location comes from enrollment | School | SY 2023-24 only | School year | One row per school; facility measures for public schools only |
 | [deped_personnel](../source-inventory/deped_personnel/) | @mafelisilda | profiled | None; location comes from enrollment | School | SY 2023-24 only | School year | One row per school |
 | [deped_ellna](../source-inventory/deped_ellna/) | @mafelisilda | profiled | Region and division labels | School (selected schools) | SY 2023-24 (given May 2024) | School year | One row per assessed school |
@@ -86,7 +86,7 @@ Every number carries one evidence label:
 |---|---|---|---|
 | School | DepEd enrollment, facilities, personnel, ELLNA, NAT Grade 6 | `school_id` | Enrollment is the anchor and the only DepEd file with place names |
 | Barangay | DepEd (through the name match), barangay population, HDX ADM4 | 10-digit PSGC | Barangay is the level the sponsor tests ([D-013](../../governance/decisions.md#d-013-who-the-stakeholders-are)) |
-| City or municipality | Poverty, CMCI, HDX ADM3, and DepEd aggregated | First 7 digits of the barangay PSGC, plus `000`; for Manila, first 5 digits plus `00000` | PSGC codes Manila's 14 districts as sub-municipalities, so the 7-digit rule gives the district; they roll up to the City of Manila (`1380600000`), which is how CMCI, poverty, and the boundaries count it: 324 SY 2023-24 schools (C-4). Poverty through `Correspondence Code`; HDX by code checked against the name; CMCI by name |
+| City or municipality | Poverty, CMCI, HDX ADM3, and DepEd aggregated | First 7 digits of the barangay PSGC, plus `000`; for Manila, first 5 digits plus `00000` | PSGC codes Manila's 14 districts as sub-municipalities, so the 7-digit rule gives the district; they roll up to the City of Manila (`1380600000`), which is how CMCI and the boundaries count it: 324 SY 2023-24 schools (C-4). Poverty does not roll up: its 14 district estimates stay at `sub_mun` and are never combined, so the City of Manila has no poverty value (D-046, D-054). Poverty through `Correspondence Code`; HDX by code checked against the name; CMCI by name |
 | Province or HUC | Age-group population, FLEMMS, and DepEd aggregated | First 5 digits of the PSGC | HUCs have province-level codes, so totals by PSGC province already keep them separate. DepEd files independent cities under their province; the name match sends them to their own codes |
 | Region | OpenSTAT, CHED, BPDA context | Explicit region map | Use DepEd's own region for SY 2023-24 (D-012) |
 | Spatial | OSM, HDX geometry | Point or polygon in polygon | Needs school coordinates, which no acquired source has |
