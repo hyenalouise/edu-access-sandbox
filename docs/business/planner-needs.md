@@ -2,6 +2,8 @@
 
 **Status:** Draft for team review (#7), mapped to the approved [business and analytical questions](business-analytics-problem.md) (D-042, mentor review 2026-10-14).
 
+> **Superseded in part by [D-057](../governance/decisions.md#d-057-lgu-priority-rule-version-1)** (2026-10-19): peer groups no longer set any comparison. The within-type percentile sets the priority tier, and Similar LGUs (method in #96) is context only. The peer-group text below is kept until its full update in a follow-up (A-03, A-05, A-06, A-07).
+
 What LGU education planners need to decide, taken from published documents (D-001). The stakeholders are LGU planners, with students as the focus (D-013). Each need is tagged:
 
 - **documented**: stated in a cited document (document and page below)
