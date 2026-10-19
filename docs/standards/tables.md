@@ -56,7 +56,7 @@ The exact future file names are recorded beside each table in
 `config/tables.yml`. A registry entry does not mean the SQL file has been
 implemented.
 
-## Integration drafts
+## Integration tables
 
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
@@ -69,20 +69,16 @@ to PSGC and the estimate carried unchanged (D-054).
 Implemented: `psa_school_age_population_psgc_map` (`05_map_psa_school_age_population_psgc.sql`),
 one row per census year and city or municipality of the PSA school-age population, with its
 reviewed PSGC match, the PSGC parent it was searched in, review status, and reason (D-055).
+Implemented: `deped_school_psgc_map` (`01_map_deped_school_psgc.sql`), one row per enrollment
+school, school year, and geographic level (`city_mun`, `bgy`), with its EMISD-code or reviewed
+name match, including explicit unmatched, ambiguous, and excluded rows (#91, D-049).
 
-These are working names only:
-
-| Candidate table | Candidate file | Intended grain |
-|---|---|---|
-| `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
-
-Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed; they follow the shape of `hdx_adm3_psgc_map`
-(D-052) unless their own decision says otherwise. Gold names from #45 are
-documented in [`docs/architecture/data-model.md`](../architecture/data-model.md).
-Tables with reviewed inputs may be implemented independently; geography-dependent
-tables remain disabled until their Integration prerequisites are ready. Analytics
-names remain deferred until their inputs are implemented and gated.
+No Integration working names remain. A new map follows the shape of `hdx_adm3_psgc_map`
+(D-052) unless its own decision says otherwise. Gold names from #45 are documented
+in [`docs/architecture/data-model.md`](../architecture/data-model.md). Tables with
+reviewed inputs may be implemented independently; geography-dependent tables remain
+disabled until their Integration prerequisites are ready. Analytics names remain
+deferred until their inputs are implemented and gated.
 
 ## Gold names
 

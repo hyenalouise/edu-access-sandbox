@@ -2,6 +2,8 @@
 
 **Status:** Research register, verified against official sources on 2026-10-14. An entry in this document is not automatically approved for dashboard use. The metric must still match the source definition, education level, geographic grain, and period.
 
+> **Superseded in part by [D-057](../governance/decisions.md#d-057-lgu-priority-rule-version-1)** (2026-10-19): peer groups no longer set any comparison. The within-type percentile sets the priority tier, and Similar LGUs (method in #96) is context only. Peer descriptors such as income class and density are planned inputs to Similar LGUs. The peer-group text below is kept until its full update in #178 and #96.
+
 ## Purpose and document boundary
 
 This document records the official formulas, numeric references, policy criteria, national targets, and supporting datasets relevant to the approved [business and analytical questions](business-analytics-problem.md). It answers two different questions:

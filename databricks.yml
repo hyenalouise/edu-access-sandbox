@@ -711,7 +711,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
         # Integration maps start from the Silver gates of the sources they read (D-051).
         - task_key: 01_map_deped_school_psgc
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
             - task_key: 90_validate_deped_enrollment_psgc_clean
@@ -723,7 +722,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_deped_school_psgc_map
-          disabled: true
           depends_on:
             - task_key: 01_map_deped_school_psgc
           run_if: ALL_SUCCESS
