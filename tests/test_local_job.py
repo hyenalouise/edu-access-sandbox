@@ -213,7 +213,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     db = tmp_path / "job.duckdb"
     run_job(repo, landing, db, REVISION, log=lambda *_: None)
     results = run_job(repo, landing, db, REVISION, log=lambda *_: None)
-    assert set(statuses(results).values()) == {"succeeded", "disabled"}
+    assert set(statuses(results).values()) == {"succeeded"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
@@ -236,7 +236,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     store.close()
     results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
     assert results["add_control_columns"] == "succeeded"
-    assert set(results.values()) == {"succeeded", "disabled"}
+    assert set(results.values()) == {"succeeded"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
                        "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 4), ("silver_build", 8)]   # one filter, both layers; the DepEd school, HDX, poverty and school-age maps write their own runs

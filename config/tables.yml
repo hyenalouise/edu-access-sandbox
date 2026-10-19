@@ -227,5 +227,26 @@ gold_tables:
     validate_file: 90_validate_fact_school_year_source_availability.sql
     grain: One school year and DepEd source.
 
-deferred_layers:
-  - analytics
+analytics_tables:
+  - table: ap1_school_provision
+    build_file: 01_answer_ap1.sql
+    validate_file: 90_validate_ap1.sql
+    grain: One regular city or municipality for SY 2024-25.
+  - table: ap2_classroom_pressure
+    build_file: 02_answer_ap2.sql
+    validate_file: 90_validate_ap2.sql
+    grain: One regular city or municipality for SY 2023-24.
+  - table: ap3_teacher_pressure
+    build_file: 03_answer_ap3.sql
+    validate_file: 90_validate_ap3.sql
+    grain: One regular city or municipality for SY 2023-24.
+  - table: ap4_enrollment_trend
+    build_file: 04_answer_ap4.sql
+    validate_file: 90_validate_ap4.sql
+    grain: One regular city or municipality across SY 2020-21 through SY 2025-26.
+  - table: lgu_priority_matrix
+    build_file: 05_build_priority_matrix.sql
+    validate_file: 90_validate_priority_matrix.sql
+    grain: One regular city or municipality.
+
+deferred_layers: []

@@ -192,10 +192,11 @@ DOWNSTREAM = {
     "13_build_fact_city_population": {"90_validate_psa_psgc_clean", "90_validate_dim_city_municipality"},
     "14_build_fact_city_school_age_population": {
         "90_validate_psa_school_age_population_psgc_map", "90_validate_dim_city_municipality"},
-    "01_answer_ap1": {"90_validate_fact_school_enrollment", "90_validate_fact_city_population", "90_validate_dim_barangay"},
+    "01_answer_ap1": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
     "02_answer_ap2": {"90_validate_fact_school_enrollment", "90_validate_fact_school_classroom_capacity"},
     "03_answer_ap3": {"90_validate_fact_school_enrollment", "90_validate_fact_school_teacher_capacity"},
-    "04_answer_ap4": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
+    "04_answer_ap4": {"90_validate_fact_school_enrollment"},
+    "05_build_priority_matrix": {"90_validate_ap1", "90_validate_ap2", "90_validate_ap3", "90_validate_ap4"},
 }
 
 
@@ -242,7 +243,7 @@ APS_STOPPED_BY = {
     "90_validate_deped_enrollment_psgc_clean": {"ap1", "ap2", "ap3", "ap4"},
     "90_validate_deped_facilities_clean": {"ap2"},
     "90_validate_deped_personnel_clean": {"ap3"},
-    "90_validate_psa_school_age_population_clean": {"ap4"},
+    "90_validate_psa_school_age_population_clean": {"ap1"},
     "90_validate_psa_poverty_stat_clean": set(),
 }
 
