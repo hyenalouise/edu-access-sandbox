@@ -1,10 +1,10 @@
 # Business and analytical questions
 
-**Status:** The question wording below was approved through mentor review on 2026-10-14. The user and the priority rule are set in D-0XX, which revises D-042; the calculations are in the separate [metric specification](metric-specification.md).
+**Status:** The question wording below was approved through mentor review on 2026-10-14. The user and the priority rule are set in D-056, which revises D-042; the calculations are in the separate [metric specification](metric-specification.md).
 
 | | |
 |---|---|
-| **Primary users** | LGU Local School Boards (provincial, city, and municipal), which decide how the Special Education Fund is spent (D-0XX) |
+| **Primary users** | LGU Local School Boards (provincial, city, and municipal), which decide how the Special Education Fund is spent (D-056) |
 | **Action** | Prioritize classroom provision and teacher allocation |
 | **Wider resource context** | Public schools, classrooms, and teachers |
 | **Purpose** | Address capacity pressure in relation to enrollment need |
@@ -35,7 +35,7 @@ In this question, “cities” means cities and municipalities, the same unit th
 
 | Question | Role in the business decision | Primary output |
 |---|---|---|
-| **AP1 · Schools** | Counts toward the priority tier with AP2 and AP3 (D-0XX); on its own it does not recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
+| **AP1 · Schools** | Counts toward the priority tier with AP2 and AP3 (D-056); on its own it does not recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
 | **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
 | **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
 | **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Population aged 5–17 minus enrollment in all sectors, for 2020 and 2024, and the change between them; the public-school share is shown beside it |
@@ -51,7 +51,7 @@ flowchart LR
     X --> R
 ```
 
-Schools, classrooms, and teachers are each measured and shown on their own, so a city or municipality may show classroom pressure without teacher pressure, or the reverse. The priority list (D-0XX) counts how many of the three are high, which puts them on one list without weights. A weighted combined score is not part of the approved question and requires a later decision on weights and interpretation.
+Schools, classrooms, and teachers are each measured and shown on their own, so a city or municipality may show classroom pressure without teacher pressure, or the reverse. The priority list (D-056) counts how many of the three are high, which puts them on one list without weights. A weighted combined score is not part of the approved question and requires a later decision on weights and interpretation.
 
 ## Analytical boundaries
 
