@@ -70,6 +70,12 @@ changed no row. The four new checks (`enrollment_fields_reconcile`,
 `crosswalk_lineage_reconciles`, `psgc_fields_reconcile`, `review_fields_valid`)
 PASS on every row.
 
+After @saraevcldn's review, `7f97e78` fails a matched row with no method and
+`a8acc7f` checks override fields against the rules file instead of the row.
+Run 7 at `a8acc7f` (`4a0602a4-f95e-4817-b8d9-a87a575e97b3`, build / gate
+2.14 s / 0.94 s) publishes 724,044 rows with 44 PASS, 5 WARN, 0 FAIL and the
+same business-content hash.
+
 Run 1 shows the gate holding back a delivery whose counts nobody has reviewed:
 it built the map and published nothing. Its SY 2021-22 and 2022-23 counts are
 the ones added to `gate.profiled_counts` in `7bf16ba`. Runs 2 to 4 skipped every
