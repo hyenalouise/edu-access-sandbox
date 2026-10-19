@@ -1,28 +1,27 @@
 # Business and analytical questions
 
-**Status:** The question wording below was approved through mentor review on 2026-10-14. The user and the priority rule are set in D-057, which revises D-042; the calculations are in the separate [metric specification](metric-specification.md).
+**Status:** The business question and the four analytical questions below are the wording approved through mentor review on 2026-10-14, unchanged. D-058 revises only the **metrics** that answer them and the priority method previously recorded in D-057; the metric changes are pending mentor confirmation. The implementation-ready calculations are in the separate [metric specification](metric-specification.md).
 
 | | |
 |---|---|
-| **Primary users** | LGU Local School Boards (provincial, city, and municipal), which decide how the Special Education Fund is spent (D-057) |
-| **Action** | Prioritize classroom provision and teacher allocation |
-| **Wider resource context** | Public schools, classrooms, and teachers |
-| **Purpose** | Address capacity pressure in relation to enrollment need |
-| **Education scope** | Public basic education, Kinder to Grade 12 (D-003) |
+| **Primary users** | LGU Local School Boards |
+| **Action** | Prioritize investigation of school, classroom, and teacher pressure |
+| **Purpose** | Organize observed capacity and demand evidence without prescribing an intervention |
+| **Education scope** | Basic education, Kindergarten to Grade 12 |
 | **Unit of analysis** | City or municipality |
-| **Decision boundary** | ReachED organizes evidence for prioritization and local validation. Planners decide the response and the amount to provide or allocate. |
+| **Decision boundary** | ReachED identifies evidence for review. Planners validate local conditions and decide the response. |
 
 ## Business problem
 
-Local education planners need a consistent way to identify where public-school enrollment places the greatest pressure on classroom and teacher capacity. A raw national total does not show which locations warrant attention, while a rank without context can make unlike local government units appear directly comparable.
+Local education planners need an auditable way to identify cities and municipalities where resident demand, classroom capacity, and teacher capacity show pressure, then distinguish places where enrollment is also growing. A raw national total does not identify which places warrant attention, while a percentile cutoff can hide the observed relationship between demand and resources.
 
-Enrollment is **observed demand**: learners enrolled in public schools located in an LGU. It does not include every school-age resident, identify learner residence, or by itself establish how many classrooms or teachers must be added. The analysis therefore supports prioritization and validation rather than prescribing a final intervention.
+ReachED compares each city with the pooled national city ratio and each municipality with the pooled national municipality ratio. Coverage and quality gates run before classification. The result is relative pressure, not an official shortage, resource requirement, or allocation order.
 
 ## Business question
 
 > **How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?**
 
-In this question, “cities” means cities and municipalities, the same unit the analytical questions use. The approved wording is kept as it is.
+In this approved wording, “cities” includes cities and municipalities.
 
 ## Analytical questions
 
@@ -31,47 +30,42 @@ In this question, “cities” means cities and municipalities, the same unit th
 3. **Which cities and municipalities have the most public-school students per teacher?**
 4. **Which cities and municipalities have the largest gap between school-age population and student enrollment over time?**
 
+The wording above is unchanged. Under D-058 each question is answered with the metric in the table below: AP1 with school-age population per active public school, AP2 and AP3 with learners per classroom and per teacher against the pooled same-type reference, and AP4 with the enrollment trend over time.
+
 ### How the analytical questions support the decision
 
-| Question | Role in the business decision | Primary output |
+| Question | Role | Primary output |
 |---|---|---|
-| **AP1 · Schools** | Learners per public school counts toward the priority tier with AP2 and AP3 (D-057); population per public school is context only. On its own it does not recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
-| **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
-| **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
-| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Population aged 5–17 minus enrollment in all sectors, for 2020 and 2024, and the change between them; the public-school share is shown beside it |
+| **AP1 · School provision** | Resident demand relative to active public schools | School-age population aged 5–17 per active public school, same-type reference, coverage, and classification |
+| **AP2 · Classroom pressure** | Current classroom-capacity pressure | Learners per reported instructional classroom, same-type reference, coverage, quality flag, and classification |
+| **AP3 · Teacher pressure** | Current teaching-capacity pressure | Learners per approved teacher count, same-type reference, coverage, quality flag, and classification |
+| **AP4 · Enrollment direction** | Demand-growth urgency signal | Annual enrollment, endpoint change, and `Growing`, `Declining`, or `Stable` direction |
 
 ```mermaid
 flowchart LR
-    AP1["AP1 · School provision"] --> P["Priority tier<br/>count of high measures"]
+    AP1["AP1 · School provision"] --> P["Current pressure count"]
     AP2["AP2 · Classroom pressure"] --> P
     AP3["AP3 · Teacher pressure"] --> P
-    M["National same-type percentile"] --> P
-    AP4["AP4 · Enrollment-need context"] --> X["Context<br/>official benchmark · Similar LGUs · poverty"]
-    P --> R["Planner validation and response decision"]
-    X --> R
+    AP4["AP4 · Enrollment direction"] --> M["Priority matrix"]
+    P --> M
+    M --> R["Planner validation and response decision"]
 ```
 
-Schools, classrooms, and teachers are each measured and shown on their own, so a city or municipality may show classroom pressure without teacher pressure, or the reverse. The priority list (D-057) counts how many of the three are high, which puts them on one list without weights. A weighted combined score is not part of the approved question and requires a later decision on weights and interpretation.
+The final matrix sends an LGU to `Data Review` when any current-pressure measure fails its coverage or quality gate. Otherwise, it combines the number of AP1 to AP3 `Above Reference` results with AP4 growth. It uses no percentile flag and no weighted score.
 
 ## Analytical boundaries
 
-- **Public-school scope:** the classroom and personnel sources cover public schools, so AP1 to AP3 use public-school enrollment.
-- **AP4 enrollment scope:** AP4 compares all school-age residents with all enrolled learners, so it counts enrollment in every sector (public, private, and SUC/LUC) except Philippine Schools Overseas, and shows the public-school share beside it.
-- **AP4 "over time" means two matched points:** the 2020 Census with SY 2020-21 enrollment, and the 2024 Census with SY 2024-25 enrollment. School years without a census in the same year have no AP4 value; nothing is interpolated or projected.
-- **School location is not learner residence:** enrollment is assigned to the LGU where the school is located. Cross-boundary attendance can affect every result.
-- **AP1 is not a construction recommendation:** it counts toward the priority tier, but fewer schools per learner or resident does not establish that a new school should be built.
-- **AP2 and AP3 require matched coverage:** missing classroom or personnel values remain missing, not zero, and must be reported with coverage.
-- **AP4 is not an out-of-school count:** population is counted where people live, while enrollment is counted where the school is. The difference can include cross-boundary attendance, learners outside ages 5–17, and non-enrollment, and it can be negative where a city or municipality enrolls learners from neighboring areas.
-- **Comparison is not an adequacy claim:** the national same-type percentile and Similar LGUs are relative. Only a cited standard that matches the metric's definition, level, and period may be called an official benchmark.
-- **Planners make the response decision:** the evidence can lead to provision, reallocation, further investigation, another operational action, or no action.
+- AP1 uses 2024 school-age population aged 5–17 and SY 2024-25 active public schools, the school year aligned with the 2024 census. It is not a school-construction recommendation. Each output carries its own school year, so AP1 (SY 2024-25) and AP2 and AP3 (SY 2023-24) are never presented as one year.
+- AP2 and AP3 use public-school enrollment for SY 2023-24, the year shared with the facilities and personnel sources.
+- AP3 pools the approved ES, JHS, and SHS teacher and learner contributions into one LGU ratio after applying the existing level-specific eligibility and annex rules.
+- AP4 uses enrollment in public, private, and SUC/LUC schools and excludes Philippine Schools Overseas. It is a direction signal, not current pressure. A change within ±5% is `Stable`. The first year, SY 2020-21, is a pandemic year, so growth from it is read with that caveat.
+- Enrollment is assigned to the LGU where the school is located, not the learner's residence. Cross-boundary attendance can affect the results.
+- Missing values remain missing. Outliers remain in observed totals and are never capped or removed. A school-level outlier sends an LGU to `Data Review` only when leaving it out moves the LGU across the reference.
+- The 90% gate is applied before AP1 to AP3 classification. An unresolved material quality flag also produces `Data Review`.
+- Cities compare only with cities and municipalities only with municipalities. The reference is a pooled ratio, not an average of LGU ratios.
+- Poverty, Similar LGUs, and other context fields never change an AP classification or priority.
+- Planners decide whether the evidence supports provision, reallocation, further investigation, another response, or no action.
 
 ## Implementation boundary
 
-This document fixes the approved business and analytical meaning; it does not approve formulas or dashboard fields. The separate [metric and dashboard specification](metric-specification.md) owns implementation-ready calculations, required columns, comparison rules, validation status, and unresolved choices. The [dataset use map](dataset-use-map.md) owns source routing and source gaps.
-
-Follow-on workstreams use those contracts as follows:
-
-- the **data model** defines facts, dimensions, grains, and reference structures;
-- the **ERD** defines business entities and their relationships;
-- the **analytics layer** implements only metrics marked ready in the metric specification and tests their exact behavior;
-- the **dashboard** presents only approved outputs, with their coverage and limitations.
+The [metric specification](metric-specification.md) owns the formulas, required columns, classifications, and validation rules. The [dataset use map](dataset-use-map.md) owns source routing. Gold contains reusable dimensions and facts; `etl/06_analytics` owns the business comparisons and priority logic.
