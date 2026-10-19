@@ -36,10 +36,16 @@ def repo(tmp_path):
     write_config(root, facilities)
     write_config(root, empty_config("deped_personnel"))
     # PSA Poverty Stat runs through Silver, and its gate fails a build with no current batch, so the job
-    # always has one made-up workbook approved for it.
+    # always has one made-up workbook approved for it. Its two units are the made-up PSGC's municipality
+    # and city, so the poverty map places every row and dim_city_poverty (#174) can pass its gate.
     psa = psa_workbooks.empty_config()
-    workbook = psa_workbooks.write_workbook(tmp_path / "landing" / "psa" / "original" / psa_workbooks.WORKBOOK)
-    psa_workbooks.approve(psa, workbook)
+    years = ("2018", "2021", "2023")
+    poverty_rows = [psa_workbooks.banner("Test Region"),
+                    psa_workbooks.unit("00101", "Bayan ng Halimbawa", years, seed=1),         # 0000101000, Mun
+                    psa_workbooks.unit("200102", "Lungsod ng Halimbawa", years, blank=True)]  # 2000102000, City
+    workbook = psa_workbooks.write_workbook(tmp_path / "landing" / "psa" / "original" / psa_workbooks.WORKBOOK,
+                                            rows=poverty_rows)
+    psa_workbooks.approve(psa, workbook, rows=poverty_rows)
     write_config(root, psa)
     # PSGC runs through Silver too (#88), so it also gets one made-up workbook.
     psgc = psgc_workbooks.empty_config()
@@ -95,6 +101,15 @@ def repo(tmp_path):
     rules.write_text(json.dumps(deped_rules, indent=2), encoding="utf-8")
     (root / "etl" / "04_integration" / "90_validate_deped_school_psgc_map.sql").write_text(
         deped_school_psgc.gate_sql(deped_school_psgc.load_spec(root)), encoding="utf-8")
+    # dim_city_poverty's gate pins D-046's real counts; for this made-up geography they are set to its two
+    # places, one estimated and one with no estimate, as a pull request that changes the pin would.
+    gate = root / "etl" / "05_gold" / "90_validate_dim_city_poverty.sql"
+    pins = ("SELECT 1642 AS pin_rows, 1597 AS pin_estimated, 1 AS pin_no_estimate, 44 AS pin_not_in_source, "
+            "1 AS pin_manila_reason")
+    text = gate.read_text(encoding="utf-8")
+    assert pins in text
+    gate.write_text(text.replace(pins, "SELECT 2 AS pin_rows, 1 AS pin_estimated, 1 AS pin_no_estimate, "
+                                       "0 AS pin_not_in_source, 0 AS pin_manila_reason"), encoding="utf-8")
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -139,7 +154,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_facilities_clean") == [(3, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_psgc_clean") == [
         (len(psgc_workbooks.UNITS), "job-run-1")]
-    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(6, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
     # Every enrollment school-year has a city/municipality row and a barangay row, even when the
     # made-up PSGC has no match. The map runs only after enrollment, EMISD, and PSGC Silver gates.
@@ -148,7 +163,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
                        "AND source_id = 'deped_enrollment'") == [("succeeded",)]
     # The HDX map runs after the HDX and PSGC Silver gates (D-051): every made-up HDX feature has one map row (#93, D-052).
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
-    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".psa_poverty_psgc_map") == [(18, "job-run-1")]
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".psa_poverty_psgc_map") == [(6, "job-run-1")]
     assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
                        "AND source_id = 'hdx_boundaries'") == [("succeeded",)]
     # The school-age map runs after the school-age and PSGC Silver gates (D-051): one row per made-up census place (#159).

@@ -898,7 +898,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 06_build_dim_city_poverty
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_poverty_psgc_map
             - task_key: 90_validate_psa_poverty_stat_clean
@@ -910,7 +909,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_city_poverty
-          disabled: true
           depends_on:
             - task_key: 06_build_dim_city_poverty
           run_if: ALL_SUCCESS
