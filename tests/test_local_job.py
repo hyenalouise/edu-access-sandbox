@@ -10,7 +10,8 @@ import shutil
 
 import pytest
 
-from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
+from factories.deped_deliveries import (REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows,
+                                        write_config)
 from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks, report_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
@@ -102,7 +103,15 @@ def repo(tmp_path):
 def deliver(repo, landing, source_id="deped_enrollment", school_year="2023-24"):
     """A made-up delivery in the landing folder, approved in the fake repository's contract."""
     config = json.loads((repo / "config" / "ingestion" / f"{source_id}.json").read_text(encoding="utf-8"))
-    path = make_delivery(landing / "deped" / "original", school_year, source_id=source_id)
+    rows = None
+    if source_id == "deped_enrollment":
+        # The made-up schools offer ES only, so their JHS and SHS counts are published as 0, as in the real
+        # SY 2023-24 file; the Gold enrollment gate fails a positive count at a level that is not offered.
+        header = columns("v1")
+        later = ("g7_", "g8_", "g9_", "g10_", "jhsng_", "g11_", "g12_")
+        rows = [[("0" if c.startswith(later) and v not in ("", "0") else v) for c, v in zip(header, row)]
+                for row in make_rows(header)]
+    path = make_delivery(landing / "deped" / "original", school_year, source_id=source_id, rows=rows)
     approve(config, path, school_year)
     write_config(repo, config)
 
@@ -116,7 +125,7 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     deliver(repo, landing)
     db = tmp_path / "job.duckdb"
     results = run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None)
-    assert set(statuses(results).values()) == {"succeeded", "disabled"}
+    assert set(statuses(results).values()) <= {"succeeded", "disabled"}  # every task runs once Gold and Analytics are built
     _, job = load_job(repo)
     assert [r.task_key for r in results] == [t["task_key"] for t in in_order(job["tasks"])]
     store = DuckDBStore(db)
@@ -184,7 +193,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     db = tmp_path / "job.duckdb"
     run_job(repo, landing, db, REVISION, log=lambda *_: None)
     results = run_job(repo, landing, db, REVISION, log=lambda *_: None)
-    assert set(statuses(results).values()) == {"succeeded", "disabled"}
+    assert set(statuses(results).values()) <= {"succeeded", "disabled"}  # every task runs once Gold and Analytics are built
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
@@ -207,10 +216,11 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     store.close()
     results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
     assert results["add_control_columns"] == "succeeded"
-    assert set(results.values()) == {"succeeded", "disabled"}
+    assert set(results.values()) <= {"succeeded", "disabled"}  # every task runs once Gold and Analytics are built
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 4), ("silver_build", 8)]   # one filter, both layers; the DepEd school, HDX, poverty and school-age maps write their own runs
+                       "GROUP BY 1 ORDER BY 1") == [("analytics_build", 5), ("bronze_ingest", 8), ("gold_build", 12),
+                                                     ("integration_build", 4), ("silver_build", 8)]   # one filter, every layer; the DepEd school, HDX, poverty and school-age maps, each Gold table and each Analytics output write their own runs
     store.close()
 
 

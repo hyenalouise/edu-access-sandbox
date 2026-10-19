@@ -807,7 +807,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
         # Gold dimensions (D-048), each from the gates it reads.
         - task_key: 01_build_dim_school
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
           run_if: ALL_SUCCESS
@@ -817,7 +816,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_school
-          disabled: true
           depends_on:
             - task_key: 01_build_dim_school
           run_if: ALL_SUCCESS
@@ -827,7 +825,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 02_build_dim_school_year
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
           run_if: ALL_SUCCESS
@@ -837,7 +834,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_school_year
-          disabled: true
           depends_on:
             - task_key: 02_build_dim_school_year
           run_if: ALL_SUCCESS
@@ -847,7 +843,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 03_build_dim_education_level
-          disabled: true
           depends_on:
             - task_key: 05_create_current_batches
           run_if: ALL_SUCCESS
@@ -857,7 +852,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_education_level
-          disabled: true
           depends_on:
             - task_key: 03_build_dim_education_level
           run_if: ALL_SUCCESS
@@ -867,7 +861,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 04_build_dim_city_municipality
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_psgc_clean
             - task_key: 90_validate_hdx_adm3_psgc_map
@@ -878,7 +871,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_city_municipality
-          disabled: true
           depends_on:
             - task_key: 04_build_dim_city_municipality
           run_if: ALL_SUCCESS
@@ -888,7 +880,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 05_build_dim_barangay
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
@@ -898,9 +889,9 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_barangay
-          disabled: true
           depends_on:
             - task_key: 05_build_dim_barangay
+            - task_key: 90_validate_dim_city_municipality
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -908,7 +899,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 06_build_dim_city_poverty
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_poverty_psgc_map
             - task_key: 90_validate_psa_poverty_stat_clean
@@ -920,7 +910,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_city_poverty
-          disabled: true
           depends_on:
             - task_key: 06_build_dim_city_poverty
           run_if: ALL_SUCCESS
@@ -931,7 +920,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
         # Gold facts (D-048), each from its Silver or Integration gate and the dimension gates it joins.
         - task_key: 10_build_fact_school_enrollment
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_school_psgc_map
             - task_key: 90_validate_dim_school
@@ -946,7 +934,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_school_enrollment
-          disabled: true
           depends_on:
             - task_key: 10_build_fact_school_enrollment
           run_if: ALL_SUCCESS
@@ -956,7 +943,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 11_build_fact_school_classroom_capacity
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_facilities_clean
             - task_key: 90_validate_dim_school
@@ -968,7 +954,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_school_classroom_capacity
-          disabled: true
           depends_on:
             - task_key: 11_build_fact_school_classroom_capacity
             - task_key: 90_validate_fact_school_enrollment
@@ -979,7 +964,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 12_build_fact_school_teacher_capacity
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_personnel_clean
             - task_key: 90_validate_dim_school
@@ -992,7 +976,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_school_teacher_capacity
-          disabled: true
           depends_on:
             - task_key: 12_build_fact_school_teacher_capacity
           run_if: ALL_SUCCESS
@@ -1002,7 +985,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 13_build_fact_city_population
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_psgc_clean
             - task_key: 90_validate_dim_city_municipality
@@ -1013,7 +995,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_city_population
-          disabled: true
           depends_on:
             - task_key: 13_build_fact_city_population
           run_if: ALL_SUCCESS
@@ -1023,7 +1004,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 14_build_fact_city_school_age_population
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_school_age_population_psgc_map
             - task_key: 90_validate_dim_city_municipality
@@ -1034,7 +1014,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_city_school_age_population
-          disabled: true
           depends_on:
             - task_key: 14_build_fact_city_school_age_population
           run_if: ALL_SUCCESS
@@ -1046,7 +1025,6 @@ resources:
         # Analytics outputs, each from the fact gates it reads.
         # Dashboard resources are added when an .lvdash.json exists.
         - task_key: 01_answer_ap1
-          disabled: true
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_city_population
@@ -1058,7 +1036,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_ap1
-          disabled: true
           depends_on:
             - task_key: 01_answer_ap1
           run_if: ALL_SUCCESS
@@ -1068,7 +1045,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 02_answer_ap2
-          disabled: true
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_school_classroom_capacity
@@ -1079,7 +1055,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_ap2
-          disabled: true
           depends_on:
             - task_key: 02_answer_ap2
           run_if: ALL_SUCCESS
@@ -1089,7 +1064,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 03_answer_ap3
-          disabled: true
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_school_teacher_capacity
@@ -1100,7 +1074,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_ap3
-          disabled: true
           depends_on:
             - task_key: 03_answer_ap3
           run_if: ALL_SUCCESS
@@ -1110,7 +1083,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 04_answer_ap4
-          disabled: true
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
             - task_key: 90_validate_fact_city_school_age_population
@@ -1121,7 +1093,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_ap4
-          disabled: true
           depends_on:
             - task_key: 04_answer_ap4
           run_if: ALL_SUCCESS
@@ -1130,11 +1101,32 @@ resources:
               path: etl/06_analytics/90_validate_ap4.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
+        # The LGU priority table (D-057): the one answer for the slide, the dashboard and Genie, ranked
+        # from the AP1 to AP3 outputs once each has passed its gate.
+        - task_key: 05_answer_lgu_priority
+          depends_on:
+            - task_key: 90_validate_ap1
+            - task_key: 90_validate_ap2
+            - task_key: 90_validate_ap3
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/05_answer_lgu_priority.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_lgu_priority
+          depends_on:
+            - task_key: 05_answer_lgu_priority
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_lgu_priority.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
 
         # Which DepEd sources have data for each school year, for the dashboard only. Kept out of
         # dim_school_year so a facilities or personnel failure does not stop every fact (D-051).
         - task_key: 15_build_fact_school_year_source_availability
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
             - task_key: 90_validate_deped_facilities_clean
@@ -1148,7 +1140,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_fact_school_year_source_availability
-          disabled: true
           depends_on:
             - task_key: 15_build_fact_school_year_source_availability
           run_if: ALL_SUCCESS
