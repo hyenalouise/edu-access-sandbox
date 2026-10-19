@@ -71,7 +71,7 @@ Raw files are kept exactly as downloaded and are never overwritten (D-016, provi
 
 A re-download of a published file therefore sits beside the earlier one. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so the layout does not matter to it, and it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
 
-**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. Last used for SY 2020-21 enrollment (#161): held in `raw/_holding/deped/2026-10-16/` from 2026-10-16 and moved to `raw/deped/2026-10-16/` on 2026-10-18, after its contract pull request merged ([evidence](../../evidence/pipeline-runs/2026-10-18-deped-enrollment-2020-21-databricks.md)). Nothing is waiting now.
+**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. Used for SY 2020-21 enrollment (#161): held in `raw/_holding/deped/2026-10-16/` from 2026-10-16 and moved to `raw/deped/2026-10-16/` on 2026-10-18, after its contract pull request merged ([evidence](../../evidence/pipeline-runs/2026-10-18-deped-enrollment-2020-21-databricks.md)). Then for SY 2021-22 and 2022-23 enrollment (#182): held in `raw/_holding/deped/2026-10-19/` from 2026-10-19, and moved to `raw/deped/2026-10-19/` once their contract pull request merges.
 
 ## Validation
 
@@ -186,7 +186,7 @@ To run the whole job as Databricks would, every task of `databricks.yml` in orde
 RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
 ```
 
-Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing. On 2026-10-16, with SY 2020-21 added: 60,957 + 60,167 + 60,129 + 60,204 rows in about 11 seconds, all checks PASS; the second run skipped all four and inserted nothing ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)).
+Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing. On 2026-10-16, with SY 2020-21 added: 60,957 + 60,167 + 60,129 + 60,204 rows in about 11 seconds, all checks PASS; the second run skipped all four and inserted nothing ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)). On 2026-10-19, with SY 2021-22 and 2022-23 added: 60,957 + 60,429 + 60,137 + 60,167 + 60,129 + 60,204 rows in about 16 seconds, no FAIL and one WARN (`school_id_format` on SY 2022-23's `1404066`); the second run skipped all six and inserted nothing ([evidence](../../evidence/reconciliation/2026-10-19-deped-enrollment-2021-23-bronze.md)).
 
 After changing a schema version in the contract, regenerate the Bronze DDL and gate (a test fails until you do):
 
@@ -284,7 +284,7 @@ SELECT r.started_at_utc, r.status, a.batch_id, a.action, a.outcome, a.rows_inser
 FROM edu_access.`01-control`.ingestion_batch_attempts AS a JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
 ORDER BY r.started_at_utc, a.batch_id;
 
--- Row counts reconcile to the approved files: expect 60,957 / 60,167 / 60,129 / 60,204 (60,167 / 60,129 / 60,204 before SY 2020-21 is loaded)
+-- Row counts reconcile to the approved files: expect 60,957 / 60,429 / 60,137 / 60,167 / 60,129 / 60,204 (without SY 2021-22 and 2022-23 before they are loaded, and without SY 2020-21 before it is)
 SELECT school_year, delivery_version, COUNT(*) AS rows FROM edu_access.`02-bronze`.deped_enrollment_raw GROUP BY ALL ORDER BY 1, 2;
 
 -- No pipeline duplicates: expect 0
@@ -419,7 +419,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 - Approval is manual by design: a new year needs a profile update and a pull request before it loads.
 - A revision reloads all rows of the school year (about 60,000), even if one value changed.
 - No `prod` target yet; `dev` is the only deploy target.
-- SY 2017-18 to 2019-20, 2021-22, and 2022-23 are published but not acquired; their headers are unknown and may need new schema versions (SY 2020-21 turned out to be `v1`).
+- SY 2017-18 to 2019-20 are published but not acquired; their headers are unknown and may need new schema versions (SY 2020-21, 2021-22, and 2022-23 turned out to be `v1`).
 
 ## Open questions
 
