@@ -278,6 +278,46 @@ def test_two_runs_use_disjoint_work_table_names(tmp_path):
     assert actual == expected
 
 
+def test_two_gates_use_disjoint_summary_tables(tmp_path):
+    """Overlapping gates (two deployments, or a manual task run) never read each other's summary."""
+    env = Env(tmp_path)
+    keep_summary = tmp_path / "gate_keep_summary.sql"
+    keep_summary.write_text("\n".join(
+        line for line in env.gate.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("DROP TABLE IF EXISTS IDENTIFIER(session.integration_gate_summary)")
+    ), encoding="utf-8")
+
+    run_ids = ("job-run-a", "manual-run-b")
+    for run_id in run_ids:
+        params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
+        env.store.run_file(env.build, params)
+        env.store.run_file(keep_summary, params)
+
+    names = {run_id: f"deped_school_psgc_map_gate_summary_r_{hashlib.sha256(run_id.encode()).hexdigest()}"
+             for run_id in run_ids}
+    actual = {r["table_name"] for r in env.rows(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = '04-integration' AND table_name LIKE 'deped_school_psgc_map_gate_summary%'"
+    )}
+    assert actual == set(names.values())
+    # Run b rebuilt the candidate, so a's summary (taken before) saw a's rows and b's saw b's: each passed.
+    for run_id, name in names.items():
+        assert env.rows(f'SELECT other_run_rows FROM edu_access."04-integration".{name}') == [{"other_run_rows": 0}]
+        assert env.checks(run_id)["rows_built_by_this_run"]["status"] == "PASS"
+
+
+def test_the_gate_drops_its_summary_whether_it_passes_or_fails(tmp_path):
+    env = Env(tmp_path)
+    summaries = ("SELECT table_name FROM information_schema.tables "
+                 "WHERE table_schema = '04-integration' AND table_name LIKE 'deped_school_psgc_map_gate_summary%'")
+    assert env.run()[1] is None
+    assert env.rows(summaries) == []
+    run_id, error = env.run(change=f"UPDATE {CANDIDATE} SET school_name = 'changed' WHERE school_id = '100001'")
+    assert "Integration gate failed" in error
+    assert env.checks(run_id)["enrollment_fields_reconcile"]["status"] == "FAIL"
+    assert env.rows(summaries) == []
+
+
 def test_code_and_name_agree_is_code(got):
     assert city(got, "100001") == ("0102801000", "matched", "code", "code and name agree", "rule")
     assert bgy(got, "100001")[:4] == ("0102801001", "matched", "code", "code and name agree")

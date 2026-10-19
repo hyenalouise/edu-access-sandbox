@@ -48,6 +48,8 @@ NO_MATCH = "no code, no name match"
 ROLLED_UP = f"'{SEMI}Manila sub-municipality rolled up'"
 WORK_COMMENT = ("Internal unpublished diagnostic work table for one DepEd school PSGC build. "
                 "A failed build may leave it for diagnosis. Retrying that run replaces it.")
+GATE_SUMMARY_COMMENT = ("Internal unpublished one-row summary for one DepEd school PSGC gate. "
+                        "The gate drops it once its checks are recorded in data_quality_results.")
 
 
 def _error(message):
@@ -711,7 +713,8 @@ def gate_sql(spec):
     enr, cross = ref(SILVER, spec.enrollment_table), ref(SILVER, spec.crosswalk_table)
     psgc = ref(SILVER, spec.psgc_table)
     candidate, published = ref(SCHEMA, spec.candidate), ref(SCHEMA, spec.map_table)
-    summary = ref(SCHEMA, spec.map_table + "_gate_summary")
+    # Named per run like the build's work tables, so two overlapping gates never read each other's summary.
+    summary = "IDENTIFIER(session.integration_gate_summary)"
     profile = _values([tuple(str(v) for v in row) for row in spec.profiled],
                       ("school_year", "geographic_level", "matched", "ambiguous", "unmatched", "excluded"))
     overrides = _values([(o.province, o.municipality, o.barangay, o.reason, o.reviewer) for o in spec.overrides],
@@ -721,10 +724,14 @@ def gate_sql(spec):
     sql = f"""
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
 SET VARIABLE integration_gate_started_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE integration_gate_summary STRING;
+SET VARIABLE integration_gate_summary = '`edu_access`.`{SCHEMA}`.`{spec.map_table}_gate_summary_r_' || sha2(:run_id, 256) || '`';
+DECLARE OR REPLACE VARIABLE integration_gate_owner_sql STRING;
 
 -- The one-row summary the checks read is written to a table first. Read 25 times as a common table expression,
 -- it made Databricks SQL's optimizer fail with INTERNAL_ERROR (sandbox run, 2026-10-19); each part ran alone.
-CREATE OR REPLACE TABLE {summary} USING DELTA AS
+-- The table is this run's own (its name holds a hash of run_id) and is dropped once the checks are recorded.
+CREATE OR REPLACE TABLE {summary} USING DELTA COMMENT '{GATE_SUMMARY_COMMENT}' AS
 WITH e AS (SELECT school_year, school_id, school_name, region, province, municipality, barangay,
                   batch_id, source_sha256, source_row_number FROM {enr}),
 x AS (SELECT school_id, psgc_city_municipality, psgc_barangay, batch_id, source_row_number FROM {cross}),
@@ -825,7 +832,8 @@ reconcile AS (
     AND o.province = m.source_province AND o.municipality = m.source_city_municipality AND o.barangay = m.source_barangay
 )
 SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile;
-ALTER TABLE {summary} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_gate_owner_sql = 'ALTER TABLE ' || session.integration_gate_summary || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_gate_owner_sql;
 
 INSERT INTO {CONTROL}.data_quality_results
   (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
@@ -892,6 +900,9 @@ profiled AS (
 )
 SELECT * FROM checks UNION ALL SELECT * FROM rates UNION ALL SELECT * FROM profiled
 ) AS results;
+
+-- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
+DROP TABLE IF EXISTS {summary};
 
 MERGE INTO {CONTROL}.pipeline_runs AS t
 USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM {CONTROL}.data_quality_results
