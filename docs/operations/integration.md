@@ -57,6 +57,18 @@ Unmatched, ambiguous,
 excluded, pending-review, EMISD codes with no master PSGC unit, overrides that
 find no unit, and overrides that match no school are WARN.
 
+To review the unresolved schools, list every unmatched and ambiguous row with
+the place DepEd gives, the EMISD code, and the reason (the evidence record
+quotes the counts):
+
+```sql
+SELECT school_year, school_id, school_name, geographic_level, match_status,
+       source_province, source_city_municipality, source_barangay, code_candidate, reason
+FROM edu_access.`04-integration`.deped_school_psgc_map
+WHERE match_status IN ('unmatched', 'ambiguous')
+ORDER BY school_id, school_year, geographic_level;
+```
+
 Local made-up validation is in `tests/test_integration_deped_school_psgc.py`:
 one school per branch of the reviewed rule, plus targeted negative mutations
 for the publication-critical gate checks. The real-data reconciliation is
