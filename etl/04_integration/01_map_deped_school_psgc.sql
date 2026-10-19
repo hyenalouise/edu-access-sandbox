@@ -26,7 +26,8 @@ WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, sta
 CREATE SCHEMA IF NOT EXISTS edu_access.`04-integration`;
 ALTER SCHEMA edu_access.`04-integration` OWNER TO `reached-hq`;
 
-CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched AS
+-- Normalize the master PSGC once. This table is read by every later matching stage.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_units USING DELTA AS
 WITH
 psgc_input AS (
   SELECT psgc_code, name, old_names, geographic_level, level_blank, region_code, province_code,
@@ -49,7 +50,14 @@ units AS (
   SELECT x.*, CASE WHEN pp.geographic_level = 'SubMun' THEN substr(x.city_municipality_code, 1, 5) || '00000'
                    ELSE x.city_municipality_code END AS city_roll
   FROM p5 AS x LEFT JOIN p5 AS pp ON pp.psgc_code = x.city_municipality_code
-),
+)
+SELECT * FROM units;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_units OWNER TO `reached-hq`;
+
+-- Candidate PSGC provinces for each distinct DepEd province/city pair.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs USING DELTA AS
+WITH
 -- Cities are matched once per DepEd (province, municipality) pair: the match never reads the barangay.
 city_input AS (
   SELECT DISTINCT province, municipality FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
@@ -58,8 +66,7 @@ city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upp
 city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
-aliases AS (SELECT v.*, u.region_code FROM (SELECT * FROM (VALUES ('TONDO', '1380601000', 'Tondo I/II, a City of Manila sub-municipality'), ('KALOOKAN CITY', '1380100000', 'PSGC uses City of Caloocan'), ('OZAMIS CITY', '1004210000', 'PSGC uses City of Ozamiz'), ('BARAUEN', '0803710000', 'PSGC uses Burauen'), ('BALIUAG', '0301403000', 'PSGC uses City of Baliwag')) AS v(deped_name, psgc_code, reason)) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
-overrides AS (SELECT * FROM (VALUES ('bgy', 'NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE', 'code', 'DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.', '@catweyine')) AS v(geographic_level, province, municipality, barangay, use_side, reason, reviewer)),
+units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
 province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code,
     CASE WHEN s.prov_exact = u.k_exact THEN 1 WHEN s.prov_exact = u.ok_exact THEN 2
@@ -70,7 +77,23 @@ province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code, 1
   FROM city3 AS s JOIN units AS u ON upper(s.province) = 'MAGUINDANAO'
     AND u.geographic_level = 'Prov' AND u.psgc_code IN ('1908700000', '1908800000')
+)
+SELECT * FROM province_pairs;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs OWNER TO `reached-hq`;
+
+-- Candidate PSGC cities and municipalities. Province candidates are already stored above.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs USING DELTA AS
+WITH
+city_input AS (
+  SELECT DISTINCT province, municipality FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
 ),
+city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upper(x.province), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') LIKE 'CITY OF %' THEN substr(regexp_replace(TRIM(regexp_replace(translate(upper(x.province), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', ''), 9) || ' CITY' ELSE regexp_replace(TRIM(regexp_replace(translate(upper(x.province), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') END AS prov_exact, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upper(x.municipality), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') LIKE 'CITY OF %' THEN substr(regexp_replace(TRIM(regexp_replace(translate(upper(x.municipality), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', ''), 9) || ' CITY' ELSE regexp_replace(TRIM(regexp_replace(translate(upper(x.municipality), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') END AS k_exact FROM city_input AS x),
+city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
+city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
+city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
+units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
+province_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs),
 province_best AS (
   SELECT province, municipality, MIN(tier) AS tier
   FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2
@@ -97,6 +120,33 @@ city_pairs AS (
          OR s.k_brackets = u.k_brackets OR s.k_city = u.k_city)
   LEFT JOIN province_scope AS ps ON ps.province IS NOT DISTINCT FROM s.province
     AND ps.municipality IS NOT DISTINCT FROM s.municipality AND ps.province_prefix = substr(u.psgc_code, 1, 5)
+)
+SELECT * FROM city_pairs;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs OWNER TO `reached-hq`;
+
+-- One resolved city/municipality result per distinct DepEd province/city pair.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_cities USING DELTA AS
+WITH
+city_input AS (
+  SELECT DISTINCT province, municipality FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
+),
+city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upper(x.province), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') LIKE 'CITY OF %' THEN substr(regexp_replace(TRIM(regexp_replace(translate(upper(x.province), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', ''), 9) || ' CITY' ELSE regexp_replace(TRIM(regexp_replace(translate(upper(x.province), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') END AS prov_exact, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upper(x.municipality), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') LIKE 'CITY OF %' THEN substr(regexp_replace(TRIM(regexp_replace(translate(upper(x.municipality), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', ''), 9) || ' CITY' ELSE regexp_replace(TRIM(regexp_replace(translate(upper(x.municipality), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') END AS k_exact FROM city_input AS x),
+city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
+city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
+city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
+units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
+province_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs),
+city_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs),
+aliases AS (SELECT v.*, u.region_code FROM (SELECT * FROM (VALUES ('TONDO', '1380601000', 'Tondo I/II, a City of Manila sub-municipality'), ('KALOOKAN CITY', '1380100000', 'PSGC uses City of Caloocan'), ('OZAMIS CITY', '1004210000', 'PSGC uses City of Ozamiz'), ('BARAUEN', '0803710000', 'PSGC uses Burauen'), ('BALIUAG', '0301403000', 'PSGC uses City of Baliwag')) AS v(deped_name, psgc_code, reason)) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
+province_best AS (
+  SELECT province, municipality, MIN(tier) AS tier
+  FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2
+),
+province_hits AS (
+  SELECT b.province, b.municipality, COUNT(DISTINCT p.psgc_code) AS hits, MIN(p.psgc_code) AS psgc_code
+  FROM province_best AS b JOIN province_pairs AS p USING (province, municipality, tier)
+  GROUP BY 1,2
 ),
 city_scope AS (
   SELECT province, municipality, MIN(scope_rank) AS scope_rank
@@ -127,7 +177,14 @@ city_named AS (
      OR substr(a.psgc_code, 6) = '00000')
   LEFT JOIN units AS au ON au.psgc_code = a.psgc_code
   LEFT JOIN city_hits AS c USING (province, municipality)
-),
+)
+SELECT * FROM city_named;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_cities OWNER TO `reached-hq`;
+
+-- Candidate PSGC barangays for each distinct DepEd place, inside its resolved city.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs USING DELTA AS
+WITH
 -- Barangays are matched once per (province, municipality, barangay, truncation flag), inside the named city.
 source_input AS (
   SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
@@ -137,6 +194,8 @@ source0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(u
 source1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.b_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_fold FROM source0 AS x),
 source2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.b_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_brackets FROM source1 AS x),
 source3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.b_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_city FROM source2 AS x),
+city_named AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_cities),
+units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
 barangay_pairs AS (
   SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code,
          LEAST(COALESCE(CASE WHEN s.b_exact = u.k_exact THEN 1 WHEN s.b_fold = u.k_fold THEN 3
@@ -145,7 +204,24 @@ barangay_pairs AS (
                COALESCE(CASE WHEN s.b_exact = u.ok_exact THEN 2 WHEN s.b_fold = u.ok_fold THEN 4 END, 99)) AS tier
   FROM source3 AS s JOIN city_named AS c USING (province, municipality)
   JOIN units AS u ON u.geographic_level = 'Bgy' AND u.city_municipality_code = c.name_city_code
+)
+SELECT * FROM barangay_pairs;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs OWNER TO `reached-hq`;
+
+-- One resolved barangay result per distinct DepEd place.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_places USING DELTA AS
+WITH
+source_input AS (
+  SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
+  FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
 ),
+source0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upper(x.barangay), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') LIKE 'CITY OF %' THEN substr(regexp_replace(TRIM(regexp_replace(translate(upper(x.barangay), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', ''), 9) || ' CITY' ELSE regexp_replace(TRIM(regexp_replace(translate(upper(x.barangay), chr(9) || chr(160), '  '), ' +', ' ')), ' ?[(](CAPITAL|NOT A PROVINCE)[)]$', '') END AS b_exact FROM source_input AS x),
+source1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.b_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_fold FROM source0 AS x),
+source2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.b_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_brackets FROM source1 AS x),
+source3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.b_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_city FROM source2 AS x),
+city_named AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_cities),
+barangay_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs),
 barangay_best AS (
   SELECT province, municipality, barangay, barangay_possibly_truncated, MIN(tier) AS tier
   FROM barangay_pairs WHERE tier < 99 GROUP BY 1,2,3,4
@@ -164,7 +240,18 @@ places AS (
   FROM source3 AS s
   LEFT JOIN city_named AS c USING (province, municipality)
   LEFT JOIN barangay_hits AS b USING (province, municipality, barangay, barangay_possibly_truncated)
-),
+)
+SELECT * FROM places;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_places OWNER TO `reached-hq`;
+
+-- Decide the city and barangay result once per school-year row. The final two-level expansion reads
+-- this table twice without making Spark recompute the matching graph twice.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_decisions USING DELTA AS
+WITH
+units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
+places AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_places),
+overrides AS (SELECT * FROM (VALUES ('bgy', 'NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE', 'code', 'DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.', '@catweyine')) AS v(geographic_level, province, municipality, barangay, use_side, reason, reviewer)),
 school_input AS (
   SELECT e.school_year, e.school_id, e.school_name, e.region, e.province, e.municipality, e.barangay,
          e.barangay_possibly_truncated, e.is_overseas,
@@ -278,7 +365,16 @@ bgy_decided AS (
          WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN NULL ELSE b.bgy_method0 END AS bgy_method,
     CASE WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN 'barangay outside the accepted city or municipality' ELSE b.bgy_reason0 END AS bgy_reason
   FROM bgy_pre AS b LEFT JOIN units AS u ON u.psgc_code = b.bgy_code0
-),
+)
+SELECT * FROM bgy_decided;
+
+ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_decisions OWNER TO `reached-hq`;
+
+-- Expand every stored school-year decision to the map's city and barangay rows.
+CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate USING DELTA AS
+WITH
+units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
+bgy_decided AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_decisions),
 decisions AS (
   SELECT b.*, 'city_mun' AS geographic_level, b.code_city AS code_candidate, b.city_code AS psgc_code,
          b.city_status AS match_status, CASE WHEN b.city_code IS NULL THEN NULL ELSE b.city_method END AS match_method,
@@ -299,7 +395,7 @@ SELECT
   d.region AS source_region, d.province AS source_province,
   d.municipality AS source_city_municipality, d.barangay AS source_barangay,
   d.geographic_level, d.code_candidate,
-  (SELECT MIN(publication_period) FROM psgc_input) AS psgc_version,
+  (SELECT MIN(publication_period) FROM units) AS psgc_version,
   d.psgc_code, p.name AS psgc_name,
   d.match_status, d.match_method,
   -- An override that finds no unit, or a barangay outside the city, still needs review.
@@ -310,10 +406,17 @@ SELECT
   p.batch_id AS psgc_batch_id, p.source_row_number AS psgc_source_row_number,
   session.integration_run_id AS run_id, session.integration_built_at_utc AS built_at_utc,
   session.integration_code_revision AS code_revision
-FROM decisions AS d LEFT JOIN psgc_input AS p ON p.psgc_code = d.psgc_code;
-
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate USING DELTA AS
-SELECT * FROM deped_school_psgc_matched;
+FROM decisions AS d LEFT JOIN units AS p ON p.psgc_code = d.psgc_code;
 
 COMMENT ON TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate IS 'Unpublished build for the Integration gate. Do not read: use deped_school_psgc_map.';
 ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate OWNER TO `reached-hq`;
+
+-- A failed build may leave work tables for diagnosis. Every rerun replaces each one before reading it,
+-- and a successful build removes all of them after the candidate is durable.
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_decisions;
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_places;
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs;
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_cities;
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs;
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs;
+DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_units;
