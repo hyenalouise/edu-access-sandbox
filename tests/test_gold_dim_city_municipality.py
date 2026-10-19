@@ -17,6 +17,13 @@ BUILD = REPO_ROOT / "etl" / "05_gold" / "04_build_dim_city_municipality.sql"
 GATE = REPO_ROOT / "etl" / "05_gold" / "90_validate_dim_city_municipality.sql"
 RELEASE = "2025-02-13"
 
+
+def record_run(store, run_id, pipeline_name, source_id, status="succeeded"):
+    """The pipeline_runs row a published Silver or Integration table's run_id points to (D-025)."""
+    store.sql(f"INSERT INTO {CONTROL}.pipeline_runs (run_id, pipeline_name, source_id, environment, status, code_revision, "
+              f"started_at_utc) VALUES (?, ?, ?, 'local', ?, 'c', TIMESTAMP '2026-10-19 00:00:00')",
+              [run_id, pipeline_name, source_id, status])
+
 # psgc_code, name, geographic_level, region_code, province_code, city_class, income_class, retained, level_blank
 PSGC = [
     ("0100000000", "Region One", "Reg", "0100000000", None, None, None, None, False),
@@ -53,23 +60,26 @@ class Env:
         self.store.sql("CREATE TABLE edu_access.`03-silver`.psa_psgc_clean (psgc_code STRING, name STRING, "
                        "geographic_level STRING, region_code STRING, province_code STRING, city_class STRING, "
                        "income_class STRING, income_class_retained_after_downgrade BOOLEAN, level_blank BOOLEAN, "
-                       "publication_period STRING, is_master_reference BOOLEAN)")
+                       "publication_period STRING, is_master_reference BOOLEAN, run_id STRING)")
         for row in psgc:
-            self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '2026-Q2', TRUE)",
+            self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '2026-Q2', TRUE, 'S1')",
                            list(row))
         if older_quarter:  # a non-master quarter, with a unit the master does not have: never read
             self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES ('0102899000', 'Old Town', 'Mun', "
-                           "'0100000000', '0102800000', NULL, NULL, NULL, FALSE, '2025-Q4', FALSE)")
+                           "'0100000000', '0102800000', NULL, NULL, NULL, FALSE, '2025-Q4', FALSE, 'S0')")
         self.store.sql("CREATE TABLE edu_access.`03-silver`.hdx_adm3_clean (adm3_pcode STRING, valid_on DATE, "
-                       "area_sqkm DECIMAL(20,14))")
+                       "area_sqkm DECIMAL(20,14), run_id STRING)")
         self.store.sql("CREATE TABLE edu_access.`04-integration`.hdx_adm3_psgc_map (adm3_pcode STRING, "
-                       "source_reference_date DATE, psgc_code STRING, match_status STRING)")
+                       "source_reference_date DATE, psgc_code STRING, match_status STRING, run_id STRING)")
         self.load_hdx(hdx)
+        record_run(self.store, "S1", "silver_build", "psa_psgc")
+        record_run(self.store, "S1", "silver_build", "hdx_boundaries")
+        record_run(self.store, "M1", "integration_build", "hdx_boundaries")
 
     def load_hdx(self, hdx):
         for pcode, code, area in hdx:
-            self.store.sql(f"INSERT INTO edu_access.`03-silver`.hdx_adm3_clean VALUES (?, DATE '{RELEASE}', ?)", [pcode, area])
-            self.store.sql(f"INSERT INTO edu_access.`04-integration`.hdx_adm3_psgc_map VALUES (?, DATE '{RELEASE}', ?, ?)",
+            self.store.sql(f"INSERT INTO edu_access.`03-silver`.hdx_adm3_clean VALUES (?, DATE '{RELEASE}', ?, 'S1')", [pcode, area])
+            self.store.sql(f"INSERT INTO edu_access.`04-integration`.hdx_adm3_psgc_map VALUES (?, DATE '{RELEASE}', ?, ?, 'M1')",
                            [pcode, code, "matched" if code else "unmatched"])
 
     def run(self):
@@ -163,3 +173,17 @@ def test_a_missing_region_name_fails():
     run_id, error = env.run()
     assert error
     assert env.checks(run_id)["region_resolved"]["status"] == "FAIL"
+
+
+def test_upstream_runs_are_recorded_and_must_have_succeeded():
+    env = Env()
+    run_id, error = env.run()
+    assert error is None
+    upstream = {(r["check_name"], r["actual"], r["status"]) for r in env.store.records(
+        f"SELECT * FROM {CONTROL}.data_quality_results WHERE run_id = '{run_id}' AND check_name LIKE 'upstream_run_%'")}
+    assert upstream == {("upstream_run_psa_psgc_clean", "S1", "PASS"), ("upstream_run_hdx_adm3_clean", "S1", "PASS"),
+                        ("upstream_run_hdx_adm3_psgc_map", "M1", "PASS")}
+    env.store.sql(f"UPDATE {CONTROL}.pipeline_runs SET status = 'failed' WHERE pipeline_name = 'integration_build'")
+    run_id, error = env.run()
+    assert error and "Gold gate failed for dim_city_municipality" in error
+    assert env.checks(run_id)["upstream_run_hdx_adm3_psgc_map"]["status"] == "FAIL"

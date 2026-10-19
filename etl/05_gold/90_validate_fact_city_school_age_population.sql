@@ -116,6 +116,26 @@ FROM (
   UNION ALL SELECT 'codes_not_comparable', 'PASS', CAST(NULL AS STRING), CAST(codes_not_comparable AS STRING) FROM fact_city_school_age_population_gate_summary
 ) AS results;
 
+-- Integrity rule 1 of the metric specification: one result per distinct upstream run_id read, PASS only
+-- when that run's silver_build or integration_build for the source succeeded in pipeline_runs (D-025), so the Gold build is
+-- traceable to the Silver and Integration rows it read and never trusts a run that did not publish.
+INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, NULL, 'fact_city_school_age_population', 'gold', 'edu_access.05-gold.fact_city_school_age_population', 'upstream_run_' || u.input_table,
+       CASE WHEN p.run_id IS NULL THEN 'FAIL' ELSE 'PASS' END, 'succeeded ' || u.pipeline_name, u.upstream_run_id,
+       current_timestamp(), :code_revision
+FROM (
+  SELECT DISTINCT 'psa_school_age_population_clean' AS input_table, 'silver_build' AS pipeline_name, 'psa_school_age_population' AS source_id, run_id AS upstream_run_id
+  FROM edu_access.`03-silver`.psa_school_age_population_clean WHERE level = 'city_municipality' AND population_concept = 'total'
+  UNION ALL
+  SELECT DISTINCT 'psa_school_age_population_psgc_map' AS input_table, 'integration_build' AS pipeline_name, 'psa_school_age_population' AS source_id, run_id AS upstream_run_id
+  FROM edu_access.`04-integration`.psa_school_age_population_psgc_map
+) AS u
+LEFT JOIN (
+  SELECT DISTINCT run_id, pipeline_name, source_id
+  FROM edu_access.`01-control`.pipeline_runs
+  WHERE status = 'succeeded'
+) AS p ON p.run_id = u.upstream_run_id AND p.pipeline_name = u.pipeline_name AND p.source_id = u.source_id;
+
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for fact_city_school_age_population: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'fact_city_school_age_population' AND layer = 'gold' AND status = 'FAIL'

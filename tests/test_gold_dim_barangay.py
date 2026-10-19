@@ -33,12 +33,14 @@ class Env:
         self.store.sql("CREATE SCHEMA IF NOT EXISTS edu_access.`03-silver`")
         self.store.sql("CREATE TABLE edu_access.`03-silver`.psa_psgc_clean (psgc_code STRING, name STRING, "
                        "geographic_level STRING, city_municipality_code STRING, urban_rural STRING, "
-                       "publication_period STRING, is_master_reference BOOLEAN)")
+                       "publication_period STRING, is_master_reference BOOLEAN, run_id STRING)")
         for row in psgc:
-            self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES (?, ?, ?, ?, ?, '2026-Q2', TRUE)", list(row))
+            self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES (?, ?, ?, ?, ?, '2026-Q2', TRUE, 'S1')", list(row))
         # a non-master quarter: never read
         self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES "
-                       "('0102801099', 'Old Barangay', 'Bgy', '0102801000', 'R', '2025-Q4', FALSE)")
+                       "('0102801099', 'Old Barangay', 'Bgy', '0102801000', 'R', '2025-Q4', FALSE, 'S0')")
+        self.store.sql(f"INSERT INTO {CONTROL}.pipeline_runs (run_id, pipeline_name, source_id, environment, status, code_revision, "
+                       "started_at_utc) VALUES ('S1', 'silver_build', 'psa_psgc', 'local', 'succeeded', 'c', TIMESTAMP '2026-10-19 00:00:00')")
 
     def run(self):
         run_id = str(uuid.uuid4())
@@ -102,8 +104,16 @@ def test_a_barangay_without_its_city_fails_and_keeps_the_last_good_build():
     env.run()
     good = env.dim()
     env.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES "
-                  "('0102899001', 'Orphan', 'Bgy', '0102899000', 'R', '2026-Q2', TRUE)")
+                  "('0102899001', 'Orphan', 'Bgy', '0102899000', 'R', '2026-Q2', TRUE, 'S1')")
     run_id, error = env.run()
     assert error and "Gold gate failed for dim_barangay" in error
     assert env.checks(run_id)["parent_is_city_or_municipality"]["status"] == "FAIL"
     assert env.dim() == good
+
+
+def test_a_psgc_run_that_did_not_succeed_fails():
+    env = Env()
+    env.store.sql(f"UPDATE {CONTROL}.pipeline_runs SET status = 'running'")
+    run_id, error = env.run()
+    assert error
+    assert env.checks(run_id)["upstream_run_psa_psgc_clean"]["status"] == "FAIL"

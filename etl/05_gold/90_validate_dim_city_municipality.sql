@@ -95,6 +95,29 @@ FROM (
   UNION ALL SELECT 'sga_members', 'PASS', CAST(NULL AS STRING), CAST(sga_members AS STRING) FROM dim_city_municipality_gate_summary
 ) AS results;
 
+-- Integrity rule 1 of the metric specification: one result per distinct upstream run_id read, PASS only
+-- when that run's silver_build or integration_build for the source succeeded in pipeline_runs (D-025), so the Gold build is
+-- traceable to the Silver and Integration rows it read and never trusts a run that did not publish.
+INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, NULL, 'dim_city_municipality', 'gold', 'edu_access.05-gold.dim_city_municipality', 'upstream_run_' || u.input_table,
+       CASE WHEN p.run_id IS NULL THEN 'FAIL' ELSE 'PASS' END, 'succeeded ' || u.pipeline_name, u.upstream_run_id,
+       current_timestamp(), :code_revision
+FROM (
+  SELECT DISTINCT 'psa_psgc_clean' AS input_table, 'silver_build' AS pipeline_name, 'psa_psgc' AS source_id, run_id AS upstream_run_id
+  FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
+  UNION ALL
+  SELECT DISTINCT 'hdx_adm3_clean' AS input_table, 'silver_build' AS pipeline_name, 'hdx_boundaries' AS source_id, run_id AS upstream_run_id
+  FROM edu_access.`03-silver`.hdx_adm3_clean WHERE valid_on = (SELECT MAX(source_reference_date) FROM edu_access.`04-integration`.hdx_adm3_psgc_map)
+  UNION ALL
+  SELECT DISTINCT 'hdx_adm3_psgc_map' AS input_table, 'integration_build' AS pipeline_name, 'hdx_boundaries' AS source_id, run_id AS upstream_run_id
+  FROM edu_access.`04-integration`.hdx_adm3_psgc_map WHERE source_reference_date = (SELECT MAX(source_reference_date) FROM edu_access.`04-integration`.hdx_adm3_psgc_map)
+) AS u
+LEFT JOIN (
+  SELECT DISTINCT run_id, pipeline_name, source_id
+  FROM edu_access.`01-control`.pipeline_runs
+  WHERE status = 'succeeded'
+) AS p ON p.run_id = u.upstream_run_id AND p.pipeline_name = u.pipeline_name AND p.source_id = u.source_id;
+
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for dim_city_municipality: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'dim_city_municipality' AND layer = 'gold' AND status = 'FAIL'
