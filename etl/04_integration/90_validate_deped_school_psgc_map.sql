@@ -12,7 +12,7 @@ FROM (
 WITH e AS (SELECT school_year, school_id FROM edu_access.`03-silver`.deped_enrollment_clean),
 p AS (SELECT psgc_code, geographic_level, city_municipality_code, publication_period FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference),
 m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
-profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
+profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2021-22', 'city_mun', '60356', '26', '12', '35'), ('2021-22', 'bgy', '60210', '129', '55', '35'), ('2022-23', 'city_mun', '60070', '24', '7', '35'), ('2022-23', 'bgy', '59978', '95', '28', '35'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
 overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE')) AS v(province, municipality, barangay)),
 expected_keys AS (
   SELECT e.school_year, e.school_id, l.geographic_level
