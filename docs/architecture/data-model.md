@@ -154,6 +154,18 @@ members without land area.
 | `urban_rural` | STRING |
 | `member_type` | STRING |
 
+Built in `etl/05_gold/05_build_dim_barangay.sql` from `psa_psgc_clean` only
+(D-051). Regular members are the master quarter's `Bgy` rows (42,010 for 2Q
+2026). `city_mun_psgc_code` is Silver's `city_municipality_code`, except that
+the City of Manila's 897 barangays, which PSGC places under its 14 `SubMun`
+districts, roll up to the City of Manila (`1380600000`), since Gold has no
+sub-municipality grain. `urban_rural` is `U`, `R`, or NULL where PSGC publishes
+`-` (38 barangays). Each of the 1,642 cities and municipalities has one
+`<code>-UNKNOWN` member, and `UNKNOWN` and `EXCLUDED` sit under the matching
+city members: 43,654 rows in all. The gate FAILs on a repeated key, a barangay
+whose parent is not a PSGC city or municipality, or a missing unknown member,
+and WARNs on barangays without `urban_rural`.
+
 ### `dim_school`
 
 | Column | Type |

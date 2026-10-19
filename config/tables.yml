@@ -180,6 +180,10 @@ gold_tables:
     build_file: 04_build_dim_city_municipality.sql
     validate_file: 90_validate_dim_city_municipality.sql
     grain: One PSGC city or municipality of the master quarter, plus the UNKNOWN and EXCLUDED technical members.
+  - table: dim_barangay
+    build_file: 05_build_dim_barangay.sql
+    validate_file: 90_validate_dim_barangay.sql
+    grain: One PSGC barangay of the master quarter, one unknown barangay per city or municipality, plus the UNKNOWN and EXCLUDED technical members.
 
 deferred_layers:
   - analytics

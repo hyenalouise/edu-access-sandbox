@@ -888,7 +888,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 05_build_dim_barangay
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_psgc_clean
           run_if: ALL_SUCCESS
@@ -898,7 +897,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_barangay
-          disabled: true
           depends_on:
             - task_key: 05_build_dim_barangay
           run_if: ALL_SUCCESS
