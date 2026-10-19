@@ -25,6 +25,17 @@ s AS (
     COALESCE(COUNT_IF(tier_code <> 'data_review' AND tier_code <> CAST(high_measure_count AS STRING)), 0) AS tier_not_count,
     COALESCE(COUNT_IF((tier_code = 'data_review') <> (ap1_status = 'not_assessed' OR ap2_status = 'not_assessed' OR ap3_status = 'not_assessed')), 0) AS review_mismatch,
     COALESCE(COUNT_IF(ap1_percentile < 0 OR ap1_percentile > 1 OR ap2_percentile < 0 OR ap2_percentile > 1 OR ap3_percentile < 0 OR ap3_percentile > 1), 0) AS pct_out_of_range,
+    COALESCE(COUNT_IF((ap1_percentile IS NOT NULL AND (ap1_same_type_baseline IS NULL OR ap1_relative_pressure IS NULL))
+                      OR (ap2_percentile IS NOT NULL AND (ap2_same_type_baseline IS NULL OR ap2_relative_pressure IS NULL))
+                      OR (ap3_percentile IS NOT NULL AND (ap3_same_type_baseline IS NULL OR ap3_relative_pressure IS NULL))), 0) AS missing_relative_evidence,
+    COALESCE(COUNT_IF(ap1_same_type_baseline <= 0 OR ap2_same_type_baseline <= 0 OR ap3_same_type_baseline <= 0), 0) AS nonpositive_baseline,
+    COALESCE(COUNT_IF((ap1_relative_pressure IS NOT NULL AND ABS(ap1_relative_pressure - ap1_learners_per_public_school / ap1_same_type_baseline) > 0.000000001)
+                      OR (ap2_relative_pressure IS NOT NULL AND ABS(ap2_relative_pressure - ap2_learners_per_room / ap2_same_type_baseline) > 0.000000001)
+                      OR (ap3_relative_pressure IS NOT NULL AND ABS(ap3_relative_pressure -
+                           CASE ap3_highest_level WHEN 'ES' THEN ap3_es_learners_per_teacher
+                                                  WHEN 'JHS' THEN ap3_jhs_learners_per_teacher
+                                                  WHEN 'SHS' THEN ap3_shs_learners_per_teacher END
+                           / ap3_same_type_baseline) > 0.000000001)), 0) AS bad_relative_pressure,
     COALESCE(COUNT_IF(is_stable AND tier_code <> '3'), 0) AS bad_stable,
     COUNT(DISTINCT priority_rank) AS ranks, MIN(priority_rank) AS min_rank, MAX(priority_rank) AS max_rank,
     COALESCE(COUNT_IF(tier_code = '3'), 0) AS critical, COALESCE(COUNT_IF(tier_code = '2'), 0) AS elevated, COALESCE(COUNT_IF(tier_code = '1'), 0) AS targeted,
@@ -89,6 +100,10 @@ UNION ALL SELECT 'tier_code_valid', CASE WHEN bad_tier = 0 THEN 'PASS' ELSE 'FAI
 UNION ALL SELECT 'tier_is_count_of_high_measures', CASE WHEN tier_not_count = 0 AND review_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END,
                  '0', CAST(tier_not_count + review_mismatch AS STRING) FROM s
 UNION ALL SELECT 'percentiles_in_range', CASE WHEN pct_out_of_range = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(pct_out_of_range AS STRING) FROM s
+UNION ALL SELECT 'relative_pressure_complete', CASE WHEN missing_relative_evidence = 0 AND nonpositive_baseline = 0 THEN 'PASS' ELSE 'FAIL' END,
+                 '0', CAST(missing_relative_evidence + nonpositive_baseline AS STRING) FROM s
+UNION ALL SELECT 'relative_pressure_recalculates', CASE WHEN bad_relative_pressure = 0 THEN 'PASS' ELSE 'FAIL' END,
+                 '0', CAST(bad_relative_pressure AS STRING) FROM s
 UNION ALL SELECT 'stable_only_if_critical', CASE WHEN bad_stable = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_stable AS STRING) FROM s
 UNION ALL SELECT 'priority_rank_gapless', CASE WHEN ranks = rows_built AND min_rank = 1 AND max_rank = rows_built THEN 'PASS' ELSE 'FAIL' END,
                  '1..' || CAST(rows_built AS STRING), CAST(min_rank AS STRING) || '..' || CAST(max_rank AS STRING) FROM s

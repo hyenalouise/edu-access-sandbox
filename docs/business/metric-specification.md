@@ -206,6 +206,9 @@ gap_share = population_enrollment_gap / school_age_population
 gap_change_2020_2024 = population_enrollment_gap (2024) - population_enrollment_gap (2020)
 
 public_school_share = public_school_enrollment / enrollment_all_sectors
+
+enrollment_school_coverage_pct =
+    schools with complete all-level enrollment / schools in scope * 100
 ```
 
 **Matched periods.** "Over time" means two points. Each pairs a census with the school year that starts in the same year:
@@ -227,6 +230,8 @@ SY 2023-24 and SY 2025-26 have no census in the same year, so their AP4 value is
 | Public schools only | 22,543,711 | 5,025,327 | 18.2% |
 
 About 3.83 million of the public-only gap is private and SUC/LUC learners.
+
+Enrollment school coverage accompanies each AP4 row so a complete calculated gap is not confused with complete reporting. It is descriptive evidence only: AP4 does not receive a priority percentile, relative-pressure value, high flag, or tier contribution.
 
 **Reading the gap.**
 
@@ -301,16 +306,26 @@ Similar LGUs replaces the proposed peer groups, which were parked on 2026-10-18 
 
 For each measure, the national same-type median, interquartile range, and the LGU's percentile are shown beside the LGU's value. Median is not the only statistic: the IQR shows spread and the percentile locates the LGU.
 
+Relative pressure is the magnitude companion to the percentile. For each AP1 to AP3 measure, calculate the same-type baseline only over LGUs that pass that measure's coverage gate:
+
+```text
+same_type_baseline = sum(eligible LGU numerators) / sum(eligible LGU denominators)
+relative_pressure = LGU observed ratio / same_type_baseline
+```
+
+For AP1 the denominator is complete active public schools; for AP2 it is reported instructional rooms; for AP3 it is teachers at the education level. `1.00` means the LGU matches the eligible same-type baseline, `1.20` means its observed pressure is 20% higher, and `0.80` means it is 20% lower. This is a weighted aggregate baseline, not the unweighted average of LGU ratios and not an official adequacy standard. It explains magnitude but never sets or changes a tier.
+
 ### Priority rule
 
 The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
 
-1. **Coverage gate.** A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
-2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.
-3. **High.** A measure is high at a percentile of 0.90 or above; for AP3 this is the second, re-ranked percentile, and the output names the level with the highest level percentile. AP3 is not high only when every offered level passes and it is still not high; otherwise it is not assessed.
-4. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
-5. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
-6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Critical both ways is marked Stable; the tier shown is always the within-type one.
+1. **Coverage gate.** A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 4); otherwise its tier is **Data review** and the measures it could compute are still shown.
+2. **Relative pressure.** Publish the LGU ratio divided by the eligible same-type aggregate baseline defined above. It communicates magnitude and is descriptive only; it does not determine `high`.
+3. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.
+4. **High.** A measure is high at a percentile of 0.90 or above; for AP3 this is the second, re-ranked percentile, and the output names the level with the highest level percentile. AP3 is not high only when every offered level passes and it is still not high; otherwise it is not assessed.
+5. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, relative pressure, percentile, and coverage in every view.
+6. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
+7. **Stable.** The same steps without the type partition give a national tier. An LGU that is Critical both ways is marked Stable; the tier shown is always the within-type one.
 
 The result is labelled **relative capacity pressure**. Do not label it a shortage, deficit, or number of resources needed.
 
@@ -328,6 +343,8 @@ These checks are reported beside the ranking and never change a tier:
 **Revisit trigger.** The rule is revisited when, under any check, fewer than 80% of the Critical LGUs stay Critical and at least 3 leave (D-057).
 
 No significance test is used: the sources cover every public school, so there is no sampling error to test. Reporting error remains, and the coverage gate and the outlier check address it.
+
+Spearman correlation, alternative percentile lines, the 95% coverage scenario, national comparison, and the outlier rerun are validation checks only. They test whether the rule is redundant or fragile; none is added to an LGU's score, ratio, percentile, or tier.
 
 ## Candidate resource-gap calculations — blocked
 
@@ -355,9 +372,9 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **AP1 context** | public-school count (including annexes), public-school enrollment, learners per public school, Population 2024, Population 2024 per public school, barangays without a public elementary school (count and share) | population reference year, annex count, zero-enrollment school count, school-count rule, schools without a barangay match, upper-bound label, barangay drill-down | Ready to implement and validate |
 | **Classroom priority** | learners per reported instructional room (all levels), matched enrollment, reported room count | school and learner coverage, missing-room schools, zero-room schools, outlier/quality flags; source displayed as DepEd School Facilities (NSBI) | Ready to implement and validate for SY 2023-24 |
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
-| **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending population Silver publication and PSGC integration |
+| **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | enrollment school coverage (complete all-level enrollment ÷ schools in scope), census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage; never a tier input | Blocked pending population Silver publication and PSGC integration |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
-| **Comparisons** | applicable benchmark and status, within-type percentile per measure, national same-type median, Similar LGUs | benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison defined (D-057), planned in #178; Similar LGUs method planned in #96 |
+| **Comparisons** | applicable benchmark and status, same-type relative pressure and percentile per measure, national same-type median, Similar LGUs | same-type aggregate baseline, benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison defined (D-057), planned in #178; Similar LGUs method planned in #96 |
 | **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Defined (D-057); planned in #178 |
 
 ## Separate follow-on decisions

@@ -27,6 +27,12 @@ with its coverage and the counts left out.
 `lgu_priority` is the one answer for the slide, the dashboard and Genie.
 `tier_code`, `tier_label`, `priority_rank` and `rank_within_tier` give the
 ordered list. Each measure keeps its own value, coverage, percentile and status.
+AP1 to AP3 also publish a same-type baseline and relative pressure. The baseline
+is the eligible cities' or municipalities' summed learners divided by their
+summed schools, rooms or teachers; relative pressure is the LGU value divided by
+that baseline. It explains magnitude (`1.20` means 20% above the same-type
+baseline) but does not set the tier. AP4 publishes enrollment school coverage
+and remains context only: it never enters the tier.
 `is_stable`, the `critical_at_*` columns and `tier_code_without_outliers` are
 the checks D-057 reports beside the ranking; none of them changes a tier.
 
@@ -42,7 +48,8 @@ not change. `outlier_schools` counts the flagged schools in each LGU.
 The measure-overlap check is in the gate only: by LGU type, the Spearman rank
 correlation of each pair of AP1 to AP3, and the share of LGUs high on one measure
 that are also high on the other (10% if they were unrelated). Gate rows report
-every check. The revisit trigger (fewer than 80% of Critical LGUs kept and at
+every check. Spearman is a validation diagnostic, not a score or tier input. The
+revisit trigger (fewer than 80% of Critical LGUs kept and at
 least 3 leave) is a WARN at the 95% gate and without outliers.
 
 Poverty is not in this table (D-046): join `dim_city_poverty` for context.
