@@ -175,7 +175,8 @@ school_input AS (
     AND pl.barangay_possibly_truncated = e.barangay_possibly_truncated
 ),
 school_units AS (
-  SELECT s.*, cc.geographic_level AS code_city_level, cb.name AS code_bgy_name,
+  -- A code with no master PSGC unit counts as no code, as in the reviewed rule and at city level.
+  SELECT s.*, cc.geographic_level AS code_city_level, cb.name AS code_bgy_name, cb.psgc_code AS code_bgy_unit,
          CASE WHEN cc.geographic_level = 'SubMun' THEN substr(cc.psgc_code, 1, 5) || '00000' ELSE cc.psgc_code END AS code_city_roll,
          CASE WHEN nc.geographic_level = 'SubMun' THEN substr(nc.psgc_code, 1, 5) || '00000' ELSE nc.psgc_code END AS name_city_roll,
          CASE WHEN s.barangay IS NOT NULL AND
@@ -234,30 +235,30 @@ city_decided AS (
 bgy_pre AS (
   SELECT c.*,
     CASE WHEN c.city_status <> 'matched' THEN c.city_status
-         WHEN c.bgy_override_side = 'code' THEN CASE WHEN c.code_bgy IS NOT NULL THEN 'matched' ELSE 'unmatched' END
+         WHEN c.bgy_override_side = 'code' THEN CASE WHEN c.code_bgy_unit IS NOT NULL THEN 'matched' ELSE 'unmatched' END
          WHEN c.bgy_override_side = 'name' THEN CASE WHEN c.name_bgy_code IS NOT NULL THEN 'matched' ELSE 'unmatched' END
-         WHEN c.code_bgy IS NOT NULL AND c.code_bgy = c.name_bgy_code THEN 'matched'
-         WHEN c.code_bgy IS NOT NULL AND c.code_bgy_name_agrees THEN 'matched'
-         WHEN c.code_bgy IS NOT NULL AND c.name_bgy_code IS NOT NULL THEN 'ambiguous'
-         WHEN COALESCE(c.code_bgy, c.name_bgy_code) IS NOT NULL THEN 'matched' ELSE 'unmatched' END AS bgy_status0,
+         WHEN c.code_bgy_unit IS NOT NULL AND c.code_bgy_unit = c.name_bgy_code THEN 'matched'
+         WHEN c.code_bgy_unit IS NOT NULL AND c.code_bgy_name_agrees THEN 'matched'
+         WHEN c.code_bgy_unit IS NOT NULL AND c.name_bgy_code IS NOT NULL THEN 'ambiguous'
+         WHEN COALESCE(c.code_bgy_unit, c.name_bgy_code) IS NOT NULL THEN 'matched' ELSE 'unmatched' END AS bgy_status0,
     CASE WHEN c.city_status <> 'matched' THEN NULL
-         WHEN c.bgy_override_side = 'code' THEN c.code_bgy
+         WHEN c.bgy_override_side = 'code' THEN c.code_bgy_unit
          WHEN c.bgy_override_side = 'name' THEN c.name_bgy_code
-         WHEN c.code_bgy IS NOT NULL AND (c.name_bgy_code IS NULL OR c.code_bgy = c.name_bgy_code OR c.code_bgy_name_agrees) THEN c.code_bgy
-         WHEN c.code_bgy IS NULL THEN c.name_bgy_code END AS bgy_code0,
+         WHEN c.code_bgy_unit IS NOT NULL AND (c.name_bgy_code IS NULL OR c.code_bgy_unit = c.name_bgy_code OR c.code_bgy_name_agrees) THEN c.code_bgy_unit
+         WHEN c.code_bgy_unit IS NULL THEN c.name_bgy_code END AS bgy_code0,
     CASE WHEN c.city_status <> 'matched' THEN NULL
-         WHEN (c.bgy_override_side = 'code' AND c.code_bgy IS NOT NULL)
-           OR (c.bgy_override_side IS NULL AND c.code_bgy IS NOT NULL) THEN CASE WHEN c.psgc_recoded AND c.code_bgy LIKE '09066%' THEN 'code_region_moved'
-              WHEN c.name_bgy_code = c.code_bgy OR c.code_bgy_name_agrees THEN 'code' ELSE 'code_name_differs' END
+         WHEN (c.bgy_override_side = 'code' AND c.code_bgy_unit IS NOT NULL)
+           OR (c.bgy_override_side IS NULL AND c.code_bgy_unit IS NOT NULL) THEN CASE WHEN c.psgc_recoded AND c.code_bgy_unit LIKE '09066%' THEN 'code_region_moved'
+              WHEN c.name_bgy_code = c.code_bgy_unit OR c.code_bgy_name_agrees THEN 'code' ELSE 'code_name_differs' END
          WHEN (c.bgy_override_side = 'name' AND c.name_bgy_code IS NOT NULL)
-           OR (c.bgy_override_side IS NULL AND c.code_bgy IS NULL) THEN c.name_bgy_method END AS bgy_method0,
+           OR (c.bgy_override_side IS NULL AND c.code_bgy_unit IS NULL) THEN c.name_bgy_method END AS bgy_method0,
     CASE WHEN c.city_status <> 'matched' THEN 'city or municipality ' || c.city_status
-         WHEN c.bgy_override_side IS NOT NULL AND COALESCE(CASE WHEN c.bgy_override_side = 'code' THEN c.code_bgy ELSE c.name_bgy_code END, '') <> '' THEN 'reviewed override'
+         WHEN c.bgy_override_side IS NOT NULL AND COALESCE(CASE WHEN c.bgy_override_side = 'code' THEN c.code_bgy_unit ELSE c.name_bgy_code END, '') <> '' THEN 'reviewed override'
          WHEN c.bgy_override_side IS NOT NULL THEN 'reviewed override: no unit'
-         WHEN c.code_bgy IS NOT NULL AND c.code_bgy = c.name_bgy_code THEN 'code and name agree'
-         WHEN c.code_bgy IS NOT NULL AND c.code_bgy_name_agrees THEN 'code' || chr(59) || ' DepEd barangay name matches'
-         WHEN c.code_bgy IS NOT NULL AND c.name_bgy_code IS NOT NULL THEN 'code and name differ'
-         WHEN c.code_bgy IS NOT NULL THEN 'code only'
+         WHEN c.code_bgy_unit IS NOT NULL AND c.code_bgy_unit = c.name_bgy_code THEN 'code and name agree'
+         WHEN c.code_bgy_unit IS NOT NULL AND c.code_bgy_name_agrees THEN 'code' || chr(59) || ' DepEd barangay name matches'
+         WHEN c.code_bgy_unit IS NOT NULL AND c.name_bgy_code IS NOT NULL THEN 'code and name differ'
+         WHEN c.code_bgy_unit IS NOT NULL THEN 'code only'
          WHEN c.name_bgy_code IS NOT NULL THEN 'name only'
          ELSE COALESCE(c.name_bgy_reason, 'no code, no name match') END AS bgy_reason0
   FROM city_decided AS c

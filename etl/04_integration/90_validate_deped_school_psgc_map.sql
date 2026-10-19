@@ -67,7 +67,13 @@ hierarchy AS (
     AND b.geographic_level = 'bgy' AND c.geographic_level = 'city_mun'
   LEFT JOIN p AS pb ON pb.psgc_code = b.psgc_code
 ),
-s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership),
+-- An EMISD code with no master PSGC unit is read as no code; count them so a new PSGC edition is noticed.
+unknown_codes AS (
+  SELECT COUNT(*) AS code_not_in_psgc_rows
+  FROM m LEFT JOIN p AS pc ON pc.psgc_code = m.code_candidate
+  WHERE m.code_candidate IS NOT NULL AND pc.psgc_code IS NULL
+),
+s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes),
 checks AS (
   SELECT 'inputs_present' AS check_name, CASE WHEN enrollment_rows > 0 AND psgc_rows > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'enrollment and master PSGC rows' AS expected, CAST(enrollment_rows AS STRING) || ' / ' || CAST(psgc_rows AS STRING) AS actual FROM s
@@ -92,6 +98,7 @@ checks AS (
   UNION ALL SELECT 'ambiguous', CASE WHEN ambiguous_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(ambiguous_rows AS STRING) FROM s
   UNION ALL SELECT 'excluded', CASE WHEN excluded_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(excluded_rows AS STRING) FROM s
   UNION ALL SELECT 'review_pending', CASE WHEN pending_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(pending_rows AS STRING) FROM s
+  UNION ALL SELECT 'code_not_in_psgc', CASE WHEN code_not_in_psgc_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(code_not_in_psgc_rows AS STRING) FROM s
   UNION ALL SELECT 'override_without_unit', CASE WHEN override_no_unit_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(override_no_unit_rows AS STRING) FROM s
   UNION ALL SELECT 'override_without_school', CASE WHEN overrides_without_school = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(overrides_without_school AS STRING) FROM s
 ),
