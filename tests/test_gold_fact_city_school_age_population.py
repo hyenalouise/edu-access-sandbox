@@ -24,9 +24,16 @@ PLACES = [
     (2024, 10, "0102801000", "matched", 110),
     (2024, 11, "1380300000", "matched", 190),
     (2024, 12, "1999901000", "matched", 9),         # 2024 only
+    (2020, 14, "1804501000", "matched", 50),        # Negros Island Region: region changed
+    (2024, 13, "1804501000", "matched", 55),
+    (2020, 15, "0906601000", "matched", 40),        # Sulu: province moved region
+    (2024, 14, "0906601000", "matched", 41),
 ]
-DIM = [("0102801000", "regular"), ("1380300000", "regular"), ("1999901000", "regular"),
-       ("UNKNOWN", "unknown"), ("EXCLUDED", "excluded")]
+# city_mun_psgc_code, member_type, region_psgc_code, province_psgc_code
+DIM = [("0102801000", "regular", "0100000000", "0102800000"), ("1380300000", "regular", "1300000000", None),
+       ("1999901000", "regular", "1900000000", "1999900000"), ("1804501000", "regular", "1800000000", None),
+       ("0906601000", "regular", "0900000000", "0906600000"),
+       ("UNKNOWN", "unknown", None, None), ("EXCLUDED", "excluded", None, None)]
 
 
 class Env:
@@ -38,25 +45,30 @@ class Env:
             self.store.sql(f"CREATE SCHEMA IF NOT EXISTS edu_access.`{schema}`")
         self.store.sql("CREATE TABLE edu_access.`03-silver`.psa_school_age_population_clean (census_year INT, "
                        "level STRING, population_concept STRING, sex STRING, age INT, population BIGINT, "
-                       "batch_id STRING, place_row_number BIGINT)")
+                       "batch_id STRING, place_row_number BIGINT, run_id STRING)")
         self.store.sql("CREATE TABLE edu_access.`04-integration`.psa_school_age_population_psgc_map (census_year INT, "
-                       "batch_id STRING, place_row_number BIGINT, psgc_code STRING, match_status STRING)")
-        self.store.sql("CREATE TABLE edu_access.`05-gold`.dim_city_municipality (city_mun_psgc_code STRING, member_type STRING)")
-        for code, member_type in dim:
-            self.store.sql("INSERT INTO edu_access.`05-gold`.dim_city_municipality VALUES (?, ?)", [code, member_type])
+                       "batch_id STRING, place_row_number BIGINT, psgc_code STRING, match_status STRING, run_id STRING)")
+        self.store.sql("CREATE TABLE edu_access.`05-gold`.dim_city_municipality (city_mun_psgc_code STRING, "
+                       "member_type STRING, region_psgc_code STRING, province_psgc_code STRING)")
+        for row in dim:
+            self.store.sql("INSERT INTO edu_access.`05-gold`.dim_city_municipality VALUES (?, ?, ?, ?)", list(row))
+        for run, pipeline_name in (("S1", "silver_build"), ("M1", "integration_build")):
+            self.store.sql(f"INSERT INTO {CONTROL}.pipeline_runs (run_id, pipeline_name, source_id, environment, status, code_revision, "
+                           "started_at_utc) VALUES (?, ?, 'psa_school_age_population', 'local', 'succeeded', 'c', "
+                           "TIMESTAMP '2026-10-19 00:00:00')", [run, pipeline_name])
         for year, row, code, status, base in places:
             batch = f"B{year}"
-            self.store.sql("INSERT INTO edu_access.`04-integration`.psa_school_age_population_psgc_map VALUES (?, ?, ?, ?, ?)",
+            self.store.sql("INSERT INTO edu_access.`04-integration`.psa_school_age_population_psgc_map VALUES (?, ?, ?, ?, ?, 'M1')",
                            [year, batch, row, code, status])
             # a province row and a household row with the same place row: never read
             self.store.sql("INSERT INTO edu_access.`03-silver`.psa_school_age_population_clean VALUES "
-                           "(?, 'province', 'total', 'male', 5, 999, ?, ?)", [year, batch, row])
+                           "(?, 'province', 'total', 'male', 5, 999, ?, ?, 'S1')", [year, batch, row])
             for age in AGES:
                 male, female = base + age, base + 2 * age
                 for concept in ("total", "household"):
                     for sex, value in (("male", male), ("female", female), ("both", male + female)):
                         self.store.sql("INSERT INTO edu_access.`03-silver`.psa_school_age_population_clean VALUES "
-                                       "(?, 'city_municipality', ?, ?, ?, ?, ?, ?)",
+                                       "(?, 'city_municipality', ?, ?, ?, ?, ?, ?, 'S1')",
                                        [year, concept, sex, age, value if concept == "total" else value - 1, batch, row])
 
     def run(self):
@@ -83,8 +95,8 @@ def test_builds_male_and_female_rows_per_city_year_and_age():
     run_id, error = env.run()
     assert error is None
     fact = env.fact()
-    # 2020: 2 matched places + UNKNOWN; 2024: 3 matched places; 3 ages x 2 sexes each
-    assert len(fact) == (3 + 3) * len(AGES) * 2
+    # 2020: 4 matched places + UNKNOWN; 2024: 5 matched places; 3 ages x 2 sexes each
+    assert len(fact) == (5 + 5) * len(AGES) * 2
     assert {k[3] for k in fact} == {"male", "female"}
     checks = env.checks(run_id)
     assert {c["status"] for c in checks.values()} == {"PASS", "WARN"}
@@ -107,7 +119,9 @@ def test_comparability_flag():
     flags = {(k[0], k[1]): r["is_2020_2024_geography_comparable"] for k, r in env.fact().items()}
     assert flags == {
         ("0102801000", 2020): True, ("0102801000", 2024): True,
-        ("1380300000", 2020): False, ("1380300000", 2024): False,   # in the reviewed territory-change list
+        ("1380300000", 2020): False, ("1380300000", 2024): False,   # unit: territory changed
+        ("1804501000", 2020): False, ("1804501000", 2024): False,   # region: Negros Island Region
+        ("0906601000", 2020): False, ("0906601000", 2024): False,   # province: Sulu
         ("1999901000", 2024): False,                                 # 2024 only
         ("UNKNOWN", 2020): False,
     }
@@ -142,3 +156,16 @@ def test_a_total_that_does_not_add_up_fails():
     run_id, error = env.run()
     assert error
     assert env.checks(run_id)["male_plus_female_is_published_total"]["status"] == "FAIL"
+
+
+def test_upstream_runs_are_recorded_and_must_have_succeeded():
+    env = Env()
+    run_id, error = env.run()
+    assert error is None
+    checks = env.checks(run_id)
+    assert (checks["upstream_run_psa_school_age_population_clean"]["actual"],
+            checks["upstream_run_psa_school_age_population_psgc_map"]["actual"]) == ("S1", "M1")
+    env.store.sql(f"UPDATE {CONTROL}.pipeline_runs SET status = 'failed' WHERE pipeline_name = 'silver_build'")
+    run_id, error = env.run()
+    assert error
+    assert env.checks(run_id)["upstream_run_psa_school_age_population_clean"]["status"] == "FAIL"

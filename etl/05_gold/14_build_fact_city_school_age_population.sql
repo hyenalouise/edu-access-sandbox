@@ -1,9 +1,10 @@
 -- Gold build for fact_city_school_age_population (D-048, docs/architecture/data-model.md).
 --
 -- Grain: city or municipality x census year x single year of age x sex, for AP4 (D-042). Reads the
--- published psa_school_age_population_clean (D-053) and its PSGC map (D-055); the gate checks every
--- key against dim_city_municipality, so the task waits for that dimension's gate (D-051). Writes fact_city_school_age_population_candidate; the gate (the next task) checks it and publishes
--- the fact only if no check fails. It rebuilds on every run.
+-- published psa_school_age_population_clean (D-053), its PSGC map (D-055), and dim_city_municipality
+-- for each unit's region and province, so the task waits for that dimension's gate (D-051). Writes
+-- fact_city_school_age_population_candidate; the gate (the next task) checks it and publishes the
+-- fact only if no check fails. It rebuilds on every run.
 --
 -- Rules:
 --   - Rows: the city and municipality places of Silver, population_concept 'total' (D-042), sex
@@ -15,28 +16,39 @@
 --     of dim_city_municipality, with its psgc_match_status. Places that share UNKNOWN in a year are
 --     summed into one row per age and sex, so no population is dropped and the key stays unique; if
 --     they differ in status, the row keeps the first in alphabetical order (today all are unmatched).
---   - is_2020_2024_geography_comparable is TRUE only for a code matched in both census years and not
---     in the reviewed list below of units whose territory changed between the censuses. Units that
---     exist in one year only (the 8 Special Geographic Area municipalities of 2024) and UNKNOWN are
---     FALSE.
+--   - is_2020_2024_geography_comparable follows the AP4 comparability rule of the metric
+--     specification and the data model ("boundary or hierarchy changes"). It is TRUE only for a code
+--     matched in both census years that is not in the reviewed list below: units whose territory
+--     changed, and every unit of a province or region whose hierarchy changed between the censuses.
+--     Units that exist in one year only (the 8 Special Geographic Area municipalities of 2024) and
+--     UNKNOWN are FALSE.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`05-gold`;
 ALTER SCHEMA edu_access.`05-gold` OWNER TO `reached-hq`;
 
--- Units whose 2024 territory is not their 2020 territory: the EMBO barangays moved from Makati to
--- Taguig (D-049), and the six Cotabato towns whose barangays formed the Special Geographic Area
--- municipalities (D-031, D-054).
-CREATE OR REPLACE TEMPORARY VIEW school_age_territory_changes AS
+-- The reviewed 2020-to-2024 geography changes (metric specification, AP4 comparability):
+--   unit      the unit's own territory changed: the EMBO barangays moved from Makati to Taguig, and
+--             the six Cotabato towns whose barangays formed the Special Geographic Area (D-031, D-054)
+--   region    the region changed: the Negros Island Region (RA No. 12000) took Negros Occidental,
+--             Negros Oriental and Siquijor, and Bacolod, from Regions VI and VII
+--   province  the province or region changed: Sulu moved from BARMM to Region IX (EO No. 91, s. 2025),
+--             and Maguindanao split into del Norte and del Sur (RA No. 11550)
+-- A unit matches on its own code, or on its region_psgc_code or province_psgc_code in dim_city_municipality.
+CREATE OR REPLACE TEMPORARY VIEW school_age_geography_changes AS
 SELECT * FROM (VALUES
-  ('1380300000', 'City of Makati: EMBO barangays moved to Taguig'),
-  ('1381500000', 'City of Taguig: received the EMBO barangays from Makati'),
-  ('1204702000', 'Carmen, Cotabato: barangays moved to the Special Geographic Area'),
-  ('1204703000', 'Kabacan, Cotabato: barangays moved to the Special Geographic Area'),
-  ('1204709000', 'Midsayap, Cotabato: barangays moved to the Special Geographic Area'),
-  ('1204711000', 'Pigkawayan, Cotabato: barangays moved to the Special Geographic Area'),
-  ('1204712000', 'Pikit, Cotabato: barangays moved to the Special Geographic Area'),
-  ('1204717000', 'Aleosan, Cotabato: barangays moved to the Special Geographic Area')
-) AS v(psgc_code, reason);
+  ('unit', '1380300000', 'City of Makati: EMBO barangays moved to Taguig'),
+  ('unit', '1381500000', 'City of Taguig: received the EMBO barangays from Makati'),
+  ('unit', '1204702000', 'Carmen, Cotabato: barangays moved to the Special Geographic Area'),
+  ('unit', '1204703000', 'Kabacan, Cotabato: barangays moved to the Special Geographic Area'),
+  ('unit', '1204709000', 'Midsayap, Cotabato: barangays moved to the Special Geographic Area'),
+  ('unit', '1204711000', 'Pigkawayan, Cotabato: barangays moved to the Special Geographic Area'),
+  ('unit', '1204712000', 'Pikit, Cotabato: barangays moved to the Special Geographic Area'),
+  ('unit', '1204717000', 'Aleosan, Cotabato: barangays moved to the Special Geographic Area'),
+  ('region', '1800000000', 'Negros Island Region: re-established from Regions VI and VII'),
+  ('province', '0906600000', 'Sulu: moved from BARMM to Region IX'),
+  ('province', '1908700000', 'Maguindanao del Norte: split from Maguindanao'),
+  ('province', '1908800000', 'Maguindanao del Sur: split from Maguindanao')
+) AS v(change_kind, psgc_code, reason);
 
 CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_city_school_age_population_candidate USING DELTA AS
 WITH placed AS (
@@ -69,6 +81,15 @@ both_years AS (
   WHERE city_mun_psgc_code <> 'UNKNOWN'
   GROUP BY city_mun_psgc_code
   HAVING COUNT(DISTINCT reference_year) = 2
+),
+-- Each unit once, however many listed changes it falls under, so the join adds no rows.
+changed AS (
+  SELECT DISTINCT d.city_mun_psgc_code AS psgc_code
+  FROM edu_access.`05-gold`.dim_city_municipality AS d
+  JOIN school_age_geography_changes AS c
+    ON (c.change_kind = 'unit' AND c.psgc_code = d.city_mun_psgc_code)
+    OR (c.change_kind = 'region' AND c.psgc_code = d.region_psgc_code)
+    OR (c.change_kind = 'province' AND c.psgc_code = d.province_psgc_code)
 )
 SELECT
   f.city_mun_psgc_code,
@@ -80,7 +101,7 @@ SELECT
   (y.city_mun_psgc_code IS NOT NULL AND c.psgc_code IS NULL) AS is_2020_2024_geography_comparable
 FROM summed AS f
 LEFT JOIN both_years AS y ON y.city_mun_psgc_code = f.city_mun_psgc_code
-LEFT JOIN school_age_territory_changes AS c ON c.psgc_code = f.city_mun_psgc_code;
+LEFT JOIN changed AS c ON c.psgc_code = f.city_mun_psgc_code;
 
 COMMENT ON TABLE edu_access.`05-gold`.fact_city_school_age_population_candidate IS 'Unpublished build for the Gold gate, which may have failed. Do not read: use fact_city_school_age_population.';
 ALTER TABLE edu_access.`05-gold`.fact_city_school_age_population_candidate OWNER TO `reached-hq`;
