@@ -229,6 +229,25 @@ def test_every_school_year_gets_both_levels_and_no_row_is_dropped(tmp_path):
     assert checks["rows_reconcile"]["actual"] == str(2 * len(ENROLLMENT))
 
 
+def test_matching_stages_use_delta_work_tables_and_success_cleans_them_up(tmp_path):
+    """Spark inlines a reused CTE graph; stored stages keep each matching step bounded."""
+    env = Env(tmp_path)
+    build = env.build.read_text(encoding="utf-8")
+    expected = ["units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions"]
+    assert "CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched" not in build
+    for name in expected:
+        table = f"edu_access.`04-integration`.deped_school_psgc_map_work_{name}"
+        assert f"CREATE OR REPLACE TABLE {table} USING DELTA AS" in build
+        assert f"DROP TABLE IF EXISTS {table};" in build
+
+    assert env.run()[1] is None
+    first = env.map()
+    assert env.rows("SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = '04-integration' AND table_name LIKE '%_work_%'") == []
+    assert env.run()[1] is None
+    assert env.map() == first
+
+
 def test_code_and_name_agree_is_code(got):
     assert city(got, "100001") == ("0102801000", "matched", "code", "code and name agree", "rule")
     assert bgy(got, "100001")[:4] == ("0102801001", "matched", "code", "code and name agree")
