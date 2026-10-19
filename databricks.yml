@@ -55,7 +55,7 @@ resources:
           default: ""
 
       git_source:
-        git_url: https://github.com/reached-hq/edu-access-intelligence
+        git_url: https://github.com/hyenalouise/edu-access-sandbox
         git_provider: gitHub
         git_commit: ${bundle.git.commit}
 
