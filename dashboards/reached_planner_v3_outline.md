@@ -544,3 +544,27 @@ The draft is [`reached_planner_v3.lvdash.json`](reached_planner_v3.lvdash.json),
 - **National method diagnostics** ("Does the Critical list hold?", the scenario heatmap, measure overlap) take only the LGU type parameter, so Region and Province never narrow them.
 - **Data review LGUs are blank on the map** (no tier level) and are named in the table's Data review column.
 - **Tested on the local DuckDB build only:** every dataset and widget query under five filter scenarios. Profile numbers were cross-checked against `lgu_priority`, `ap1_school_provision` and `ap2_classroom_pressure` for five LGUs. Not yet opened in Databricks.
+
+---
+
+## 12. Version 4 changes
+
+[`reached_planner_v4.lvdash.json`](reached_planner_v4.lvdash.json) is the deployed version. It keeps the three views and changes the following from v3.
+
+**Overview**
+- **The KPIs describe the current selection.** They follow the global filters and the three Overview filters: LGUs in selection, Critical LGUs, Elevated LGUs, public learners represented. This replaces the v3 row (cities and municipalities, public learners, priority LGUs, learners in priority LGUs), which ignored the page filters.
+- **"How far above the rest?" is full width** and follows the global filters only, so high LGUs are always compared with the rest.
+- **The region bar is removed.** The map and the Region filter cover it.
+
+**LGU Profile**
+- **One identity card.** It holds the LGU, its tier, rank and high measures, plus the notice when a selection falls outside the global filters.
+- **Context band:** population vs enrollment is wider, with poverty and barangay matching beside it. Children by single age and enrollment by sector follow below.
+- **Section titles:** "Barangay access scan" and "School follow-up".
+
+**Data and Method**
+- **Removed:** the room × teacher percentile scatter and the outlier-schools bar. Both repeated evidence shown elsewhere.
+- **Wider, for readability:** the scenario heatmap, the measure-overlap table and the tier-change table.
+
+**Datasets** that no visual read were dropped: `ov_region`, `m_scatter`, `m_outliers`.
+
+**Checked** on the local DuckDB build: every query under five filter settings, and the Profile numbers against the Analytics tables for five LGUs.
