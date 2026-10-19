@@ -12,23 +12,23 @@ Implemented dimensions whose reviewed inputs are available:
 - `dim_school`
 - `dim_school_year`
 - `dim_education_level`
+- `dim_city_municipality`
+- `dim_barangay`
 
 Implemented facts whose reviewed inputs are available:
 
 - `fact_school_classroom_capacity`
 - `fact_school_teacher_capacity`
+- `fact_city_school_age_population`
 - `fact_school_year_source_availability`
 
-The following Gold tables are deliberately not implemented in this pull request
+The following Gold tables are not implemented yet
 and remain assigned to follow-on work. Their disabled placeholders stay in the
 job, and no empty substitute is published:
 
-- `dim_city_municipality`
-- `dim_barangay`
 - `dim_city_poverty`
 - `fact_school_enrollment`
 - `fact_city_population`
-- `fact_city_school_age_population`
 
 Enrollment and `dim_school_year` cover SY 2020-21 through SY 2025-26. Classroom
 and teacher capacity currently cover SY 2023-24 only.

@@ -98,9 +98,9 @@ deferred until their inputs are implemented and gated.
 | `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
 
 Implemented: `dim_school`, `dim_school_year`, `dim_education_level`,
-`fact_school_classroom_capacity`, `fact_school_teacher_capacity`, and
+`dim_city_municipality`, `dim_barangay`, `fact_school_classroom_capacity`,
+`fact_school_teacher_capacity`, `fact_city_school_age_population`, and
 `fact_school_year_source_availability`. Each build writes a candidate and its
-gate publishes only after validation. `dim_city_municipality`, `dim_barangay`,
-`dim_city_poverty`, `fact_school_enrollment`, `fact_city_population`, and
-`fact_city_school_age_population` remain disabled and are assigned to follow-on
-work; this pull request does not publish empty substitutes for them.
+gate publishes only after validation. `dim_city_poverty`,
+`fact_school_enrollment`, and `fact_city_population` remain disabled and are
+assigned to follow-on work; no empty substitutes are published for them.
