@@ -190,6 +190,14 @@ gold_tables:
     build_file: 03_build_dim_education_level.sql
     validate_file: 90_validate_dim_education_level.sql
     grain: One education reporting level.
+  - table: dim_city_municipality
+    build_file: 04_build_dim_city_municipality.sql
+    validate_file: 90_validate_dim_city_municipality.sql
+    grain: One PSGC city or municipality of the master quarter, plus the UNKNOWN and EXCLUDED technical members.
+  - table: dim_barangay
+    build_file: 05_build_dim_barangay.sql
+    validate_file: 90_validate_dim_barangay.sql
+    grain: One PSGC barangay of the master quarter, one unknown barangay per city or municipality, plus the UNKNOWN and EXCLUDED technical members.
   - table: fact_school_classroom_capacity
     build_file: 11_build_fact_school_classroom_capacity.sql
     validate_file: 90_validate_fact_school_classroom_capacity.sql
@@ -198,6 +206,10 @@ gold_tables:
     build_file: 12_build_fact_school_teacher_capacity.sql
     validate_file: 90_validate_fact_school_teacher_capacity.sql
     grain: One school, school year, and education level.
+  - table: fact_city_school_age_population
+    build_file: 14_build_fact_city_school_age_population.sql
+    validate_file: 90_validate_fact_city_school_age_population.sql
+    grain: One city or municipality, census year, single year of age, and sex (male or female).
   - table: fact_school_year_source_availability
     build_file: 15_build_fact_school_year_source_availability.sql
     validate_file: 90_validate_fact_school_year_source_availability.sql

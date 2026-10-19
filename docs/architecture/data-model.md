@@ -44,6 +44,16 @@ cannot be matched. `excluded` keeps a record intentionally outside Philippine
 city-level analysis. Facts use these explicit members instead of silent NULL
 geography keys.
 
+Technical member codes (agreed on #174 and #193 by @saraevcldn, geography
+lane, 2026-10-19): `UNKNOWN` and `EXCLUDED` in `dim_city_municipality`; in
+`dim_barangay`, `<city_mun_psgc_code>-UNKNOWN` for each regular city or
+municipality, plus `UNKNOWN` and `EXCLUDED` under the matching city members.
+They are text, so they never collide with or pass as a ten-digit PSGC code; the
+facts' `psgc_match_status` keeps the reason. Every dimension and fact uses them
+the same way: `UNKNOWN` for geography not yet resolved (pending or ambiguous),
+`EXCLUDED` for a record reviewed as outside city-level analysis, and
+`<code>-UNKNOWN` for a known city or municipality whose barangay is unresolved.
+
 ## Facts
 
 | Table | Grain | Key | Measures |
@@ -123,6 +133,23 @@ deployment bands are not an active current benchmark.
 | `member_type` | STRING | `regular`, `unknown`, or `excluded` |
 | `source_psgc_quarter` | STRING | PSGC master reference used to build the member |
 
+Built in `etl/05_gold/04_build_dim_city_municipality.sql`. Regular members are
+the master quarter's `City` and `Mun` rows of `psa_psgc_clean` (1,642 for 2Q
+2026: 149 cities, 1,493 municipalities); the two blank-level containers,
+`0990100000` City of Isabela (Not a Province) and `1999900000` Special
+Geographic Area, are not members (D-035). The province is Silver's
+`province_code` as published, so the City of Isabela and the 8 Special
+Geographic Area municipalities carry their container, and the 33 highly
+urbanized cities and Pateros have none. `lgu_type` is `city` or
+`municipality`. `land_area_sqkm` is the area of the HDX feature matched to the
+unit in the latest HDX release (D-052), rounded to 4 decimals, with
+`land_area_source = 'hdx_boundaries'`; both are NULL for the 8 Special
+Geographic Area municipalities, which no HDX feature matches. Technical members
+carry only their code, name, `member_type`, `is_sga = false`, and the quarter.
+The gate (`90_validate_dim_city_municipality.sql`) reconciles the regular
+members to Silver and FAILs on a repeated key or a broken rule; it WARNs on
+members without land area.
+
 ### `dim_barangay`
 
 | Column | Type |
@@ -132,6 +159,18 @@ deployment bands are not an active current benchmark.
 | `city_mun_psgc_code` | STRING |
 | `urban_rural` | STRING |
 | `member_type` | STRING |
+
+Built in `etl/05_gold/05_build_dim_barangay.sql` from `psa_psgc_clean` only
+(D-051). Regular members are the master quarter's `Bgy` rows (42,010 for 2Q
+2026). `city_mun_psgc_code` is Silver's `city_municipality_code`, except that
+the City of Manila's 897 barangays, which PSGC places under its 14 `SubMun`
+districts, roll up to the City of Manila (`1380600000`), since Gold has no
+sub-municipality grain. `urban_rural` is `U`, `R`, or NULL where PSGC publishes
+`-` (38 barangays). Each of the 1,642 cities and municipalities has one
+`<code>-UNKNOWN` member, and `UNKNOWN` and `EXCLUDED` sit under the matching
+city members: 43,654 rows in all. The gate FAILs on a repeated key, a barangay
+whose parent is not a PSGC city or municipality, or a missing unknown member,
+and WARNs on barangays without `urban_rural`.
 
 ### `dim_school`
 
@@ -295,10 +334,49 @@ municipality. `sex` contains only `male` and `female`; the published total row i
 used for reconciliation and is not stored as another fact row. Analytics sums
 the male and female rows for ages 5–17, avoiding double counting. The row-level
 `psgc_match_status` retains the reviewed name-to-PSGC result.
-`is_2020_2024_geography_comparable` is false where boundary or hierarchy changes,
-including the Makati/Taguig transfer and the new Special Geographic Area
-municipalities, prevent a like-for-like trend. This fact must not be filled by
+`is_2020_2024_geography_comparable` is false where a boundary change, such as
+the Makati/Taguig transfer or the new Special Geographic Area municipalities,
+prevents a like-for-like trend for that city or municipality (see below for
+province and region changes). This fact must not be filled by
 interpolating or substituting the broader PSA ages 5–24 category.
+
+Built in `etl/05_gold/14_build_fact_city_school_age_population.sql` from
+`psa_school_age_population_clean` (`population_concept = 'total'`, D-042) and
+its PSGC map (D-055). Every published age, 5 to 24, is kept. A place the map
+reviewed as having no PSGC unit (the 8 2020 Special Geographic Area clusters,
+96,899 people, which are not LGUs) goes to the `EXCLUDED` city member; a place
+not yet reviewed (pending or ambiguous; none today) goes to `UNKNOWN`. Places
+on the same member are summed into one row per age and sex, so no population is
+dropped, and `psgc_match_status` keeps the map's status.
+
+`is_2020_2024_geography_comparable` describes a unit's own trend. It is true
+only for a code matched in both census years whose territory did not change
+between them. False: Makati and Taguig (EMBO barangays) and the six Cotabato
+towns whose barangays formed the Special Geographic Area (Carmen, Kabacan,
+Midsayap, Pigkawayan, Pikit, Aleosan), listed in the build; the 8 Special
+Geographic Area municipalities, which exist only in 2024; and the technical
+members: 17 codes, 1,000 rows. Province and region changes (the Negros Island
+Region, Sulu, the Maguindanao split) leave the unit itself unchanged, as the
+metric specification's AP4 comparability section notes, so they do not make
+it false: Gold groups both years by the one PSGC 2Q 2026 hierarchy in
+`dim_city_municipality`, so a province or region total compares like with
+like. A presentation that groups by census-year regions must disclose those
+changes itself.
+
+The gate rebuilds every expected row from the Silver male and female cells
+and FAILs if any fact row differs in any column (`cells_match_silver`), so a
+swapped sex or population moved between cities is caught even when totals
+still add up. It also reconciles each year's population and each city, year
+and age's male plus female to the published total row, checks every key
+against `dim_city_municipality`, and WARNs on population held on `EXCLUDED`
+or `UNKNOWN`. The two dimension gates likewise rebuild every expected row from
+PSGC (and HDX) and FAIL on any difference (`values_match_source`), including a
+barangay moved to another valid city or municipality.
+
+Each of the three gates also records one result per distinct upstream
+Silver or Integration `run_id` it read, and FAILs when that run has no
+succeeded `silver_build` or `integration_build` row in `pipeline_runs`
+(metric specification, integrity rule 1).
 
 ### `fact_school_year_source_availability`
 
