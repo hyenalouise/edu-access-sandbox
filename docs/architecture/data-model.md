@@ -333,15 +333,24 @@ Built in `etl/05_gold/14_build_fact_city_school_age_population.sql` from
 its PSGC map (D-055). Every published age, 5 to 24, is kept. A place the map
 does not match (the 8 2020 Special Geographic Area clusters, 96,899 people)
 goes to the `UNKNOWN` city member, summed into one row per age and sex, so no
-population is dropped. `is_2020_2024_geography_comparable` is true only for a
-code matched in both census years and not in the build's reviewed list of units
-whose territory changed: Makati and Taguig (EMBO barangays) and the six
-Cotabato towns whose barangays formed the Special Geographic Area (Carmen,
-Kabacan, Midsayap, Pigkawayan, Pikit, Aleosan). The 8 Special Geographic Area
-municipalities, which exist only in 2024, and `UNKNOWN` are false: 17 codes,
-1,000 rows. The gate reconciles each year's population to Silver and each
-city, year and age's male plus female to the published total row, checks every
-key against `dim_city_municipality`, and WARNs on population held on `UNKNOWN`.
+population is dropped. `is_2020_2024_geography_comparable` follows the AP4
+comparability rule of the [metric specification](../business/metric-specification.md):
+it is true only for a code matched in both census years that is not in the
+build's reviewed list of 2020-to-2024 changes. Territory changes: Makati and
+Taguig (EMBO barangays) and the six Cotabato towns whose barangays formed the
+Special Geographic Area (Carmen, Kabacan, Midsayap, Pigkawayan, Pikit,
+Aleosan). Hierarchy changes, by region or province in `dim_city_municipality`:
+every unit of the Negros Island Region (63), Sulu (19), and Maguindanao del
+Norte (13) and del Sur (24). The 8 Special Geographic Area municipalities,
+which exist only in 2024, and `UNKNOWN` are also false: 136 codes, 10,520 rows.
+The gate reconciles each year's population to Silver and each city, year and
+age's male plus female to the published total row, checks every key against
+`dim_city_municipality`, and WARNs on population held on `UNKNOWN`.
+
+Each of the three gates also records one result per distinct upstream
+Silver or Integration `run_id` it read, and FAILs when that run has no
+succeeded `silver_build` or `integration_build` row in `pipeline_runs`
+(metric specification, integrity rule 1).
 
 ### `fact_school_year_source_availability`
 

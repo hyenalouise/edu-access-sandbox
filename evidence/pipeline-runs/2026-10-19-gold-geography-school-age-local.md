@@ -6,11 +6,11 @@ Issues #174 and #46 · local DuckDB (D-017) · 2026-10-19, Manila time (UTC+8) �
 
 The three Gold builds and their gates turn the real published Silver and Integration tables into:
 
-- `dim_city_municipality`: every PSGC 2Q 2026 city and municipality once (1,642) plus `UNKNOWN` and `EXCLUDED`, 1,644 rows (at `f638c04`)
-- `dim_barangay`: every PSGC 2Q 2026 barangay once (42,010), one unknown barangay per city or municipality (1,642) plus `UNKNOWN` and `EXCLUDED`, 43,654 rows (at `c19f751`)
-- `fact_city_school_age_population`: 131,080 male and female rows whose population equals Silver's for both census years, with no place dropped (at `5cd23b8`)
+- `dim_city_municipality`: every PSGC 2Q 2026 city and municipality once (1,642) plus `UNKNOWN` and `EXCLUDED`, 1,644 rows
+- `dim_barangay`: every PSGC 2Q 2026 barangay once (42,010), one unknown barangay per city or municipality (1,642) plus `UNKNOWN` and `EXCLUDED`, 43,654 rows
+- `fact_city_school_age_population`: 131,080 male and female rows whose population equals Silver's for both census years, with no place dropped
 
-Every FAIL check passes. Each WARN is a known, counted gap.
+Every FAIL check passes, including the upstream-run check of integrity rule 1 of the metric specification. Each WARN is a known, counted gap. Run at `67bc8c8`, after the comparability flag was widened to the AP4 hierarchy changes and the upstream-run checks were added; the first runs (`f638c04`, `c19f751`, `5cd23b8`) gave the same dimension rows.
 
 ## What was run
 
@@ -18,9 +18,11 @@ On Windows 11, Python 3.14 and the project's DuckDB. The inputs were the publish
 
 | Table | Rows | PASS / WARN / FAIL (both runs) | MD5 of every row, run 1 = run 2 |
 |---|---:|---|---|
-| `dim_city_municipality` | 1,644 | 23 / 1 / 0 | `884f607a…` |
-| `dim_barangay` | 43,654 | 13 / 1 / 0 | `ac14dad0…` |
-| `fact_city_school_age_population` | 131,080 | 18 / 1 / 0 | `71da5ddd…` |
+| `dim_city_municipality` | 1,644 | 26 / 1 / 0 | `884f607a…` |
+| `dim_barangay` | 43,654 | 14 / 1 / 0 | `ac14dad0…` |
+| `fact_city_school_age_population` | 131,080 | 20 / 1 / 0 | `8e27075e…` |
+
+Upstream runs (one PASS result per distinct `run_id` read, each with a succeeded build in `pipeline_runs`): `psa_psgc_clean`, `hdx_adm3_clean`, `psa_school_age_population_clean` from Silver run `9b3e5156…`; `hdx_adm3_psgc_map` from Integration run `9b3e5156…`; `psa_school_age_population_psgc_map` from Integration run `local-map-80f44f29`.
 
 ## `dim_city_municipality`
 
@@ -66,13 +68,23 @@ Spot checks: `0990101000` City of Isabela is a CC with province `0990100000` (it
 | City, year and sex missing an age (20 ages, 5 to 24) | 0 | 0 |
 | Regular cities and municipalities without 2024 rows | 0 | 0 |
 | Population on `UNKNOWN`, 2020, the 8 SGA clusters (WARN) | | 96,899 |
-| Codes / rows not comparable 2020 to 2024 | | 17 / 1,000 |
+| Codes / rows not comparable 2020 to 2024 | | 136 / 10,520 |
 
-The 17 codes not comparable: the 8 reviewed territory changes (Makati, Taguig, and Carmen, Kabacan, Midsayap, Pigkawayan, Pikit and Aleosan in Cotabato), the 8 Special Geographic Area municipalities, which exist only in 2024, and `UNKNOWN`. 2020 rows: 1,634 matched places × 20 ages × 2 sexes, plus 40 on `UNKNOWN`. 2024: 1,642 × 40.
+The 136 codes not comparable, following the AP4 comparability rule of the metric specification:
+
+| Why | Codes |
+|---|---:|
+| Region changed: Negros Island Region | 63 |
+| Province split: Maguindanao del Sur | 24 |
+| Province moved region: Sulu | 19 |
+| Province split: Maguindanao del Norte | 13 |
+| Territory changed: Makati, Taguig, and Carmen, Kabacan, Midsayap, Pigkawayan, Pikit and Aleosan in Cotabato | 8 |
+| Exists only in 2024: the Special Geographic Area municipalities | 8 |
+| `UNKNOWN` | 1 | 2020 rows: 1,634 matched places × 20 ages × 2 sexes, plus 40 on `UNKNOWN`. 2024: 1,642 × 40.
 
 ## Not checked
 
 - Databricks `dev`: not run yet.
 - The technical member codes are proposed on #174 and not yet agreed; `fact_school_enrollment` (#46), which also uses them, is not built here.
-- The territory-change list is the team's reading of D-031, D-049 and D-054; no PSA list of boundary changes between the censuses was found (UNVERIFIED that it is complete).
+- The change list follows the metric specification's AP4 list plus the Cotabato towns of D-031 and D-054; no PSA list of boundary changes between the censuses was found (UNVERIFIED that it is complete).
 - Whether the starred income class means retained after downgrade stays UNVERIFIED (D-035); the column carries Silver's value.
