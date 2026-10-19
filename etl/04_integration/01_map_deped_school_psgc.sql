@@ -12,6 +12,20 @@ DECLARE OR REPLACE VARIABLE integration_environment STRING;
 SET VARIABLE integration_environment = COALESCE(NULLIF(:environment, ''), 'UNSET');
 DECLARE OR REPLACE VARIABLE integration_built_at_utc TIMESTAMP;
 SET VARIABLE integration_built_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE integration_work_units STRING;
+SET VARIABLE integration_work_units = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_units`';
+DECLARE OR REPLACE VARIABLE integration_work_province_pairs STRING;
+SET VARIABLE integration_work_province_pairs = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_province_pairs`';
+DECLARE OR REPLACE VARIABLE integration_work_city_pairs STRING;
+SET VARIABLE integration_work_city_pairs = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_city_pairs`';
+DECLARE OR REPLACE VARIABLE integration_work_cities STRING;
+SET VARIABLE integration_work_cities = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_cities`';
+DECLARE OR REPLACE VARIABLE integration_work_barangay_pairs STRING;
+SET VARIABLE integration_work_barangay_pairs = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_barangay_pairs`';
+DECLARE OR REPLACE VARIABLE integration_work_places STRING;
+SET VARIABLE integration_work_places = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_places`';
+DECLARE OR REPLACE VARIABLE integration_work_decisions STRING;
+SET VARIABLE integration_work_decisions = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_decisions`';
 
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t
 USING (SELECT session.integration_run_id AS run_id) AS s
@@ -27,7 +41,7 @@ CREATE SCHEMA IF NOT EXISTS edu_access.`04-integration`;
 ALTER SCHEMA edu_access.`04-integration` OWNER TO `reached-hq`;
 
 -- Normalize the master PSGC once. This table is read by every later matching stage.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_units USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_units) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
 psgc_input AS (
   SELECT psgc_code, name, old_names, geographic_level, level_blank, region_code, province_code,
@@ -53,10 +67,10 @@ units AS (
 )
 SELECT * FROM units;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_units OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_units) OWNER TO `reached-hq`;
 
 -- Candidate PSGC provinces for each distinct DepEd province/city pair.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_province_pairs) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
 -- Cities are matched once per DepEd (province, municipality) pair: the match never reads the barangay.
 city_input AS (
@@ -66,7 +80,7 @@ city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upp
 city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
-units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
+units AS (SELECT * FROM IDENTIFIER(session.integration_work_units)),
 province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code,
     CASE WHEN s.prov_exact = u.k_exact THEN 1 WHEN s.prov_exact = u.ok_exact THEN 2
@@ -80,10 +94,10 @@ province_pairs AS (
 )
 SELECT * FROM province_pairs;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_province_pairs) OWNER TO `reached-hq`;
 
 -- Candidate PSGC cities and municipalities. Province candidates are already stored above.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_city_pairs) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
 city_input AS (
   SELECT DISTINCT province, municipality FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
@@ -92,8 +106,8 @@ city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upp
 city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
-units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
-province_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs),
+units AS (SELECT * FROM IDENTIFIER(session.integration_work_units)),
+province_pairs AS (SELECT * FROM IDENTIFIER(session.integration_work_province_pairs)),
 province_best AS (
   SELECT province, municipality, MIN(tier) AS tier
   FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2
@@ -123,10 +137,10 @@ city_pairs AS (
 )
 SELECT * FROM city_pairs;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_city_pairs) OWNER TO `reached-hq`;
 
 -- One resolved city/municipality result per distinct DepEd province/city pair.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_cities USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_cities) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
 city_input AS (
   SELECT DISTINCT province, municipality FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
@@ -135,9 +149,9 @@ city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upp
 city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
-units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
-province_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs),
-city_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs),
+units AS (SELECT * FROM IDENTIFIER(session.integration_work_units)),
+province_pairs AS (SELECT * FROM IDENTIFIER(session.integration_work_province_pairs)),
+city_pairs AS (SELECT * FROM IDENTIFIER(session.integration_work_city_pairs)),
 aliases AS (SELECT v.*, u.region_code FROM (SELECT * FROM (VALUES ('TONDO', '1380601000', 'Tondo I/II, a City of Manila sub-municipality'), ('KALOOKAN CITY', '1380100000', 'PSGC uses City of Caloocan'), ('OZAMIS CITY', '1004210000', 'PSGC uses City of Ozamiz'), ('BARAUEN', '0803710000', 'PSGC uses Burauen'), ('BALIUAG', '0301403000', 'PSGC uses City of Baliwag')) AS v(deped_name, psgc_code, reason)) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
 province_best AS (
   SELECT province, municipality, MIN(tier) AS tier
@@ -180,10 +194,10 @@ city_named AS (
 )
 SELECT * FROM city_named;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_cities OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_cities) OWNER TO `reached-hq`;
 
 -- Candidate PSGC barangays for each distinct DepEd place, inside its resolved city.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_barangay_pairs) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
 -- Barangays are matched once per (province, municipality, barangay, truncation flag), inside the named city.
 source_input AS (
@@ -194,8 +208,8 @@ source0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(u
 source1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.b_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_fold FROM source0 AS x),
 source2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.b_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_brackets FROM source1 AS x),
 source3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.b_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_city FROM source2 AS x),
-city_named AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_cities),
-units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
+city_named AS (SELECT * FROM IDENTIFIER(session.integration_work_cities)),
+units AS (SELECT * FROM IDENTIFIER(session.integration_work_units)),
 barangay_pairs AS (
   SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code,
          LEAST(COALESCE(CASE WHEN s.b_exact = u.k_exact THEN 1 WHEN s.b_fold = u.k_fold THEN 3
@@ -207,10 +221,10 @@ barangay_pairs AS (
 )
 SELECT * FROM barangay_pairs;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_barangay_pairs) OWNER TO `reached-hq`;
 
 -- One resolved barangay result per distinct DepEd place.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_places USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_places) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
 source_input AS (
   SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
@@ -220,8 +234,8 @@ source0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(u
 source1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.b_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_fold FROM source0 AS x),
 source2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.b_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_brackets FROM source1 AS x),
 source3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.b_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS b_city FROM source2 AS x),
-city_named AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_cities),
-barangay_pairs AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs),
+city_named AS (SELECT * FROM IDENTIFIER(session.integration_work_cities)),
+barangay_pairs AS (SELECT * FROM IDENTIFIER(session.integration_work_barangay_pairs)),
 barangay_best AS (
   SELECT province, municipality, barangay, barangay_possibly_truncated, MIN(tier) AS tier
   FROM barangay_pairs WHERE tier < 99 GROUP BY 1,2,3,4
@@ -243,14 +257,14 @@ places AS (
 )
 SELECT * FROM places;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_places OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_places) OWNER TO `reached-hq`;
 
 -- Decide the city and barangay result once per school-year row. The final two-level expansion reads
 -- this table twice without making Spark recompute the matching graph twice.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_work_decisions USING DELTA AS
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_decisions) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
 WITH
-units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
-places AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_places),
+units AS (SELECT * FROM IDENTIFIER(session.integration_work_units)),
+places AS (SELECT * FROM IDENTIFIER(session.integration_work_places)),
 overrides AS (SELECT * FROM (VALUES ('bgy', 'NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE', 'code', 'DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.', '@catweyine')) AS v(geographic_level, province, municipality, barangay, use_side, reason, reviewer)),
 school_input AS (
   SELECT e.school_year, e.school_id, e.school_name, e.region, e.province, e.municipality, e.barangay,
@@ -368,13 +382,13 @@ bgy_decided AS (
 )
 SELECT * FROM bgy_decided;
 
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_work_decisions OWNER TO `reached-hq`;
+ALTER TABLE IDENTIFIER(session.integration_work_decisions) OWNER TO `reached-hq`;
 
 -- Expand every stored school-year decision to the map's city and barangay rows.
 CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate USING DELTA AS
 WITH
-units AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_units),
-bgy_decided AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_work_decisions),
+units AS (SELECT * FROM IDENTIFIER(session.integration_work_units)),
+bgy_decided AS (SELECT * FROM IDENTIFIER(session.integration_work_decisions)),
 decisions AS (
   SELECT b.*, 'city_mun' AS geographic_level, b.code_city AS code_candidate, b.city_code AS psgc_code,
          b.city_status AS match_status, CASE WHEN b.city_code IS NULL THEN NULL ELSE b.city_method END AS match_method,
@@ -411,12 +425,12 @@ FROM decisions AS d LEFT JOIN units AS p ON p.psgc_code = d.psgc_code;
 COMMENT ON TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate IS 'Unpublished build for the Integration gate. Do not read: use deped_school_psgc_map.';
 ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate OWNER TO `reached-hq`;
 
--- A failed build may leave work tables for diagnosis. Every rerun replaces each one before reading it,
--- and a successful build removes all of them after the candidate is durable.
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_decisions;
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_places;
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_barangay_pairs;
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_cities;
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_city_pairs;
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_province_pairs;
-DROP TABLE IF EXISTS edu_access.`04-integration`.deped_school_psgc_map_work_units;
+-- A failed build may leave its run-specific work tables for diagnosis. Retrying that run replaces
+-- each one before reading it; a successful build removes its own tables after the candidate is durable.
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_decisions);
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_places);
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_barangay_pairs);
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_cities);
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_city_pairs);
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_province_pairs);
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_units);

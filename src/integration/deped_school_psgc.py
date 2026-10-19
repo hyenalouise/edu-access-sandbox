@@ -46,6 +46,8 @@ SEMI = "' || chr(59) || ' "
 BGY_SUPPORTS = "DepEd barangay name matches the code''s barangay"
 NO_MATCH = "no code, no name match"
 ROLLED_UP = f"'{SEMI}Manila sub-municipality rolled up'"
+WORK_COMMENT = ("Internal unpublished diagnostic work table for one DepEd school PSGC build. "
+                "A failed build may leave it for diagnosis. Retrying that run replaces it.")
 
 
 def _error(message):
@@ -274,9 +276,16 @@ def build_sql(spec):
     candidate = ref(SCHEMA, spec.candidate)
     # Spark inlines CTEs and views. Keep the expensive, reused matching stages in Delta work tables so
     # later statements read their results instead of expanding the entire dependency graph again.
-    work = {name: ref(SCHEMA, f"{spec.map_table}_work_{name}") for name in (
+    work_stages = (
         "units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions",
-    )}
+    )
+    work = {name: f"IDENTIFIER(session.integration_work_{name})" for name in work_stages}
+    work_variables = "\n".join(
+        f"DECLARE OR REPLACE VARIABLE integration_work_{name} STRING;\n"
+        f"SET VARIABLE integration_work_{name} = "
+        f"'`edu_access`.`{SCHEMA}`.`{spec.map_table}_work_r_' || sha2(:run_id, 256) || '_{name}`';"
+        for name in work_stages
+    )
     keys_p = _key_ctes("p", "x.name").replace("FROM p_input", "FROM psgc_input")
     sga_places = " OR ".join(f"(upper(s.region) = {lit(r.upper())} AND upper(s.province) = {lit(p.upper())})"
                              for r, p in spec.sga_places)
@@ -290,6 +299,7 @@ DECLARE OR REPLACE VARIABLE integration_environment STRING;
 SET VARIABLE integration_environment = COALESCE(NULLIF(:environment, ''), 'UNSET');
 DECLARE OR REPLACE VARIABLE integration_built_at_utc TIMESTAMP;
 SET VARIABLE integration_built_at_utc = current_timestamp();
+{work_variables}
 
 MERGE INTO {CONTROL}.pipeline_runs AS t
 USING (SELECT session.integration_run_id AS run_id) AS s
@@ -305,7 +315,7 @@ CREATE SCHEMA IF NOT EXISTS edu_access.`{SCHEMA}`;
 ALTER SCHEMA edu_access.`{SCHEMA}` OWNER TO `{OWNER_GROUP}`;
 
 -- Normalize the master PSGC once. This table is read by every later matching stage.
-CREATE OR REPLACE TABLE {work["units"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["units"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 psgc_input AS (
   SELECT psgc_code, name, old_names, geographic_level, level_blank, region_code, province_code,
@@ -331,7 +341,7 @@ SELECT * FROM units;
 ALTER TABLE {work["units"]} OWNER TO `{OWNER_GROUP}`;
 
 -- Candidate PSGC provinces for each distinct DepEd province/city pair.
-CREATE OR REPLACE TABLE {work["province_pairs"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["province_pairs"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 -- Cities are matched once per DepEd (province, municipality) pair: the match never reads the barangay.
 city_input AS (
@@ -354,7 +364,7 @@ SELECT * FROM province_pairs;
 ALTER TABLE {work["province_pairs"]} OWNER TO `{OWNER_GROUP}`;
 
 -- Candidate PSGC cities and municipalities. Province candidates are already stored above.
-CREATE OR REPLACE TABLE {work["city_pairs"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["city_pairs"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 city_input AS (
   SELECT DISTINCT province, municipality FROM {enr} WHERE NOT is_overseas
@@ -397,7 +407,7 @@ SELECT * FROM city_pairs;
 ALTER TABLE {work["city_pairs"]} OWNER TO `{OWNER_GROUP}`;
 
 -- One resolved city/municipality result per distinct DepEd province/city pair.
-CREATE OR REPLACE TABLE {work["cities"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["cities"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 city_input AS (
   SELECT DISTINCT province, municipality FROM {enr} WHERE NOT is_overseas
@@ -454,7 +464,7 @@ SELECT * FROM city_named;
 ALTER TABLE {work["cities"]} OWNER TO `{OWNER_GROUP}`;
 
 -- Candidate PSGC barangays for each distinct DepEd place, inside its resolved city.
-CREATE OR REPLACE TABLE {work["barangay_pairs"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["barangay_pairs"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 -- Barangays are matched once per (province, municipality, barangay, truncation flag), inside the named city.
 source_input AS (
@@ -481,7 +491,7 @@ SELECT * FROM barangay_pairs;
 ALTER TABLE {work["barangay_pairs"]} OWNER TO `{OWNER_GROUP}`;
 
 -- One resolved barangay result per distinct DepEd place.
-CREATE OR REPLACE TABLE {work["places"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["places"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 source_input AS (
   SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
@@ -518,7 +528,7 @@ ALTER TABLE {work["places"]} OWNER TO `{OWNER_GROUP}`;
 
 -- Decide the city and barangay result once per school-year row. The final two-level expansion reads
 -- this table twice without making Spark recompute the matching graph twice.
-CREATE OR REPLACE TABLE {work["decisions"]} USING DELTA AS
+CREATE OR REPLACE TABLE {work["decisions"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
 WITH
 units AS (SELECT * FROM {work["units"]}),
 places AS (SELECT * FROM {work["places"]}),
@@ -682,8 +692,8 @@ FROM decisions AS d LEFT JOIN units AS p ON p.psgc_code = d.psgc_code;
 COMMENT ON TABLE {candidate} IS 'Unpublished build for the Integration gate. Do not read: use {spec.map_table}.';
 ALTER TABLE {candidate} OWNER TO `{OWNER_GROUP}`;
 
--- A failed build may leave work tables for diagnosis. Every rerun replaces each one before reading it,
--- and a successful build removes all of them after the candidate is durable.
+-- A failed build may leave its run-specific work tables for diagnosis. Retrying that run replaces
+-- each one before reading it; a successful build removes its own tables after the candidate is durable.
 {chr(10).join(f"DROP TABLE IF EXISTS {table};" for table in reversed(list(work.values())))}
 """
     return "\n".join(_header("Integration build", "sql", f"etl/04_integration/{BUILD_FILE}")) + "\n--\n-- Cities are matched once per distinct (province, municipality) and barangays once per distinct place, then\n-- reused by every school-year row.\n" + sql.lstrip()
