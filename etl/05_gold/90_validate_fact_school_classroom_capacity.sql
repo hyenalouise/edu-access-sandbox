@@ -51,6 +51,15 @@ FROM (
   UNION ALL SELECT 'partial_room_reporting', 'PASS', 'informational', CAST(partially_reported_denominators AS STRING) FROM fact_school_classroom_capacity_gate_summary
 ) AS results;
 
+-- Sandbox: a failing gate marks its gold_build run failed before it stops.
+MERGE INTO edu_access.`01-control`.pipeline_runs AS t
+USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM edu_access.`01-control`.data_quality_results
+       WHERE run_id = :run_id AND source_id = 'fact_school_classroom_capacity' AND layer = 'gold'
+         AND checked_at_utc >= session.gold_gate_started_at_utc) AS s
+ON t.run_id = s.run_id AND t.pipeline_name = 'gold_build' AND t.source_id = 'fact_school_classroom_capacity'
+WHEN MATCHED AND s.fails > 0 THEN UPDATE SET status = 'failed', finished_at_utc = current_timestamp(),
+  failure_stage = 'gate', error_message = CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results';
+
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for fact_school_classroom_capacity: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s)') END
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'fact_school_classroom_capacity' AND layer = 'gold' AND status = 'FAIL' AND checked_at_utc >= session.gold_gate_started_at_utc;
@@ -59,3 +68,8 @@ CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_school_classroom_capacity USIN
 SELECT * FROM edu_access.`05-gold`.fact_school_classroom_capacity_candidate;
 
 ALTER TABLE edu_access.`05-gold`.fact_school_classroom_capacity OWNER TO `reached-hq`;
+
+-- Sandbox: the gate passed and the table is published.
+MERGE INTO edu_access.`01-control`.pipeline_runs AS t USING (SELECT :run_id AS run_id) AS s
+ON t.run_id = s.run_id AND t.pipeline_name = 'gold_build' AND t.source_id = 'fact_school_classroom_capacity'
+WHEN MATCHED THEN UPDATE SET status = 'succeeded', finished_at_utc = current_timestamp(), failure_stage = NULL, error_message = NULL;
