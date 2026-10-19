@@ -3,10 +3,14 @@
 -- Do not edit by hand; tests/test_integration_deped_school_psgc.py fails if it differs.
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
 SET VARIABLE integration_gate_started_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE integration_gate_summary STRING;
+SET VARIABLE integration_gate_summary = '`edu_access`.`04-integration`.`deped_school_psgc_map_gate_summary_r_' || sha2(:run_id, 256) || '`';
+DECLARE OR REPLACE VARIABLE integration_gate_owner_sql STRING;
 
 -- The one-row summary the checks read is written to a table first. Read 25 times as a common table expression,
 -- it made Databricks SQL's optimizer fail with INTERNAL_ERROR (sandbox run, 2026-10-19); each part ran alone.
-CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_gate_summary USING DELTA AS
+-- The table is this run's own (its name holds a hash of run_id) and is dropped once the checks are recorded.
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one DepEd school PSGC gate. The gate drops it once its checks are recorded in data_quality_results.' AS
 WITH e AS (SELECT school_year, school_id, school_name, region, province, municipality, barangay,
                   batch_id, source_sha256, source_row_number FROM edu_access.`03-silver`.deped_enrollment_clean),
 x AS (SELECT school_id, psgc_city_municipality, psgc_barangay, batch_id, source_row_number FROM edu_access.`03-silver`.deped_enrollment_psgc_clean),
@@ -107,7 +111,8 @@ reconcile AS (
     AND o.province = m.source_province AND o.municipality = m.source_city_municipality AND o.barangay = m.source_barangay
 )
 SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile;
-ALTER TABLE edu_access.`04-integration`.deped_school_psgc_map_gate_summary OWNER TO `reached-hq`;
+SET VARIABLE integration_gate_owner_sql = 'ALTER TABLE ' || session.integration_gate_summary || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_gate_owner_sql;
 
 INSERT INTO edu_access.`01-control`.data_quality_results
   (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
@@ -123,7 +128,7 @@ level_counts AS (
          100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
   FROM m GROUP BY school_year, geographic_level
 ),
-s AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_gate_summary),
+s AS (SELECT * FROM IDENTIFIER(session.integration_gate_summary)),
 checks AS (
   SELECT 'inputs_present' AS check_name, CASE WHEN enrollment_rows > 0 AND psgc_rows > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'enrollment and master PSGC rows' AS expected, CAST(enrollment_rows AS STRING) || ' / ' || CAST(psgc_rows AS STRING) AS actual FROM s
@@ -174,6 +179,9 @@ profiled AS (
 )
 SELECT * FROM checks UNION ALL SELECT * FROM rates UNION ALL SELECT * FROM profiled
 ) AS results;
+
+-- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_gate_summary);
 
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t
 USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM edu_access.`01-control`.data_quality_results
