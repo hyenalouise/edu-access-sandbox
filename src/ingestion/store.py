@@ -34,12 +34,15 @@ def split_statements(sql):
 
 OWNER_STATEMENT = re.compile(r"^\s*ALTER\s+(TABLE|VIEW|SCHEMA)\s+\S+\s+OWNER\s+TO\b", re.IGNORECASE)
 DECLARE_VARIABLE = re.compile(r"^\s*DECLARE\s+(OR\s+REPLACE\s+)?VARIABLE\b", re.IGNORECASE)
+EXECUTE_IMMEDIATE = re.compile(r"^\s*EXECUTE\s+IMMEDIATE\b", re.IGNORECASE)
+IDENTIFIER_VARIABLE = re.compile(r"\bIDENTIFIER\(\s*(?:session\.)?([A-Za-z_]\w*)\s*\)", re.IGNORECASE)
 
 
 def databricks_only(statement):
     """Skipped locally. Ownership is a Unity Catalog concept (DuckDB has no owners), and DuckDB
     needs no DECLARE: its SET VARIABLE creates the session variable."""
-    return bool(OWNER_STATEMENT.match(statement) or DECLARE_VARIABLE.match(statement))
+    return bool(OWNER_STATEMENT.match(statement) or DECLARE_VARIABLE.match(statement)
+                or EXECUTE_IMMEDIATE.match(statement))
 
 
 def to_duckdb(statement):
@@ -51,11 +54,13 @@ def to_duckdb(statement):
     # Same name, different meaning: Spark replaces every match, DuckDB only the
     # first unless given 'g'. regexp_replace_all is a macro made in DuckDBStore.
     statement = re.sub(r"\bregexp_replace\(", "regexp_replace_all(", statement)
+    statement = re.sub(r"\bsha2\(([^,]+),\s*256\)", r"sha256(CAST(\1 AS VARCHAR))", statement)
     statement = re.sub(r"\barray_join\(", "array_to_string(", statement)  # NULL, not '', for an empty list
     statement = re.sub(r"\bsession\.([A-Za-z_]\w*)", r"getvariable('\1')", statement)  # session variables
     statement = re.sub(r"\bcurrent_timestamp\(\)", "(current_timestamp AT TIME ZONE 'UTC')", statement)
     statement = re.sub(r"\bSTRING\b", "VARCHAR", statement)
     statement = re.sub(r"\s+USING\s+DELTA\b", "", statement, flags=re.IGNORECASE)
+    statement = re.sub(r"\s+COMMENT\s+'(?:''|[^'])*'(?=\s+AS\b)", "", statement, flags=re.IGNORECASE)
     statement = re.sub(r"\s*TBLPROPERTIES\s*\((?:[^()']|'[^']*')*\)", "", statement, flags=re.IGNORECASE)
     return statement
 
@@ -100,6 +105,22 @@ class DuckDBStore:
         self.con.execute("CREATE TEMP MACRO try_to_geometry(s) AS TRY(ST_GeomFromGeoJSON(s))")
         self._spatial = True
 
+    def _resolve_identifiers(self, statement):
+        """Resolve Databricks IDENTIFIER(session.variable) references for DuckDB.
+
+        Production uses IDENTIFIER so a run id can safely select its own Delta
+        work-table namespace. DuckDB has no equivalent DDL clause, but the SQL
+        variable already contains the fully-qualified, backtick-quoted name.
+        """
+        def replace(match):
+            name = match.group(1)
+            value = self.con.execute(f"SELECT getvariable('{name}')").fetchone()[0]
+            if not isinstance(value, str):
+                raise ValueError(f"IDENTIFIER variable {name} is not a string")
+            return value.replace("`", '"')
+
+        return IDENTIFIER_VARIABLE.sub(replace, statement)
+
     def close(self):
         self.con.close()
         self._tmp.cleanup()
@@ -112,14 +133,17 @@ class DuckDBStore:
     def sql(self, statement, params=None):
         if databricks_only(statement):
             return
+        statement = self._resolve_identifiers(statement)
         self._load_spatial(statement)
         self.con.execute(to_duckdb(statement), params or None)
 
     def query(self, statement, params=None):
+        statement = self._resolve_identifiers(statement)
         self._load_spatial(statement)
         return self.con.execute(to_duckdb(statement), params or None).fetchall()
 
     def records(self, statement, params=None):
+        statement = self._resolve_identifiers(statement)
         self._load_spatial(statement)
         cursor = self.con.execute(to_duckdb(statement), params or None)
         names = [d[0] for d in cursor.description]

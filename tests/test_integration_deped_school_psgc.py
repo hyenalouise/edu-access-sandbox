@@ -8,6 +8,7 @@ analysis functions; the gate tests change one candidate row and check that nothi
 
 import ast
 import copy
+import hashlib
 import json
 import sys
 import uuid
@@ -227,6 +228,94 @@ def test_every_school_year_gets_both_levels_and_no_row_is_dropped(tmp_path):
     checks = env.checks(run_id)
     assert not [c for c in checks.values() if c["status"] == "FAIL"]
     assert checks["rows_reconcile"]["actual"] == str(2 * len(ENROLLMENT))
+
+
+def test_matching_stages_use_delta_work_tables_and_success_cleans_them_up(tmp_path):
+    """Spark inlines a reused CTE graph; stored stages keep each matching step bounded."""
+    env = Env(tmp_path)
+    build = env.build.read_text(encoding="utf-8")
+    expected = ["units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions"]
+    assert "CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched" not in build
+    for name in expected:
+        table = f"IDENTIFIER(session.integration_work_{name})"
+        assert f"integration_work_{name} = " in build
+        assert "sha2(:run_id, 256)" in build
+        assert f"CREATE OR REPLACE TABLE {table} USING DELTA COMMENT 'Internal unpublished diagnostic work table" in build
+        assert f"session.integration_work_{name} || ' OWNER TO `reached-hq`'" in build
+        assert f"DROP TABLE IF EXISTS {table};" in build
+
+    assert env.run()[1] is None
+    first = env.map()
+    assert env.rows("SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = '04-integration' AND table_name LIKE '%_work_%'") == []
+    assert env.run()[1] is None
+    assert env.map() == first
+
+
+def test_two_runs_use_disjoint_work_table_names(tmp_path):
+    """A separately deployed job cannot replace or drop another run's matching stages."""
+    env = Env(tmp_path)
+    build = env.build.read_text(encoding="utf-8")
+    keep_work = tmp_path / "build_keep_work.sql"
+    keep_work.write_text("\n".join(
+        line for line in build.splitlines()
+        if not line.startswith("DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_")
+    ), encoding="utf-8")
+
+    run_ids = ("job-run-a", "manual-run-b")
+    for run_id in run_ids:
+        env.store.run_file(keep_work, {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"})
+
+    stages = ["units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions"]
+    expected = {
+        f"deped_school_psgc_map_work_r_{hashlib.sha256(run_id.encode()).hexdigest()}_{stage}"
+        for run_id in run_ids for stage in stages
+    }
+    actual = {r["table_name"] for r in env.rows(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = '04-integration' AND table_name LIKE 'deped_school_psgc_map_work_r_%'"
+    )}
+    assert actual == expected
+
+
+def test_two_gates_use_disjoint_summary_tables(tmp_path):
+    """Overlapping gates (two deployments, or a manual task run) never read each other's summary."""
+    env = Env(tmp_path)
+    keep_summary = tmp_path / "gate_keep_summary.sql"
+    keep_summary.write_text("\n".join(
+        line for line in env.gate.read_text(encoding="utf-8").splitlines()
+        if not line.startswith("DROP TABLE IF EXISTS IDENTIFIER(session.integration_gate_summary)")
+    ), encoding="utf-8")
+
+    run_ids = ("job-run-a", "manual-run-b")
+    for run_id in run_ids:
+        params = {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"}
+        env.store.run_file(env.build, params)
+        env.store.run_file(keep_summary, params)
+
+    names = {run_id: f"deped_school_psgc_map_gate_summary_r_{hashlib.sha256(run_id.encode()).hexdigest()}"
+             for run_id in run_ids}
+    actual = {r["table_name"] for r in env.rows(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = '04-integration' AND table_name LIKE 'deped_school_psgc_map_gate_summary%'"
+    )}
+    assert actual == set(names.values())
+    # Run b rebuilt the candidate, so a's summary (taken before) saw a's rows and b's saw b's: each passed.
+    for run_id, name in names.items():
+        assert env.rows(f'SELECT other_run_rows FROM edu_access."04-integration".{name}') == [{"other_run_rows": 0}]
+        assert env.checks(run_id)["rows_built_by_this_run"]["status"] == "PASS"
+
+
+def test_the_gate_drops_its_summary_whether_it_passes_or_fails(tmp_path):
+    env = Env(tmp_path)
+    summaries = ("SELECT table_name FROM information_schema.tables "
+                 "WHERE table_schema = '04-integration' AND table_name LIKE 'deped_school_psgc_map_gate_summary%'")
+    assert env.run()[1] is None
+    assert env.rows(summaries) == []
+    run_id, error = env.run(change=f"UPDATE {CANDIDATE} SET school_name = 'changed' WHERE school_id = '100001'")
+    assert "Integration gate failed" in error
+    assert env.checks(run_id)["enrollment_fields_reconcile"]["status"] == "FAIL"
+    assert env.rows(summaries) == []
 
 
 def test_code_and_name_agree_is_code(got):

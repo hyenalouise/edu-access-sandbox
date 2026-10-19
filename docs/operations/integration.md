@@ -46,6 +46,35 @@ deliveries) and barangays once per distinct place inside the named city, then
 joins the decisions back to school-year rows. It does not form a school-by-PSGC
 cross product. The generator and committed SQL must agree:
 
+### Internal work tables
+
+The build materializes seven expensive, reused stages as Delta tables: PSGC
+units, province pairs, city pairs, resolved cities, barangay pairs, resolved
+places, and school decisions. They are internal diagnostic state, not
+published Integration outputs, and each table has a Unity Catalog comment that
+says so. Never read them instead of `deped_school_psgc_map`.
+
+Their names contain `r_<sha256(run_id)>`, so another developer's deployment,
+a manual task-only run, and the normal job cannot replace or drop one another's
+stages. Retrying the same run id replaces that run's stages before reading
+them. After the candidate is durable, a successful build drops all seven of
+its work tables. A failed or cancelled build may leave only its own tables for
+diagnosis; a new run uses a different namespace and does not remove them.
+
+After diagnosing a failed run, list stale tables with `SHOW TABLES IN
+edu_access.\`04-integration\` LIKE 'deped_school_psgc_map_work_r_*'` and drop
+only the seven tables whose hash belongs to that inactive run. First confirm
+that no task with that run id is active. The fixed candidate and published map
+keep their existing gate-controlled lifecycle.
+
+The gate has one internal table of its own, `deped_school_psgc_map_gate_summary_r_<sha256(run_id)>`:
+the one-row summary its checks read, written to a table because Databricks SQL's
+optimizer failed when the checks read it 25 times as a common table expression.
+It is named per run like the work tables, so two overlapping gates never read
+each other's summary, and the gate drops it as soon as its checks are recorded
+in `data_quality_results`, whether the gate passes or fails. Only a gate stopped
+before that point can leave it; drop it the same way as a stale work table.
+
 ```bash
 python -m src.integration.deped_school_psgc sql > etl/04_integration/01_map_deped_school_psgc.sql
 python -m src.integration.deped_school_psgc gate > etl/04_integration/90_validate_deped_school_psgc_map.sql
