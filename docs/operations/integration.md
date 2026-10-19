@@ -32,7 +32,7 @@ level, as in the reviewed rule, so the name decides; the raw code stays in
 `code_candidate`.
 
 To keep the SQL practical on a small serverless warehouse, it matches cities
-once per distinct (`province`, `municipality`) pair (1,653 on the real
+once per distinct (`province`, `municipality`) pair (1,655 on the real
 deliveries) and barangays once per distinct place inside the named city, then
 joins the decisions back to school-year rows. It does not form a school-by-PSGC
 cross product. The generator and committed SQL must agree:
