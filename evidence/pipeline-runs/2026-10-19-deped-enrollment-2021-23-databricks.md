@@ -75,6 +75,19 @@ ORDER BY a.batch_id;
 | `deped_enrollment__2024-25__fd5dd74a62b8` | `skip` | `skipped` | 0 |
 | `deped_enrollment__2025-26__ab4d7e24b3a4` | `skip` | `skipped` | 0 |
 
+The query above did not select `load_type`, so this record does not show whether the two new years loaded as `backfill`, as the [Bronze record](../reconciliation/2026-10-19-deped-enrollment-2021-23-bronze.md) expects. It was checked locally instead, in the same order as on Databricks, at commit `e8dc5b47e88a91dfd5299cc853b8af34268fab7a` (clean worktree) on a new DuckDB file. Run 1 had a landing folder without the two new zips. Run 2 added them back. The same query with `a.load_type` added, filtered to run 2's `run_id`:
+
+| `batch_id` | `action` | `load_type` | `outcome` | `rows_inserted` |
+|---|---|---|---|---:|
+| `deped_enrollment__2020-21__65c400aa31ba` | `skip` | `initial` | `skipped` | 0 |
+| `deped_enrollment__2021-22__62f412466435` | `load` | `backfill` | `succeeded` | 60,429 |
+| `deped_enrollment__2022-23__6d567d801a8d` | `load` | `backfill` | `succeeded` | 60,137 |
+| `deped_enrollment__2023-24__a10f4d0f9082` | `skip` | `incremental` | `skipped` | 0 |
+| `deped_enrollment__2024-25__fd5dd74a62b8` | `skip` | `incremental` | `skipped` | 0 |
+| `deped_enrollment__2025-26__ab4d7e24b3a4` | `skip` | `incremental` | `skipped` | 0 |
+
+Run 2 has the same batch IDs and inserted counts as the Databricks run, and its Silver gate had 225 PASS, 2 WARN (`quarantine_rate` and `quarantine_reason_school_id_malformed`, SY 2022-23), and 0 FAIL.
+
 The rows show that the four other years were not rewritten: every Bronze row still carries the run that wrote it.
 
 ```sql
@@ -128,3 +141,4 @@ The counts, learners, quarantined row, and gate results equal the [local run](..
 
 - **Rerun safety on Databricks.** A second run, which would skip all six deliveries and insert 0, was not done, to save compute. It is shown locally: two whole-job runs on the real data, the second inserting nothing and rebuilding identical Silver content ([Bronze](../reconciliation/2026-10-19-deped-enrollment-2021-23-bronze.md), [Silver](../reconciliation/2026-10-19-deped-enrollment-2021-23-silver.md)). It is also shown on Databricks for the same code path by the SY 2020-21 runs ([2026-10-18 record](2026-10-18-deped-enrollment-2020-21-databricks.md)). #183's acceptance item was amended on 2026-10-19 to one `dev` run for this reason.
 - Content hashes on Databricks. They were taken locally only.
+- **`load_type` on Databricks.** The `backfill` path is shown locally (above) and by `tests/test_ingestion_pipeline.py::test_sy_2021_22_and_2022_23_load_as_v1_backfills_and_leave_the_other_years_untouched`. It will be checked on Databricks in the team's next group run.
