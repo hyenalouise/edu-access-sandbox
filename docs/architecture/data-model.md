@@ -270,6 +270,19 @@ used. NULL learner counts remain distinct from reported zero. `is_public`, overs
 exclusion, and enrollment-status labels are derived in reviewed Analytics
 views from the standardized source values.
 
+Built by `10_build_fact_school_enrollment.sql` from `deped_enrollment_clean` and
+`deped_school_psgc_map` (D-049): three rows for every Silver row, overseas
+schools included. `learner_count` follows the metric specification's
+missingness rules, with each level's applicable cells taken from that
+specification (the unique-strand cells from SY 2024-25, the Strengthened SHS
+cells from SY 2025-26). Geography is the map's result for that school year: a
+matched city keeps its code; an unmatched or ambiguous one takes `UNKNOWN`, an
+excluded one `EXCLUDED`; a matched city with no single barangay takes its
+`<city_mun_psgc_code>-UNKNOWN` barangay. `psgc_match_status` is the city or
+municipality status. The candidate also carries three audit columns
+(`applicable_cells`, `null_cells`, `published_cell_sum`) for the gate, which
+publishes only the columns above.
+
 ### `fact_school_classroom_capacity`
 
 | Column | Type |

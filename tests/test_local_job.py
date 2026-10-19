@@ -10,7 +10,8 @@ import shutil
 
 import pytest
 
-from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
+from factories.deped_deliveries import (REPO_ROOT, approve, columns, empty_config, fake_repo, make_delivery, make_rows,
+                                        with_values, write_config)
 from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks, report_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
@@ -117,7 +118,13 @@ def repo(tmp_path):
 def deliver(repo, landing, source_id="deped_enrollment", school_year="2023-24"):
     """A made-up delivery in the landing folder, approved in the fake repository's contract."""
     config = json.loads((repo / "config" / "ingestion" / f"{source_id}.json").read_text(encoding="utf-8"))
-    path = make_delivery(landing / "deped" / "original", school_year, source_id=source_id)
+    header = columns("v1", source_id)
+    rows = make_rows(header)
+    if "offers_jhs" in header:
+        # The factory's schools offer ES only but publish JHS and SHS learners, which the enrollment
+        # fact's gate rightly fails (not_offered_without_learners): these schools offer every level.
+        rows = [with_values(header, row, {"offers_jhs": "True", "offers_shs": "True"}) for row in rows]
+    path = make_delivery(landing / "deped" / "original", school_year, rows=rows, source_id=source_id)
     approve(config, path, school_year)
     write_config(repo, config)
 
