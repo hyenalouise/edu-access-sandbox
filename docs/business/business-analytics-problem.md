@@ -35,7 +35,7 @@ In this question, “cities” means cities and municipalities, the same unit th
 
 | Question | Role in the business decision | Primary output |
 |---|---|---|
-| **AP1 · Schools** | Counts toward the priority tier with AP2 and AP3 (D-057); on its own it does not recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
+| **AP1 · Schools** | Learners per public school counts toward the priority tier with AP2 and AP3 (D-057); population per public school is context only. On its own it does not recommend construction | Learners per public school, public schools relative to total population, and barangays without a public elementary school |
 | **AP2 · Classrooms** | Direct evidence for classroom prioritization | Public-school enrollment relative to reported classroom capacity, with coverage |
 | **AP3 · Teachers** | Direct evidence for teacher-allocation prioritization | Public-school enrollment relative to reported teaching personnel, with coverage |
 | **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Population aged 5–17 minus enrollment in all sectors, for 2020 and 2024, and the change between them; the public-school share is shown beside it |
