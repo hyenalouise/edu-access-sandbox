@@ -58,7 +58,7 @@ city0 AS (SELECT x.*, CASE WHEN regexp_replace(TRIM(regexp_replace(translate(upp
 city1 AS (SELECT x.*, TRIM(regexp_replace(translate(translate(translate(x.prov_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS prov_fold, TRIM(regexp_replace(translate(translate(translate(x.k_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(x.k_fold, '[(][^)]*[)]?', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, TRIM(regexp_replace(translate(regexp_replace(regexp_replace(' ' || x.k_brackets || ' ', ' (CITY|OF) ', ' '), ' (CITY|OF) ', ' '), chr(9) || chr(160), '  '), ' +', ' ')) AS k_city FROM city2 AS x),
-aliases AS (SELECT * FROM (VALUES ('TONDO', '1380601000', 'Tondo I/II, a City of Manila sub-municipality'), ('KALOOKAN CITY', '1380100000', 'PSGC uses City of Caloocan'), ('OZAMIS CITY', '1004210000', 'PSGC uses City of Ozamiz'), ('BARAUEN', '0803710000', 'PSGC uses Burauen'), ('BALIUAG', '0301403000', 'PSGC uses City of Baliwag')) AS v(deped_name, psgc_code, reason)),
+aliases AS (SELECT v.*, u.region_code FROM (SELECT * FROM (VALUES ('TONDO', '1380601000', 'Tondo I/II, a City of Manila sub-municipality'), ('KALOOKAN CITY', '1380100000', 'PSGC uses City of Caloocan'), ('OZAMIS CITY', '1004210000', 'PSGC uses City of Ozamiz'), ('BARAUEN', '0803710000', 'PSGC uses Burauen'), ('BALIUAG', '0301403000', 'PSGC uses City of Baliwag')) AS v(deped_name, psgc_code, reason)) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
 overrides AS (SELECT * FROM (VALUES ('bgy', 'NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE', 'code', 'DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.', '@catweyine')) AS v(geographic_level, province, municipality, barangay, use_side, reason, reviewer)),
 province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code,
@@ -69,7 +69,7 @@ province_pairs AS (
   UNION ALL
   SELECT s.province, s.municipality, u.psgc_code, 1
   FROM city3 AS s JOIN units AS u ON upper(s.province) = 'MAGUINDANAO'
-    AND u.geographic_level = 'Prov' AND u.name IN ('Maguindanao del Norte', 'Maguindanao del Sur')
+    AND u.geographic_level = 'Prov' AND u.psgc_code IN ('1908700000', '1908800000')
 ),
 province_best AS (
   SELECT province, municipality, MIN(tier) AS tier
@@ -86,7 +86,7 @@ province_scope AS (
 ),
 city_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code, u.geographic_level,
-         CASE WHEN regexp_like(upper(s.province), 'NCR') AND u.psgc_code LIKE '13%' THEN 1
+         CASE WHEN ((instr(upper(s.province), 'NCR') > 0 AND u.region_code = '1300000000')) THEN 1
               WHEN ps.province_prefix IS NOT NULL THEN 1
               WHEN u.geographic_level = 'City' AND (ph.hits IS NULL OR substr(u.psgc_code, 6) = '00000') THEN 2 ELSE 9 END AS scope_rank,
          LEAST(COALESCE(CASE WHEN s.k_exact = u.k_exact THEN 1 WHEN s.k_fold = u.k_fold THEN 3 WHEN s.k_brackets = u.k_brackets THEN 5 WHEN s.k_city = u.k_city THEN 6 END, 99), COALESCE(CASE WHEN s.k_exact = u.ok_exact THEN 2 WHEN s.k_fold = u.ok_fold THEN 4 END, 99)) AS tier
@@ -122,7 +122,7 @@ city_named AS (
   FROM city3 AS s
   LEFT JOIN province_hits AS ph USING (province, municipality)
   LEFT JOIN aliases AS a ON a.deped_name = s.k_exact AND
-    (regexp_like(upper(s.province), 'NCR') AND a.psgc_code LIKE '13%'
+    (((instr(upper(s.province), 'NCR') > 0 AND a.region_code = '1300000000'))
      OR ph.hits = 1 AND substr(a.psgc_code, 1, 5) = substr(ph.psgc_code, 1, 5)
      OR substr(a.psgc_code, 6) = '00000')
   LEFT JOIN units AS au ON au.psgc_code = a.psgc_code
