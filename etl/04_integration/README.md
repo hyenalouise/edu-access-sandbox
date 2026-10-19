@@ -22,12 +22,18 @@ districts keep their own sub-municipality codes. The gate counts the PSGC cities
 municipalities with no PSA row per estimate year (D-028) and publishes only if no check
 fails. Tests: `tests/test_integration_poverty.py`.
 
+The fourth is the PSA school-age population to PSGC map:
+`05_map_psa_school_age_population_psgc.sql` and `90_validate_psa_school_age_population_psgc_map.sql`
+(#159, D-055), generated from `config/integration/psa_school_age_population_psgc.json` by
+`python -m src.integration.psa_school_age_population_psgc sql|gate`; `tests/test_integration_school_age.py`
+fails if they differ. It waits for the school-age population and PSGC Silver gates.
+
 Each map starts from the Silver gates of the sources it reads, not from the
-source-lane fan-in (D-051). The other maps are disabled placeholders:
-`01_map_deped_school_psgc` (enrollment, the EMISD crosswalk, PSGC) and
-`05_map_psa_school_age_population_psgc` (school-age population, PSGC). The HDX
-map waits for the HDX and PSGC Silver gates, and the poverty map for the poverty
-and PSGC Silver gates.
+source-lane fan-in (D-051). The other map is a disabled placeholder:
+`01_map_deped_school_psgc` (enrollment, the EMISD crosswalk, PSGC). The HDX
+map waits for the HDX and PSGC Silver gates, the poverty map for the poverty
+and PSGC Silver gates, and the school-age map for the school-age population and
+PSGC Silver gates.
 
 The remaining candidate mapping names are documented as drafts in the
 [ETL table registry](../../docs/standards/tables.md); they are not reserved until

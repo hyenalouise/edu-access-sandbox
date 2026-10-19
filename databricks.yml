@@ -14,7 +14,7 @@ bundle:
 variables:
   warehouse_id:
     description: SQL warehouse that runs the job's SQL tasks (Serverless Starter Warehouse)
-    default: 71d3ccb9cea611c0
+    default: ba94770acbbc293c
   duration_warning_seconds:
     description: >-
       Email a run still going after this long (45 minutes). Observed whole runs took 6 min 43 s to
@@ -789,7 +789,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 05_map_psa_school_age_population_psgc
-          disabled: true
           depends_on:
             - task_key: 90_validate_psa_school_age_population_clean
             - task_key: 90_validate_psa_psgc_clean
@@ -800,7 +799,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_psa_school_age_population_psgc_map
-          disabled: true
           depends_on:
             - task_key: 05_map_psa_school_age_population_psgc
           run_if: ALL_SUCCESS
@@ -1277,4 +1275,4 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-76bcfddb-1669.cloud.databricks.com
+      host: https://dbc-2b6bf1c5-7bc3.cloud.databricks.com
