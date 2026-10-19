@@ -30,7 +30,7 @@ Every published measure must declare:
 3. **numerator and denominator** — exact approved fields and filters, covering the same schools, education level, school scope, geography, and period;
 4. **aggregation** — calculate ratios from aggregated sums, not the unweighted average of school ratios;
 5. **missingness** — NULL remains missing and is never converted to zero without publisher evidence;
-6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3;
+6. **coverage** — both school and enrolled-learner coverage accompany AP2 and AP3, and the share of active public schools with complete all-level enrollment accompanies AP1 for the [priority rule](#priority-rule);
 7. **geography** — the school-to-PSGC match version and unmatched/excluded counts;
 8. **period** — school year or population reference year shown on every result; and
 9. **quality status** — unresolved outliers, annex handling, and definition mismatches remain visible.
@@ -248,7 +248,7 @@ For Negros, Sulu, and Maguindanao the cities and municipalities themselves did n
 
 ### Context · Poverty 2023
 
-Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, peer group, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)).
+Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, tier, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)). Its one other use is as a standardized input to the context-only [Similar LGUs](#similar-lgus-context) list (D-057).
 
 | Item | Contract |
 |---|---|
@@ -292,18 +292,42 @@ The dashboard may show four distinct evidence types without treating them as int
 |---|---|
 | **LGU observed value** | Primary local measure, with coverage and quality status |
 | **Validated official benchmark** | Benchmark comparison only when authority, formula, scope, education level, effective period, and denominator compatibility match the observed metric; see the [research register](national-benchmarks-and-indicators.md) |
-| **Peer distribution** | Relative context using an approved peer definition; not proof of shortage |
-| **National same-type distribution** | Descriptive context for cities and municipalities separately; not an official standard |
+| **National same-type distribution** | Cities compared with cities and municipalities with municipalities; the within-type percentile sets the [priority tier](#priority-rule) (D-057). Relative pressure, not an official standard |
+| **Similar LGUs** | The most similar LGUs of the same type, shown as context (method set in #96); never sets or changes a tier |
 
-### Proposed peer method
+### Similar LGUs (context)
 
-The current proposal groups LGUs by type, income class, and a type-specific population-density band. Density uses land area from `hdx_boundaries.area_sqkm` (see the [dataset use map](dataset-use-map.md)). If a group does not meet the approved minimum size, density is dropped; if the broader group is still too small, only national same-type context is shown. The minimum group size, density bands, and fallback labels remain team decisions.
+Similar LGUs replaces the proposed peer groups, which were parked on 2026-10-18 (D-057). For each city or municipality, the LGU profile will list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input (44 areas have no PSA poverty row, most of them highly urbanized cities, the 8 Special Geographic Area municipalities have no HDX area, and Isabela City has no 2024 population in PSGC), and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it is not a comparison group for the tier and never changes one.
 
-For an approved peer group, show the median, interquartile range, percentile, and group count. Median is not the only statistic: the IQR shows spread, the percentile locates the LGU, and the national same-type distribution reveals whether pressure is widespread beyond one peer group.
+For each measure, the national same-type median, interquartile range, and the LGU's percentile are shown beside the LGU's value. Median is not the only statistic: the IQR shows spread and the percentile locates the LGU.
 
-### Priority output
+### Priority rule
 
-Maintain separate classroom and teacher views. Until an official benchmark and the underlying metric are validated, sort only as **relative capacity pressure** using the observed ratio, affected enrollment, comparison position, coverage, and quality flags. Do not label the result a shortage, deficit, or number of resources needed. Do not create a combined classroom-teacher score without approved weights and interpretation.
+The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
+
+1. **Coverage gate.** A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
+2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.
+3. **High.** A measure is high at a percentile of 0.90 or above; for AP3 this is the second, re-ranked percentile, and the output names the level with the highest level percentile. AP3 is not high only when every offered level passes and it is still not high; otherwise it is not assessed.
+4. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
+5. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
+6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Critical both ways is marked Stable; the tier shown is always the within-type one.
+
+The result is labelled **relative capacity pressure**. Do not label it a shortage, deficit, or number of resources needed.
+
+These checks are reported beside the ranking and never change a tier:
+
+| Check | Variation | Reported |
+|---|---|---|
+| High line | 0.85 and 0.80 | The LGUs that join Critical at each line (a lower line only adds LGUs) |
+| Coverage gate | 95% | The share of the 90% Critical list kept, and the LGUs that join |
+| Comparison | National | The Stable flag |
+| Outliers | Without the schools above Q3 + 3 × IQR of their school-level ratio: learners per room (all levels) and learners per teacher per level, with quartiles computed within LGU type over public schools with a usable denominator, SY 2023-24 | LGUs whose tier would change; the flagged schools stay in the published totals (rule 8) and the list is saved with the run |
+| Flag rate | None | The share of LGUs high on each measure, by type; about 10% each is expected |
+| Overlap of measures | Spearman rank correlation between the three measures by type, and the share of LGUs high on one measure that are also high on another (10% expected if unrelated) | How far the measures repeat one signal; the shared learner numerator makes some overlap expected |
+
+**Revisit trigger.** The rule is revisited when, under any check, fewer than 80% of the Critical LGUs stay Critical and at least 3 leave (D-057).
+
+No significance test is used: the sources cover every public school, so there is no sampling error to test. Reporting error remains, and the coverage gate and the outlier check address it.
 
 ## Candidate resource-gap calculations — blocked
 
@@ -333,19 +357,19 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Ready to implement and validate for SY 2023-24; project-defined |
 | **AP4 context** | population aged 5–17, enrollment in all sectors, gap, gap share, change from 2020 to 2024, public-school share | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Blocked pending population Silver publication and PSGC integration |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
-| **Comparisons** | applicable benchmark and status, peer percentile, peer median, national same-type median | benchmark citation/version, peer ID/count/fallback, IQR, national distribution, comparison status | Blocked until method approval |
-| **Priority label** | relative-pressure band or benchmark status, affected enrollment | sort rule/version, missingness and quality warnings | Blocked until ranking rule approval |
+| **Comparisons** | applicable benchmark and status, within-type percentile per measure, national same-type median, Similar LGUs | benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison defined (D-057), planned in #178; Similar LGUs method planned in #96 |
+| **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Defined (D-057); planned in #178 |
 
 ## Separate follow-on decisions
 
 The AP1 to AP4 fact and metric contracts above do not depend on the following work. These items must not be guessed inside #46:
 
 1. The AP4 name-match implementation from the PSA census workbooks to PSGC. The matching issue must preserve the approved ages, periods, enrollment scope, comparability flag, and no-modelling rule.
-2. Peer criteria, density bands, minimum group size, fallback, and percentile convention. HDX is the current land-area source.
-3. Relative-priority sorting or banding. A combined classroom-teacher score remains out of scope unless a later decision approves its weights and interpretation.
+2. ~~Peer criteria, density bands, minimum group size, fallback, and percentile convention.~~ Settled by D-057: peer groups are replaced by [Similar LGUs](#similar-lgus-context), and the percentile is `PERCENT_RANK()` within LGU type. The Similar LGUs method is planned in #96.
+3. ~~Relative-priority sorting or banding.~~ Settled by D-057: the [priority rule](#priority-rule). A weighted classroom-teacher score remains out of scope unless a later decision approves its weights and interpretation.
 4. Activation of the candidate classroom planning calculation or any teacher resource-gap calculation. These require compatible denominators and separate approval.
 
-Already set: poverty 2023 is context only, never a ranking, flag, peer criterion, or score input (D-046). The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
+Already set: poverty 2023 is context only, never a ranking, flag, tier, or score input (D-046); D-057 allows it as an input to the context-only Similar LGUs. The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
 
 ## Validation gate
 
