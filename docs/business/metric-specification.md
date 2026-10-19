@@ -308,9 +308,9 @@ The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on
 1. **Coverage gate.** A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
 2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it.
 3. **High.** A measure is high at a percentile of 0.90 or above. AP3 is high when any level that passes the gate is high, and the output names the level. AP3 is not high only when every offered level passes and none is high; otherwise it is not assessed.
-4. **Tier.** Priority A (3 high), Priority B (2), Targeted (1, naming the measure), no high measure (0), or Data review. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
+4. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
 5. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
-6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Priority A both ways is marked Stable; the tier shown is always the within-type one.
+6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Critical both ways is marked Stable; the tier shown is always the within-type one.
 
 The result is labelled **relative capacity pressure**. Do not label it a shortage, deficit, or number of resources needed.
 
@@ -318,8 +318,8 @@ These checks are reported beside the ranking and never change a tier:
 
 | Check | Variation | Reported |
 |---|---|---|
-| High line | 0.85 and 0.80 | Priority A count at each line, and whether every Priority A LGU at 0.90 stays in |
-| Coverage gate | 95% | Priority A count and the overlap with the 90% list |
+| High line | 0.85 and 0.80 | Critical count at each line, and whether every Critical LGU at 0.90 stays in |
+| Coverage gate | 95% | Critical count and the overlap with the 90% list |
 | Comparison | National | The Stable flag |
 | Outliers | Without the schools above Q3 + 3 × IQR on learners per room or per teacher | LGUs whose tier would change; the flagged schools stay in the published totals (rule 8) |
 | Overlap of measures | Spearman rank correlation between the three measures, by LGU type | Whether the measures repeat one signal |
