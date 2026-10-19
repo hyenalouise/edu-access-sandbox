@@ -241,6 +241,7 @@ def test_matching_stages_use_delta_work_tables_and_success_cleans_them_up(tmp_pa
         assert f"integration_work_{name} = " in build
         assert "sha2(:run_id, 256)" in build
         assert f"CREATE OR REPLACE TABLE {table} USING DELTA COMMENT 'Internal unpublished diagnostic work table" in build
+        assert f"session.integration_work_{name} || ' OWNER TO `reached-hq`'" in build
         assert f"DROP TABLE IF EXISTS {table};" in build
 
     assert env.run()[1] is None

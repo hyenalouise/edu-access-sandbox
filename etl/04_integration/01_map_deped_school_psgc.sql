@@ -26,6 +26,7 @@ DECLARE OR REPLACE VARIABLE integration_work_places STRING;
 SET VARIABLE integration_work_places = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_places`';
 DECLARE OR REPLACE VARIABLE integration_work_decisions STRING;
 SET VARIABLE integration_work_decisions = '`edu_access`.`04-integration`.`deped_school_psgc_map_work_r_' || sha2(:run_id, 256) || '_decisions`';
+DECLARE OR REPLACE VARIABLE integration_work_owner_sql STRING;
 
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t
 USING (SELECT session.integration_run_id AS run_id) AS s
@@ -67,7 +68,8 @@ units AS (
 )
 SELECT * FROM units;
 
-ALTER TABLE IDENTIFIER(session.integration_work_units) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_units || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Candidate PSGC provinces for each distinct DepEd province/city pair.
 CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_province_pairs) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
@@ -94,7 +96,8 @@ province_pairs AS (
 )
 SELECT * FROM province_pairs;
 
-ALTER TABLE IDENTIFIER(session.integration_work_province_pairs) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_province_pairs || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Candidate PSGC cities and municipalities. Province candidates are already stored above.
 CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_city_pairs) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
@@ -137,7 +140,8 @@ city_pairs AS (
 )
 SELECT * FROM city_pairs;
 
-ALTER TABLE IDENTIFIER(session.integration_work_city_pairs) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_city_pairs || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- One resolved city/municipality result per distinct DepEd province/city pair.
 CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_cities) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
@@ -194,7 +198,8 @@ city_named AS (
 )
 SELECT * FROM city_named;
 
-ALTER TABLE IDENTIFIER(session.integration_work_cities) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_cities || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Candidate PSGC barangays for each distinct DepEd place, inside its resolved city.
 CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_barangay_pairs) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
@@ -221,7 +226,8 @@ barangay_pairs AS (
 )
 SELECT * FROM barangay_pairs;
 
-ALTER TABLE IDENTIFIER(session.integration_work_barangay_pairs) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_barangay_pairs || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- One resolved barangay result per distinct DepEd place.
 CREATE OR REPLACE TABLE IDENTIFIER(session.integration_work_places) USING DELTA COMMENT 'Internal unpublished diagnostic work table for one DepEd school PSGC build. A failed build may leave it for diagnosis. Retrying that run replaces it.' AS
@@ -257,7 +263,8 @@ places AS (
 )
 SELECT * FROM places;
 
-ALTER TABLE IDENTIFIER(session.integration_work_places) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_places || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Decide the city and barangay result once per school-year row. The final two-level expansion reads
 -- this table twice without making Spark recompute the matching graph twice.
@@ -382,7 +389,8 @@ bgy_decided AS (
 )
 SELECT * FROM bgy_decided;
 
-ALTER TABLE IDENTIFIER(session.integration_work_decisions) OWNER TO `reached-hq`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_decisions || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Expand every stored school-year decision to the map's city and barangay rows.
 CREATE OR REPLACE TABLE edu_access.`04-integration`.deped_school_psgc_map_candidate USING DELTA AS
