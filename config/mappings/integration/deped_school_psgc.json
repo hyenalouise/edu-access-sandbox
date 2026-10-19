@@ -1,0 +1,54 @@
+{
+  "source_id": "deped_enrollment",
+  "used_by": "analysis/cross_source/cross_source_deped_school_psgc_rule.py (applied by cross_source_deped_enrollment_psgc.py) now; etl/04_integration/01_map_deped_school_psgc.sql later, reading the EMISD crosswalk from edu_access.`03-silver`.deped_enrollment_psgc_clean (#169, #91, #137 Option B)",
+  "owner": "@saraevcldn",
+  "status": "Approved in PR #153 (2026-10-18); the Integration SQL that applies it is not written yet (#91)",
+  "how_to_change": "Add or change an override in a pull request that names its evidence and reason, rerun the script, and quote the changed EP- counts in the pull request. The approving reviewer is written into the override's reviewer field.",
+  "psgc_version": "2Q 2026",
+  "rule_order_note": "rule_order describes the rule; it is not read by any program. The logic lives in analysis/cross_source/cross_source_deped_school_psgc_rule.py and later in the Integration SQL, which is the source of truth once written. Change the code and this list together. On Silver input, deped_enrollment_psgc_clean has already recoded Sulu 19066 to 09066 and sets psgc_recoded, so the Integration SQL must take code_region_moved from psgc_recoded, not from a 19066 lookup. The overrides and match_method_from_name_tier below are read by the code.",
+  "rule_order": {
+    "city_mun": [
+      "A reviewed override for the school's DepEd place, if one is listed below; it picks the unit, and the method follows the side it uses (code when the name match agrees, otherwise code_name_differs)",
+      "Special Geographic Area school (BARMM / NORTH COTABATO, D-031): matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's municipality, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
+      "EMISD code and name match give the same unit: matched, method code",
+      "They give different units: matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's city or municipality (the place moved, e.g. a newer municipality or Embo), method code_name_differs; otherwise ambiguous",
+      "Only one of them is found: matched by it (code_name_differs for the code, or the name tier's method)",
+      "Neither: unmatched",
+      "A Manila sub-municipality matched by code or name rolls up to the City of Manila, method rollup; a Sulu code read under region 09 is code_region_moved"
+    ],
+    "bgy": [
+      "The city or municipality is not matched (excluded, ambiguous or unmatched): the barangay gets the same status, with psgc_code NULL",
+      "A reviewed override for the school's DepEd place, if one is listed below; it picks the unit, and the method follows the side it uses (code when the name match agrees, otherwise code_name_differs)",
+      "EMISD code and name match give the same barangay: matched, method code",
+      "The code's barangay name matches the DepEd barangay name: matched by code, method code",
+      "They give different barangays otherwise: ambiguous",
+      "Only one of them is found: matched by it (code_name_differs for the code, or the name tier's method)",
+      "Neither: unmatched",
+      "Any barangay accepted above, an override included, must lie inside the accepted city or municipality; otherwise ambiguous (this catches EMISD codes that break the PSGC hierarchy, profile O-7)"
+    ]
+  },
+  "match_method_from_name_tier": {
+    "exact": "name_exact",
+    "independent city": "name_exact",
+    "city, province unmatched": "name_exact",
+    "old name": "name_old",
+    "folded old name": "name_old",
+    "folded": "name_normalized",
+    "brackets dropped": "name_normalized",
+    "word City ignored": "name_normalized",
+    "truncated at 40": "name_normalized",
+    "reviewed alias": "reviewed_alias"
+  },
+  "overrides": [
+    {
+      "level": "bgy",
+      "deped_province": "NCR FOURTH DISTRICT",
+      "deped_municipality": "TAGUIG CITY",
+      "deped_barangay": "SIGNAL VILLAGE",
+      "use": "code",
+      "reason": "DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there; the EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in; the name match cannot.",
+      "evidence": "21 SY 2023-24 schools carry this DepEd barangay; for 14 of them the EMISD code and the name match disagree. Rerun cross_source_deped_enrollment_psgc.py: EP-18 counts both, the 14 are the SIGNAL VILLAGE rows of work/deped_enrollment_psgc_vs_name_match.csv (EP-11), and EP-16 counts the override as applied.",
+      "reviewer": "@catweyine"
+    }
+  ]
+}
