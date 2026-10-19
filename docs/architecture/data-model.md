@@ -1,8 +1,9 @@
 # Gold data model
 
-**Status:** approved design under #45. Tables with reviewed inputs may be built
-independently. Geography-dependent tables remain deferred until the required
-Integration mappings are implemented and pass their gates.
+**Status:** provisional model under D-048 and the implementation contract in
+D-050. Tables with reviewed inputs may be built and gated independently while
+the model and ERD await final mentor approval. A table is not publication-ready
+until its own source, Integration, reconciliation, and validation requirements pass.
 
 The model keeps source-aligned values at their useful analytical grains. Gold
 stores keys and measures that cannot be reconstructed without losing meaning.
@@ -434,14 +435,19 @@ erDiagram
   }
 ```
 
-## Build gate
+## Build and publication gates
 
-The design becomes buildable only after all of these are true:
+A Gold table may be built independently when all requirements that apply to it
+are true. Building a source-aligned table does not constitute final mentor
+approval of the full model or make a downstream analytical output publishable.
 
-1. The team and mentor approve this ERD and the grains above.
-2. #44 provides reviewed PSGC mappings and explicit unknown/excluded behavior.
-3. D-047 supplies the approved classroom and teacher denominator definitions;
-   #66 must resolve only any implementation detail that remains open.
+1. Its grain, keys, fields, and null behavior follow D-048, D-050, and the
+   relevant source decision.
+2. A geography-dependent table waits for its reviewed PSGC mappings and explicit
+   unknown or excluded behavior. Tables that do not read geography do not wait
+   for unrelated Integration lanes, following D-051.
+3. D-047 supplies the classroom and teacher denominator definitions, and D-050
+   supplies the implementation contract.
 4. Each dimension build has a uniqueness check on its declared key.
 5. Every fact foreign key resolves to a regular, unknown, or excluded dimension
    member; no records disappear through inner joins.

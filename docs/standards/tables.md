@@ -8,7 +8,7 @@ without pretending that the business problem or analytical questions are final.
 
 | Dataset | Bronze table | Silver table | Silver quarantine |
 |---|---|---|---|
-| DepEd enrollment, SY 2023-24 through 2025-26 | `deped_enrollment_raw` | `deped_enrollment_clean` | `deped_enrollment_quarantine` |
+| DepEd enrollment, SY 2020-21 through 2025-26 | `deped_enrollment_raw` | `deped_enrollment_clean` | `deped_enrollment_quarantine` |
 | DepEd facilities, SY 2023-24 | `deped_facilities_raw` | `deped_facilities_clean` | `deped_facilities_quarantine` |
 | DepEd personnel, SY 2023-24 | `deped_personnel_raw` | `deped_personnel_clean` | `deped_personnel_quarantine` |
 | PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
@@ -17,8 +17,8 @@ without pretending that the business problem or analytical questions are final.
 | DepEd EMISD enrollment with PSGC and coordinates (the school-to-PSGC crosswalk) | `deped_enrollment_psgc_raw` | `deped_enrollment_psgc_clean` | `deped_enrollment_psgc_quarantine` |
 | PSA school-age population, 2020 and 2024 census workbooks | `psa_school_age_population_raw` | `psa_school_age_population_clean` | `psa_school_age_population_quarantine` |
 
-Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
-the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
+The registry and job configuration are the source of truth for implementation
+and enablement status; this table fixes names and is not a progress checklist.
 
 Each Silver table and Silver quarantine also has a **candidate** copy with the
 suffix `_candidate` (for example `deped_enrollment_clean_candidate`): the build
@@ -104,5 +104,7 @@ names remain deferred until their inputs are implemented and gated.
 Implemented: `dim_school`, `dim_school_year`, `dim_education_level`,
 `fact_school_classroom_capacity`, `fact_school_teacher_capacity`, and
 `fact_school_year_source_availability`. Each build writes a candidate and its
-gate publishes only after validation. The other Gold tables remain disabled
-until their documented Integration prerequisites are available.
+gate publishes only after validation. `dim_city_municipality`, `dim_barangay`,
+`dim_city_poverty`, `fact_school_enrollment`, `fact_city_population`, and
+`fact_city_school_age_population` remain disabled and are assigned to follow-on
+work; this pull request does not publish empty substitutes for them.
