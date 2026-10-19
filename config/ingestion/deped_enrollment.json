@@ -16,7 +16,7 @@
   "schema_versions": {
     "v1": {
       "first_school_year": "2020-21",
-      "note": "78 columns. SY 2020-21, 2023-24, and 2024-25 have identical headers in the same order (profile O-7). SY 2021-22 and 2022-23 are not acquired.",
+      "note": "78 columns. SY 2020-21 to 2024-25 have identical headers in the same order (profile O-7).",
       "columns": [
         "school_id",
         "school_name",
@@ -204,6 +204,38 @@
       "schema_version": "v1",
       "row_count": 60957,
       "retrieved_at_utc": "2026-10-15T20:15:28Z"
+    },
+    {
+      "school_year": "2021-22",
+      "delivery_version": 1,
+      "supersedes": null,
+      "archive": "Enrollment-in-SY-2021-2022.zip",
+      "archive_sha256": "62f412466435db6feba57684643f5af99ca901c6ea88accb420efe9a9bfb0acd",
+      "data_member": "enrollment_2021-22.csv",
+      "data_member_sha256": "ffbfcd0bfe326c80a5f11b55ee7a9b20d4014107e7a5dc1e7023142b9be35287",
+      "document_sha256": {
+        "README.md": "5eb05f7dc0bb7ecc7f9b531eca109af0b86b9379957d9c2261640500ba492a80"
+      },
+      "encoding": "utf-8",
+      "schema_version": "v1",
+      "row_count": 60429,
+      "retrieved_at_utc": "2026-10-18T16:09:14Z"
+    },
+    {
+      "school_year": "2022-23",
+      "delivery_version": 1,
+      "supersedes": null,
+      "archive": "Enrollment-in-SY-2022-2023.zip",
+      "archive_sha256": "6d567d801a8d4eb6c9dec3c032ba208e4cd929c226b6326bc7c687c83efbf9bf",
+      "data_member": "enrollment_2022-23.csv",
+      "data_member_sha256": "d53142a5a1f50886336479d67fbbebe3e16a65f15bfbfa2cb57714ac3d05ec49",
+      "document_sha256": {
+        "README.md": "5eb05f7dc0bb7ecc7f9b531eca109af0b86b9379957d9c2261640500ba492a80"
+      },
+      "encoding": "utf-8",
+      "schema_version": "v1",
+      "row_count": 60137,
+      "retrieved_at_utc": "2026-10-18T16:09:15Z"
     },
     {
       "school_year": "2023-24",

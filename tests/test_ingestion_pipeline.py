@@ -505,15 +505,17 @@ def test_cli_exit_codes_for_setup_problems(tmp_path):
     assert cli.main(["ingest", "--source", "no_such_source", *landing, *db]) == 2
 
 
-# --- SY 2020-21, the fourth approved delivery -------------------------------------
+# --- SY 2020-21 to 2022-23, the backfilled deliveries ---------------------------------
 
-def test_the_contract_approves_the_four_deliveries_on_the_source_card():
+def test_the_contract_approves_the_six_deliveries_on_the_source_card():
     """Checksums, row counts and encodings are copied from the profiled source card, never typed afresh."""
     import yaml
     config = real_config()
     years = {d["school_year"]: d for d in config["deliveries"]}
     assert {sy: (d["delivery_version"], d["schema_version"], d["encoding"], d["row_count"]) for sy, d in years.items()} == {
         "2020-21": (1, "v1", "utf-8", 60957),
+        "2021-22": (1, "v1", "utf-8", 60429),
+        "2022-23": (1, "v1", "utf-8", 60137),
         "2023-24": (1, "v1", "utf-8", 60167),
         "2024-25": (1, "v1", "utf-8", 60129),
         "2025-26": (1, "v2", "cp1252", 60204),
@@ -531,11 +533,11 @@ def test_the_contract_approves_the_four_deliveries_on_the_source_card():
     assert entry["scope"]["school_years"] == sorted(years)
 
 
-def test_sy_2020_21_has_the_v1_header():
+def test_sy_2020_21_to_2022_23_have_the_v1_header():
     """The same 78 columns, in the same order, as SY 2023-24 (profile O-7): no new schema version."""
     config = real_config()
     by_year = {d["school_year"]: d["schema_version"] for d in config["deliveries"]}
-    assert by_year["2020-21"] == by_year["2023-24"] == "v1"
+    assert by_year["2020-21"] == by_year["2021-22"] == by_year["2022-23"] == by_year["2023-24"] == "v1"
     assert len(config["schema_versions"]["v1"]["columns"]) == 78
     assert config["schema_versions"]["v1"]["first_school_year"] == "2020-21"
 
@@ -579,3 +581,58 @@ def test_sy_2020_21_loads_as_a_v1_backfill_and_leaves_the_later_years_untouched(
     assert again.status == "succeeded"
     assert {(o.action, o.rows_inserted) for o in again.outcomes} == {("skip", 0)}
     assert env.q(content) == snapshot and env.bronze_rows() == 15
+
+
+def test_sy_2021_22_and_2022_23_load_as_v1_backfills_and_leave_the_other_years_untouched(env):
+    env.deliver("2020-21", n_rows=5, first_id=880001)
+    env.deliver("2023-24", n_rows=4)
+    env.deliver("2024-25", n_rows=3, first_id=910001)
+    env.deliver("2025-26", "v2", encoding="cp1252", line_ending="\r\n", first_id=920001)
+    assert env.run().status == "succeeded"
+    others = (f"SELECT * FROM {BRONZE} WHERE school_year NOT IN ('2021-22', '2022-23') "
+              "ORDER BY source_sha256, source_row_number")
+    batches = (f"SELECT school_year, batch_id, status, load_type, source_rows, bronze_rows, first_run_id "
+               f"FROM {CONTROL}.ingestion_batches ORDER BY school_year")
+    before, batches_before = env.q(others), env.q(batches)
+
+    env.deliver("2021-22", n_rows=2, first_id=860001)
+    env.deliver("2022-23", n_rows=6, first_id=870001)
+    added = env.run()
+    assert added.status == "succeeded"
+    assert {o.school_year: (o.action, o.load_type) for o in added.outcomes if o.action == "load"} == {
+        "2021-22": ("load", "backfill"), "2022-23": ("load", "backfill")}
+    assert env.q(others) == before                                 # the four other years: not one value changed
+    assert [b for b in env.q(batches) if b[0] not in ("2021-22", "2022-23")] == batches_before
+    assert env.q(f"SELECT DISTINCT schema_version FROM {BRONZE} WHERE school_year IN ('2021-22', '2022-23')") == [("v1",)]
+    assert env.one(f"SELECT COUNT(DISTINCT schema_fingerprint) FROM {BRONZE} "
+                   "WHERE school_year IN ('2020-21', '2021-22', '2022-23', '2023-24')") == 1
+
+    per_year = env.q(f"SELECT b.school_year, b.expected_rows, b.source_rows, b.bronze_rows, COUNT(r.school_id) "
+                     f"FROM {CONTROL}.ingestion_batches AS b JOIN {BRONZE} AS r ON r.batch_id = b.batch_id "
+                     "GROUP BY ALL ORDER BY 1")
+    assert per_year == [("2020-21", 5, 5, 5, 5), ("2021-22", 2, 2, 2, 2), ("2022-23", 6, 6, 6, 6),
+                        ("2023-24", 4, 4, 4, 4), ("2024-25", 3, 3, 3, 3), ("2025-26", 3, 3, 3, 3)]
+    results = env.q(f"SELECT check_name, status FROM {CONTROL}.data_quality_results "
+                    f"WHERE run_id = '{added.run_id}' AND batch_id IS NULL ORDER BY 1")
+    assert ("succeeded_batches_reconcile", "PASS") in results and all(s != "FAIL" for _, s in results)
+
+    content = f"SELECT * EXCLUDE (run_id, ingested_at_utc) FROM {BRONZE} ORDER BY source_sha256, source_row_number"
+    snapshot = env.q(content)
+    again = env.run()
+    assert again.status == "succeeded"
+    assert {(o.action, o.rows_inserted) for o in again.outcomes} == {("skip", 0)}
+    assert env.q(content) == snapshot and env.bronze_rows() == 23
+
+
+def test_a_seven_digit_school_id_warns_in_bronze_and_keeps_the_row(env):
+    """SY 2022-23 publishes 1404066 beside 404066 (profile O-1): Bronze keeps it and WARNs; Silver decides."""
+    header = columns("v1")
+    rows = make_rows(header, n_rows=2, first_id=404066)
+    rows[1][header.index("school_id")] = "1404066"
+    env.deliver("2022-23", rows=rows)
+    summary = env.run()
+    assert summary.status == "succeeded"
+    assert env.bronze_rows("school_id = '1404066'") == 1
+    checks = dict(env.q(f"SELECT check_name, status FROM {CONTROL}.data_quality_results "
+                        f"WHERE run_id = '{summary.run_id}' AND batch_id IS NOT NULL"))
+    assert checks["school_id_format"] == "WARN" and checks["school_id_not_blank"] == "PASS"
