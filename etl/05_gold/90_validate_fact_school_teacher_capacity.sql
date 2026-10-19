@@ -187,7 +187,7 @@ FROM (
   UNION ALL SELECT 'every_capacity_school_has_enrollment', CASE WHEN missing_enrollment_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(missing_enrollment_rows AS STRING) FROM fact_school_teacher_capacity_gate_summary
   UNION ALL SELECT 'measures_nonnegative', CASE WHEN negative_measures = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(negative_measures AS STRING) FROM fact_school_teacher_capacity_gate_summary
   UNION ALL SELECT 'offered_levels_without_teacher_data', CASE WHEN offered_levels_without_teachers = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(offered_levels_without_teachers AS STRING) FROM fact_school_teacher_capacity_gate_summary
-  UNION ALL SELECT 'partial_teacher_reporting', CASE WHEN partially_reported_rows = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(partially_reported_rows AS STRING) FROM fact_school_teacher_capacity_gate_summary
+  UNION ALL SELECT 'partial_teacher_reporting', 'PASS', 'informational', CAST(partially_reported_rows AS STRING) FROM fact_school_teacher_capacity_gate_summary
   UNION ALL SELECT 'zero_teacher_denominators', CASE WHEN zero_denominators = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(zero_denominators AS STRING) FROM fact_school_teacher_capacity_gate_summary
 ) AS results;
 

@@ -261,6 +261,9 @@ subset of `teacher_count` for the dashboard funding split and must not be added
 to `teacher_count` again. AP3 uses `fact_school_enrollment.is_offered` at the
 same school, school-year, and education-level grain to distinguish a level the
 school does not offer from an offered level whose personnel value is blank.
+Each classroom or teacher fact row resolves to exactly one Silver source row on
+(`school_id`, `school_year`); that row provides `batch_id`, `source_sha256`,
+`delivery_version`, `schema_version`, `run_id`, and `code_revision` for lineage.
 
 ### `fact_city_population`
 

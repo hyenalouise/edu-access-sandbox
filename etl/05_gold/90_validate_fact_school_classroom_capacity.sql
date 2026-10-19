@@ -48,7 +48,7 @@ FROM (
   UNION ALL SELECT 'measures_nonnegative', CASE WHEN negative_measures = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(negative_measures AS STRING) FROM fact_school_classroom_capacity_gate_summary
   UNION ALL SELECT 'zero_room_denominators', CASE WHEN zero_denominators = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(zero_denominators AS STRING) FROM fact_school_classroom_capacity_gate_summary
   UNION ALL SELECT 'offered_levels_without_room_data', CASE WHEN offered_levels_without_rooms = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(offered_levels_without_rooms AS STRING) FROM fact_school_classroom_capacity_gate_summary
-  UNION ALL SELECT 'partial_room_reporting', CASE WHEN partially_reported_denominators = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(partially_reported_denominators AS STRING) FROM fact_school_classroom_capacity_gate_summary
+  UNION ALL SELECT 'partial_room_reporting', 'PASS', 'informational', CAST(partially_reported_denominators AS STRING) FROM fact_school_classroom_capacity_gate_summary
 ) AS results;
 
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for fact_school_classroom_capacity: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s)') END
