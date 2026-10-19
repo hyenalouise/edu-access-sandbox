@@ -15,6 +15,9 @@
 
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE gold_gate_summary STRING;
+SET VARIABLE gold_gate_summary = '`edu_access`.`05-gold`.`fact_city_school_age_population_gate_summary_r_' || sha2(:run_id, 256) || '`';
+DECLARE OR REPLACE VARIABLE gold_gate_owner_sql STRING;
 
 -- Every fact row as Silver says it should be: one per code, year, age and sex, male or female. The
 -- territory-change list is the build's (keep the two in step; a test compares them).
@@ -65,8 +68,12 @@ SET VARIABLE gold_fact_csap_cells_not_matching = (
      SELECT city_mun_psgc_code, reference_year, age, sex, population, psgc_match_status, is_2020_2024_geography_comparable
      FROM edu_access.`05-gold`.fact_city_school_age_population_candidate) AS x));
 
--- The full-row comparison is computed once, above, because the summary view is read once per result row.
-CREATE OR REPLACE TEMPORARY VIEW fact_city_school_age_population_gate_summary AS
+-- The full-row comparison is computed once, above, because the summary is read once per result row.
+-- The one-row summary the checks read is written to a table first. Read 21 times as a temporary view, it
+-- made Databricks SQL's optimizer fail with INTERNAL_ERROR (dev run, 2026-10-20), as the DepEd PSGC gate did
+-- (c64e949). The table is this run's own (its name holds a hash of run_id) and is dropped once the checks
+-- are recorded, whether the gate passes or fails.
+CREATE OR REPLACE TABLE IDENTIFIER(session.gold_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one fact_city_school_age_population gate. The gate drops it once its checks are recorded in data_quality_results.' AS
 WITH silver AS (
   SELECT s.*, m.match_status,
          CASE WHEN m.match_status = 'matched' THEN m.psgc_code
@@ -148,31 +155,33 @@ SELECT
   (SELECT COALESCE(SUM(CASE WHEN reference_year = 2024 THEN population END), 0) FROM fact) AS population_2024,
   (SELECT COUNT_IF(NOT is_2020_2024_geography_comparable) FROM fact) AS rows_not_comparable,
   (SELECT COUNT(DISTINCT CASE WHEN NOT is_2020_2024_geography_comparable THEN city_mun_psgc_code END) FROM fact) AS codes_not_comparable;
+SET VARIABLE gold_gate_owner_sql = 'ALTER TABLE ' || session.gold_gate_summary || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE gold_gate_owner_sql;
 
 INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
 SELECT :run_id, NULL, 'fact_city_school_age_population', 'gold', 'edu_access.05-gold.fact_city_school_age_population', check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-  SELECT 'key_unique' AS check_name, CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(duplicate_keys AS STRING) AS actual FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'city_in_dim_city_municipality', CASE WHEN keys_not_in_dim = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(keys_not_in_dim AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'sex_male_or_female', CASE WHEN bad_sex = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_sex AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'population_not_null_or_negative', CASE WHEN bad_population = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_population AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'cells_match_silver', CASE WHEN cells_not_matching_silver = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_not_matching_silver AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'every_place_mapped', CASE WHEN years_with_unmapped_places = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(years_with_unmapped_places AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'population_reconciles_by_year', CASE WHEN years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(years_not_reconciled AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'male_plus_female_is_published_total', CASE WHEN cells_not_matching_both = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_not_matching_both AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'every_age_present', CASE WHEN cells_missing_ages = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_missing_ages AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'match_status_fits_code', CASE WHEN status_code_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_code_mismatch AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'comparable_only_with_both_years', CASE WHEN comparable_without_both_years = 0 AND comparable_null = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(comparable_without_both_years + comparable_null AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'unknown_member_population', CASE WHEN unknown_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unknown_population AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'excluded_member_population', CASE WHEN excluded_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(excluded_population AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'regular_without_2024', CASE WHEN regular_without_2024 = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_without_2024 AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'rows_2020', 'PASS', CAST(NULL AS STRING), CAST(rows_2020 AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'rows_2024', 'PASS', CAST(NULL AS STRING), CAST(rows_2024 AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'population_2020', 'PASS', CAST(NULL AS STRING), CAST(population_2020 AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'population_2024', 'PASS', CAST(NULL AS STRING), CAST(population_2024 AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'rows_not_comparable', 'PASS', CAST(NULL AS STRING), CAST(rows_not_comparable AS STRING) FROM fact_city_school_age_population_gate_summary
-  UNION ALL SELECT 'codes_not_comparable', 'PASS', CAST(NULL AS STRING), CAST(codes_not_comparable AS STRING) FROM fact_city_school_age_population_gate_summary
+  SELECT 'key_unique' AS check_name, CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(duplicate_keys AS STRING) AS actual FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'city_in_dim_city_municipality', CASE WHEN keys_not_in_dim = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(keys_not_in_dim AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'sex_male_or_female', CASE WHEN bad_sex = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_sex AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'population_not_null_or_negative', CASE WHEN bad_population = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_population AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'cells_match_silver', CASE WHEN cells_not_matching_silver = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_not_matching_silver AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'every_place_mapped', CASE WHEN years_with_unmapped_places = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(years_with_unmapped_places AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'population_reconciles_by_year', CASE WHEN years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(years_not_reconciled AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'male_plus_female_is_published_total', CASE WHEN cells_not_matching_both = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_not_matching_both AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'every_age_present', CASE WHEN cells_missing_ages = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(cells_missing_ages AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'match_status_fits_code', CASE WHEN status_code_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_code_mismatch AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'comparable_only_with_both_years', CASE WHEN comparable_without_both_years = 0 AND comparable_null = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(comparable_without_both_years + comparable_null AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'unknown_member_population', CASE WHEN unknown_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unknown_population AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'excluded_member_population', CASE WHEN excluded_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(excluded_population AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'regular_without_2024', CASE WHEN regular_without_2024 = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_without_2024 AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'rows_2020', 'PASS', CAST(NULL AS STRING), CAST(rows_2020 AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'rows_2024', 'PASS', CAST(NULL AS STRING), CAST(rows_2024 AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'population_2020', 'PASS', CAST(NULL AS STRING), CAST(population_2020 AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'population_2024', 'PASS', CAST(NULL AS STRING), CAST(population_2024 AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'rows_not_comparable', 'PASS', CAST(NULL AS STRING), CAST(rows_not_comparable AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
+  UNION ALL SELECT 'codes_not_comparable', 'PASS', CAST(NULL AS STRING), CAST(codes_not_comparable AS STRING) FROM IDENTIFIER(session.gold_gate_summary)
 ) AS results;
 
 -- Integrity rule 1 of the metric specification: one result per distinct upstream run_id read, PASS only
@@ -194,6 +203,9 @@ LEFT JOIN (
   FROM edu_access.`01-control`.pipeline_runs
   WHERE status = 'succeeded'
 ) AS p ON p.run_id = u.upstream_run_id AND p.pipeline_name = u.pipeline_name AND p.source_id = u.source_id;
+
+-- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
+DROP TABLE IF EXISTS IDENTIFIER(session.gold_gate_summary);
 
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for fact_city_school_age_population: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results

@@ -203,3 +203,16 @@ def test_a_changed_value_fails_the_source_reconciliation():
         assert error, change
         assert env.checks(run_id)["values_match_source"]["status"] == "FAIL", change
         assert env.dim() == good
+
+
+def leftover_summaries(store):
+    return store.query("SELECT table_name FROM information_schema.tables WHERE table_name LIKE '%gate_summary_r_%'")
+
+
+def test_the_gate_summary_is_dropped_after_a_pass_and_a_fail():
+    env = Env()
+    _, error = env.run()
+    assert error is None and leftover_summaries(env.store) == []
+    bad = Env(psgc=[row for row in PSGC if row[0] != "0900000000"])
+    _, error = bad.run()
+    assert error and leftover_summaries(bad.store) == []

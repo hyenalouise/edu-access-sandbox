@@ -36,3 +36,10 @@ and teacher capacity currently cover SY 2023-24 only.
 from the school-level coverage checks.
 
 Each build writes a candidate table. Its `90_validate_*` gate checks grain, foreign keys, source reconciliation, and coverage before replacing the published table. A failed gate leaves the last good Gold table unchanged. Job dependencies follow D-051, so each table waits only for the source and dimension gates it reads.
+
+The `dim_city_municipality`, `dim_barangay` and `fact_city_school_age_population`
+gates write their one-row check summary to a table named for the run
+(`<table>_gate_summary_r_<sha256(run_id)>`) and drop it once the checks are
+recorded, as the DepEd school-PSGC gate does (c64e949). Read many times as a
+temporary view, the summary made Databricks SQL's optimizer fail with
+INTERNAL_ERROR.
