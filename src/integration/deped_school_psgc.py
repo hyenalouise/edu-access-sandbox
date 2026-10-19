@@ -300,6 +300,7 @@ SET VARIABLE integration_environment = COALESCE(NULLIF(:environment, ''), 'UNSET
 DECLARE OR REPLACE VARIABLE integration_built_at_utc TIMESTAMP;
 SET VARIABLE integration_built_at_utc = current_timestamp();
 {work_variables}
+DECLARE OR REPLACE VARIABLE integration_work_owner_sql STRING;
 
 MERGE INTO {CONTROL}.pipeline_runs AS t
 USING (SELECT session.integration_run_id AS run_id) AS s
@@ -338,7 +339,8 @@ units AS (
 )
 SELECT * FROM units;
 
-ALTER TABLE {work["units"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_units || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Candidate PSGC provinces for each distinct DepEd province/city pair.
 CREATE OR REPLACE TABLE {work["province_pairs"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
@@ -361,7 +363,8 @@ province_pairs AS (
 )
 SELECT * FROM province_pairs;
 
-ALTER TABLE {work["province_pairs"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_province_pairs || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Candidate PSGC cities and municipalities. Province candidates are already stored above.
 CREATE OR REPLACE TABLE {work["city_pairs"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
@@ -404,7 +407,8 @@ city_pairs AS (
 )
 SELECT * FROM city_pairs;
 
-ALTER TABLE {work["city_pairs"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_city_pairs || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- One resolved city/municipality result per distinct DepEd province/city pair.
 CREATE OR REPLACE TABLE {work["cities"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
@@ -461,7 +465,8 @@ city_named AS (
 )
 SELECT * FROM city_named;
 
-ALTER TABLE {work["cities"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_cities || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Candidate PSGC barangays for each distinct DepEd place, inside its resolved city.
 CREATE OR REPLACE TABLE {work["barangay_pairs"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
@@ -488,7 +493,8 @@ barangay_pairs AS (
 )
 SELECT * FROM barangay_pairs;
 
-ALTER TABLE {work["barangay_pairs"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_barangay_pairs || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- One resolved barangay result per distinct DepEd place.
 CREATE OR REPLACE TABLE {work["places"]} USING DELTA COMMENT '{WORK_COMMENT}' AS
@@ -524,7 +530,8 @@ places AS (
 )
 SELECT * FROM places;
 
-ALTER TABLE {work["places"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_places || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Decide the city and barangay result once per school-year row. The final two-level expansion reads
 -- this table twice without making Spark recompute the matching graph twice.
@@ -649,7 +656,8 @@ bgy_decided AS (
 )
 SELECT * FROM bgy_decided;
 
-ALTER TABLE {work["decisions"]} OWNER TO `{OWNER_GROUP}`;
+SET VARIABLE integration_work_owner_sql = 'ALTER TABLE ' || session.integration_work_decisions || ' OWNER TO `{OWNER_GROUP}`';
+EXECUTE IMMEDIATE integration_work_owner_sql;
 
 -- Expand every stored school-year decision to the map's city and barangay rows.
 CREATE OR REPLACE TABLE {candidate} USING DELTA AS

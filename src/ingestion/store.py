@@ -34,13 +34,15 @@ def split_statements(sql):
 
 OWNER_STATEMENT = re.compile(r"^\s*ALTER\s+(TABLE|VIEW|SCHEMA)\s+\S+\s+OWNER\s+TO\b", re.IGNORECASE)
 DECLARE_VARIABLE = re.compile(r"^\s*DECLARE\s+(OR\s+REPLACE\s+)?VARIABLE\b", re.IGNORECASE)
+EXECUTE_IMMEDIATE = re.compile(r"^\s*EXECUTE\s+IMMEDIATE\b", re.IGNORECASE)
 IDENTIFIER_VARIABLE = re.compile(r"\bIDENTIFIER\(\s*(?:session\.)?([A-Za-z_]\w*)\s*\)", re.IGNORECASE)
 
 
 def databricks_only(statement):
     """Skipped locally. Ownership is a Unity Catalog concept (DuckDB has no owners), and DuckDB
     needs no DECLARE: its SET VARIABLE creates the session variable."""
-    return bool(OWNER_STATEMENT.match(statement) or DECLARE_VARIABLE.match(statement))
+    return bool(OWNER_STATEMENT.match(statement) or DECLARE_VARIABLE.match(statement)
+                or EXECUTE_IMMEDIATE.match(statement))
 
 
 def to_duckdb(statement):

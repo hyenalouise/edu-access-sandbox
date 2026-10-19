@@ -444,6 +444,11 @@ def test_gate_inserts_name_their_columns(repo_root):
 
 CREATES = re.compile(r"CREATE\s+(?:OR\s+REPLACE\s+)?(TABLE|VIEW|SCHEMA)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\S+)", re.IGNORECASE)
 OWNS = re.compile(r"ALTER\s+(TABLE|VIEW|SCHEMA)\s+(\S+)\s+OWNER\s+TO\s+`([^`]+)`", re.IGNORECASE)
+DYNAMIC_TABLE_OWNS = re.compile(
+    r"SET\s+VARIABLE\s+\S+\s*=\s*'ALTER TABLE '\s*\|\|\s*session\.(\w+)"
+    r"\s*\|\|\s*' OWNER TO `([^`]+)`'",
+    re.IGNORECASE,
+)
 
 
 def test_every_created_object_is_owned_by_the_team_group(repo_root, project):
@@ -454,6 +459,10 @@ def test_every_created_object_is_owned_by_the_team_group(repo_root, project):
     for path in sorted(repo_root.glob("etl/*/*.sql")):
         statements = split_statements(path.read_text(encoding="utf-8"))
         owned = {(kind.upper(), name): group for s in statements for kind, name, group in OWNS.findall(s)}
+        owned.update(
+            {("TABLE", f"IDENTIFIER(session.{variable})"): group
+             for s in statements for variable, group in DYNAMIC_TABLE_OWNS.findall(s)}
+        )
         for s in statements:
             match = CREATES.match(s)
             if not match:
