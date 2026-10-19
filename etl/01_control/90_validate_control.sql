@@ -6,14 +6,17 @@
 -- always records the whole job run: one result per Silver lane in data_quality_results
 -- (layer 'control'). A lane passes when its silver_build run in this job run succeeded. A failed or
 -- unfinished run fails, and so does a missing one: when a lane's Bronze gate failed, its Silver never
--- ran. On any FAIL the task stops, so Integration, which starts only from this task, does not run
--- (D-039). Lanes checked, the Silver gates this task waits for that are switched on:
+-- ran. On any FAIL the task stops, so the job run fails. Only freshness follows this task; each
+-- Integration, Gold, and Analytics task starts from the gates it reads (D-051). Lanes checked, the
+-- Silver gates this task waits for that are switched on:
 --   deped_enrollment (90_validate_deped_enrollment_clean)
 --   deped_facilities (90_validate_deped_facilities_clean)
 --   deped_personnel (90_validate_deped_personnel_clean)
 --   psa_psgc (90_validate_psa_psgc_clean)
 --   psa_poverty_stat (90_validate_psa_poverty_stat_clean)
 --   hdx_boundaries (90_validate_hdx_adm3_clean)
+--   deped_enrollment_psgc (90_validate_deped_enrollment_psgc_clean)
+--   psa_school_age_population (90_validate_psa_school_age_population_clean)
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id         the job run
@@ -28,7 +31,7 @@ INSERT INTO edu_access.`01-control`.data_quality_results
 SELECT :run_id, CAST(NULL AS STRING), l.source_id, 'control', 'edu_access.01-control.pipeline_runs', 'silver_lane_succeeded',
        CASE WHEN r.status = 'succeeded' THEN 'PASS' ELSE 'FAIL' END,
        'succeeded', COALESCE(r.status, 'not run'), current_timestamp(), :code_revision
-FROM (VALUES ('deped_enrollment'), ('deped_facilities'), ('deped_personnel'), ('psa_psgc'), ('psa_poverty_stat'), ('hdx_boundaries')) AS l(source_id)
+FROM (VALUES ('deped_enrollment'), ('deped_facilities'), ('deped_personnel'), ('psa_psgc'), ('psa_poverty_stat'), ('hdx_boundaries'), ('deped_enrollment_psgc'), ('psa_school_age_population')) AS l(source_id)
 LEFT JOIN edu_access.`01-control`.pipeline_runs AS r
   ON r.source_id = l.source_id AND r.pipeline_name = 'silver_build' AND r.run_id = :run_id;
 

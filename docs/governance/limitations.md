@@ -19,7 +19,7 @@ What the data and methods can and cannot support, with evidence. Filled in as fi
 
 ## Geography
 
-- **PSA poverty estimates cover 1,612 of the PSGC cities and municipalities.** Highly urbanized cities and a few other places are not in the workbook, and Kalayaan has no estimate in any year. Silver adds no rows for absent places and keeps Kalayaan with NULL estimates (`no_estimate`), never zero; Integration lists the absent places against PSGC (D-034, profile O-5, X-1).
+- **Of the 1,642 PSGC cities and municipalities, 1,598 are in the PSA poverty workbook and 1,597 have a 2023 estimate.** The workbook's 1,612 rows include the City of Manila's 14 districts, which are not combined into a city value (D-046). Highly urbanized cities and a few other places are not in the workbook, and Kalayaan has no estimate in any year. Silver adds no rows for absent places and keeps Kalayaan with NULL estimates (`no_estimate`), never zero; Integration lists the absent places against PSGC (D-034, profile O-5, X-1).
 
 - **Overseas schools (33 / 35 / 36) carry placeholder places.** In SY 2025-26 they are published in CITY OF PASIG, "Lone District". Silver flags them (`is_overseas`); Gold excludes them from every geographic result.
 - **PSGC has two units without a geographic level, and some meanings are unconfirmed.** The City of Isabela container (`0990100000`, population `#N/A`) and the Special Geographic Area (`1999900000`) stay with a NULL level in Silver (`level_blank`) until the team assigns one; the starred income class is read as "retained after downgrade" without PSA confirming it; and the 18 regions' populations sum to 1,708 below the national total by design (PSGC O-2, O-4, O-7; D-035).

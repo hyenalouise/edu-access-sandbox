@@ -11,11 +11,12 @@ import shutil
 import pytest
 
 from factories.deped_deliveries import REPO_ROOT, approve, empty_config, fake_repo, make_delivery, write_config
-from factories import hdx_geojson, psa_workbooks, psgc_workbooks
+from factories import census_workbooks, hdx_geojson, psa_workbooks, psgc_workbooks, report_workbooks
 from src.ingestion.control import ADDED_COLUMNS
 from src.ingestion.store import DuckDBStore
 from src.job import local_run
 from src.job.local_run import in_order, job_parameters, load_job, python_argv, run_job
+from src.silver import psa_school_age_population
 
 REVISION = "d" * 40
 CONTROL = "edu_access.`01-control`"
@@ -47,8 +48,27 @@ def repo(tmp_path):
     features = [hdx_geojson.silver_feature(i) for i in range(1, 4)]
     hdx_geojson.approve(hdx, hdx_geojson.write_features(tmp_path / "landing" / "admin_boundaries", features), 3)
     write_config(root, hdx)
-    # The EMISD workbook is Bronze only so far (#152): its lane runs with nothing approved, as personnel's does.
-    write_config(root, empty_config("deped_enrollment_psgc"))
+    # The EMISD crosswalk runs through Silver too (#163), and its gate fails a build with no current batch,
+    # so the job always has one made-up workbook approved for it: two ordinary schools, nothing quarantined.
+    emisd = report_workbooks.empty_config()
+    workbook = report_workbooks.make_workbook(tmp_path / "landing" / "deped" / "original",
+                                              rows={9: report_workbooks.school(100001), 10: report_workbooks.school(100002)})
+    report_workbooks.approve(emisd, workbook, row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
+    write_config(root, emisd)
+    # PSA school-age population runs through Silver too (#158): one made-up tree workbook per census year,
+    # with its level counts pinned in the Silver rules and the gate regenerated, as a reviewer would.
+    census = census_workbooks.empty_config()
+    workbooks = []
+    for year in ("2020", "2024"):
+        path = census_workbooks.write_tree_workbook(tmp_path / "landing" / "psa" / "original", year)
+        census_workbooks.approve_tree(census, path, year)
+        workbooks.append((year, path))
+    write_config(root, census)
+    rules = root / "config" / "mappings" / "psa_school_age_population.json"
+    rules.write_text(json.dumps(census_workbooks.pin_tree_levels(json.loads(rules.read_text(encoding="utf-8")),
+                                                                 workbooks), indent=2), encoding="utf-8")
+    (root / "etl" / "03_silver" / "90_validate_psa_school_age_population_clean.sql").write_text(
+        psa_school_age_population.gate_sql(psa_school_age_population.load_spec(root)), encoding="utf-8")
     shutil.copy(REPO_ROOT / "databricks.yml", root / "databricks.yml")
     return root
 
@@ -74,41 +94,55 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert not failed, failed
     _, job = load_job(repo)
     assert [r.task_key for r in results] == [t["task_key"] for t in in_order(job["tasks"])]
+    result_statuses = statuses(results)
+    enabled_gold_tasks = [task["task_key"] for task in job["tasks"]
+                          if task.get("sql_task", {}).get("file", {}).get("path", "").startswith("etl/05_gold/")
+                          and not task.get("disabled")]
+    assert enabled_gold_tasks
+    assert {key: result_statuses[key] for key in enabled_gold_tasks} == {key: "succeeded" for key in enabled_gold_tasks}
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_enrollment_clean") == [(3, "job-run-1")]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build' "
-                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_facilities", "succeeded"),
+                       "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_enrollment_psgc", "succeeded"),
+                                         ("deped_facilities", "succeeded"),
                                          ("deped_personnel", "succeeded"), ("hdx_boundaries", "succeeded"),
-                                         ("psa_poverty_stat", "succeeded"), ("psa_psgc", "succeeded")]
+                                         ("psa_poverty_stat", "succeeded"), ("psa_psgc", "succeeded"),
+                                         ("psa_school_age_population", "succeeded")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_facilities_clean") == [(3, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_psgc_clean") == [
         (len(psgc_workbooks.UNITS), "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_poverty_stat_clean") == [(18, "job-run-1")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".hdx_adm3_clean") == [(3, "job-run-1")]
+    # The HDX map runs after the HDX and PSGC Silver gates (D-051): every made-up HDX feature has one map row (#93, D-052).
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"04-integration\".hdx_adm3_psgc_map") == [(3, "job-run-1")]
+    assert store.query(f"SELECT status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'integration_build' "
+                       "AND source_id = 'hdx_boundaries'") == [("succeeded",)]
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
-        ("deped_enrollment", "PASS"), ("deped_facilities", "PASS"), ("deped_personnel", "PASS"),
-        ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
-        ("psa_psgc", "PASS")]   # one per Silver lane on
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
+        ("deped_personnel", "PASS"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
+        ("psa_psgc", "PASS"), ("psa_school_age_population", "PASS")]   # one per Silver lane on
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
     # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
-    # the fake repository approves no personnel or EMISD delivery, so those two have none.
+    # the fake repository approves no personnel delivery, so that one has none.
     assert [(source, status) for source, status, _ in fresh] == [
-        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "WARN"), ("deped_facilities", "PASS"),
-        ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS")]
+        ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
+        ("deped_personnel", "WARN"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS"),
+        ("psa_school_age_population", "PASS")]
     assert all(actual.startswith("last succeeded ") for _, status, actual in fresh if status == "PASS")
     assert dict((s, a) for s, _, a in fresh)["deped_personnel"] == "no succeeded batch"
-    assert dict((s, a) for s, _, a in fresh)["deped_enrollment_psgc"] == "no succeeded batch"
+    assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".psa_school_age_population_clean") == [
+        (4 * len(census_workbooks.TREE) * 60, "job-run-1")]
     linked = store.query(f"""
         SELECT r.source_id, COUNT(q.check_name) FROM {CONTROL}.pipeline_runs AS r
         JOIN {CONTROL}.data_quality_results AS q ON q.run_id = r.job_run_id AND q.source_id = r.source_id
         WHERE r.job_run_id = 'job-run-1' AND q.layer = 'bronze' GROUP BY 1 ORDER BY 1""")
     assert [source for source, checks in linked if checks > 0] == [
         "deped_enrollment", "deped_enrollment_psgc", "deped_facilities", "deped_personnel", "hdx_boundaries",
-        "psa_poverty_stat", "psa_psgc"]
+        "psa_poverty_stat", "psa_psgc", "psa_school_age_population"]
     store.close()
 
 
@@ -122,7 +156,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
-        == [("load", 5), ("skip", 5)]                       # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX
+        == [("load", 8), ("skip", 8)]   # DepEd enrollment and facilities, PSA Poverty Stat, PSGC, HDX, EMISD, both censuses
     store.close()
 
 
@@ -144,7 +178,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded", "disabled"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 7), ("silver_build", 6)]   # one filter, both layers; EMISD is Bronze only
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 8), ("integration_build", 1), ("silver_build", 8)]   # one filter, both layers; the HDX map writes its own run
     store.close()
 
 
@@ -176,6 +210,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
     assert results["05_clean_psa_poverty_stat"] == "succeeded"    # another lane still runs to the end
     assert results["90_validate_control"] == "failed"             # the fan-in runs anyway, records, and stops
     assert results["90_validate_freshness"] == "succeeded"        # and freshness is still checked after it
+    assert results["04_map_deped_annex_mother"] == "upstream_failed"   # the map reads enrollment (D-051)
     store = DuckDBStore(db)
     assert store.query(f"SELECT check_name FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-2' "
                        "AND status = 'FAIL' ORDER BY 1") == [
@@ -183,10 +218,30 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
         ("succeeded_batches_reconcile",)]
     assert store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-2' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
-        ("deped_enrollment", "FAIL", "not run"), ("deped_facilities", "PASS", "succeeded"),
-        ("deped_personnel", "PASS", "succeeded"), ("hdx_boundaries", "PASS", "succeeded"),
-        ("psa_poverty_stat", "PASS", "succeeded"), ("psa_psgc", "PASS", "succeeded")]
+        ("deped_enrollment", "FAIL", "not run"), ("deped_enrollment_psgc", "PASS", "succeeded"),
+        ("deped_facilities", "PASS", "succeeded"), ("deped_personnel", "PASS", "succeeded"),
+        ("hdx_boundaries", "PASS", "succeeded"), ("psa_poverty_stat", "PASS", "succeeded"),
+        ("psa_psgc", "PASS", "succeeded"), ("psa_school_age_population", "PASS", "succeeded")]
     store.close()
+
+
+def test_a_failed_lane_stops_only_the_tasks_that_read_it(repo, tmp_path):
+    """The annex map reads enrollment only, so a failed poverty lane does not stop it; the fan-in
+    still records the failed lane and fails the run (D-051)."""
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, log=lambda *_: None)
+    poverty = "edu_access.`02-bronze`.psa_poverty_stat_raw"
+    store = DuckDBStore(db)
+    store.sql(f"INSERT INTO {poverty} SELECT * REPLACE ('ghost' AS batch_id) FROM {poverty} LIMIT 1")
+    store.close()
+    results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-2", log=lambda *_: None))
+    assert results["90_validate_psa_poverty_stat_raw"] == "failed"
+    assert results["05_clean_psa_poverty_stat"] == "upstream_failed"
+    assert results["90_validate_control"] == "failed"              # the run still shows the failed lane
+    assert results["04_map_deped_annex_mother"] == "succeeded"       # but a map that does not read poverty runs
+    assert results["90_validate_deped_annex_mother_map"] == "succeeded"
 
 
 @pytest.mark.parametrize("error", [RuntimeError("made-up Python task crash"), RuntimeError()], ids=["message", "no-message"])

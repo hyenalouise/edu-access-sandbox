@@ -30,6 +30,12 @@ ORIGINAL = Path(raw_dir).expanduser() / "deped" / "original"
 # What arrived, as recorded in the inventory cards. The encoding is declared,
 # not guessed: SY 2025-26 is Windows-1252, the rest UTF-8 (enrollment O-6).
 FILES = {
+    "enr_2020_21": {
+        "zip": "Enrollment-in-SY-2020-2021.zip",
+        "zip_sha256": "65c400aa31ba63730b8f9a7b4d60ade91c6a29cdb34a3c6bf255e5fc9e91a241",
+        "csv": "enrollment_2020-21.csv",
+        "encoding": "utf-8",
+    },
     "enr_2023_24": {
         "zip": "Enrollment-in-SY-2023-2024.zip",
         "zip_sha256": "a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb",
@@ -55,7 +61,10 @@ FILES = {
         "encoding": "utf-8",
     },
 }
-ENROLLMENT = ["enr_2023_24", "enr_2024_25", "enr_2025_26"]
+ENROLLMENT = ["enr_2020_21", "enr_2023_24", "enr_2024_25", "enr_2025_26"]
+# SY 2021-22 and 2022-23 are not acquired, so 2020-21 -> 2023-24 is a
+# three-year gap, compared separately from the consecutive years.
+CONSECUTIVE = [("enr_2023_24", "enr_2024_25"), ("enr_2024_25", "enr_2025_26")]
 
 con = duckdb.connect()
 
@@ -133,6 +142,8 @@ for t in ENROLLMENT:
 
 for t in ENROLLMENT:
     show("O-3", f"{t}: total learners = {one(f'SELECT sum({total_expr(count_columns(t))}) FROM {t}'):,}")
+for t in ["enr_2020_21", "enr_2023_24"]:
+    show("O-3", f"{t}: learners by sector = {q(f'SELECT sector, sum({total_expr(count_columns(t))}) FROM {t} GROUP BY 1 ORDER BY 2 DESC')}")
 
 psgc_like = [c for t in ENROLLMENT for c in columns(t) if "psgc" in c.lower() or c.lower().endswith("_code")]
 show("O-4", f"columns that look like geographic codes: {sorted(set(psgc_like)) or 'none'}")
@@ -168,10 +179,12 @@ for t in ENROLLMENT:
     data = raw_bytes[t]
     show("O-6", f"{t}: lines failing UTF-8 = {utf8_failures(data):,}, CRLF line endings = {CRLF in data}")
 
-base = set(columns("enr_2023_24"))
-for t in ENROLLMENT[1:]:
+base_order = columns("enr_2023_24")
+base = set(base_order)
+for t in [t for t in ENROLLMENT if t != "enr_2023_24"]:
     cols = set(columns(t))
-    show("O-7", f"{t} vs enr_2023_24: added={sorted(cols - base)} removed={sorted(base - cols)}")
+    show("O-7", f"{t} vs enr_2023_24: added={sorted(cols - base)} removed={sorted(base - cols)} "
+         f"same_columns_in_same_order={columns(t) == base_order}")
 vals = q('SELECT "Modified Curricular Offering Classification", count(*) FROM enr_2025_26 GROUP BY 1 ORDER BY 2 DESC')
 show("O-7", "enr_2025_26 Modified Curricular Offering Classification: " + "; ".join(f"{v} {n:,}" for v, n in vals))
 
@@ -179,6 +192,13 @@ for col in ["sector", "school_management", "annex_status", "offers_es"]:
     for t in ENROLLMENT:
         vals = q(f"SELECT '[' || coalesce({col}, 'NULL') || ']', count(*) FROM {t} GROUP BY 1 ORDER BY 2 DESC")
         show("O-8", f"{t}.{col}: " + "; ".join(f"{v} {n:,}" for v, n in vals))
+lg = q("""SELECT b.school_management, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
+          WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
+show("O-8", f"enr_2020_21 'Local Government' schools, by 2023-24 school_management: {lg}")
+gone = q("""SELECT sector, region, municipality, count(*) FROM enr_2020_21 WHERE school_management = 'Local Government'
+             AND school_id NOT IN (SELECT school_id FROM enr_2023_24) AND school_id NOT IN (SELECT school_id FROM enr_2024_25)
+             GROUP BY ALL ORDER BY 4 DESC, 3""")
+show("O-8", f"enr_2020_21 'Local Government' schools in neither enr_2023_24 nor enr_2024_25 (sector, region, municipality, schools): {gone}")
 show("O-9", "compare the school_management values above with the README, which lists 'DepEd Managed'")
 
 origins = q("""SELECT a.region, count(*) FROM enr_2023_24 a JOIN enr_2024_25 b USING (school_id)
@@ -186,20 +206,36 @@ origins = q("""SELECT a.region, count(*) FROM enr_2023_24 a JOIN enr_2024_25 b U
 other_moves = one("""SELECT count(*) FROM enr_2023_24 a JOIN enr_2024_25 b USING (school_id)
                      WHERE a.region <> b.region AND b.region <> 'NIR'""")
 show("O-10", f"schools in NIR in 2024-25, by 2023-24 region: {origins}; other region changes: {other_moves}")
+moves = q("""SELECT a.region, b.region, a.division, b.division, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
+             WHERE a.region <> b.region GROUP BY ALL ORDER BY 5 DESC""")
+show("O-10", f"region changes 2020-21 -> 2023-24 (region, region, division, division, schools): {moves}")
+by_sector = q("""SELECT a.division, a.sector, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
+                 WHERE a.region <> b.region GROUP BY ALL ORDER BY 1, 3 DESC""")
+show("O-10", f"those schools by 2020-21 division and sector: {by_sector}")
 
 for t in ENROLLMENT:
     show("O-11", f"{t}: distinct provinces = {one(f'SELECT count(DISTINCT province) FROM {t}')}")
 show("O-11", f"provinces new in 2024-25: {[r[0] for r in q('SELECT DISTINCT province FROM enr_2024_25 EXCEPT SELECT DISTINCT province FROM enr_2023_24')]}")
 
-for a, b in [("enr_2023_24", "enr_2024_25"), ("enr_2024_25", "enr_2025_26")]:
+for a, b in [("enr_2020_21", "enr_2023_24")] + CONSECUTIVE:
     r = q(f"""SELECT count(*) FILTER (WHERE x.school_id IS NOT NULL AND y.school_id IS NOT NULL),
                      count(*) FILTER (WHERE y.school_id IS NULL), count(*) FILTER (WHERE x.school_id IS NULL)
               FROM {a} x FULL OUTER JOIN {b} y USING (school_id)""")[0]
     show("O-12", f"{a} -> {b}: kept={r[0]:,} dropped={r[1]:,} new={r[2]:,}")
+for side, keep, other in [("dropped", "enr_2020_21", "enr_2023_24"), ("new", "enr_2023_24", "enr_2020_21")]:
+    show("O-12", f"2020-21 -> 2023-24 {side} by sector = "
+         f"{q(f'SELECT sector, count(*) FROM {keep} WHERE school_id NOT IN (SELECT school_id FROM {other}) GROUP BY 1 ORDER BY 2 DESC')}")
+# AP4 counts learners, not schools (D-042), so the dropped IDs are also measured in learners.
+learners_2020 = total_expr(count_columns("enr_2020_21"))
+r = q(f"""SELECT sum({learners_2020}) FILTER (WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24)), sum({learners_2020})
+          FROM enr_2020_21""")[0]
+show("O-12", f"2020-21 -> 2023-24 dropped: learners {r[0]:,} of {r[1]:,} ({r[0] / r[1]:.1%}); by sector = "
+     f"{q(f'SELECT sector, sum({learners_2020}) FROM enr_2020_21 WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24) GROUP BY 1 ORDER BY 2 DESC')}")
 
-pso_rows = one("SELECT count(*) FROM enr_2023_24 WHERE region = 'PSO'")
+for t in ["enr_2020_21", "enr_2023_24"]:
+    show("O-13", f"{t} rows with region PSO: {one(f'SELECT count(*) FROM {t} WHERE region = {chr(39)}PSO{chr(39)}')}")
 pso_places = q("SELECT municipality, count(*) FROM enr_2025_26 WHERE region = 'PSO' GROUP BY 1")
-show("O-13", f"enr_2023_24 rows with region PSO: {pso_rows}; enr_2025_26 PSO municipality values: {pso_places}")
+show("O-13", f"enr_2025_26 PSO municipality values: {pso_places}")
 
 
 def blank_count(table, column):
@@ -236,6 +272,11 @@ for t in ENROLLMENT:
 for t in ENROLLMENT:
     show("S-1", f"{t}: zero-learner schools by sector = {q(f'SELECT sector, count(*) FROM {t} WHERE ({total_expr(count_columns(t))}) = 0 GROUP BY 1 ORDER BY 2 DESC')}")
 
+zero = f"SELECT school_id FROM enr_2020_21 WHERE ({total_expr(count_columns('enr_2020_21'))}) = 0"
+r = q(f"""SELECT count(*), count(b.school_id), count(*) FILTER (WHERE ({total_expr(count_columns('enr_2023_24'))}) > 0)
+          FROM ({zero}) z LEFT JOIN enr_2023_24 b USING (school_id)""")[0]
+show("S-1", f"enr_2020_21 zero-learner schools: {r[0]}, of which in enr_2023_24 = {r[1]}, with learners there = {r[2]}")
+
 STRANDS = ("abm", "arts", "gas", "humss", "maritime", "sports", "stem", "tvl", "unique")
 
 
@@ -243,7 +284,7 @@ def strand_total(table, grade, strand):
     return f"coalesce(try_cast({table}.{grade}_{strand}_male AS BIGINT), 0) + coalesce(try_cast({table}.{grade}_{strand}_female AS BIGINT), 0)"
 
 
-for before, after in zip(ENROLLMENT, ENROLLMENT[1:]):
+for before, after in CONSECUTIVE:
     jumps = []
     for s in STRANDS:
         jumps += q(f"""SELECT a.school_id, '{s}', {strand_total('b', 'g11', s)}, {strand_total('a', 'g11', s)}, {strand_total('a', 'g12', s)}

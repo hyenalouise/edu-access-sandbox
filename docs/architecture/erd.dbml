@@ -122,10 +122,10 @@ Table school_age_population_record [note: 'Provisional: PSA 2020 CPH and 2024 PO
 Table poverty_estimate [note: 'Context only. PSA publishes 2018, 2021, and 2023; Gold uses 2023 (D-046).'] {
   city_mun_psgc_code varchar(10) [not null]
   estimate_year integer [not null]
-  poverty_incidence decimal(12,6) [note: 'Percent of persons']
-  poverty_ci90_lower decimal(12,6)
-  poverty_ci90_upper decimal(12,6)
-  poverty_cv decimal(12,6)
+  poverty_incidence double [note: 'Percent of persons']
+  poverty_ci90_lower double
+  poverty_ci90_upper double
+  poverty_cv double
 
   indexes {
     (city_mun_psgc_code, estimate_year) [pk]

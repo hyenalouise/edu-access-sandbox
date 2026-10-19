@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build fact_city_school_age_population (D-048). City or municipality x year x age x sex; reads the school-age population map and the city dimension.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

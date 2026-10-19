@@ -106,10 +106,10 @@ erDiagram
     poverty_estimate {
         varchar city_mun_psgc_code PK, FK
         integer estimate_year PK "Gold uses 2023"
-        decimal poverty_incidence "percent of persons"
-        decimal poverty_ci90_lower
-        decimal poverty_ci90_upper
-        decimal poverty_cv
+        double poverty_incidence "percent of persons"
+        double poverty_ci90_lower
+        double poverty_ci90_upper
+        double poverty_cv
     }
 ```
 
@@ -131,6 +131,8 @@ erDiagram
 | `population_record` | `fact_city_population` | City or municipality and reference year | PSGC's `2024 Population` column ([D-033](../governance/decisions.md#d-033-barangay-population-source)) |
 | `school_age_population_record` | `fact_city_school_age_population` | City or municipality, reference year, age, and sex | **Provisional.** PSA Total Population by Single-Year Age, Sex, and City/Municipality, 2020 CPH and 2024 POPCEN ([source](../business/dataset-use-map.md#school-age-population-source)); not yet profiled or ingested |
 | `poverty_estimate` | `dim_city_poverty` (2023 only) | City or municipality and estimate year | `psa_poverty_stat` Silver ([D-034](../governance/decisions.md#d-034-psa-poverty-stat-silver-unpivot-to-one-row-per-unit-and-estimate-year)); D-046 (#151) |
+
+`fact_school_year_source_availability` ([D-051](../governance/decisions.md#d-051-each-downstream-task-starts-from-the-gates-it-reads-the-source-lane-fan-in-is-an-audit)) has no business entity: it records which DepEd source has data for each school year, so the dashboard can label a year `not available`.
 
 ## Definitions
 

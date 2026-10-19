@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_school_teacher_capacity USING DELTA AS
+CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_school_teacher_capacity_candidate USING DELTA AS
 WITH public_personnel AS (
   SELECT * FROM edu_access.`03-silver`.deped_personnel_clean WHERE sector = 'Public'
 ), level_rows AS (
@@ -83,4 +83,4 @@ WITH public_personnel AS (
 )
 SELECT * FROM level_rows;
 
-ALTER TABLE edu_access.`05-gold`.fact_school_teacher_capacity OWNER TO `reached-hq`;
+ALTER TABLE edu_access.`05-gold`.fact_school_teacher_capacity_candidate OWNER TO `reached-hq`;

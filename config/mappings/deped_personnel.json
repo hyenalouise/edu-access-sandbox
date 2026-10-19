@@ -15,7 +15,7 @@
       "labels": {"Public": "Public", "Private": "Private", "SUC/LUC": "SUC/LUC", "PSO": "PSO"}
     },
     "school_management": {
-      "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "DOST", "Other GA", "International School", "PSO"],
+      "standard": ["DepEd", "Non-Sectarian", "Sectarian", "SUC", "LUC", "Local Government", "DOST", "Other GA", "International School", "PSO"],
       "labels": {"DepEd": "DepEd", "Non-Sectarian": "Non-Sectarian", "Sectarian": "Sectarian", "SUC": "SUC", "LUC": "LUC", "DOST": "DOST", "Other GA": "Other GA", "International School": "International School", "PSO": "PSO"}
     }
   },

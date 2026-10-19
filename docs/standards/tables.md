@@ -14,11 +14,11 @@ without pretending that the business problem or analytical questions are final.
 | PSA PSGC workbook, `PSGC` sheet | `psa_psgc_raw` | `psa_psgc_clean` | `psa_psgc_quarantine` |
 | PSA poverty statistics | `psa_poverty_stat_raw` | `psa_poverty_stat_clean` | `psa_poverty_stat_quarantine` |
 | HDX ADM3 boundaries | `hdx_adm3_raw` | `hdx_adm3_clean` | `hdx_adm3_quarantine` |
-| DepEd EMISD enrollment with PSGC and coordinates | `deped_enrollment_psgc_raw` | not named yet (its Silver issue, #137) | not named yet |
+| DepEd EMISD enrollment with PSGC and coordinates (the school-to-PSGC crosswalk) | `deped_enrollment_psgc_raw` | `deped_enrollment_psgc_clean` | `deped_enrollment_psgc_quarantine` |
+| PSA school-age population, 2020 and 2024 census workbooks | `psa_school_age_population_raw` | `psa_school_age_population_clean` | `psa_school_age_population_quarantine` |
 
-Implemented source-aligned Bronze and Silver tables are listed in
-[`etl/03_silver/README.md`](../../etl/03_silver/README.md). Gold tables supported
-by the current reviewed inputs are listed below.
+Implemented so far: the Bronze tables of DepEd enrollment and facilities, and
+the Silver tables of DepEd enrollment ([Silver](../operations/silver.md)).
 
 Each Silver table and Silver quarantine also has a **candidate** copy with the
 suffix `_candidate` (for example `deped_enrollment_clean_candidate`): the build
@@ -61,6 +61,8 @@ implemented.
 Implemented: `deped_annex_mother_map`, one row per annex school and school year.
 It keeps the mother ID and match method NULL while the approved DepEd releases
 provide no reliable link, and lists every unmatched annex with evidence (D-044).
+Implemented: `hdx_adm3_psgc_map` (`03_map_hdx_adm3_psgc.sql`), one row per HDX ADM3
+feature with its reviewed PSGC match, review status, and reason (D-052).
 
 These are working names only:
 
@@ -68,27 +70,35 @@ These are working names only:
 |---|---|---|
 | `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
 | `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
-| `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | One reviewed HDX ADM3 feature mapping to PSGC |
+| `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
-and PSGC-version behavior are agreed. Gold names proposed in #45 are documented
-in [`docs/architecture/data-model.md`](../architecture/data-model.md). They
-remain design-only until the team and mentor approve the ERD and Integration
-prerequisite #44 is ready. Analytics names remain deferred until the metric
-contract is approved.
+and PSGC-version behavior are agreed; they follow the shape of `hdx_adm3_psgc_map`
+(D-052) unless their own decision says otherwise. Gold names from #45 are
+documented in [`docs/architecture/data-model.md`](../architecture/data-model.md).
+Tables with reviewed inputs may be implemented independently; geography-dependent
+tables remain disabled until their Integration prerequisites are ready. Analytics
+names remain deferred until their inputs are implemented and gated.
 
-## Gold tables
+## Gold names
 
-| Table | Grain | Status |
-|---|---|---|
-| `dim_city_municipality` | One PSGC city or municipality, plus technical members | Deferred for Integration geography maps |
-| `dim_barangay` | One PSGC barangay, plus technical members | Deferred for Integration geography maps |
-| `dim_school` | One DepEd school | Implemented |
-| `dim_school_year` | One school year | Implemented |
-| `dim_education_level` | One education reporting level: ES, JHS, or SHS | Implemented |
-| `dim_city_poverty` | One city or municipality with its selected 2023 poverty context | Deferred for poverty-to-PSGC mapping |
-| `fact_school_enrollment` | School x school year x education level | Deferred for school-to-PSGC mapping |
-| `fact_school_classroom_capacity` | School x school year | Implemented for SY 2023-24 |
-| `fact_school_teacher_capacity` | School x school year x education level | Implemented for SY 2023-24 |
-| `fact_city_population` | City or municipality x reference year | Deferred with `dim_city_municipality` |
-| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex | Deferred until its source reaches Silver and Integration |
+| Table | Grain |
+|---|---|
+| `dim_city_municipality` | One PSGC city or municipality, plus technical members |
+| `dim_barangay` | One PSGC barangay, plus technical members |
+| `dim_school` | One DepEd school |
+| `dim_school_year` | One school year |
+| `dim_education_level` | One education reporting level: ES, JHS, or SHS |
+| `dim_city_poverty` | One regular city or municipality with its selected 2023 poverty context; none for technical members |
+| `fact_school_enrollment` | School x school year x education level |
+| `fact_school_classroom_capacity` | School x school year |
+| `fact_school_teacher_capacity` | School x school year x education level |
+| `fact_city_population` | City or municipality x reference year |
+| `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
+| `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
+
+Implemented: `dim_school`, `dim_school_year`, `dim_education_level`,
+`fact_school_classroom_capacity`, `fact_school_teacher_capacity`, and
+`fact_school_year_source_availability`. Each build writes a candidate and its
+gate publishes only after validation. The other Gold tables remain disabled
+until their documented Integration prerequisites are available.

@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_school_classroom_capacity USING DELTA AS
+CREATE OR REPLACE TABLE edu_access.`05-gold`.fact_school_classroom_capacity_candidate USING DELTA AS
 SELECT
   school_id,
   school_year,
@@ -25,4 +25,4 @@ SELECT
 FROM edu_access.`03-silver`.deped_facilities_clean
 WHERE sector = 'Public';
 
-ALTER TABLE edu_access.`05-gold`.fact_school_classroom_capacity OWNER TO `reached-hq`;
+ALTER TABLE edu_access.`05-gold`.fact_school_classroom_capacity_candidate OWNER TO `reached-hq`;

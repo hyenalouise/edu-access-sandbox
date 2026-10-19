@@ -1,8 +1,8 @@
 # Ingestion: Source → Control → Bronze
 
-How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The DepEd sources use ZIP deliveries: `deped_enrollment` was first, `deped_facilities` second, and `deped_personnel` third. Personnel uses the same ingestion code with its own contract, generated SQL, tests, and job lane. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` uses `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) uses `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below).
+How raw files become Bronze rows, how to add the next delivery, and how to check that it worked. The DepEd sources use ZIP deliveries: `deped_enrollment` was first, `deped_facilities` second, and `deped_personnel` third. Personnel uses the same ingestion code with its own contract, generated SQL, tests, and job lane. `psa_poverty_stat` is the first workbook source: same pipeline, a second delivery format ([PSA Poverty Stat](#psa-poverty-stat-xlsx-workbook) below). `psa_psgc` uses `xlsx_table`: one workbook per publication quarter ([PSA PSGC](#psa-psgc-xlsx-workbook-one-per-quarter) below). `hdx_boundaries` (ADM3) uses `geojson_features`: one GeoJSON file per boundary edition ([Administrative boundaries](#administrative-boundaries-cod-ab-adm3-geojson) below). `psa_school_age_population` uses `xlsx_census`: one workbook per census, both sheets loaded ([PSA school-age population](#psa-school-age-population-two-census-workbooks) below).
 
-**Status:** the current `edu_access_pipeline` was verified on Databricks `dev` for all six Bronze sources. `deped_personnel` passed local real-file validation and its create, load, and gate tasks were confirmed on Databricks `dev` at commit `15fcecbd` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md)). The source cards and evidence files record the uploaded files, tables, and completed runs.
+**Status:** the current `edu_access_pipeline` was verified on Databricks `dev` for all eight Bronze sources. Six continue through Silver; `deped_enrollment_psgc` (EMISD) and `psa_school_age_population` are Bronze-only until their Silver issues ([EMISD evidence](../../evidence/pipeline-runs/2026-10-16-deped-enrollment-psgc-databricks-idempotency.md), [school-age population evidence](../../evidence/pipeline-runs/2026-10-16-psa-school-age-population-databricks-idempotency.md)). `deped_personnel` passed local real-file validation and its create, load, and gate tasks were confirmed on Databricks `dev` at commit `15fcecbd` ([evidence](../../evidence/pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md)). The source cards and evidence files record the uploaded files, tables, and completed runs.
 
 ## The flow
 
@@ -70,6 +70,8 @@ Raw files are kept exactly as downloaded and are never overwritten (D-016, provi
 ```
 
 A re-download of a published file therefore sits beside the earlier one. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so the layout does not matter to it, and it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
+
+**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. Last used for SY 2020-21 enrollment (#161): held in `raw/_holding/deped/2026-10-16/` from 2026-10-16 and moved to `raw/deped/2026-10-16/` on 2026-10-18, after its contract pull request merged ([evidence](../../evidence/pipeline-runs/2026-10-18-deped-enrollment-2020-21-databricks.md)). Nothing is waiting now.
 
 ## Validation
 
@@ -184,7 +186,7 @@ To run the whole job as Databricks would, every task of `databricks.yml` in orde
 RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run
 ```
 
-Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing.
+Tables go to `local_state/edu_access.duckdb` (git-ignored); delete the file to start over. Results from 2026-10-06 on the three real files: 60,167 + 60,129 + 60,204 rows loaded in about 7 seconds, all checks PASS; the second run skipped all three and inserted nothing. On 2026-10-16, with SY 2020-21 added: 60,957 + 60,167 + 60,129 + 60,204 rows in about 11 seconds, all checks PASS; the second run skipped all four and inserted nothing ([evidence](../../evidence/reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md)).
 
 After changing a schema version in the contract, regenerate the Bronze DDL and gate (a test fails until you do):
 
@@ -206,7 +208,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 ## Running on Databricks
 
-**Current job: `edu_access_pipeline` (D-020).** Last confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**Current job: `edu_access_pipeline` (D-020).** Last run on 2026-10-18 at `135c1ac`, with every enabled task succeeding ([evidence](../../evidence/pipeline-runs/2026-10-18-per-lane-job.md)). First confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
@@ -250,7 +252,7 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 Before step 4, stop other serverless compute: detach notebooks and leave the SQL warehouse stopped (the job starts it for its SQL tasks), and do not query it while the job runs. On Free Edition a job waits until serverless capacity is free; the first run waited 35 minutes for 3.5 minutes of work. Check the results after the run ends.
 
-`databricks bundle validate` was last run on 2026-10-08 at `bb040a9` and passed; both commit values resolved to the same SHA.
+`databricks bundle validate` was last run on 2026-10-18 at `135c1ac` and passed; the job's git commit and `code_revision` both resolved to that commit.
 
 ### First Databricks run
 
@@ -282,7 +284,7 @@ SELECT r.started_at_utc, r.status, a.batch_id, a.action, a.outcome, a.rows_inser
 FROM edu_access.`01-control`.ingestion_batch_attempts AS a JOIN edu_access.`01-control`.pipeline_runs AS r USING (run_id)
 ORDER BY r.started_at_utc, a.batch_id;
 
--- Row counts reconcile to the approved files: expect 60,167 / 60,129 / 60,204
+-- Row counts reconcile to the approved files: expect 60,957 / 60,167 / 60,129 / 60,204 (60,167 / 60,129 / 60,204 before SY 2020-21 is loaded)
 SELECT school_year, delivery_version, COUNT(*) AS rows FROM edu_access.`02-bronze`.deped_enrollment_raw GROUP BY ALL ORDER BY 1, 2;
 
 -- No pipeline duplicates: expect 0
@@ -316,7 +318,7 @@ GROUP BY ALL ORDER BY r.started_at_utc DESC;
 SHOW TBLPROPERTIES edu_access.`02-bronze`.deped_enrollment_raw ('delta.columnMapping.mode');
 ```
 
-All checks in one query, each marked `OK` or `CHECK`. The expected values are for the three approved deliveries after one loading run; replace the commit with the one that loaded them:
+All checks in one query, each marked `OK` or `CHECK`. The expected values are for the first loading run of the three deliveries approved on 2026-10-06 (`e681c5b`); after later runs or the SY 2020-21 backfill, use the row-count query above and the Silver verification query instead. Replace the commit with the one that loaded them:
 
 ```sql
 WITH r AS (SELECT * FROM edu_access.`02-bronze`.deped_enrollment_raw),
@@ -383,7 +385,7 @@ Silver's two SQL tasks run right after this source's Bronze gate task, only if i
 ## Runbook
 
 **1. How do I add a new DepEd school year?**
-Download the zip from the official page; do not rename or open-and-save it. Profile it and update the source card (checksums, encoding, rows). Add the delivery to `config/ingestion/deped_enrollment.json` (and a schema version if the header changed; then regenerate the DDL), and merge the pull request. Upload the zip to `raw/deped/<download date>/`, never over an existing file. Run the job. An older year loads as `backfill`, a newer one as `incremental`; other years are untouched.
+Download the zip from the official page; do not rename or open-and-save it. Profile it and update the source card (checksums, encoding, rows). If it is uploaded before the next step, put it in `raw/_holding/deped/<download date>/`, never in `raw/deped/` ([Storage layout](#storage-layout)). Add the delivery to `config/ingestion/deped_enrollment.json` (and a schema version if the header changed; then regenerate the DDL), and merge the pull request. Upload the zip to `raw/deped/<download date>/` (or move it there from `_holding/`), never over an existing file. Run the job. An older year loads as `backfill`, a newer one as `incremental`; other years are untouched.
 
 **2. How do I know whether it was already processed?**
 `python -m src.ingestion.cli status --source deped_enrollment` locally, or the first validation query on Databricks. Look up the file's SHA-256: `succeeded` means processed.
@@ -417,7 +419,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 - Approval is manual by design: a new year needs a profile update and a pull request before it loads.
 - A revision reloads all rows of the school year (about 60,000), even if one value changed.
 - No `prod` target yet; `dev` is the only deploy target.
-- SY 2017-18 to 2022-23 are published but not acquired; their headers are unknown and will likely need new schema versions.
+- SY 2017-18 to 2019-20, 2021-22, and 2022-23 are published but not acquired; their headers are unknown and may need new schema versions (SY 2020-21 turned out to be `v1`).
 
 ## Open questions
 
@@ -1400,3 +1402,78 @@ As for the other sources ([Runbook](#runbook)): the batch and check queries with
 - Verified on made-up workbooks, on the real file locally (DuckDB), and on Databricks `dev` (2026-10-16). Not yet run from `main`.
 - Bronze keeps the `#N/A` and blank rows and the 108 appended schools as received; deciding what Silver keeps for the crosswalk is the Silver issue's job (#137).
 - The workbook's licensing is unverified (source card).
+
+## PSA school-age population (two census workbooks)
+
+`psa_school_age_population` loads through the same pipeline from its own contract, `config/ingestion/psa_school_age_population.json` (`format: xlsx_census`). What differs is in `src/ingestion/xlsx_census.py` (reading and checking every sheet of a census workbook) and the `XlsxCensus` class in `src/ingestion/formats.py`. Issue: #157; source card and profile: #154.
+
+**Status:** implemented and tested locally with made-up workbooks of both layouts (`tests/test_ingestion_school_age.py`). The first local run on the real workbooks (2026-10-16) passed every layout check and reported each sheet's row count: 1,748 and 1,748 (2020 Total Pop, Household Pop), 6,994 and 6,991 (2024). Those counts are now pinned as `sheet_rows` in the contract and on the card. On Databricks `dev` (2026-10-16, commit `3dcdd8d`) the lane loaded the same 3,496 and 13,985 rows, and a second run skipped both workbooks. Evidence: [local](../../evidence/pipeline-runs/2026-10-16-psa-school-age-population-local-idempotency.md), [Databricks](../../evidence/pipeline-runs/2026-10-16-psa-school-age-population-databricks-idempotency.md). The source stays `profiled`.
+
+### The flow (school-age population)
+
+```
+00 Source   RAW_DATA_DIR/psa/original/<year> School-Age Population by Single Year Age, Sex, and City Municipality.xlsx
+   │  discover *.xlsx matching the contract's workbook_pattern → SHA-256 → approved?
+   │  open the two sheets safely; check the bands, the ages, every row's kind, the counts
+01 Control  ingestion_batches (one batch per workbook), attempts, data_quality_results
+02 Bronze   edu_access.`02-bronze`.psa_school_age_population_raw   (every row of both sheets, text, with provenance)
+   │  90_validate_psa_school_age_population_raw.sql, its own job task (D-020)
+```
+
+### Identity (school-age population)
+
+| Thing | Identity | Why |
+|---|---|---|
+| Delivery (batch) | Workbook SHA-256; `batch_id` = `psa_school_age_population__<census year>__<first 12 of SHA-256>` | One batch per workbook |
+| Logical dataset | `school_age_population_2020`, `school_age_population_2024`; versions 1, 2, 3 within each (D-015, D-018) | A census republished by PSA is the next version of its dataset, with `supersedes` |
+| Bronze row | (`source_sha256`, `source_sheet`, `source_row_number`) | Both sheets of a workbook use the same row numbers, so the sheet is part of the key (`contract.row_key`); the MERGE and the gate use all three |
+
+The census year is kept in `estimate_years_covered` in the control tables (a one-year set), so load types and `current_batches` work as for `psa_poverty_stat`, and in `census_year` on every Bronze row.
+
+### Layout as a versioned contract (school-age population)
+
+| Schema version | Layout | Columns |
+|---|---|---|
+| `v1` (2020) | `wide`: a row per place; `Both Sexes` in B2, `Male` in V2, `Female` in AP2, ages 5-24 in row 3 under each | `label`, then `both_sexes_age_5` … `female_age_24` (60) |
+| `v2` (2024) | `long`: a place row with no values, then `Total`, `Male`, `Female` rows; `Single Year Age` in B2, ages 5-24 in B3:U3 | `label`, then `age_5` … `age_24` (20) |
+
+The table holds the union of both: a column not in a year's layout is NULL for that year's rows. Nothing is reshaped: the 2024 rows stay long and the 2020 rows stay wide until Silver.
+
+Each row's `source_row_kind` comes from the layout: `title` (row 1), `header` (rows 2-3), `place`, `sex_total` / `sex_male` / `sex_female` (2024), `note` (a label and no counts; in 2024 from `Notes:` on), `source` (a label starting `Source`), `blank`, or `unclassified`. Silver reads only `place` (2020) and the `sex_*` rows with the `place` row above them (2024).
+
+### School-age population validation
+
+FAIL, and nothing loads:
+
+- the sheets are not exactly `<year> Total Pop` and `<year> Household Pop` (refused as `missing_sheet` or `unexpected_sheet`);
+- row 2 does not hold exactly the profiled bands, or row 3 does not hold ages 5-24 in the expected columns (60 in 2020, 20 in 2024);
+- place rows per sheet differ from the approval (1,742 in 2020, 1,744 in 2024), a sheet's row count differs from `sheet_rows` (or it is not pinned), or any row is `unclassified`;
+- in 2024, a place row not followed by exactly one `Total`, `Male`, `Female` block, or a sex row outside one;
+- a count that is not a whole number as stored (profile O-3), a value right of the layout, or text decoded twice.
+
+WARN, with the profiled count beside the actual count: footnote markers in place labels (2024: 11 on the total sheet, 10 on the household sheet; O-6), the misspelled 2020 source line (O-1), and the 2024 household title naming only "City/Municipality" (O-1). Formula and error cells are WARN too.
+
+After the MERGE, each sheet is reconciled to the file: Bronze rows equal the sheet's rows, row numbers have no repeats and no gaps, every provenance column is filled, and the counts by `source_row_kind` equal the file's. Then the generated gate (`etl/02_bronze/90_validate_psa_school_age_population_raw.sql`) checks the whole table and writes to `data_quality_results`.
+
+### Running locally (school-age population)
+
+```bash
+RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.ingestion.cli ingest --source psa_school_age_population
+python -m src.ingestion.cli status --source psa_school_age_population
+```
+
+Regenerate the SQL after changing the contract:
+
+```bash
+python -m src.ingestion.cli ddl --source psa_school_age_population > etl/02_bronze/08_create_psa_school_age_population_raw.sql
+python -m src.ingestion.cli gate --source psa_school_age_population > etl/02_bronze/90_validate_psa_school_age_population_raw.sql
+```
+
+In `edu_access_pipeline`, the source has its own lane: `08_create_psa_school_age_population_raw` → `bronze_psa_school_age_population` → `90_validate_psa_school_age_population_raw`. It is Bronze only, so it is not part of the Silver fan-in. The workbooks must first be uploaded to the `00-source` volume under `psa/original/`.
+
+### Open questions (school-age population)
+
+| Question | Default until decided | Where |
+|---|---|---|
+| Does `psa_school_age_population` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+| Total or household population for school-age need? | Both loaded; Silver decides | Profile O-5, mentor |

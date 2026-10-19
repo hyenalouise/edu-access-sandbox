@@ -2,7 +2,7 @@
 
 Facts and dimensions for the approved business question.
 
-The approved model, grains, keys, analytical-question mapping, and ERD are in
+The approved implementation contract, grains, keys, analytical-question mapping, and ERD are in
 [`docs/architecture/data-model.md`](../../docs/architecture/data-model.md).
 
 Implemented dimensions whose reviewed inputs are available:
@@ -15,29 +15,10 @@ Implemented facts whose reviewed inputs are available:
 
 - `fact_school_classroom_capacity`
 - `fact_school_teacher_capacity`
+- `fact_school_year_source_availability`
 
-Deferred until their required inputs are implemented and pass their gates:
+The remaining Gold tables stay disabled until their reviewed Integration inputs are available. No empty substitute is published.
 
-- `dim_city_municipality` and `dim_barangay`: require the reviewed HDX-to-PSGC
-  mapping and the approved technical geography members from Integration.
-- `dim_city_poverty`: requires the reviewed poverty-to-PSGC mapping.
-- `fact_school_enrollment`: requires the reviewed school-to-PSGC mapping so no
-  school receives an invented or silently NULL geography key.
-- `fact_city_population`: requires `dim_city_municipality` for its foreign key.
-- `fact_city_school_age_population`: requires ingestion, Silver cleaning, and
-  reviewed PSGC matching for the profiled 2020 and 2024 single-year-age source.
+Enrollment and `dim_school_year` cover SY 2020-21 and SY 2023-24 through SY 2025-26. Classroom and teacher capacity currently cover SY 2023-24 only. `fact_school_year_source_availability` records those source-level gaps separately from the school-level coverage checks.
 
-The unavailable tables have no empty or partially populated substitutes. They
-are added only when their source and Integration prerequisites are executable.
-This keeps missing data distinguishable from a legitimate zero.
-
-The current builds follow these source periods:
-
-- enrollment and `dim_school`: SY 2023-24 through SY 2025-26;
-- classroom capacity: SY 2023-24 only;
-- teacher capacity: SY 2023-24 only.
-
-Each implemented table has a `90_validate_*` gate. The gates stop the Gold run
-for duplicate grains, unresolved foreign keys, source reconciliation failures,
-invalid derived totals, or joins that multiply rows. Missing, zero, and partial
-denominators are retained and reported rather than repaired.
+Each build writes a candidate table. Its `90_validate_*` gate checks grain, foreign keys, source reconciliation, and coverage before replacing the published table. A failed gate leaves the last good Gold table unchanged. Job dependencies follow D-051, so each table waits only for the source and dimension gates it reads.

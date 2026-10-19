@@ -12,7 +12,7 @@ WITH source_schools AS (
     WHERE school_name IS NOT NULL
   ) WHERE name_rank = 1
 ), dimension AS (
-  SELECT * FROM edu_access.`05-gold`.dim_school
+  SELECT * FROM edu_access.`05-gold`.dim_school_candidate
 )
 SELECT
   (SELECT COUNT(*) FROM source_schools) AS source_rows,
@@ -35,3 +35,8 @@ FROM (
 SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for dim_school: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s)') END
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'dim_school' AND layer = 'gold' AND status = 'FAIL' AND checked_at_utc >= session.gold_gate_started_at_utc;
+
+CREATE OR REPLACE TABLE edu_access.`05-gold`.dim_school USING DELTA AS
+SELECT * FROM edu_access.`05-gold`.dim_school_candidate;
+
+ALTER TABLE edu_access.`05-gold`.dim_school OWNER TO `reached-hq`;

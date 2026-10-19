@@ -1,2 +1,0 @@
--- PLACEHOLDER: integrate enrollment, facilities, and personnel at school and school-year grain.
--- Preserve source-year availability; do not carry SY 2023-24 measures into later years.

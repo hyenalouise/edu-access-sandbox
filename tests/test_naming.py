@@ -43,6 +43,7 @@ def test_known_source_table_names_are_registered(repo_root):
         "psa_poverty_stat",
         "hdx_boundaries",
         "deped_enrollment_psgc",
+        "psa_school_age_population",
     ]
 
     for number, source in enumerate(sources, start=1):

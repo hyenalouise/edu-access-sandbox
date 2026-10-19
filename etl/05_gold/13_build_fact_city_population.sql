@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build fact_city_population (D-048). One city or municipality x reference year; reads PSGC Silver and the city dimension.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

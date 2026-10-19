@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build fact_school_enrollment (D-048). School x school year x level; reads enrollment, the school PSGC map, and five dimensions.
+-- Implement the grain and columns in docs/architecture/data-model.md before activating this task.

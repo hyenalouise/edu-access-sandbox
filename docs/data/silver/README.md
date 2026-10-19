@@ -10,3 +10,4 @@ One data dictionary per Silver table, generated from the source's Bronze contrac
 | `psa_psgc` | `psa_psgc_clean` | `psa_psgc_quarantine` | [psa-psgc-clean.md](psa-psgc-clean.md) |
 | `deped_facilities` | `deped_facilities_clean` | `deped_facilities_quarantine` | [deped-facilities-clean.md](deped-facilities-clean.md) |
 | `hdx_boundaries` | `hdx_adm3_clean` | `hdx_adm3_quarantine` | [hdx-adm3-clean.md](hdx-adm3-clean.md) |
+| `psa_school_age_population` | `psa_school_age_population_clean` | `psa_school_age_population_quarantine` | [psa-school-age-population-clean.md](psa-school-age-population-clean.md) |
