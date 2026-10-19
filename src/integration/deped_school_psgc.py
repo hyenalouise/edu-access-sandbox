@@ -272,6 +272,11 @@ def build_sql(spec):
                         ("geographic_level", "province", "municipality", "barangay", "use_side", "reason", "reviewer"))
     enr, cross, psgc = ref(SILVER, spec.enrollment_table), ref(SILVER, spec.crosswalk_table), ref(SILVER, spec.psgc_table)
     candidate = ref(SCHEMA, spec.candidate)
+    # Spark inlines CTEs and views. Keep the expensive, reused matching stages in Delta work tables so
+    # later statements read their results instead of expanding the entire dependency graph again.
+    work = {name: ref(SCHEMA, f"{spec.map_table}_work_{name}") for name in (
+        "units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions",
+    )}
     keys_p = _key_ctes("p", "x.name").replace("FROM p_input", "FROM psgc_input")
     sga_places = " OR ".join(f"(upper(s.region) = {lit(r.upper())} AND upper(s.province) = {lit(p.upper())})"
                              for r, p in spec.sga_places)
@@ -299,7 +304,8 @@ WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, sta
 CREATE SCHEMA IF NOT EXISTS edu_access.`{SCHEMA}`;
 ALTER SCHEMA edu_access.`{SCHEMA}` OWNER TO `{OWNER_GROUP}`;
 
-CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched AS
+-- Normalize the master PSGC once. This table is read by every later matching stage.
+CREATE OR REPLACE TABLE {work["units"]} USING DELTA AS
 WITH
 psgc_input AS (
   SELECT psgc_code, name, old_names, geographic_level, level_blank, region_code, province_code,
@@ -319,7 +325,14 @@ units AS (
   SELECT x.*, CASE WHEN pp.geographic_level = 'SubMun' THEN substr(x.city_municipality_code, 1, 5) || '00000'
                    ELSE x.city_municipality_code END AS city_roll
   FROM p5 AS x LEFT JOIN p5 AS pp ON pp.psgc_code = x.city_municipality_code
-),
+)
+SELECT * FROM units;
+
+ALTER TABLE {work["units"]} OWNER TO `{OWNER_GROUP}`;
+
+-- Candidate PSGC provinces for each distinct DepEd province/city pair.
+CREATE OR REPLACE TABLE {work["province_pairs"]} USING DELTA AS
+WITH
 -- Cities are matched once per DepEd (province, municipality) pair: the match never reads the barangay.
 city_input AS (
   SELECT DISTINCT province, municipality FROM {enr} WHERE NOT is_overseas
@@ -328,15 +341,30 @@ city0 AS (SELECT x.*, {_base('x.province')} AS prov_exact, {_base('x.municipalit
 city1 AS (SELECT x.*, {_fold('x.prov_exact')} AS prov_fold, {_fold('x.k_exact')} AS k_fold FROM city0 AS x),
 city2 AS (SELECT x.*, {_brackets('x.k_fold')} AS k_brackets FROM city1 AS x),
 city3 AS (SELECT x.*, {_no_city('x.k_brackets')} AS k_city FROM city2 AS x),
-aliases AS (SELECT v.*, u.region_code FROM ({aliases}) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
-overrides AS ({overrides}),
+units AS (SELECT * FROM {work["units"]}),
 province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code,
     CASE WHEN s.prov_exact = u.k_exact THEN 1 WHEN s.prov_exact = u.ok_exact THEN 2
          WHEN s.prov_fold = u.k_fold THEN 3 WHEN s.prov_fold = u.ok_fold THEN 4 END AS tier
   FROM city3 AS s JOIN units AS u ON (u.geographic_level = 'Prov' OR (u.level_blank AND u.psgc_code = u.province_code))
     AND (s.prov_exact = u.k_exact OR s.prov_exact = u.ok_exact OR s.prov_fold = u.k_fold OR s.prov_fold = u.ok_fold){_split_pairs(spec)}
+)
+SELECT * FROM province_pairs;
+
+ALTER TABLE {work["province_pairs"]} OWNER TO `{OWNER_GROUP}`;
+
+-- Candidate PSGC cities and municipalities. Province candidates are already stored above.
+CREATE OR REPLACE TABLE {work["city_pairs"]} USING DELTA AS
+WITH
+city_input AS (
+  SELECT DISTINCT province, municipality FROM {enr} WHERE NOT is_overseas
 ),
+city0 AS (SELECT x.*, {_base('x.province')} AS prov_exact, {_base('x.municipality')} AS k_exact FROM city_input AS x),
+city1 AS (SELECT x.*, {_fold('x.prov_exact')} AS prov_fold, {_fold('x.k_exact')} AS k_fold FROM city0 AS x),
+city2 AS (SELECT x.*, {_brackets('x.k_fold')} AS k_brackets FROM city1 AS x),
+city3 AS (SELECT x.*, {_no_city('x.k_brackets')} AS k_city FROM city2 AS x),
+units AS (SELECT * FROM {work["units"]}),
+province_pairs AS (SELECT * FROM {work["province_pairs"]}),
 province_best AS (
   SELECT province, municipality, MIN(tier) AS tier
   FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2
@@ -363,6 +391,33 @@ city_pairs AS (
          OR s.k_brackets = u.k_brackets OR s.k_city = u.k_city)
   LEFT JOIN province_scope AS ps ON ps.province IS NOT DISTINCT FROM s.province
     AND ps.municipality IS NOT DISTINCT FROM s.municipality AND ps.province_prefix = substr(u.psgc_code, 1, 5)
+)
+SELECT * FROM city_pairs;
+
+ALTER TABLE {work["city_pairs"]} OWNER TO `{OWNER_GROUP}`;
+
+-- One resolved city/municipality result per distinct DepEd province/city pair.
+CREATE OR REPLACE TABLE {work["cities"]} USING DELTA AS
+WITH
+city_input AS (
+  SELECT DISTINCT province, municipality FROM {enr} WHERE NOT is_overseas
+),
+city0 AS (SELECT x.*, {_base('x.province')} AS prov_exact, {_base('x.municipality')} AS k_exact FROM city_input AS x),
+city1 AS (SELECT x.*, {_fold('x.prov_exact')} AS prov_fold, {_fold('x.k_exact')} AS k_fold FROM city0 AS x),
+city2 AS (SELECT x.*, {_brackets('x.k_fold')} AS k_brackets FROM city1 AS x),
+city3 AS (SELECT x.*, {_no_city('x.k_brackets')} AS k_city FROM city2 AS x),
+units AS (SELECT * FROM {work["units"]}),
+province_pairs AS (SELECT * FROM {work["province_pairs"]}),
+city_pairs AS (SELECT * FROM {work["city_pairs"]}),
+aliases AS (SELECT v.*, u.region_code FROM ({aliases}) AS v LEFT JOIN units AS u ON u.psgc_code = v.psgc_code),
+province_best AS (
+  SELECT province, municipality, MIN(tier) AS tier
+  FROM province_pairs WHERE tier IS NOT NULL GROUP BY 1,2
+),
+province_hits AS (
+  SELECT b.province, b.municipality, COUNT(DISTINCT p.psgc_code) AS hits, MIN(p.psgc_code) AS psgc_code
+  FROM province_best AS b JOIN province_pairs AS p USING (province, municipality, tier)
+  GROUP BY 1,2
 ),
 city_scope AS (
   SELECT province, municipality, MIN(scope_rank) AS scope_rank
@@ -393,7 +448,14 @@ city_named AS (
      OR substr(a.psgc_code, 6) = '00000')
   LEFT JOIN units AS au ON au.psgc_code = a.psgc_code
   LEFT JOIN city_hits AS c USING (province, municipality)
-),
+)
+SELECT * FROM city_named;
+
+ALTER TABLE {work["cities"]} OWNER TO `{OWNER_GROUP}`;
+
+-- Candidate PSGC barangays for each distinct DepEd place, inside its resolved city.
+CREATE OR REPLACE TABLE {work["barangay_pairs"]} USING DELTA AS
+WITH
 -- Barangays are matched once per (province, municipality, barangay, truncation flag), inside the named city.
 source_input AS (
   SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
@@ -403,6 +465,8 @@ source0 AS (SELECT x.*, {_base('x.barangay')} AS b_exact FROM source_input AS x)
 source1 AS (SELECT x.*, {_fold('x.b_exact')} AS b_fold FROM source0 AS x),
 source2 AS (SELECT x.*, {_brackets('x.b_fold')} AS b_brackets FROM source1 AS x),
 source3 AS (SELECT x.*, {_no_city('x.b_brackets')} AS b_city FROM source2 AS x),
+city_named AS (SELECT * FROM {work["cities"]}),
+units AS (SELECT * FROM {work["units"]}),
 barangay_pairs AS (
   SELECT s.province, s.municipality, s.barangay, s.barangay_possibly_truncated, u.psgc_code,
          LEAST(COALESCE(CASE WHEN s.b_exact = u.k_exact THEN 1 WHEN s.b_fold = u.k_fold THEN 3
@@ -411,7 +475,24 @@ barangay_pairs AS (
                COALESCE(CASE WHEN s.b_exact = u.ok_exact THEN 2 WHEN s.b_fold = u.ok_fold THEN 4 END, 99)) AS tier
   FROM source3 AS s JOIN city_named AS c USING (province, municipality)
   JOIN units AS u ON u.geographic_level = 'Bgy' AND u.city_municipality_code = c.name_city_code
+)
+SELECT * FROM barangay_pairs;
+
+ALTER TABLE {work["barangay_pairs"]} OWNER TO `{OWNER_GROUP}`;
+
+-- One resolved barangay result per distinct DepEd place.
+CREATE OR REPLACE TABLE {work["places"]} USING DELTA AS
+WITH
+source_input AS (
+  SELECT DISTINCT province, municipality, COALESCE(barangay, '') AS barangay, barangay_possibly_truncated
+  FROM {enr} WHERE NOT is_overseas
 ),
+source0 AS (SELECT x.*, {_base('x.barangay')} AS b_exact FROM source_input AS x),
+source1 AS (SELECT x.*, {_fold('x.b_exact')} AS b_fold FROM source0 AS x),
+source2 AS (SELECT x.*, {_brackets('x.b_fold')} AS b_brackets FROM source1 AS x),
+source3 AS (SELECT x.*, {_no_city('x.b_brackets')} AS b_city FROM source2 AS x),
+city_named AS (SELECT * FROM {work["cities"]}),
+barangay_pairs AS (SELECT * FROM {work["barangay_pairs"]}),
 barangay_best AS (
   SELECT province, municipality, barangay, barangay_possibly_truncated, MIN(tier) AS tier
   FROM barangay_pairs WHERE tier < 99 GROUP BY 1,2,3,4
@@ -430,7 +511,18 @@ places AS (
   FROM source3 AS s
   LEFT JOIN city_named AS c USING (province, municipality)
   LEFT JOIN barangay_hits AS b USING (province, municipality, barangay, barangay_possibly_truncated)
-),
+)
+SELECT * FROM places;
+
+ALTER TABLE {work["places"]} OWNER TO `{OWNER_GROUP}`;
+
+-- Decide the city and barangay result once per school-year row. The final two-level expansion reads
+-- this table twice without making Spark recompute the matching graph twice.
+CREATE OR REPLACE TABLE {work["decisions"]} USING DELTA AS
+WITH
+units AS (SELECT * FROM {work["units"]}),
+places AS (SELECT * FROM {work["places"]}),
+overrides AS ({overrides}),
 school_input AS (
   SELECT e.school_year, e.school_id, e.school_name, e.region, e.province, e.municipality, e.barangay,
          e.barangay_possibly_truncated, e.is_overseas,
@@ -544,7 +636,16 @@ bgy_decided AS (
          WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN NULL ELSE b.bgy_method0 END AS bgy_method,
     CASE WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN 'barangay outside the accepted city or municipality' ELSE b.bgy_reason0 END AS bgy_reason
   FROM bgy_pre AS b LEFT JOIN units AS u ON u.psgc_code = b.bgy_code0
-),
+)
+SELECT * FROM bgy_decided;
+
+ALTER TABLE {work["decisions"]} OWNER TO `{OWNER_GROUP}`;
+
+-- Expand every stored school-year decision to the map's city and barangay rows.
+CREATE OR REPLACE TABLE {candidate} USING DELTA AS
+WITH
+units AS (SELECT * FROM {work["units"]}),
+bgy_decided AS (SELECT * FROM {work["decisions"]}),
 decisions AS (
   SELECT b.*, 'city_mun' AS geographic_level, b.code_city AS code_candidate, b.city_code AS psgc_code,
          b.city_status AS match_status, CASE WHEN b.city_code IS NULL THEN NULL ELSE b.city_method END AS match_method,
@@ -565,7 +666,7 @@ SELECT
   d.region AS source_region, d.province AS source_province,
   d.municipality AS source_city_municipality, d.barangay AS source_barangay,
   d.geographic_level, d.code_candidate,
-  (SELECT MIN(publication_period) FROM psgc_input) AS psgc_version,
+  (SELECT MIN(publication_period) FROM units) AS psgc_version,
   d.psgc_code, p.name AS psgc_name,
   d.match_status, d.match_method,
   -- An override that finds no unit, or a barangay outside the city, still needs review.
@@ -576,13 +677,14 @@ SELECT
   p.batch_id AS psgc_batch_id, p.source_row_number AS psgc_source_row_number,
   session.integration_run_id AS run_id, session.integration_built_at_utc AS built_at_utc,
   session.integration_code_revision AS code_revision
-FROM decisions AS d LEFT JOIN psgc_input AS p ON p.psgc_code = d.psgc_code;
-
-CREATE OR REPLACE TABLE {candidate} USING DELTA AS
-SELECT * FROM deped_school_psgc_matched;
+FROM decisions AS d LEFT JOIN units AS p ON p.psgc_code = d.psgc_code;
 
 COMMENT ON TABLE {candidate} IS 'Unpublished build for the Integration gate. Do not read: use {spec.map_table}.';
 ALTER TABLE {candidate} OWNER TO `{OWNER_GROUP}`;
+
+-- A failed build may leave work tables for diagnosis. Every rerun replaces each one before reading it,
+-- and a successful build removes all of them after the candidate is durable.
+{chr(10).join(f"DROP TABLE IF EXISTS {table};" for table in reversed(list(work.values())))}
 """
     return "\n".join(_header("Integration build", "sql", f"etl/04_integration/{BUILD_FILE}")) + "\n--\n-- Cities are matched once per distinct (province, municipality) and barangays once per distinct place, then\n-- reused by every school-year row.\n" + sql.lstrip()
 
