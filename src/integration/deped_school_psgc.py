@@ -265,6 +265,86 @@ def _header(what, command, path):
     ]
 
 
+# Steps of the match view written to work tables before the next step reads them. Spark copies a common
+# table expression into every place that reads it, so units (read 10 times) and the name-key chains built
+# on it made a plan too large for Free Edition: the build ran out of JVM memory (team run 350271822258008)
+# or lost its executor (sandbox run 735539360671238). As tables, each step is planned once.
+STAGES = ("units", "city3", "city_named", "source3", "places", "bgy_decided")
+VIEW = "CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched AS\n"
+
+
+def _scan(sql, i):
+    """Index just past a quoted string or -- comment starting at i, or i when there is none."""
+    if sql.startswith("--", i):
+        end = sql.find("\n", i)
+        return len(sql) if end < 0 else end
+    if sql[i] == "'":
+        i += 1
+        while True:
+            j = sql.index("'", i)
+            if sql.startswith("''", j):
+                i = j + 2
+                continue
+            return j + 1
+    return i
+
+
+def _split_ctes(body):
+    """WITH a AS (...), b AS (...) SELECT ... -> ([(name, definition, comments before it)], final select)."""
+    assert body.startswith("WITH"), body[:40]
+    ctes, i = [], 4
+    head = re.compile(r"([a-z_][a-z_0-9]*) AS \(")
+    while True:
+        comments, j = [], i
+        while j < len(body):
+            if body[j] in " \n\t,":
+                j += 1
+            elif body.startswith("--", j):
+                k = _scan(body, j)
+                comments.append(body[j:k])
+                j = k
+            else:
+                break
+        m = head.match(body, j)
+        if not m:
+            return ctes, body[i:].strip()
+        depth, k = 1, m.end()
+        while depth:
+            nxt = _scan(body, k)
+            if nxt != k:
+                k = nxt
+                continue
+            depth += {"(": 1, ")": -1}.get(body[k], 0)
+            k += 1
+        ctes.append((m.group(1), body[m.end():k - 1], "".join(c + "\n" for c in comments)))
+        i = k
+
+
+def _staged(sql, schema):
+    """Write each STAGES step of the match view to a work table, and read it from there afterwards."""
+    start = sql.index(VIEW) + len(VIEW)
+    end = start
+    while sql[end] != ";":
+        end = _scan(sql, end) if _scan(sql, end) != end else end + 1
+    ctes, final = _split_ctes(sql[start:end].strip())
+    names = [n for n, _, _ in ctes]
+    assert all(s in names for s in STAGES), [s for s in STAGES if s not in names]
+
+    def with_clause(upto, done):
+        defs = [f"{n} AS (SELECT * FROM {ref(schema, 'deped_school_psgc_work_' + n)})" if n in done else f"{c}{n} AS ({d})"
+                for n, d, c in ctes[:upto]]
+        return "WITH\n" + ",\n".join(defs)
+
+    out, done = [], set()
+    for stage in STAGES:
+        work = ref(schema, "deped_school_psgc_work_" + stage)
+        out.append(f"CREATE OR REPLACE TABLE {work} USING DELTA AS\n{with_clause(names.index(stage) + 1, done)}\n"
+                   f"SELECT * FROM {stage};\nALTER TABLE {work} OWNER TO `{OWNER_GROUP}`;\n")
+        done.add(stage)
+    out.append(f"{VIEW}{with_clause(len(ctes), done)}\n{final}")
+    return sql[:sql.index(VIEW)] + "\n".join(out) + sql[end:]
+
+
 def build_sql(spec):
     aliases = _values([(a.deped_name, a.psgc_code, a.reason) for a in spec.aliases], ("deped_name", "psgc_code", "reason"))
     overrides = _values([(o.level, o.province, o.municipality, o.barangay, o.use, o.reason, o.reviewer)
@@ -584,7 +664,7 @@ SELECT * FROM deped_school_psgc_matched;
 COMMENT ON TABLE {candidate} IS 'Unpublished build for the Integration gate. Do not read: use {spec.map_table}.';
 ALTER TABLE {candidate} OWNER TO `{OWNER_GROUP}`;
 """
-    return "\n".join(_header("Integration build", "sql", f"etl/04_integration/{BUILD_FILE}")) + "\n--\n-- Cities are matched once per distinct (province, municipality) and barangays once per distinct place, then\n-- reused by every school-year row.\n" + sql.lstrip()
+    return "\n".join(_header("Integration build", "sql", f"etl/04_integration/{BUILD_FILE}")) + "\n--\n-- Cities are matched once per distinct (province, municipality) and barangays once per distinct place, then\n-- reused by every school-year row.\n" + _staged(sql, SCHEMA).lstrip()
 
 
 def gate_sql(spec):
