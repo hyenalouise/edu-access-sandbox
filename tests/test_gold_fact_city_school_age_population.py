@@ -95,21 +95,21 @@ def test_builds_male_and_female_rows_per_city_year_and_age():
     run_id, error = env.run()
     assert error is None
     fact = env.fact()
-    # 2020: 4 matched places + UNKNOWN; 2024: 5 matched places; 3 ages x 2 sexes each
+    # 2020: 4 matched places + EXCLUDED (the SGA clusters); 2024: 5 matched places; 3 ages x 2 sexes each
     assert len(fact) == (5 + 5) * len(AGES) * 2
     assert {k[3] for k in fact} == {"male", "female"}
     checks = env.checks(run_id)
     assert {c["status"] for c in checks.values()} == {"PASS", "WARN"}
-    assert checks["unknown_member_population"]["status"] == "WARN"
+    assert checks["excluded_member_population"]["status"] == "WARN"
 
 
-def test_total_concept_only_and_unmatched_places_summed_into_unknown():
+def test_total_concept_only_and_unmatched_places_summed_into_excluded():
     env = Env()
     env.run()
     fact = env.fact()
     assert fact[("0102801000", 2020, 17, "female")]["population"] == 100 + 34
-    unknown = fact[("UNKNOWN", 2020, 5, "male")]
-    assert (unknown["population"], unknown["psgc_match_status"]) == ((7 + 5) + (3 + 5), "unmatched")
+    excluded = fact[("EXCLUDED", 2020, 5, "male")]
+    assert (excluded["population"], excluded["psgc_match_status"]) == ((7 + 5) + (3 + 5), "unmatched")
     assert fact[("0102801000", 2024, 5, "male")]["psgc_match_status"] == "matched"
 
 
@@ -123,7 +123,7 @@ def test_comparability_flag():
         ("1804501000", 2020): False, ("1804501000", 2024): False,   # region: Negros Island Region
         ("0906601000", 2020): False, ("0906601000", 2024): False,   # province: Sulu
         ("1999901000", 2024): False,                                 # 2024 only
-        ("UNKNOWN", 2020): False,
+        ("EXCLUDED", 2020): False,
     }
 
 

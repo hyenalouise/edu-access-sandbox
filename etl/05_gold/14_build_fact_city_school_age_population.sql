@@ -12,8 +12,10 @@
 --     (D-048). Every age Silver publishes is kept (5 to 24); Analytics selects 5 to 17. Nothing is
 --     interpolated, and the broader 5 to 24 category is never substituted.
 --   - city_mun_psgc_code is the place's matched PSGC code. A place that is not matched (today the 8
---     2020 Special Geographic Area clusters, which are not LGUs, D-055) goes to the UNKNOWN member
---     of dim_city_municipality, with its psgc_match_status. Places that share UNKNOWN in a year are
+--     2020 Special Geographic Area clusters, which are not LGUs, D-055) goes to the EXCLUDED member
+--     of dim_city_municipality, with its psgc_match_status: the data model keeps EXCLUDED for records
+--     outside city-level analysis on purpose, and UNKNOWN for a city that could not be matched
+--     (sandbox choice, the open question on #193). Places that share EXCLUDED in a year are
 --     summed into one row per age and sex, so no population is dropped and the key stays unique; if
 --     they differ in status, the row keeps the first in alphabetical order (today all are unmatched).
 --   - is_2020_2024_geography_comparable follows the AP4 comparability rule of the metric
@@ -21,7 +23,7 @@
 --     matched in both census years that is not in the reviewed list below: units whose territory
 --     changed, and every unit of a province or region whose hierarchy changed between the censuses.
 --     Units that exist in one year only (the 8 Special Geographic Area municipalities of 2024) and
---     UNKNOWN are FALSE.
+--     EXCLUDED are FALSE.
 
 -- Sandbox: the run starts in pipeline_runs as gold_build, like Silver and Integration; the gate records how it ended.
 DECLARE OR REPLACE VARIABLE gold_run_id STRING;
@@ -77,7 +79,7 @@ WITH placed AS (
     s.age,
     s.sex,
     s.population,
-    CASE WHEN m.match_status = 'matched' THEN m.psgc_code ELSE 'UNKNOWN' END AS city_mun_psgc_code,
+    CASE WHEN m.match_status = 'matched' THEN m.psgc_code ELSE 'EXCLUDED' END AS city_mun_psgc_code,
     m.match_status AS psgc_match_status
   FROM edu_access.`03-silver`.psa_school_age_population_clean AS s
   JOIN edu_access.`04-integration`.psa_school_age_population_psgc_map AS m
@@ -98,7 +100,7 @@ summed AS (
 both_years AS (
   SELECT city_mun_psgc_code
   FROM summed
-  WHERE city_mun_psgc_code <> 'UNKNOWN'
+  WHERE city_mun_psgc_code <> 'EXCLUDED'
   GROUP BY city_mun_psgc_code
   HAVING COUNT(DISTINCT reference_year) = 2
 ),
