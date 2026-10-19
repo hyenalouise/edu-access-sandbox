@@ -27,6 +27,12 @@ on `main` at `917c50a`. Main now approves DepEd enrollment SY 2021-22 and
 linked under `deped/original/`, where the `deped_enrollment_psgc` contract
 looks for it.
 
+The branch was then rebased again onto `main` at `1c18900` for #186 (SY 2021-22
+and 2022-23 enrollment Silver). That change touches no file under `etl/` or
+`src/` and no rule value, only the wording of rules and evidence in
+`config/mappings/deped_enrollment.json` and the docs, so the Silver rows and
+this map are the same; the runs below were not repeated.
+
 ```bash
 python -m src.job.local_run \
   --landing "$RAW_DATA_DIR" \
