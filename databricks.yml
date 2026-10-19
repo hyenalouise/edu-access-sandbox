@@ -919,7 +919,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
         # Gold facts (D-048), each from its Silver or Integration gate and the dimension gates it joins.
         - task_key: 10_build_fact_school_enrollment
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_school_psgc_map
             - task_key: 90_validate_dim_school
@@ -934,7 +933,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_school_enrollment
-          disabled: true
           depends_on:
             - task_key: 10_build_fact_school_enrollment
           run_if: ALL_SUCCESS
