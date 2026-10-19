@@ -154,9 +154,6 @@ draft_integration_tables:
   - table: deped_school_psgc_map
     candidate_file: 01_map_deped_school_psgc.sql
     purpose: Reviewed mapping from DepEd school geography to the selected PSGC version.
-  - table: psa_poverty_psgc_map
-    candidate_file: 02_map_psa_poverty_psgc.sql
-    purpose: Reviewed mapping from poverty-statistic geography identifiers to PSGC.
   - table: hdx_adm3_psgc_map
     candidate_file: 03_map_hdx_adm3_psgc.sql
     purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
@@ -170,6 +167,11 @@ integration_tables:
     validate_file: 90_validate_deped_annex_mother_map.sql
     grain: One row per annex school and school year.
     purpose: Auditable annex-to-mother mapping. Rows remain unmatched until DepEd publishes a reliable crosswalk.
+  - table: psa_poverty_psgc_map
+    build_file: 02_map_psa_poverty_psgc.sql
+    validate_file: 90_validate_psa_poverty_psgc_map.sql
+    grain: One row per psa_poverty_stat_clean row (psgc_id, estimate_year).
+    purpose: PSA poverty estimates matched to PSGC by Correspondence Code only, estimates carried unchanged (D-054).
 
 deferred_layers:
   - gold

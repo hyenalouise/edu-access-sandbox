@@ -63,13 +63,15 @@ It keeps the mother ID and match method NULL while the approved DepEd releases
 provide no reliable link, and lists every unmatched annex with evidence (D-044).
 Implemented: `hdx_adm3_psgc_map` (`03_map_hdx_adm3_psgc.sql`), one row per HDX ADM3
 feature with its reviewed PSGC match, review status, and reason (D-052).
+Implemented: `psa_poverty_psgc_map` (`02_map_psa_poverty_psgc.sql`), one row per PSA
+poverty estimate row (`psgc_id`, `estimate_year`) with its `Correspondence Code` match
+to PSGC and the estimate carried unchanged (D-054).
 
 These are working names only:
 
 | Candidate table | Candidate file | Intended grain |
 |---|---|---|
 | `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | One reviewed DepEd school-geography mapping to PSGC |
-| `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | One reviewed poverty-statistic geography mapping to PSGC |
 | `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | One reviewed PSA school-age population place mapping to PSGC |
 
 Do not create these tables until their keys, match statuses, review workflow,
