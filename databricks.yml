@@ -807,7 +807,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
         # Gold dimensions (D-048), each from the gates it reads.
         - task_key: 01_build_dim_school
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
           run_if: ALL_SUCCESS
@@ -817,7 +816,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_school
-          disabled: true
           depends_on:
             - task_key: 01_build_dim_school
           run_if: ALL_SUCCESS
@@ -827,7 +825,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 02_build_dim_school_year
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
           run_if: ALL_SUCCESS
@@ -837,7 +834,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_school_year
-          disabled: true
           depends_on:
             - task_key: 02_build_dim_school_year
           run_if: ALL_SUCCESS
@@ -847,7 +843,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 03_build_dim_education_level
-          disabled: true
           depends_on:
             - task_key: 05_create_current_batches
           run_if: ALL_SUCCESS
@@ -857,7 +852,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_dim_education_level
-          disabled: true
           depends_on:
             - task_key: 03_build_dim_education_level
           run_if: ALL_SUCCESS
@@ -956,7 +950,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 11_build_fact_school_classroom_capacity
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_facilities_clean
             - task_key: 90_validate_dim_school
@@ -968,10 +961,8 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_school_classroom_capacity
-          disabled: true
           depends_on:
             - task_key: 11_build_fact_school_classroom_capacity
-            - task_key: 90_validate_fact_school_enrollment
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -979,7 +970,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 12_build_fact_school_teacher_capacity
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_personnel_clean
             - task_key: 90_validate_dim_school
@@ -992,7 +982,6 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
         - task_key: 90_validate_fact_school_teacher_capacity
-          disabled: true
           depends_on:
             - task_key: 12_build_fact_school_teacher_capacity
           run_if: ALL_SUCCESS
@@ -1134,7 +1123,6 @@ resources:
         # Which DepEd sources have data for each school year, for the dashboard only. Kept out of
         # dim_school_year so a facilities or personnel failure does not stop every fact (D-051).
         - task_key: 15_build_fact_school_year_source_availability
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_enrollment_clean
             - task_key: 90_validate_deped_facilities_clean
@@ -1148,7 +1136,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_fact_school_year_source_availability
-          disabled: true
           depends_on:
             - task_key: 15_build_fact_school_year_source_availability
           run_if: ALL_SUCCESS
