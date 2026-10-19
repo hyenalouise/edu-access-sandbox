@@ -1,15 +1,15 @@
 # Stakeholders and user story
 
-**Status:** Updated for the BP and AP wording approved through mentor review on 2026-10-14. The user group was narrowed to LGU Local School Boards in D-056 (2026-10-19).
+**Status:** Updated for the BP and AP wording approved through mentor review on 2026-10-14. The user group was narrowed to LGU Local School Boards in D-057 (2026-10-19).
 
-Local education planners ask the question and make the planning decision. The primary users are LGU Local School Boards: the provincial, city, and municipal school boards that decide how the Special Education Fund is spent (D-056). DepEd Schools Division Offices are partners that validate the results and act on teacher deployment and DepEd classroom programs. The provincial planner, working with the Provincial School Board, remains the first dashboard persona.
+Local education planners ask the question and make the planning decision. The primary users are LGU Local School Boards: the provincial, city, and municipal school boards that decide how the Special Education Fund is spent (D-057). DepEd Schools Division Offices are partners that validate the results and act on teacher deployment and DepEd classroom programs. The provincial planner, working with the Provincial School Board, remains the first dashboard persona.
 
 ## Stakeholders
 
 | Role | Who | What they decide or need | What ReachED gives them |
 |---|---|---|---|
 | First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer review for classroom support or a request to DepEd | Each LGU's priority tier and its school, classroom, and teacher measures, with enrollment context |
-| Primary decision users | LGU Local School Boards (provincial, city, and municipal) | Special Education Fund spending on classrooms and locally funded teachers, validation, and requests to DepEd or another agency | A priority list of cities and municipalities (D-056) with each school, classroom, and teacher measure shown on its own, official benchmarks where validated, national same-type context, Similar LGUs, coverage, and drill-down |
+| Primary decision users | LGU Local School Boards (provincial, city, and municipal) | Special Education Fund spending on classrooms and locally funded teachers, validation, and requests to DepEd or another agency | A priority list of cities and municipalities (D-057) with each school, classroom, and teacher measure shown on its own, official benchmarks where validated, national same-type context, Similar LGUs, coverage, and drill-down |
 | Other decision users | City and municipal LGU education planners | Their own local school board spending, including Special Education Fund support and locally funded teachers | Their LGU's measures, comparison position, data coverage, and school-level drill-down |
 | Sponsors and funding partners | UNICEF and ADB | Which places warrant further assessment for possible support or investment | Comparable indicators, the enrolled learners covered by each measure, and stated data limitations |
 | Partner stakeholders | DepEd regional offices and Schools Division Offices | Teacher deployment and classroom-construction priorities | Areas with high classroom or teacher pressure indicators, with school-level detail for validation |

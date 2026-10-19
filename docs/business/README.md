@@ -11,7 +11,7 @@ Planner needs and the business-to-analytics hierarchy: one business question, fo
 | [stakeholders.md](stakeholders.md) | Local education planners, sponsors, government agencies, user story, and persona stories | Updated for approved questions |
 | [planner-needs.md](planner-needs.md) | Planner needs and roles behind the approved questions, each cited to a published document and tagged documented, mentor-validated, or assumed (D-001) | Draft for review (#7) |
 
-The BP and AP wording was approved through mentor review on 2026-10-14. The metric specification is the implementation contract for Gold facts and Analytics calculations; dashboard publication still requires its validation gate. The comparison and priority rule is D-056, which revises D-042, and the planner needs in [planner-needs.md](planner-needs.md) are a draft for review (#7). Data-model, ERD, Gold, analytics, and dashboard pull requests must use the approved wording and preserve the stated source gaps and limitations.
+The BP and AP wording was approved through mentor review on 2026-10-14. The metric specification is the implementation contract for Gold facts and Analytics calculations; dashboard publication still requires its validation gate. The comparison and priority rule is D-057, which revises D-042, and the planner needs in [planner-needs.md](planner-needs.md) are a draft for review (#7). Data-model, ERD, Gold, analytics, and dashboard pull requests must use the approved wording and preserve the stated source gaps and limitations.
 
 ## Research briefs
 
