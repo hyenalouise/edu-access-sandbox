@@ -1,118 +1,87 @@
--- Analytics build for AP1, school-provision context (metric specification, D-047): one row per regular
--- city or municipality and enrollment school year, every LGU kept even with no public school.
--- Scope: public schools, including annexes; overseas and excluded schools are not in any LGU.
---   active school             at least one offered level has a complete learner_count above 0
---   all-level total           ES + JHS + SHS when every offered level is complete, otherwise NULL
---   learners_per_public_school  learners of active schools with a complete total / those schools
---   ap1_coverage_pct          share of active public schools whose all-level total is complete; the
---                             priority rule's coverage gate for AP1 (D-057)
---   population_per_public_school  Population 2024 / all active public schools, for every school year
---   barangays_without_public_es   regular PSGC barangays with no active public school that offers ES and
---                             is matched to the barangay; "at most" when the LGU has schools matched to
---                             the city but not a barangay (barangay_count_is_upper_bound)
--- A ratio with no usable denominator is NULL with its reason, never 0.
---
--- Writes ap1_school_provision_candidate; the gate publishes it only if no check fails.
---
--- Parameters, supplied by the job (or src/job/local_run.py):
---   :run_id, :code_revision, :environment
-
-DECLARE OR REPLACE VARIABLE analytics_run_id STRING;
-SET VARIABLE analytics_run_id = :run_id;
-DECLARE OR REPLACE VARIABLE analytics_code_revision STRING;
-SET VARIABLE analytics_code_revision = COALESCE(NULLIF(:code_revision, ''), 'UNSET');
-DECLARE OR REPLACE VARIABLE analytics_environment STRING;
-SET VARIABLE analytics_environment = COALESCE(NULLIF(:environment, ''), 'UNSET');
-DECLARE OR REPLACE VARIABLE analytics_built_at_utc TIMESTAMP;
-SET VARIABLE analytics_built_at_utc = current_timestamp();
-
--- The run starts; the gate records how it ended (D-020).
-MERGE INTO edu_access.`01-control`.pipeline_runs AS t
-USING (SELECT session.analytics_run_id AS run_id) AS s
-ON t.run_id = s.run_id AND t.pipeline_name = 'analytics_build' AND t.source_id = 'ap1_school_provision'
-WHEN MATCHED THEN UPDATE SET
-  status = 'running', started_at_utc = session.analytics_built_at_utc, finished_at_utc = NULL,
-  failure_stage = NULL, error_message = NULL, code_revision = session.analytics_code_revision, job_run_id = s.run_id
-WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, status, started_at_utc, code_revision, job_run_id)
-  VALUES (s.run_id, 'analytics_build', 'ap1_school_provision', session.analytics_environment, 'running',
-          session.analytics_built_at_utc, session.analytics_code_revision, s.run_id);
+-- ap1 school provision under the same-type ratio methodology that supersedes D-057.
+-- grain: one regular city or municipality for SY 2024-25 schools against the 2024 census (AP2 and AP3 use SY 2023-24).
+-- the same-type reference pools only LGUs with no input issue.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap1_school_provision_candidate USING DELTA AS
-WITH school AS (
-  SELECT school_id, school_year,
-         MAX(city_mun_psgc_code) AS city_mun_psgc_code,
-         MAX(barangay_psgc_code) AS barangay_psgc_code,
-         MAX(annex_status) AS annex_status,
-         COALESCE(bool_or(is_offered AND learner_count > 0), FALSE) AS is_active,
-         COALESCE(bool_or(education_level_code = 'ES' AND is_offered), FALSE) AS offers_es,
-         CASE WHEN COALESCE(COUNT_IF(is_offered AND learner_count IS NULL), 0) = 0 THEN SUM(learner_count) END AS total_learners,
-         SUM(learner_count) AS complete_level_learners
+WITH lgus AS (
+  SELECT city_mun_psgc_code, city_mun_name, lgu_type, province_psgc_code, province_name,
+         region_psgc_code, region_name
+  FROM edu_access.`05-gold`.dim_city_municipality
+  WHERE member_type = 'regular'
+), school_rows AS (
+  SELECT school_id, city_mun_psgc_code,
+         MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,
+         COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete_offered_levels,
+         SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS complete_level_learners
   FROM edu_access.`05-gold`.fact_school_enrollment
-  WHERE sector = 'Public'
-  GROUP BY school_id, school_year
-),
-agg AS (
-  SELECT city_mun_psgc_code, school_year,
-         COALESCE(COUNT_IF(is_active), 0) AS active_public_schools,
-         COALESCE(COUNT_IF(is_active AND annex_status = 'Annex/Extension School'), 0) AS active_annexes,
-         COALESCE(COUNT_IF(NOT is_active), 0) AS inactive_public_schools,
-         COALESCE(COUNT_IF(is_active AND total_learners IS NOT NULL), 0) AS complete_total_schools,
-         COALESCE(COUNT_IF(is_active AND total_learners IS NULL), 0) AS incomplete_total_schools,
-         SUM(CASE WHEN is_active AND total_learners IS NOT NULL THEN total_learners END) AS public_learners,
-         SUM(CASE WHEN is_active AND total_learners IS NULL THEN complete_level_learners END) AS incomplete_school_learners_audit,
-         COALESCE(COUNT_IF(is_active AND barangay_psgc_code LIKE '%-UNKNOWN'), 0) AS schools_without_barangay_match
-  FROM school
-  GROUP BY city_mun_psgc_code, school_year
-),
-served AS (
-  SELECT DISTINCT school_year, barangay_psgc_code FROM school WHERE is_active AND offers_es
-),
-barangays AS (
-  SELECT b.city_mun_psgc_code, y.school_year,
-         COUNT(*) AS regular_barangays,
-         COALESCE(COUNT_IF(s.barangay_psgc_code IS NULL), 0) AS barangays_without_public_es
-  FROM edu_access.`05-gold`.dim_barangay AS b
-  CROSS JOIN edu_access.`05-gold`.dim_school_year AS y
-  LEFT JOIN served AS s ON s.barangay_psgc_code = b.barangay_psgc_code AND s.school_year = y.school_year
-  WHERE b.member_type = 'regular'
-  GROUP BY b.city_mun_psgc_code, y.school_year
-),
-base AS (
-  SELECT d.city_mun_psgc_code, d.city_mun_name, d.lgu_type, d.city_class, d.income_class,
-         d.province_name, d.region_name, y.school_year,
-         COALESCE(a.active_public_schools, 0) AS active_public_schools,
-         COALESCE(a.active_annexes, 0) AS active_annexes,
-         COALESCE(a.inactive_public_schools, 0) AS inactive_public_schools,
-         COALESCE(a.complete_total_schools, 0) AS complete_total_schools,
-         COALESCE(a.incomplete_total_schools, 0) AS incomplete_total_schools,
-         COALESCE(a.public_learners, 0) AS public_learners,
-         a.incomplete_school_learners_audit,
-         COALESCE(a.schools_without_barangay_match, 0) AS schools_without_barangay_match,
-         p.population AS population_2024,
-         p.estimate_status AS population_status,
-         COALESCE(b.regular_barangays, 0) AS regular_barangays,
-         COALESCE(b.barangays_without_public_es, 0) AS barangays_without_public_es
-  FROM edu_access.`05-gold`.dim_city_municipality AS d
-  CROSS JOIN edu_access.`05-gold`.dim_school_year AS y
-  LEFT JOIN agg AS a ON a.city_mun_psgc_code = d.city_mun_psgc_code AND a.school_year = y.school_year
-  LEFT JOIN edu_access.`05-gold`.fact_city_population AS p
-    ON p.city_mun_psgc_code = d.city_mun_psgc_code AND p.reference_year = 2024
-  LEFT JOIN barangays AS b ON b.city_mun_psgc_code = d.city_mun_psgc_code AND b.school_year = y.school_year
-  WHERE d.member_type = 'regular'
+  WHERE school_year = '2024-25' AND sector = 'Public' AND psgc_match_status = 'matched'
+  GROUP BY school_id, city_mun_psgc_code
+), schools AS (
+  SELECT city_mun_psgc_code,
+         COUNT_IF(is_active = 1) AS active_public_school_count,
+         COUNT_IF(is_active = 1 AND incomplete_offered_levels = 0) AS complete_enrollment_school_count,
+         COUNT_IF(is_active = 1 AND incomplete_offered_levels > 0) AS incomplete_enrollment_school_count,
+         SUM(CASE WHEN is_active = 1 AND incomplete_offered_levels = 0 THEN complete_level_learners ELSE 0 END)
+           AS public_school_enrollment
+  FROM school_rows
+  GROUP BY city_mun_psgc_code
+), population AS (
+  SELECT city_mun_psgc_code, CAST(SUM(population) AS BIGINT) AS school_age_population
+  FROM edu_access.`05-gold`.fact_city_school_age_population
+  WHERE reference_year = 2024 AND sex IN ('male', 'female') AND age BETWEEN 5 AND 17
+    AND psgc_match_status = 'matched'
+  GROUP BY city_mun_psgc_code
+), metrics AS (
+  SELECT l.*, CAST('2024-25' AS STRING) AS school_year, CAST(2024 AS INT) AS population_reference_year,
+         p.school_age_population,
+         COALESCE(s.active_public_school_count, 0) AS active_public_school_count,
+         COALESCE(s.complete_enrollment_school_count, 0) AS complete_enrollment_school_count,
+         COALESCE(s.incomplete_enrollment_school_count, 0) AS incomplete_enrollment_school_count,
+         CAST(COALESCE(s.public_school_enrollment, 0) AS BIGINT) AS public_school_enrollment,
+         CAST(p.school_age_population AS DOUBLE) / NULLIF(s.active_public_school_count, 0)
+           AS school_age_population_per_public_school,
+         CAST(s.public_school_enrollment AS DOUBLE) / NULLIF(s.complete_enrollment_school_count, 0)
+           AS learners_per_public_school,
+         CAST(100.0 * s.complete_enrollment_school_count / NULLIF(s.active_public_school_count, 0) AS DOUBLE)
+           AS coverage_pct
+  FROM lgus AS l
+  LEFT JOIN schools AS s USING (city_mun_psgc_code)
+  LEFT JOIN population AS p USING (city_mun_psgc_code)
+), assessed AS (
+  -- input problems are found before the reference, so an LGU that fails them never moves the line others are judged against.
+  SELECT *,
+         CASE WHEN school_age_population IS NULL THEN 'missing 2024 school-age population'
+              WHEN active_public_school_count = 0 THEN 'no active public school'
+              WHEN coverage_pct IS NULL OR coverage_pct < 90 THEN 'coverage below 90%'
+         END AS input_issue_reason
+  FROM metrics
+), type_references AS (
+  SELECT lgu_type,
+         CAST(SUM(school_age_population) AS DOUBLE) / NULLIF(SUM(active_public_school_count), 0)
+           AS national_same_type_ratio,
+         COUNT(*) AS reference_lgu_count
+  FROM assessed
+  WHERE input_issue_reason IS NULL
+  GROUP BY lgu_type
+), classified AS (
+  SELECT a.*, r.national_same_type_ratio, COALESCE(r.reference_lgu_count, 0) AS reference_lgu_count,
+         a.school_age_population_per_public_school / NULLIF(r.national_same_type_ratio, 0) AS relative_pressure,
+         FALSE AS outlier_flag,
+         a.input_issue_reason AS quality_issue_reason
+  FROM assessed AS a
+  LEFT JOIN type_references AS r USING (lgu_type)
 )
-SELECT base.*,
-       CAST(public_learners AS DOUBLE) / NULLIF(complete_total_schools, 0) AS learners_per_public_school,
-       CASE WHEN active_public_schools = 0 THEN 'no active public school'
-            WHEN complete_total_schools = 0 THEN 'no active public school with complete enrollment' END AS learners_per_school_null_reason,
-       100.0 * complete_total_schools / NULLIF(active_public_schools, 0) AS ap1_coverage_pct,
-       CASE WHEN population_status = 'available' THEN CAST(population_2024 AS DOUBLE) / NULLIF(active_public_schools, 0) END AS population_per_public_school,
-       CASE WHEN population_status IS DISTINCT FROM 'available' THEN 'Population 2024 not available'
-            WHEN active_public_schools = 0 THEN 'no active public school' END AS population_per_school_null_reason,
-       100.0 * barangays_without_public_es / NULLIF(regular_barangays, 0) AS barangays_without_public_es_pct,
-       schools_without_barangay_match > 0 AS barangay_count_is_upper_bound
-FROM base;
+SELECT *,
+       CASE WHEN quality_issue_reason IS NOT NULL OR outlier_flag THEN 'Data Review'
+            WHEN relative_pressure > 1.0 THEN 'Above Reference'
+            ELSE 'At or Below Reference' END AS classification,
+       'project-defined same-type pooled ratio' AS comparison_method,
+       :code_revision AS code_revision
+FROM classified;
 
+COMMENT ON TABLE edu_access.`06-analytics`.ap1_school_provision_candidate IS 'Unpublished AP1 build. Do not read: use ap1_school_provision.';
 ALTER TABLE edu_access.`06-analytics`.ap1_school_provision_candidate OWNER TO `reached-hq`;
+

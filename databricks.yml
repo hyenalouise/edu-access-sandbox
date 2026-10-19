@@ -1029,8 +1029,7 @@ resources:
         - task_key: 01_answer_ap1
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
-            - task_key: 90_validate_fact_city_population
-            - task_key: 90_validate_dim_barangay
+            - task_key: 90_validate_fact_city_school_age_population
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1087,7 +1086,6 @@ resources:
         - task_key: 04_answer_ap4
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
-            - task_key: 90_validate_fact_city_school_age_population
           run_if: ALL_SUCCESS
           sql_task:
             file:
@@ -1103,26 +1101,25 @@ resources:
               path: etl/06_analytics/90_validate_ap4.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-        # The LGU priority table (D-057): the one answer for the slide, the dashboard and Genie, ranked
-        # from the AP1 to AP3 outputs once each has passed its gate.
-        - task_key: 05_answer_lgu_priority
+        - task_key: 05_build_priority_matrix
           depends_on:
             - task_key: 90_validate_ap1
             - task_key: 90_validate_ap2
             - task_key: 90_validate_ap3
+            - task_key: 90_validate_ap4
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/06_analytics/05_answer_lgu_priority.sql
+              path: etl/06_analytics/05_build_priority_matrix.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
-        - task_key: 90_validate_lgu_priority
+        - task_key: 90_validate_priority_matrix
           depends_on:
-            - task_key: 05_answer_lgu_priority
+            - task_key: 05_build_priority_matrix
           run_if: ALL_SUCCESS
           sql_task:
             file:
-              path: etl/06_analytics/90_validate_lgu_priority.sql
+              path: etl/06_analytics/90_validate_priority_matrix.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
