@@ -29,7 +29,7 @@ ALTER SCHEMA edu_access.`04-integration` OWNER TO `reached-hq`;
 CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched AS
 WITH
 psgc_input AS (
-  SELECT psgc_code, name, old_names, geographic_level, region_code, province_code,
+  SELECT psgc_code, name, old_names, geographic_level, level_blank, region_code, province_code,
          city_municipality_code, publication_period, batch_id, source_row_number
   FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
 ),
@@ -43,7 +43,13 @@ p4 AS (
   FROM p3 AS x
 ),
 p5 AS (SELECT x.*, CASE WHEN x.ok_exact IS NULL THEN NULL ELSE TRIM(regexp_replace(translate(translate(translate(x.ok_exact, chr(209) || chr(193) || chr(201) || chr(205) || chr(211) || chr(218) || chr(220) || chr(192) || chr(200) || chr(204) || chr(210) || chr(217) || chr(194) || chr(202) || chr(206) || chr(212) || chr(219), 'NAEIOUUAEIOUAEIOU'), '.-' || chr(39), '   '), chr(9) || chr(160), '  '), ' +', ' ')) END AS ok_fold FROM p4 AS x),
-units AS (SELECT * FROM p5),
+-- A barangay's city: its parent, or for a sub-municipality parent (Manila's districts, which PSGC Silver
+-- gives no parent) the city sharing its first five digits, as the rollup below does.
+units AS (
+  SELECT x.*, CASE WHEN pp.geographic_level = 'SubMun' THEN substr(x.city_municipality_code, 1, 5) || '00000'
+                   ELSE x.city_municipality_code END AS city_roll
+  FROM p5 AS x LEFT JOIN p5 AS pp ON pp.psgc_code = x.city_municipality_code
+),
 -- Cities are matched once per DepEd (province, municipality) pair: the match never reads the barangay.
 city_input AS (
   SELECT DISTINCT province, municipality FROM edu_access.`03-silver`.deped_enrollment_clean WHERE NOT is_overseas
@@ -58,7 +64,7 @@ province_pairs AS (
   SELECT s.province, s.municipality, u.psgc_code,
     CASE WHEN s.prov_exact = u.k_exact THEN 1 WHEN s.prov_exact = u.ok_exact THEN 2
          WHEN s.prov_fold = u.k_fold THEN 3 WHEN s.prov_fold = u.ok_fold THEN 4 END AS tier
-  FROM city3 AS s JOIN units AS u ON (u.geographic_level = 'Prov' OR u.psgc_code = '0990100000')
+  FROM city3 AS s JOIN units AS u ON (u.geographic_level = 'Prov' OR (u.level_blank AND u.psgc_code = u.province_code))
     AND (s.prov_exact = u.k_exact OR s.prov_exact = u.ok_exact OR s.prov_fold = u.k_fold OR s.prov_fold = u.ok_fold)
   UNION ALL
   SELECT s.province, s.municipality, u.psgc_code, 1
@@ -265,16 +271,12 @@ bgy_pre AS (
 ),
 bgy_decided AS (
   SELECT b.*,
-    CASE WHEN b.bgy_status0 = 'matched' AND NOT (u.city_municipality_code = b.city_code
-          OR (u.city_municipality_code LIKE '13806%' AND b.city_code = '1380600000')) THEN 'ambiguous' ELSE b.bgy_status0 END AS bgy_status,
+    CASE WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN 'ambiguous' ELSE b.bgy_status0 END AS bgy_status,
     CASE WHEN b.bgy_status0 <> 'matched' THEN NULL
-         WHEN b.bgy_status0 = 'matched' AND NOT (u.city_municipality_code = b.city_code
-          OR (u.city_municipality_code LIKE '13806%' AND b.city_code = '1380600000')) THEN NULL ELSE b.bgy_code0 END AS bgy_code,
+         WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN NULL ELSE b.bgy_code0 END AS bgy_code,
     CASE WHEN b.bgy_status0 <> 'matched' THEN NULL
-         WHEN b.bgy_status0 = 'matched' AND NOT (u.city_municipality_code = b.city_code
-          OR (u.city_municipality_code LIKE '13806%' AND b.city_code = '1380600000')) THEN NULL ELSE b.bgy_method0 END AS bgy_method,
-    CASE WHEN b.bgy_status0 = 'matched' AND NOT (u.city_municipality_code = b.city_code
-          OR (u.city_municipality_code LIKE '13806%' AND b.city_code = '1380600000')) THEN 'barangay outside the accepted city or municipality' ELSE b.bgy_reason0 END AS bgy_reason
+         WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN NULL ELSE b.bgy_method0 END AS bgy_method,
+    CASE WHEN b.bgy_status0 = 'matched' AND NOT COALESCE(u.city_roll = b.city_code, FALSE) THEN 'barangay outside the accepted city or municipality' ELSE b.bgy_reason0 END AS bgy_reason
   FROM bgy_pre AS b LEFT JOIN units AS u ON u.psgc_code = b.bgy_code0
 ),
 decisions AS (

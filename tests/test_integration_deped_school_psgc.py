@@ -36,6 +36,7 @@ PSGC = [
     ("0102801000", "Adams", None, "Mun", "0100000000", "0102800000", None),
     ("0102802000", "Bacarra", None, "Mun", "0100000000", "0102800000", None),
     ("0102803000", "City of Batac", None, "City", "0100000000", "0102800000", None),
+    ("0102804000", "City of Isabela", None, "City", "0100000000", "0102800000", None),  # made-up namesake: only the province scope tells them apart
     ("0102801001", "Poblacion", None, "Bgy", "0100000000", "0102800000", "0102801000"),
     ("0102802001", "Poblacion", None, "Bgy", "0100000000", "0102800000", "0102802000"),
     ("0102802002", "San Roque", None, "Bgy", "0100000000", "0102800000", "0102802000"),
@@ -45,6 +46,9 @@ PSGC = [
     ("0102803001", "Barangay One", None, "Bgy", "0100000000", "0102800000", "0102803000"),
     ("0102803002", "Calayab", None, "Bgy", "0100000000", "0102800000", "0102803000"),
     ("0900000000", "Region IX", None, "Reg", "0900000000", None, None),
+    ("0990100000", "City of Isabela (Not a Province)", None, None, "0900000000", "0990100000", None),  # level blank
+    ("0990101000", "City of Isabela", None, "City", "0900000000", "0990100000", None),
+    ("0990101002", "Aguada", None, "Bgy", "0900000000", "0990100000", "0990101000"),
     ("0906600000", "Sulu", None, "Prov", "0900000000", "0906600000", None),
     ("0906601000", "Jolo", None, "Mun", "0900000000", "0906600000", None),
     ("0906601001", "Asturias", None, "Bgy", "0900000000", "0906600000", "0906601000"),
@@ -112,6 +116,7 @@ ENROLLMENT = [
     school("100023", "NCR FOURTH DISTRICT", "TAGUIG CITY", "SIGNAL VILLAGE", NCR),  # override, names agree
     school("100024", "NCR FOURTH DISTRICT", "TAGUIG CITY", "SIGNAL VILLAGE", NCR),  # override, no code
     school("100025", "MAGUINDANAO", "DATU ODIN SINSUAT", "AWANG", BARMM),    # Maguindanao, split since 2022
+    school("100026", "CITY OF ISABELA", "CITY OF ISABELA (Capital)", "AGUADA", "REGION IX"),  # province is a blank-level unit
 ]
 
 # school_id, city code, barangay code, Sulu recoded
@@ -141,10 +146,12 @@ class Env:
             self.store.run_file(path)
         self.store.sql("CREATE SCHEMA IF NOT EXISTS edu_access.`03-silver`")
         self.store.sql("CREATE TABLE edu_access.`03-silver`.psa_psgc_clean (psgc_code STRING, name STRING, old_names STRING, "
-                       "geographic_level STRING, region_code STRING, province_code STRING, city_municipality_code STRING, "
+                       "geographic_level STRING, level_blank BOOLEAN, region_code STRING, province_code STRING, city_municipality_code STRING, "
                        "publication_period STRING, is_master_reference BOOLEAN, batch_id STRING, source_row_number BIGINT)")
         for i, row in enumerate(PSGC, 1):
-            self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES (?, ?, ?, ?, ?, ?, ?, '2026-Q2', TRUE, 'P1', ?)", [*row, i])
+            code, name, old, level, region, province, parent = row
+            self.store.sql("INSERT INTO edu_access.`03-silver`.psa_psgc_clean VALUES (?, ?, ?, ?, ?, ?, ?, ?, '2026-Q2', TRUE, 'P1', ?)",
+                           [code, name, old, level, level is None, region, province, parent, i])
         self.store.sql("CREATE TABLE edu_access.`03-silver`.deped_enrollment_clean (school_year STRING, school_id STRING, school_name STRING, "
                        "region STRING, province STRING, municipality STRING, barangay STRING, barangay_possibly_truncated BOOLEAN, "
                        "is_overseas BOOLEAN, batch_id STRING, source_sha256 STRING, source_row_number BIGINT)")
@@ -304,6 +311,13 @@ def test_override_method_follows_the_code_rule_and_a_missing_unit_stays_pending(
     assert bgy(got, "100004") == ("1381500002", "matched", "code_name_differs", "reviewed override", "reviewed")
     assert bgy(got, "100023") == ("1381500001", "matched", "code", "reviewed override", "reviewed")
     assert bgy(got, "100024") == (None, "unmatched", None, "reviewed override: no unit", "pending")
+
+
+def test_a_blank_level_unit_at_the_province_position_is_a_province(got):
+    # City of Isabela is not a province, but PSGC files it at the province position with a blank level;
+    # reading it as the province keeps the made-up namesake in Ilocos Norte out.
+    assert city(got, "100026")[:4] == ("0990101000", "matched", "name_exact", "name only")
+    assert bgy(got, "100026")[:3] == ("0990101002", "matched", "name_exact")
 
 
 def test_overseas_schools_are_kept_and_excluded(got):
