@@ -1,15 +1,22 @@
 {
   "source_id": "deped_enrollment",
-  "used_by": "analysis/cross_source/cross_source_deped_school_psgc_rule.py (applied by cross_source_deped_enrollment_psgc.py) now; etl/04_integration/01_map_deped_school_psgc.sql later, reading the EMISD crosswalk from edu_access.`03-silver`.deped_enrollment_psgc_clean (#169, #91, #137 Option B)",
+  "map_table": "deped_school_psgc_map",
+  "inputs": {
+    "enrollment": "deped_enrollment_clean",
+    "crosswalk": "deped_enrollment_psgc_clean",
+    "psgc": "psa_psgc_clean"
+  },
+  "grain": "One row per enrollment school, school year, and geographic level (city_mun or bgy); overseas schools are retained as excluded.",
+  "used_by": "analysis/cross_source/cross_source_deped_school_psgc_rule.py and src/integration/deped_school_psgc.py; generated SQL: etl/04_integration/01_map_deped_school_psgc.sql and its 90_validate gate",
   "owner": "@saraevcldn",
-  "status": "Approved in PR #153 (2026-10-18); the Integration SQL that applies it is not written yet (#91)",
-  "how_to_change": "Add or change an override in a pull request that names its evidence and reason, rerun the script, and quote the changed EP- counts in the pull request. The approving reviewer is written into the override's reviewer field.",
-  "psgc_version": "2Q 2026",
-  "rule_order_note": "rule_order describes the rule; it is not read by any program. The logic lives in analysis/cross_source/cross_source_deped_school_psgc_rule.py and later in the Integration SQL, which is the source of truth once written. Change the code and this list together. On Silver input, deped_enrollment_psgc_clean has already recoded Sulu 19066 to 09066 and sets psgc_recoded, so the Integration SQL must take code_region_moved from psgc_recoded, not from a 19066 lookup. The overrides and match_method_from_name_tier below are read by the code.",
+  "status": "The matching rule was approved in PR #153 (2026-10-18); #91 applies it to the production Integration map.",
+  "how_to_change": "Add or change an alias or override in a reviewed pull request with evidence and rationale, regenerate both Integration SQL files, rerun the tests and real-data reconciliation, and quote the changed match counts. Every override names its approving reviewer.",
+  "psgc_version": "2026-Q2",
+  "rule_order_note": "rule_order describes the rule. The analysis functions test it on raw data; src/integration/deped_school_psgc.py generates the production SQL and is the executable source of truth. Change the generator, tests, and this list together. On Silver input, deped_enrollment_psgc_clean has already recoded Sulu 19066 to 09066 and sets psgc_recoded, so Integration takes code_region_moved from psgc_recoded. The generator reads the aliases, overrides, province_splits and region_scopes below; the analysis rule reads the overrides and uses the same reviewed aliases from cross_source_deped.py.",
   "rule_order": {
     "city_mun": [
-      "A reviewed override for the school's DepEd place, if one is listed below; it picks the unit, and the method follows the side it uses (code when the name match agrees, otherwise code_name_differs)",
-      "Special Geographic Area school (BARMM / NORTH COTABATO, D-031): matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's municipality, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
+      "A reviewed override for the school's DepEd place, if one is listed below; it picks the unit, and the method follows the side it uses (code when the name match agrees, otherwise code_name_differs). The Integration SQL applies barangay overrides only, so the generator refuses a city_mun override until it is implemented there",
+      "Special Geographic Area school (D-031): one DepEd files under a special_geographic_area source place below, or whose EMISD code is in a Special Geographic Area municipality (psgc_prefix; SY 2020-21 still files these schools under Region XII). Matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's municipality, so the school is in one of the eight Special Geographic Area municipalities (D-031's condition, D-049); otherwise excluded, with psgc_code NULL",
       "EMISD code and name match give the same unit: matched, method code",
       "They give different units: matched by code when the DepEd barangay name matches the barangay of the EMISD code and that barangay lies inside the code's city or municipality (the place moved, e.g. a newer municipality or Embo), method code_name_differs; otherwise ambiguous",
       "Only one of them is found: matched by it (code_name_differs for the code, or the name tier's method)",
@@ -39,6 +46,38 @@
     "truncated at 40": "name_normalized",
     "reviewed alias": "reviewed_alias"
   },
+  "gate": {
+    "min_match_rate_pct": 99.0,
+    "min_match_rate_note": "matched / (rows - excluded) per school year and level; the gate FAILs and publishes nothing below it. The lowest on the 2026-10-19 deliveries is SY 2020-21 barangay, 99.63%.",
+    "profiled_counts_note": "Reviewed matched / ambiguous / unmatched / excluded counts per school year and level, from evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md. The gate PASSes at these counts and FAILs before publication when they change; update them in the reviewed pull request that explains the change.",
+    "profiled_counts": {
+      "2020-21": {"city_mun": {"matched": 60877, "ambiguous": 28, "unmatched": 16, "excluded": 36}, "bgy": {"matched": 60693, "ambiguous": 153, "unmatched": 75, "excluded": 36}},
+      "2021-22": {"city_mun": {"matched": 60356, "ambiguous": 26, "unmatched": 12, "excluded": 35}, "bgy": {"matched": 60210, "ambiguous": 129, "unmatched": 55, "excluded": 35}},
+      "2022-23": {"city_mun": {"matched": 60070, "ambiguous": 24, "unmatched": 7, "excluded": 35}, "bgy": {"matched": 59978, "ambiguous": 95, "unmatched": 28, "excluded": 35}},
+      "2023-24": {"city_mun": {"matched": 60108, "ambiguous": 12, "unmatched": 4, "excluded": 43}, "bgy": {"matched": 60050, "ambiguous": 56, "unmatched": 18, "excluded": 43}},
+      "2024-25": {"city_mun": {"matched": 60060, "ambiguous": 1, "unmatched": 5, "excluded": 63}, "bgy": {"matched": 60040, "ambiguous": 13, "unmatched": 13, "excluded": 63}},
+      "2025-26": {"city_mun": {"matched": 60122, "ambiguous": 3, "unmatched": 14, "excluded": 65}, "bgy": {"matched": 60039, "ambiguous": 71, "unmatched": 29, "excluded": 65}}
+    }
+  },
+  "special_geographic_area": {
+    "decision": "D-031",
+    "psgc_prefix": "19999",
+    "source_places": [["BARMM", "NORTH COTABATO"], ["BARMM", "(SGA - North Cotabato)"]],
+    "evidence": "SY 2023-24 files all 112 schools coded 19999 under BARMM / NORTH COTABATO; SY 2024-25 and 2025-26 add BARMM / (SGA - North Cotabato) (7 and 8 schools, 5 and 6 of them not in the EMISD crosswalk); SY 2020-21 files the 111 schools coded 19999 under Region XII / NORTH COTABATO. See evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md."
+  },
+  "province_splits": [
+    {"deped_province": "MAGUINDANAO", "psgc_codes": ["1908700000", "1908800000"], "reason": "DepEd still files these schools under one Maguindanao province; PSGC 2Q 2026 has no province of that name, only Maguindanao del Norte and Maguindanao del Sur, so the school's city is searched in both", "evidence": "deped_enrollment_clean has 710, 714, 718, 724, 728 and 735 schools under MAGUINDANAO in SY 2020-21 to 2025-26. psa_psgc_clean 2026-Q2 lists 1908700000 Maguindanao del Norte and 1908800000 Maguindanao del Sur and no province named Maguindanao. See evidence/reconciliation/2026-10-19-deped-school-psgc-integration.md."}
+  ],
+  "region_scopes": [
+    {"deped_province_contains": "NCR", "psgc_region_code": "1300000000", "reason": "DepEd files NCR schools under district labels that are not PSGC provinces (NCR cities have no province in PSGC), so a school whose province names NCR is searched in the National Capital Region", "evidence": "deped_enrollment_clean has 16,502 school rows over SY 2020-21 to 2025-26 under MANILA, NCR, FIRST DISTRICT, NCR SECOND DISTRICT, NCR THIRD DISTRICT and NCR FOURTH DISTRICT. Every psa_psgc_clean 2026-Q2 code in region 1300000000 starts with 13 and none outside it does, so this is the same scope the generator used to write as a 13 prefix."}
+  ],
+  "locality_aliases": [
+    {"deped_name": "TONDO", "psgc_code": "1380601000", "reason": "Tondo I/II, a City of Manila sub-municipality", "evidence": "Reviewed DepEd name-match alias from #8 and PR #153"},
+    {"deped_name": "KALOOKAN CITY", "psgc_code": "1380100000", "reason": "PSGC uses City of Caloocan", "evidence": "Reviewed DepEd name-match alias from #8 and PR #153"},
+    {"deped_name": "OZAMIS CITY", "psgc_code": "1004210000", "reason": "PSGC uses City of Ozamiz", "evidence": "Reviewed DepEd name-match alias from #8 and PR #153"},
+    {"deped_name": "BARAUEN", "psgc_code": "0803710000", "reason": "PSGC uses Burauen", "evidence": "Reviewed DepEd name-match alias from #8 and PR #153"},
+    {"deped_name": "BALIUAG", "psgc_code": "0301403000", "reason": "PSGC uses City of Baliwag", "evidence": "Reviewed DepEd name-match alias from #8 and PR #153"}
+  ],
   "overrides": [
     {
       "level": "bgy",
@@ -46,7 +85,7 @@
       "deped_municipality": "TAGUIG CITY",
       "deped_barangay": "SIGNAL VILLAGE",
       "use": "code",
-      "reason": "DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there; the EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in; the name match cannot.",
+      "reason": "DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.",
       "evidence": "21 SY 2023-24 schools carry this DepEd barangay; for 14 of them the EMISD code and the name match disagree. Rerun cross_source_deped_enrollment_psgc.py: EP-18 counts both, the 14 are the SIGNAL VILLAGE rows of work/deped_enrollment_psgc_vs_name_match.csv (EP-11), and EP-16 counts the override as applied.",
       "reviewer": "@catweyine"
     }
