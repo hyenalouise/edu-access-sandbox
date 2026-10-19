@@ -101,18 +101,20 @@ reconcile AS (
     COUNT_IF(m.psgc_version IS DISTINCT FROM (SELECT MIN(publication_period) FROM p)
              OR m.psgc_name IS DISTINCT FROM p.name OR m.psgc_batch_id IS DISTINCT FROM p.batch_id
              OR m.psgc_source_row_number IS DISTINCT FROM p.source_row_number) AS psgc_mismatch,
-    -- pending when not matched, reviewed when a listed override placed it, rule otherwise.
+    -- The expected override (o) comes from the rules file and the DepEd place, not from the candidate's own fields:
+    -- pending when not matched, reviewed when a listed override applies, rule otherwise.
     COUNT_IF(m.review_status IS DISTINCT FROM CASE WHEN m.match_status <> 'matched' THEN 'pending'
-                                                   WHEN m.override_reviewer IS NOT NULL THEN 'reviewed' ELSE 'rule' END
-             -- An override's reason and reviewer are the rules file's, on a barangay row only.
+                                                   WHEN o.reviewer IS NOT NULL THEN 'reviewed' ELSE 'rule' END
              OR m.override_reason IS DISTINCT FROM o.reason
-             OR (m.override_reviewer IS NOT NULL AND (m.geographic_level <> 'bgy' OR m.override_reviewer IS DISTINCT FROM o.reviewer))) AS review_mismatch
+             OR m.override_reviewer IS DISTINCT FROM o.reviewer) AS review_mismatch
   FROM m
   LEFT JOIN e ON e.school_year = m.school_year AND e.school_id = m.school_id
   LEFT JOIN x ON x.school_id = m.school_id
   LEFT JOIN p ON p.psgc_code = m.psgc_code
-  LEFT JOIN overrides AS o ON o.province = m.source_province AND o.municipality = m.source_city_municipality
-    AND o.barangay = m.source_barangay AND m.override_reviewer IS NOT NULL
+  -- As in the build, a barangay override applies once the school's city or municipality is matched.
+  LEFT JOIN m AS c ON c.school_year = m.school_year AND c.school_id = m.school_id AND c.geographic_level = 'city_mun'
+  LEFT JOIN overrides AS o ON m.geographic_level = 'bgy' AND c.match_status = 'matched'
+    AND o.province = m.source_province AND o.municipality = m.source_city_municipality AND o.barangay = m.source_barangay
 ),
 s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile),
 checks AS (

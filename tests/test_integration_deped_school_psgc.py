@@ -383,6 +383,8 @@ def test_a_barangay_code_missing_from_the_psgc_counts_as_no_code(tmp_path, monke
     ("review_fields_valid", f"UPDATE {CANDIDATE} SET override_reason = 'made up', override_reviewer = '@someone', review_status = 'reviewed' "
                             "WHERE school_id = '100001' AND geographic_level = 'bgy'"),
     ("review_fields_valid", f"UPDATE {CANDIDATE} SET override_reviewer = '@someone' WHERE school_id = '100004' AND geographic_level = 'bgy'"),
+    ("review_fields_valid", f"UPDATE {CANDIDATE} SET override_reason = NULL, override_reviewer = NULL, review_status = 'rule' "
+                            "WHERE school_id = '100004' AND geographic_level = 'bgy'"),
 ])
 def test_a_failed_check_keeps_the_last_published_map(tmp_path, check, change):
     env = Env(tmp_path)
