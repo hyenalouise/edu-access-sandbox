@@ -8,6 +8,7 @@ analysis functions; the gate tests change one candidate row and check that nothi
 
 import ast
 import copy
+import hashlib
 import json
 import sys
 import uuid
@@ -236,8 +237,11 @@ def test_matching_stages_use_delta_work_tables_and_success_cleans_them_up(tmp_pa
     expected = ["units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions"]
     assert "CREATE OR REPLACE TEMPORARY VIEW deped_school_psgc_matched" not in build
     for name in expected:
-        table = f"edu_access.`04-integration`.deped_school_psgc_map_work_{name}"
-        assert f"CREATE OR REPLACE TABLE {table} USING DELTA AS" in build
+        table = f"IDENTIFIER(session.integration_work_{name})"
+        assert f"integration_work_{name} = " in build
+        assert "sha2(:run_id, 256)" in build
+        assert f"CREATE OR REPLACE TABLE {table} USING DELTA COMMENT 'Internal unpublished diagnostic work table" in build
+        assert f"session.integration_work_{name} || ' OWNER TO `reached-hq`'" in build
         assert f"DROP TABLE IF EXISTS {table};" in build
 
     assert env.run()[1] is None
@@ -246,6 +250,32 @@ def test_matching_stages_use_delta_work_tables_and_success_cleans_them_up(tmp_pa
                     "WHERE table_schema = '04-integration' AND table_name LIKE '%_work_%'") == []
     assert env.run()[1] is None
     assert env.map() == first
+
+
+def test_two_runs_use_disjoint_work_table_names(tmp_path):
+    """A separately deployed job cannot replace or drop another run's matching stages."""
+    env = Env(tmp_path)
+    build = env.build.read_text(encoding="utf-8")
+    keep_work = tmp_path / "build_keep_work.sql"
+    keep_work.write_text("\n".join(
+        line for line in build.splitlines()
+        if not line.startswith("DROP TABLE IF EXISTS IDENTIFIER(session.integration_work_")
+    ), encoding="utf-8")
+
+    run_ids = ("job-run-a", "manual-run-b")
+    for run_id in run_ids:
+        env.store.run_file(keep_work, {"run_id": run_id, "code_revision": "c" * 40, "environment": "local"})
+
+    stages = ["units", "province_pairs", "city_pairs", "cities", "barangay_pairs", "places", "decisions"]
+    expected = {
+        f"deped_school_psgc_map_work_r_{hashlib.sha256(run_id.encode()).hexdigest()}_{stage}"
+        for run_id in run_ids for stage in stages
+    }
+    actual = {r["table_name"] for r in env.rows(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = '04-integration' AND table_name LIKE 'deped_school_psgc_map_work_r_%'"
+    )}
+    assert actual == expected
 
 
 def test_code_and_name_agree_is_code(got):
