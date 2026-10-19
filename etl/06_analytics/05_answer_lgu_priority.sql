@@ -12,10 +12,12 @@
 -- 5. Order within a tier: affected learners (AP1 public learners) first, then the lowest of the three
 --    percentiles, both highest first.
 -- 6. Stable: Critical both within type and nationally (the same steps without the type partition).
--- Checks beside the ranking, never changing a tier: Critical at a 0.85 and a 0.80 line, and at a 95% gate.
--- The outlier, flag-rate and overlap checks of D-057 are not built yet.
+-- Checks beside the ranking, never changing a tier: Critical at a 0.85 and a 0.80 line, at a 95% gate,
+-- and the tier without outlier schools (AP2 and each AP3 level recomputed with the flagged schools out of
+-- the ratio and of its coverage base; AP1 unchanged). The flag-rate and overlap checks are in the gate.
 --
--- Writes lgu_priority_candidate; the gate publishes it only if no check fails.
+-- Writes lgu_priority_outlier_schools_candidate and lgu_priority_candidate; the gate publishes both only
+-- if no check fails.
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id, :code_revision, :environment
@@ -43,9 +45,77 @@ WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, sta
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
 
+-- Outlier schools (D-057 outlier check): public schools of regular LGUs whose SY 2023-24 school-level
+-- ratio is above Q3 + 3 x IQR, with the quartiles computed within LGU type over the schools with a usable
+-- denominator, the schools AP2 and AP3 put in their ratios:
+--   AP2   all-level learners / instructional rooms, over active schools with rooms above 0 and a
+--         complete all-level total (education_level_code ALL)
+--   AP3   learners / teachers at each level, over active schools that offer the level, with teachers
+--         above 0 and a complete learner count there
+-- One row per flagged school, measure and level, saved with the run. The schools stay in the published
+-- totals (metric specification rule 8). The tiers without them are below.
+CREATE OR REPLACE TABLE edu_access.`06-analytics`.lgu_priority_outlier_schools_candidate USING DELTA AS
+WITH school AS (
+  SELECT school_id, school_year,
+         MAX(city_mun_psgc_code) AS city_mun_psgc_code,
+         COALESCE(bool_or(is_offered AND learner_count > 0), FALSE) AS is_active,
+         CASE WHEN COALESCE(COUNT_IF(is_offered AND learner_count IS NULL), 0) = 0 THEN SUM(learner_count) END AS total_learners
+  FROM edu_access.`05-gold`.fact_school_enrollment
+  WHERE sector = 'Public' AND school_year = '2023-24'
+  GROUP BY school_id, school_year
+),
+scored AS (
+  SELECT s.school_id, s.school_year, s.city_mun_psgc_code, d.lgu_type,
+         'AP2' AS measure, 'ALL' AS education_level_code,
+         s.total_learners AS learners, r.instructional_classrooms_total AS denominator
+  FROM school AS s
+  JOIN edu_access.`05-gold`.dim_city_municipality AS d
+    ON d.city_mun_psgc_code = s.city_mun_psgc_code AND d.member_type = 'regular'
+  JOIN edu_access.`05-gold`.fact_school_classroom_capacity AS r
+    ON r.school_id = s.school_id AND r.school_year = s.school_year
+  WHERE s.is_active AND s.total_learners IS NOT NULL AND r.instructional_classrooms_total > 0
+  UNION ALL
+  SELECT e.school_id, e.school_year, e.city_mun_psgc_code, d.lgu_type,
+         'AP3', e.education_level_code, e.learner_count, t.teacher_count
+  FROM edu_access.`05-gold`.fact_school_enrollment AS e
+  JOIN school AS s ON s.school_id = e.school_id AND s.school_year = e.school_year
+  JOIN edu_access.`05-gold`.dim_city_municipality AS d
+    ON d.city_mun_psgc_code = e.city_mun_psgc_code AND d.member_type = 'regular'
+  JOIN edu_access.`05-gold`.fact_school_teacher_capacity AS t
+    ON t.school_id = e.school_id AND t.school_year = e.school_year AND t.education_level_code = e.education_level_code
+  WHERE s.is_active AND e.sector = 'Public' AND e.is_offered AND e.learner_count IS NOT NULL AND t.teacher_count > 0
+),
+ratios AS (
+  SELECT scored.*, CAST(learners AS DOUBLE) / NULLIF(denominator, 0) AS ratio FROM scored
+),
+fences AS (
+  SELECT lgu_type, measure, education_level_code, COUNT(*) AS schools_scored,
+         percentile_cont(0.25) WITHIN GROUP (ORDER BY ratio) AS q1,
+         percentile_cont(0.75) WITHIN GROUP (ORDER BY ratio) AS q3
+  FROM ratios
+  GROUP BY lgu_type, measure, education_level_code
+)
+SELECT session.analytics_run_id AS run_id, r.school_year, r.school_id, ds.school_name,
+       r.city_mun_psgc_code, r.lgu_type, r.measure, r.education_level_code,
+       r.learners, r.denominator, r.ratio,
+       f.q1, f.q3, f.q3 - f.q1 AS iqr, f.q3 + 3 * (f.q3 - f.q1) AS upper_fence, f.schools_scored
+FROM ratios AS r
+JOIN fences AS f ON f.lgu_type = r.lgu_type AND f.measure = r.measure AND f.education_level_code = r.education_level_code
+LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = r.school_id
+WHERE r.ratio > f.q3 + 3 * (f.q3 - f.q1);
+
+ALTER TABLE edu_access.`06-analytics`.lgu_priority_outlier_schools_candidate OWNER TO `reached-hq`;
+
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.lgu_priority_candidate USING DELTA AS
 WITH scenarios AS (
-  SELECT * FROM (VALUES ('main', 90.0, TRUE), ('national', 90.0, FALSE), ('gate_95', 95.0, TRUE)) AS v(scenario, gate_pct, by_type)
+  SELECT * FROM (VALUES ('main', 90.0, TRUE), ('national', 90.0, FALSE), ('gate_95', 95.0, TRUE), ('no_outliers', 90.0, TRUE))
+    AS v(scenario, gate_pct, by_type)
+),
+outliers AS (
+  SELECT city_mun_psgc_code, measure, education_level_code,
+         COUNT(*) AS schools, SUM(learners) AS learners, SUM(denominator) AS denominator
+  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools_candidate
+  GROUP BY city_mun_psgc_code, measure, education_level_code
 ),
 lines AS (
   SELECT * FROM (VALUES (0.90), (0.85), (0.80)) AS v(line)
@@ -55,18 +125,29 @@ ap12 AS (
          a1.province_name, a1.region_name, a1.school_year,
          a1.public_learners AS affected_learners,
          a1.learners_per_public_school AS ap1_value, a1.ap1_coverage_pct,
-         a2.learners_per_room AS ap2_value, a2.learner_coverage_pct AS ap2_coverage_pct
+         a2.learners_per_room AS ap2_value, a2.learner_coverage_pct AS ap2_coverage_pct,
+         CAST(a2.learners_in_ratio - COALESCE(o.learners, 0) AS DOUBLE) / NULLIF(a2.rooms_in_ratio - COALESCE(o.denominator, 0), 0)
+           AS ap2_value_without_outliers,
+         100.0 * (a2.learners_in_ratio - COALESCE(o.learners, 0)) / NULLIF(a2.public_learners - COALESCE(o.learners, 0), 0)
+           AS ap2_coverage_pct_without_outliers
   FROM edu_access.`06-analytics`.ap1_school_provision AS a1
   LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2
     ON a2.city_mun_psgc_code = a1.city_mun_psgc_code AND a2.school_year = a1.school_year
+  LEFT JOIN outliers AS o ON o.city_mun_psgc_code = a1.city_mun_psgc_code AND o.measure = 'AP2'
   WHERE a1.school_year = '2023-24'
 ),
-m12 AS (
-  SELECT s.scenario, x.city_mun_psgc_code, x.ap1_value, x.ap2_value,
+m12_in AS (
+  SELECT s.scenario, s.gate_pct, x.city_mun_psgc_code, x.ap1_value, x.ap1_coverage_pct,
          CASE WHEN s.by_type THEN x.lgu_type ELSE 'all' END AS part,
-         COALESCE(x.ap1_value IS NOT NULL AND x.ap1_coverage_pct >= s.gate_pct, FALSE) AS ap1_ok,
-         COALESCE(x.ap2_value IS NOT NULL AND x.ap2_coverage_pct >= s.gate_pct, FALSE) AS ap2_ok
+         CASE WHEN s.scenario = 'no_outliers' THEN x.ap2_value_without_outliers ELSE x.ap2_value END AS ap2_value,
+         CASE WHEN s.scenario = 'no_outliers' THEN x.ap2_coverage_pct_without_outliers ELSE x.ap2_coverage_pct END AS ap2_coverage_pct
   FROM ap12 AS x CROSS JOIN scenarios AS s
+),
+m12 AS (
+  SELECT scenario, city_mun_psgc_code, ap1_value, ap2_value, part,
+         COALESCE(ap1_value IS NOT NULL AND ap1_coverage_pct >= gate_pct, FALSE) AS ap1_ok,
+         COALESCE(ap2_value IS NOT NULL AND ap2_coverage_pct >= gate_pct, FALSE) AS ap2_ok
+  FROM m12_in
 ),
 r12 AS (
   SELECT m12.*,
@@ -74,14 +155,27 @@ r12 AS (
          CASE WHEN ap2_ok THEN PERCENT_RANK() OVER (PARTITION BY scenario, part, ap2_ok ORDER BY ap2_value) END AS ap2_pct
   FROM m12
 ),
-lvl AS (
-  SELECT s.scenario, t.city_mun_psgc_code, t.education_level_code, t.learners_per_teacher,
+lvl_in AS (
+  SELECT s.scenario, s.gate_pct, t.city_mun_psgc_code, t.education_level_code,
          CASE WHEN s.by_type THEN t.lgu_type ELSE 'all' END AS part,
-         t.schools_in_scope > 0 AS offered,
-         COALESCE(t.schools_in_scope > 0 AND t.learners_per_teacher IS NOT NULL
-                  AND t.learner_coverage_pct >= s.gate_pct, FALSE) AS level_ok
-  FROM edu_access.`06-analytics`.ap3_teacher_pressure AS t CROSS JOIN scenarios AS s
+         CASE WHEN s.scenario = 'no_outliers' THEN t.schools_in_scope - COALESCE(o.schools, 0) ELSE t.schools_in_scope END AS schools_in_scope,
+         CASE WHEN s.scenario = 'no_outliers'
+              THEN CAST(t.learners_in_ratio - COALESCE(o.learners, 0) AS DOUBLE) / NULLIF(t.teachers_in_ratio - COALESCE(o.denominator, 0), 0)
+              ELSE t.learners_per_teacher END AS learners_per_teacher,
+         CASE WHEN s.scenario = 'no_outliers'
+              THEN 100.0 * (t.learners_in_ratio - COALESCE(o.learners, 0)) / NULLIF(t.level_learners - COALESCE(o.learners, 0), 0)
+              ELSE t.learner_coverage_pct END AS learner_coverage_pct
+  FROM edu_access.`06-analytics`.ap3_teacher_pressure AS t
+  CROSS JOIN scenarios AS s
+  LEFT JOIN outliers AS o ON o.city_mun_psgc_code = t.city_mun_psgc_code AND o.measure = 'AP3'
+    AND o.education_level_code = t.education_level_code
   WHERE t.school_year = '2023-24'
+),
+lvl AS (
+  SELECT scenario, city_mun_psgc_code, education_level_code, learners_per_teacher, part,
+         schools_in_scope > 0 AS offered,
+         COALESCE(schools_in_scope > 0 AND learners_per_teacher IS NOT NULL AND learner_coverage_pct >= gate_pct, FALSE) AS level_ok
+  FROM lvl_in
 ),
 rl AS (
   SELECT lvl.*,
@@ -157,13 +251,19 @@ main AS (
          m.tier_code = '3' AND n.tier_code = '3' AS is_stable,
          c85.tier_code = '3' AS critical_at_line_085,
          c80.tier_code = '3' AS critical_at_line_080,
-         g95.tier_code = '3' AS critical_at_gate_95
+         g95.tier_code = '3' AS critical_at_gate_95,
+         COALESCE(os.schools, 0) AS outlier_schools,
+         wo.tier_code AS tier_code_without_outliers
   FROM ap12 AS x
   JOIN tiered AS m ON m.city_mun_psgc_code = x.city_mun_psgc_code AND m.scenario = 'main' AND m.line = 0.90
   JOIN tiered AS n ON n.city_mun_psgc_code = x.city_mun_psgc_code AND n.scenario = 'national' AND n.line = 0.90
   JOIN tiered AS c85 ON c85.city_mun_psgc_code = x.city_mun_psgc_code AND c85.scenario = 'main' AND c85.line = 0.85
   JOIN tiered AS c80 ON c80.city_mun_psgc_code = x.city_mun_psgc_code AND c80.scenario = 'main' AND c80.line = 0.80
   JOIN tiered AS g95 ON g95.city_mun_psgc_code = x.city_mun_psgc_code AND g95.scenario = 'gate_95' AND g95.line = 0.90
+  JOIN tiered AS wo ON wo.city_mun_psgc_code = x.city_mun_psgc_code AND wo.scenario = 'no_outliers' AND wo.line = 0.90
+  LEFT JOIN (SELECT city_mun_psgc_code, COUNT(DISTINCT school_id) AS schools
+             FROM edu_access.`06-analytics`.lgu_priority_outlier_schools_candidate GROUP BY city_mun_psgc_code) AS os
+    ON os.city_mun_psgc_code = x.city_mun_psgc_code
   LEFT JOIN levels AS lv ON lv.city_mun_psgc_code = x.city_mun_psgc_code
 )
 SELECT main.*,
