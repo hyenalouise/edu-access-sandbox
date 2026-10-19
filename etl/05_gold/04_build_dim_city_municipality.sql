@@ -1,79 +1,99 @@
--- Gold build for dim_city_municipality (D-048): one row per PSGC 2Q 2026 city or municipality (the 1,642
--- regular members), plus two technical members so no fact needs a NULL geography key:
---   UNKNOWN   member_type 'unknown': a school whose city could not be matched (unmatched or ambiguous)
---   EXCLUDED  member_type 'excluded': kept outside city analysis on purpose (Philippine Schools Overseas,
---             schools the school map excludes, and the 2020 Special Geographic Area census clusters)
--- The province is the PSGC province above the unit; highly urbanized cities and the NCR units have none,
--- and Isabela City's parent is PSGC's 'City of Isabela (Not a Province)' container. land_area_sqkm is
--- HDX's area for the matched ADM3 feature (D-042); the 8 Special Geographic Area municipalities have no
--- HDX feature and keep NULL. is_sga marks the units under PSGC's Special Geographic Area (1999900000).
+-- Gold build for dim_city_municipality (D-048, docs/architecture/data-model.md).
 --
--- Writes dim_city_municipality_candidate; the gate publishes it only if no check fails.
+-- One row per PSGC city or municipality of the master quarter (D-012, today 2026-Q2), plus the two
+-- technical members every geography fact can point to instead of a NULL key:
+--   UNKNOWN   member_type 'unknown'   a row whose city or municipality could not be matched
+--   EXCLUDED  member_type 'excluded'  a row kept on purpose outside city-level analysis
+-- Text codes, so a technical member can never collide with, or pass as, a ten-digit PSGC code.
 --
--- Parameters, supplied by the job (or src/job/local_run.py):
---   :run_id, :code_revision, :environment
-
-DECLARE OR REPLACE VARIABLE gold_run_id STRING;
-SET VARIABLE gold_run_id = :run_id;
-DECLARE OR REPLACE VARIABLE gold_code_revision STRING;
-SET VARIABLE gold_code_revision = COALESCE(NULLIF(:code_revision, ''), 'UNSET');
-DECLARE OR REPLACE VARIABLE gold_environment STRING;
-SET VARIABLE gold_environment = COALESCE(NULLIF(:environment, ''), 'UNSET');
-DECLARE OR REPLACE VARIABLE gold_built_at_utc TIMESTAMP;
-SET VARIABLE gold_built_at_utc = current_timestamp();
-
--- The run starts; the gate records how it ended (D-020).
-MERGE INTO edu_access.`01-control`.pipeline_runs AS t
-USING (SELECT session.gold_run_id AS run_id) AS s
-ON t.run_id = s.run_id AND t.pipeline_name = 'gold_build' AND t.source_id = 'dim_city_municipality'
-WHEN MATCHED THEN UPDATE SET
-  status = 'running', started_at_utc = session.gold_built_at_utc, finished_at_utc = NULL,
-  failure_stage = NULL, error_message = NULL, code_revision = session.gold_code_revision, job_run_id = s.run_id
-WHEN NOT MATCHED THEN INSERT (run_id, pipeline_name, source_id, environment, status, started_at_utc, code_revision, job_run_id)
-  VALUES (s.run_id, 'gold_build', 'dim_city_municipality', session.gold_environment, 'running',
-          session.gold_built_at_utc, session.gold_code_revision, s.run_id);
+-- Reads published tables only: psa_psgc_clean (D-035) and, for land area, hdx_adm3_psgc_map and
+-- hdx_adm3_clean (D-042, D-052). Writes dim_city_municipality_candidate; the gate (the next task)
+-- checks it and publishes dim_city_municipality only if no check fails. It rebuilds on every run.
+--
+-- Rules:
+--   - Regular members are the master quarter's City and Mun rows. The two blank-level rows
+--     (0990100000 City of Isabela (Not a Province), 1999900000 Special Geographic Area) are
+--     province-position containers, not cities (D-035, profile O-2); the City of Isabela itself is
+--     its own City row.
+--   - Province is Silver's province_code as published: a Prov row, or one of the two containers.
+--     NULL for the highly urbanized cities and Pateros.
+--   - is_sga marks the municipalities under the Special Geographic Area container, 1999901000 to
+--     1999908000 (D-031, D-049).
+--   - Land area is the HDX area of the feature matched to the unit in the latest HDX release only,
+--     so a unit matched in two releases is not counted twice (D-052). A unit with no matched feature
+--     (today the 8 Special Geographic Area municipalities) keeps NULL; nothing is substituted.
+--     DECIMAL(18,4) rounds the published 14 decimals to 4.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`05-gold`;
 ALTER SCHEMA edu_access.`05-gold` OWNER TO `reached-hq`;
 
 CREATE OR REPLACE TABLE edu_access.`05-gold`.dim_city_municipality_candidate USING DELTA AS
-WITH p AS (
-  SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
+WITH psgc AS (
+  SELECT *
+  FROM edu_access.`03-silver`.psa_psgc_clean
+  WHERE is_master_reference
 ),
-area AS (
+hdx_release AS (
+  SELECT MAX(source_reference_date) AS source_reference_date
+  FROM edu_access.`04-integration`.hdx_adm3_psgc_map
+),
+land_area AS (
   SELECT m.psgc_code, h.area_sqkm
   FROM edu_access.`04-integration`.hdx_adm3_psgc_map AS m
-  JOIN edu_access.`03-silver`.hdx_adm3_clean AS h ON h.adm3_pcode = m.adm3_pcode
+  JOIN hdx_release AS r ON r.source_reference_date = m.source_reference_date
+  JOIN edu_access.`03-silver`.hdx_adm3_clean AS h
+    ON h.adm3_pcode = m.adm3_pcode AND h.valid_on = m.source_reference_date
   WHERE m.match_status = 'matched'
+),
+regular AS (
+  SELECT
+    c.psgc_code AS city_mun_psgc_code,
+    c.name AS city_mun_name,
+    c.province_code AS province_psgc_code,
+    p.name AS province_name,
+    c.region_code AS region_psgc_code,
+    g.name AS region_name,
+    CASE c.geographic_level WHEN 'City' THEN 'city' WHEN 'Mun' THEN 'municipality' END AS lgu_type,
+    c.city_class,
+    c.income_class,
+    c.income_class_retained_after_downgrade AS income_class_retained,
+    CAST(a.area_sqkm AS DECIMAL(18,4)) AS land_area_sqkm,
+    CASE WHEN a.area_sqkm IS NOT NULL THEN 'hdx_boundaries' END AS land_area_source,
+    COALESCE(c.province_code = '1999900000', FALSE) AS is_sga,
+    'regular' AS member_type,
+    c.publication_period AS source_psgc_quarter
+  FROM psgc AS c
+  LEFT JOIN psgc AS p ON p.psgc_code = c.province_code
+  LEFT JOIN psgc AS g ON g.psgc_code = c.region_code
+  LEFT JOIN land_area AS a ON a.psgc_code = c.psgc_code
+  WHERE c.geographic_level IN ('City', 'Mun')
+),
+technical AS (
+  SELECT code, label, member_type
+  FROM (VALUES
+    ('UNKNOWN', 'Unknown city or municipality', 'unknown'),
+    ('EXCLUDED', 'Excluded from city or municipality analysis', 'excluded')
+  ) AS v(code, label, member_type)
 )
-SELECT u.psgc_code AS city_mun_psgc_code,
-       u.name AS city_mun_name,
-       u.province_code AS province_psgc_code,
-       pr.name AS province_name,
-       u.region_code AS region_psgc_code,
-       rg.name AS region_name,
-       CASE u.geographic_level WHEN 'City' THEN 'City' ELSE 'Municipality' END AS lgu_type,
-       u.city_class,
-       u.income_class,
-       u.income_class_retained_after_downgrade AS income_class_retained,
-       CAST(a.area_sqkm AS DECIMAL(18,4)) AS land_area_sqkm,
-       CASE WHEN a.area_sqkm IS NOT NULL THEN 'HDX COD-AB ADM3 area_sqkm' END AS land_area_source,
-       COALESCE(u.province_code = '1999900000', FALSE) AS is_sga,
-       'regular' AS member_type,
-       u.publication_period AS source_psgc_quarter
-FROM p AS u
-LEFT JOIN p AS pr ON pr.psgc_code = u.province_code
-LEFT JOIN p AS rg ON rg.psgc_code = u.region_code
-LEFT JOIN area AS a ON a.psgc_code = u.psgc_code
-WHERE u.geographic_level IN ('City', 'Mun')
+SELECT * FROM regular
 UNION ALL
-SELECT t.code, t.name, CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING),
-       CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS BOOLEAN),
-       CAST(NULL AS DECIMAL(18,4)), CAST(NULL AS STRING), FALSE, t.member_type,
-       (SELECT MIN(publication_period) FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference)
-FROM (VALUES
-  ('UNKNOWN', 'Unknown city or municipality', 'unknown'),
-  ('EXCLUDED', 'Excluded from city analysis', 'excluded')
-) AS t(code, name, member_type);
+SELECT
+  t.code AS city_mun_psgc_code,
+  t.label AS city_mun_name,
+  CAST(NULL AS STRING) AS province_psgc_code,
+  CAST(NULL AS STRING) AS province_name,
+  CAST(NULL AS STRING) AS region_psgc_code,
+  CAST(NULL AS STRING) AS region_name,
+  CAST(NULL AS STRING) AS lgu_type,
+  CAST(NULL AS STRING) AS city_class,
+  CAST(NULL AS STRING) AS income_class,
+  CAST(NULL AS BOOLEAN) AS income_class_retained,
+  CAST(NULL AS DECIMAL(18,4)) AS land_area_sqkm,
+  CAST(NULL AS STRING) AS land_area_source,
+  FALSE AS is_sga,
+  t.member_type,
+  (SELECT MAX(publication_period) FROM psgc) AS source_psgc_quarter
+FROM technical AS t;
 
+COMMENT ON TABLE edu_access.`05-gold`.dim_city_municipality_candidate IS 'Unpublished build for the Gold gate, which may have failed. Do not read: use dim_city_municipality.';
 ALTER TABLE edu_access.`05-gold`.dim_city_municipality_candidate OWNER TO `reached-hq`;

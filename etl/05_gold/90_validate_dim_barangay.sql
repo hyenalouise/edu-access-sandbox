@@ -1,67 +1,109 @@
--- Gold gate for dim_barangay: every PSGC barangay once, one unknown member per regular city, and every
--- barangay under a city or municipality in dim_city_municipality.
+-- Gold gate for dim_barangay. Checks dim_barangay_candidate against psa_psgc_clean, writes every result
+-- to data_quality_results (layer 'gold'), stops on any FAIL, and only then publishes dim_barangay. A
+-- FAIL keeps the last good build.
+--
+-- FAIL: a repeated or NULL key, a regular member that is not a Bgy row of the one master quarter (or
+-- one missing), a parent that is not a PSGC City or Mun of that quarter, a city or municipality without
+-- exactly one unknown-barangay member, technical members other than UNKNOWN and EXCLUDED under the same
+-- city codes, and an urban_rural value other than U, R or NULL.
+-- WARN: regular barangays without urban_rural (PSGC '-').
+-- Counts only (PASS): barangays rolled up from a Manila district, barangays per member type.
 
 DECLARE OR REPLACE VARIABLE gold_gate_started_at_utc TIMESTAMP;
 SET VARIABLE gold_gate_started_at_utc = current_timestamp();
 
-INSERT INTO edu_access.`01-control`.data_quality_results
-  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
-SELECT :run_id, CAST(NULL AS STRING), 'dim_barangay', 'gold', 'edu_access.05-gold.dim_barangay_candidate',
-       check_name, status, expected, actual, current_timestamp(), :code_revision
-FROM (
-WITH c AS (SELECT * FROM edu_access.`05-gold`.dim_barangay_candidate),
-cities AS (SELECT * FROM edu_access.`05-gold`.dim_city_municipality),
-s AS (
-  SELECT
-    (SELECT COUNT(*) FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference AND geographic_level = 'Bgy') AS psgc_barangays,
-    (SELECT COUNT(*) FROM cities WHERE member_type = 'regular') AS regular_cities,
-    COUNT(*) AS rows_built,
-    COUNT(DISTINCT c.barangay_psgc_code) AS keys_built,
-    COALESCE(COUNT_IF(c.barangay_psgc_code IS NULL OR c.barangay_name IS NULL OR c.city_mun_psgc_code IS NULL), 0) AS null_fields,
-    COALESCE(COUNT_IF(c.member_type = 'regular'), 0) AS regular_rows,
-    COALESCE(COUNT_IF(c.member_type = 'unknown' AND c.barangay_psgc_code LIKE 'UNK-%'), 0) AS city_unknown_rows,
-    COALESCE(COUNT_IF(c.member_type = 'unknown' AND c.barangay_psgc_code = 'UNKNOWN' AND c.city_mun_psgc_code = 'UNKNOWN'), 0) AS global_unknown_rows,
-    COALESCE(COUNT_IF(c.member_type = 'excluded' AND c.barangay_psgc_code = 'EXCLUDED' AND c.city_mun_psgc_code = 'EXCLUDED'), 0) AS excluded_rows,
-    COALESCE(COUNT_IF(c.member_type NOT IN ('regular', 'unknown', 'excluded') OR c.member_type IS NULL), 0) AS bad_member_type,
-    COALESCE(COUNT_IF(d.city_mun_psgc_code IS NULL), 0) AS city_not_in_dim,
-    COALESCE(COUNT_IF(c.member_type = 'regular' AND d.member_type <> 'regular'), 0) AS regular_under_technical,
-    COALESCE(COUNT_IF(c.member_type = 'regular' AND (c.urban_rural NOT IN ('U', 'R') OR c.urban_rural IS NULL)), 0) AS urban_rural_unknown
-  FROM c LEFT JOIN cities AS d ON d.city_mun_psgc_code = c.city_mun_psgc_code
+CREATE OR REPLACE TEMPORARY VIEW dim_barangay_gate_summary AS
+WITH psgc AS (
+  SELECT * FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
+),
+source_barangays AS (
+  SELECT psgc_code, city_municipality_code FROM psgc WHERE geographic_level = 'Bgy'
+),
+source_units AS (
+  SELECT psgc_code FROM psgc WHERE geographic_level IN ('City', 'Mun')
+),
+dimension AS (
+  SELECT * FROM edu_access.`05-gold`.dim_barangay_candidate
+),
+regular AS (
+  SELECT * FROM dimension WHERE member_type = 'regular'
+),
+unknown_per_unit AS (
+  SELECT u.psgc_code, COUNT(d.barangay_psgc_code) AS members
+  FROM source_units AS u
+  LEFT JOIN dimension AS d
+    ON d.city_mun_psgc_code = u.psgc_code AND d.member_type = 'unknown' AND d.barangay_psgc_code = u.psgc_code || '-UNKNOWN'
+  GROUP BY u.psgc_code
 )
-SELECT 'rows_present' AS check_name, CASE WHEN rows_built > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
-       '> 0' AS expected, CAST(rows_built AS STRING) AS actual FROM s
-UNION ALL SELECT 'one_row_per_code', CASE WHEN keys_built = rows_built THEN 'PASS' ELSE 'FAIL' END,
-                 CAST(rows_built AS STRING), CAST(keys_built AS STRING) FROM s
-UNION ALL SELECT 'no_null_fields', CASE WHEN null_fields = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_fields AS STRING) FROM s
-UNION ALL SELECT 'every_psgc_barangay_present', CASE WHEN regular_rows = psgc_barangays THEN 'PASS' ELSE 'FAIL' END,
-                 CAST(psgc_barangays AS STRING), CAST(regular_rows AS STRING) FROM s
-UNION ALL SELECT 'one_unknown_per_city', CASE WHEN city_unknown_rows = regular_cities THEN 'PASS' ELSE 'FAIL' END,
-                 CAST(regular_cities AS STRING), CAST(city_unknown_rows AS STRING) FROM s
-UNION ALL SELECT 'technical_members', CASE WHEN global_unknown_rows = 1 AND excluded_rows = 1
-                   AND rows_built = regular_rows + city_unknown_rows + 2 THEN 'PASS' ELSE 'FAIL' END,
-                 '1 unknown / 1 excluded', CAST(global_unknown_rows AS STRING) || ' unknown / ' || CAST(excluded_rows AS STRING) || ' excluded' FROM s
-UNION ALL SELECT 'member_type_valid', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM s
-UNION ALL SELECT 'city_in_dim_city_municipality', CASE WHEN city_not_in_dim = 0 AND regular_under_technical = 0 THEN 'PASS' ELSE 'FAIL' END,
-                 '0', CAST(city_not_in_dim + regular_under_technical AS STRING) FROM s
-UNION ALL SELECT 'urban_rural_unknown', CASE WHEN urban_rural_unknown = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(urban_rural_unknown AS STRING) FROM s
+SELECT
+  (SELECT COUNT(*) FROM source_barangays) AS source_barangays,
+  (SELECT COUNT(*) FROM regular) AS regular_rows,
+  (SELECT COUNT(*) - COUNT(DISTINCT barangay_psgc_code) FROM dimension) AS duplicate_keys,
+  (SELECT COUNT_IF(barangay_psgc_code IS NULL) FROM dimension) AS null_keys,
+  (SELECT COUNT(*) FROM regular AS d LEFT JOIN source_barangays AS s ON s.psgc_code = d.barangay_psgc_code
+    WHERE s.psgc_code IS NULL) AS regular_not_in_psgc,
+  (SELECT COUNT(*) FROM source_barangays AS s LEFT JOIN regular AS d ON d.barangay_psgc_code = s.psgc_code
+    WHERE d.barangay_psgc_code IS NULL) AS psgc_barangays_missing,
+  (SELECT COUNT(DISTINCT publication_period) FROM psgc) AS master_periods,
+  (SELECT COUNT(*) FROM dimension AS d LEFT JOIN source_units AS u ON u.psgc_code = d.city_mun_psgc_code
+    WHERE (d.member_type = 'regular' OR d.barangay_psgc_code LIKE '%-UNKNOWN') AND u.psgc_code IS NULL) AS parent_not_city_mun,
+  (SELECT COUNT_IF(members <> 1) FROM unknown_per_unit) AS units_without_one_unknown,
+  (SELECT COUNT(*) FROM dimension WHERE barangay_psgc_code LIKE '%-UNKNOWN') AS unknown_barangay_rows,
+  (SELECT COUNT(*) FROM source_units) AS source_units,
+  (SELECT COUNT(*) FROM dimension WHERE member_type <> 'regular' AND barangay_psgc_code NOT LIKE '%-UNKNOWN') AS technical_rows,
+  (SELECT COUNT_IF((barangay_psgc_code = 'UNKNOWN' AND city_mun_psgc_code = 'UNKNOWN' AND member_type = 'unknown')
+                OR (barangay_psgc_code = 'EXCLUDED' AND city_mun_psgc_code = 'EXCLUDED' AND member_type = 'excluded')) FROM dimension) AS expected_technical_rows,
+  (SELECT COUNT_IF(member_type NOT IN ('regular', 'unknown', 'excluded') OR member_type IS NULL) FROM dimension) AS bad_member_type,
+  (SELECT COUNT_IF(urban_rural IS NOT NULL AND urban_rural NOT IN ('U', 'R')) FROM dimension) AS bad_urban_rural,
+  (SELECT COUNT_IF(member_type <> 'regular' AND urban_rural IS NOT NULL) FROM dimension) AS technical_with_urban_rural,
+  (SELECT COUNT_IF(urban_rural IS NULL) FROM regular) AS regular_without_urban_rural,
+  (SELECT COUNT(*) FROM regular AS d JOIN source_barangays AS s ON s.psgc_code = d.barangay_psgc_code
+    WHERE s.city_municipality_code <> d.city_mun_psgc_code) AS rolled_up_from_district;
+
+INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, NULL, 'dim_barangay', 'gold', 'edu_access.05-gold.dim_barangay', check_name, status, expected, actual, current_timestamp(), :code_revision
+FROM (
+  SELECT 'key_unique' AS check_name, CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(duplicate_keys AS STRING) AS actual FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'regular_rows_reconcile', CASE WHEN regular_rows = source_barangays THEN 'PASS' ELSE 'FAIL' END, CAST(source_barangays AS STRING), CAST(regular_rows AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'regular_in_psgc_master', CASE WHEN regular_not_in_psgc = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(regular_not_in_psgc AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'psgc_barangays_present', CASE WHEN psgc_barangays_missing = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(psgc_barangays_missing AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'one_psgc_version', CASE WHEN master_periods = 1 THEN 'PASS' ELSE 'FAIL' END, '1', CAST(master_periods AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'parent_is_city_or_municipality', CASE WHEN parent_not_city_mun = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(parent_not_city_mun AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'one_unknown_barangay_per_city_mun', CASE WHEN units_without_one_unknown = 0 AND unknown_barangay_rows = source_units THEN 'PASS' ELSE 'FAIL' END, CAST(source_units AS STRING), CAST(unknown_barangay_rows AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'technical_members', CASE WHEN technical_rows = 2 AND expected_technical_rows = 2 THEN 'PASS' ELSE 'FAIL' END, '2', CAST(technical_rows AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'member_type_allowed', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'urban_rural_allowed', CASE WHEN bad_urban_rural = 0 AND technical_with_urban_rural = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_urban_rural + technical_with_urban_rural AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'regular_without_urban_rural', CASE WHEN regular_without_urban_rural = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_without_urban_rural AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'regular_barangays', 'PASS', CAST(NULL AS STRING), CAST(regular_rows AS STRING) FROM dim_barangay_gate_summary
+  UNION ALL SELECT 'rolled_up_from_district', 'PASS', CAST(NULL AS STRING), CAST(rolled_up_from_district AS STRING) FROM dim_barangay_gate_summary
 ) AS results;
 
-MERGE INTO edu_access.`01-control`.pipeline_runs AS t
-USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM edu_access.`01-control`.data_quality_results
-       WHERE run_id = :run_id AND source_id = 'dim_barangay' AND layer = 'gold'
-         AND checked_at_utc >= session.gold_gate_started_at_utc) AS s
-ON t.run_id = s.run_id AND t.pipeline_name = 'gold_build' AND t.source_id = 'dim_barangay'
-WHEN MATCHED AND s.fails > 0 THEN UPDATE SET status = 'failed', finished_at_utc = current_timestamp(),
-  failure_stage = 'gate', error_message = CAST(s.fails AS STRING) || ' FAIL result(s) in data_quality_results';
+-- Integrity rule 1 of the metric specification: one result per distinct upstream run_id read, PASS only
+-- when that run's silver_build for the source succeeded in pipeline_runs (D-025), so the Gold build is
+-- traceable to the Silver and Integration rows it read and never trusts a run that did not publish.
+INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, NULL, 'dim_barangay', 'gold', 'edu_access.05-gold.dim_barangay', 'upstream_run_' || u.input_table,
+       CASE WHEN p.run_id IS NULL THEN 'FAIL' ELSE 'PASS' END, 'succeeded ' || u.pipeline_name, u.upstream_run_id,
+       current_timestamp(), :code_revision
+FROM (
+  SELECT DISTINCT 'psa_psgc_clean' AS input_table, 'silver_build' AS pipeline_name, 'psa_psgc' AS source_id, run_id AS upstream_run_id
+  FROM edu_access.`03-silver`.psa_psgc_clean WHERE is_master_reference
+) AS u
+LEFT JOIN (
+  SELECT DISTINCT run_id, pipeline_name, source_id
+  FROM edu_access.`01-control`.pipeline_runs
+  WHERE status = 'succeeded'
+) AS p ON p.run_id = u.upstream_run_id AND p.pipeline_name = u.pipeline_name AND p.source_id = u.source_id;
 
-SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for dim_barangay: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s)') END
+SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Gold gate failed for dim_barangay: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'dim_barangay' AND layer = 'gold' AND status = 'FAIL'
   AND checked_at_utc >= session.gold_gate_started_at_utc;
 
-CREATE OR REPLACE TABLE edu_access.`05-gold`.dim_barangay USING DELTA AS SELECT * FROM edu_access.`05-gold`.dim_barangay_candidate;
-ALTER TABLE edu_access.`05-gold`.dim_barangay OWNER TO `reached-hq`;
+-- Every check passed: publish.
+CREATE OR REPLACE TABLE edu_access.`05-gold`.dim_barangay USING DELTA AS
+SELECT * FROM edu_access.`05-gold`.dim_barangay_candidate;
 
-MERGE INTO edu_access.`01-control`.pipeline_runs AS t USING (SELECT :run_id AS run_id) AS s
-ON t.run_id = s.run_id AND t.pipeline_name = 'gold_build' AND t.source_id = 'dim_barangay'
-WHEN MATCHED THEN UPDATE SET status = 'succeeded', finished_at_utc = current_timestamp(), failure_stage = NULL, error_message = NULL;
+COMMENT ON TABLE edu_access.`05-gold`.dim_barangay IS 'One PSGC barangay of the master quarter, one unknown barangay per city or municipality, plus the UNKNOWN and EXCLUDED technical members (D-048).';
+ALTER TABLE edu_access.`05-gold`.dim_barangay OWNER TO `reached-hq`;
