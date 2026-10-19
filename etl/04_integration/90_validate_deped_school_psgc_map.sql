@@ -3,12 +3,14 @@
 -- Do not edit by hand; tests/test_integration_deped_school_psgc.py fails if it differs.
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
 SET VARIABLE integration_gate_started_at_utc = current_timestamp();
+DECLARE OR REPLACE VARIABLE integration_gate_summary STRING;
+SET VARIABLE integration_gate_summary = '`edu_access`.`04-integration`.`deped_school_psgc_map_gate_summary_r_' || sha2(:run_id, 256) || '`';
+DECLARE OR REPLACE VARIABLE integration_gate_owner_sql STRING;
 
-INSERT INTO edu_access.`01-control`.data_quality_results
-  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
-SELECT :run_id, CAST(NULL AS STRING), 'deped_enrollment', 'integration', 'edu_access.04-integration.deped_school_psgc_map_candidate',
-       check_name, status, expected, actual, current_timestamp(), :code_revision
-FROM (
+-- The one-row summary the checks read is written to a table first. Read 25 times as a common table expression,
+-- it made Databricks SQL's optimizer fail with INTERNAL_ERROR (sandbox run, 2026-10-19); each part ran alone.
+-- The table is this run's own (its name holds a hash of run_id) and is dropped once the checks are recorded.
+CREATE OR REPLACE TABLE IDENTIFIER(session.integration_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one DepEd school PSGC gate. The gate drops it once its checks are recorded in data_quality_results.' AS
 WITH e AS (SELECT school_year, school_id, school_name, region, province, municipality, barangay,
                   batch_id, source_sha256, source_row_number FROM edu_access.`03-silver`.deped_enrollment_clean),
 x AS (SELECT school_id, psgc_city_municipality, psgc_barangay, batch_id, source_row_number FROM edu_access.`03-silver`.deped_enrollment_psgc_clean),
@@ -20,7 +22,6 @@ p AS (
   FROM p0 AS x LEFT JOIN p0 AS pp ON pp.psgc_code = x.city_municipality_code
 ),
 m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
-profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2021-22', 'city_mun', '60356', '26', '12', '35'), ('2021-22', 'bgy', '60210', '129', '55', '35'), ('2022-23', 'city_mun', '60070', '24', '7', '35'), ('2022-23', 'bgy', '59978', '95', '28', '35'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
 overrides AS (SELECT * FROM (VALUES ('NCR FOURTH DISTRICT', 'TAGUIG CITY', 'SIGNAL VILLAGE', 'DepEd names the barangay before it was split. PSGC 2Q 2026 lists Signal Village only as an old name of Central Signal Village, so the name match puts every Signal Village school there. The EMISD codes spread the same schools over North, Central and South Signal Village and Katuparan, all in Taguig. The code names the barangay each school is in. The name match cannot.', '@catweyine')) AS v(province, municipality, barangay, reason, reviewer)),
 expected_keys AS (
   SELECT e.school_year, e.school_id, l.geographic_level
@@ -61,13 +62,6 @@ stats AS (
     (SELECT COUNT(*) FROM overrides AS o WHERE NOT EXISTS (SELECT 1 FROM edu_access.`03-silver`.deped_enrollment_clean AS x WHERE x.province = o.province
        AND x.municipality = o.municipality AND x.barangay = o.barangay)) AS overrides_without_school
   FROM m LEFT JOIN p ON p.psgc_code = m.psgc_code
-),
-level_counts AS (
-  SELECT school_year, geographic_level,
-         CAST(COUNT_IF(match_status = 'matched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'ambiguous') AS STRING) || '/'
-           || CAST(COUNT_IF(match_status = 'unmatched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'excluded') AS STRING) AS counts,
-         100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
-  FROM m GROUP BY school_year, geographic_level
 ),
 hierarchy AS (
   SELECT COUNT_IF(NOT (b.psgc_code IS NULL OR c.psgc_code IS NULL OR COALESCE(pb.city_roll = c.psgc_code, FALSE))) AS bad_parent
@@ -115,8 +109,26 @@ reconcile AS (
   LEFT JOIN m AS c ON c.school_year = m.school_year AND c.school_id = m.school_id AND c.geographic_level = 'city_mun'
   LEFT JOIN overrides AS o ON m.geographic_level = 'bgy' AND c.match_status = 'matched'
     AND o.province = m.source_province AND o.municipality = m.source_city_municipality AND o.barangay = m.source_barangay
+)
+SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile;
+SET VARIABLE integration_gate_owner_sql = 'ALTER TABLE ' || session.integration_gate_summary || ' OWNER TO `reached-hq`';
+EXECUTE IMMEDIATE integration_gate_owner_sql;
+
+INSERT INTO edu_access.`01-control`.data_quality_results
+  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, CAST(NULL AS STRING), 'deped_enrollment', 'integration', 'edu_access.04-integration.deped_school_psgc_map_candidate',
+       check_name, status, expected, actual, current_timestamp(), :code_revision
+FROM (
+WITH m AS (SELECT * FROM edu_access.`04-integration`.deped_school_psgc_map_candidate),
+profile AS (SELECT * FROM (VALUES ('2020-21', 'city_mun', '60877', '28', '16', '36'), ('2020-21', 'bgy', '60693', '153', '75', '36'), ('2021-22', 'city_mun', '60356', '26', '12', '35'), ('2021-22', 'bgy', '60210', '129', '55', '35'), ('2022-23', 'city_mun', '60070', '24', '7', '35'), ('2022-23', 'bgy', '59978', '95', '28', '35'), ('2023-24', 'city_mun', '60108', '12', '4', '43'), ('2023-24', 'bgy', '60050', '56', '18', '43'), ('2024-25', 'city_mun', '60060', '1', '5', '63'), ('2024-25', 'bgy', '60040', '13', '13', '63'), ('2025-26', 'city_mun', '60122', '3', '14', '65'), ('2025-26', 'bgy', '60039', '71', '29', '65')) AS v(school_year, geographic_level, matched, ambiguous, unmatched, excluded)),
+level_counts AS (
+  SELECT school_year, geographic_level,
+         CAST(COUNT_IF(match_status = 'matched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'ambiguous') AS STRING) || '/'
+           || CAST(COUNT_IF(match_status = 'unmatched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'excluded') AS STRING) AS counts,
+         100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
+  FROM m GROUP BY school_year, geographic_level
 ),
-s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile),
+s AS (SELECT * FROM IDENTIFIER(session.integration_gate_summary)),
 checks AS (
   SELECT 'inputs_present' AS check_name, CASE WHEN enrollment_rows > 0 AND psgc_rows > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'enrollment and master PSGC rows' AS expected, CAST(enrollment_rows AS STRING) || ' / ' || CAST(psgc_rows AS STRING) AS actual FROM s
@@ -167,6 +179,9 @@ profiled AS (
 )
 SELECT * FROM checks UNION ALL SELECT * FROM rates UNION ALL SELECT * FROM profiled
 ) AS results;
+
+-- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
+DROP TABLE IF EXISTS IDENTIFIER(session.integration_gate_summary);
 
 MERGE INTO edu_access.`01-control`.pipeline_runs AS t
 USING (SELECT :run_id AS run_id, COUNT_IF(status = 'FAIL') AS fails FROM edu_access.`01-control`.data_quality_results

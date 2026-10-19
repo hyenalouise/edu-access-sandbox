@@ -19,6 +19,11 @@ before joining decisions back to schools, avoiding a school-by-PSGC cross
 product on a small SQL warehouse. Its gate also requires exact source-key
 membership and the configured master PSGC version, fails a match rate below
 the rules file's floor, and blocks publication when reviewed counts change.
+The expensive reused stages are run-specific Delta work tables whose names
+contain a SHA-256 hash of `run_id`; they are unpublished diagnostic state,
+cannot collide across jobs, and are dropped after a successful candidate build.
+A failed run may leave only its own tables for diagnosis and manual cleanup;
+see the [Integration runbook](../../docs/operations/integration.md#internal-work-tables).
 
 The HDX ADM3 to PSGC map is `03_map_hdx_adm3_psgc.sql` and
 `90_validate_hdx_adm3_psgc_map.sql` (#93, D-052), generated from
