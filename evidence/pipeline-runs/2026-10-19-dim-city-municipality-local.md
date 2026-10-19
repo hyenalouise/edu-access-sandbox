@@ -4,7 +4,7 @@ Issue #174 · local DuckDB (D-017) · 2026-10-19, Manila time (UTC+8) · run by 
 
 ## The claim
 
-At commit `COMMIT`, the Gold build and gate (`etl/05_gold/04_build_dim_city_municipality.sql`, `90_validate_dim_city_municipality.sql`) turn the published `psa_psgc_clean` (2Q 2026), `hdx_adm3_psgc_map` and `hdx_adm3_clean` into `dim_city_municipality` with one row per PSGC city or municipality of the master quarter (1,642) and the `UNKNOWN` and `EXCLUDED` technical members: 1,644 rows, a unique key, and every FAIL check passing. The only WARN is the 8 Special Geographic Area municipalities, which have no HDX land area (D-052).
+At commit `f638c04`, the Gold build and gate (`etl/05_gold/04_build_dim_city_municipality.sql`, `90_validate_dim_city_municipality.sql`) turn the published `psa_psgc_clean` (2Q 2026), `hdx_adm3_psgc_map` and `hdx_adm3_clean` into `dim_city_municipality` with one row per PSGC city or municipality of the master quarter (1,642) and the `UNKNOWN` and `EXCLUDED` technical members: 1,644 rows, a unique key, and every FAIL check passing. The only WARN is the 8 Special Geographic Area municipalities, which have no HDX land area (D-052).
 
 ## What was run
 
