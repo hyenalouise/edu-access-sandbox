@@ -31,6 +31,15 @@ An EMISD code with no unit in the master PSGC counts as no code at either
 level, as in the reviewed rule, so the name decides; the raw code stays in
 `code_candidate`.
 
+Two DepEd naming facts are in the rules file with a reason and evidence:
+`province_splits` (`MAGUINDANAO` is searched in Maguindanao del Norte and del
+Sur) and `region_scopes` (a province naming `NCR` is searched in region
+`1300000000`). The rest is read from PSGC Silver: a blank-level unit at the
+province position (`level_blank`, the City of Isabela) can be a DepEd
+province, and a barangay whose parent is a sub-municipality belongs to the city
+sharing its first five digits, the same rollup used for Manila's districts,
+which PSGC Silver gives no parent code.
+
 To keep the SQL practical on a small serverless warehouse, it matches cities
 once per distinct (`province`, `municipality`) pair (1,655 on the real
 deliveries) and barangays once per distinct place inside the named city, then
@@ -47,7 +56,11 @@ repeated keys, missing levels,
 invalid status/method combinations, a matched code absent from the master PSGC
 quarter, a wrong PSGC level, a barangay outside the accepted city, mixed PSGC
 versions, a master PSGC version different from the rules file, incomplete
-lineage, rows from another run, or a match rate (matched
+lineage, rows from another run, any row whose carried values or lineage differ
+from the current Silver rows (`enrollment_fields_reconcile`,
+`crosswalk_lineage_reconciles`, `psgc_fields_reconcile`), a `review_status` or
+override field that does not follow from the match and the rules file
+(`review_fields_valid`), or a match rate (matched
 over rows not excluded) below the rules file's `gate.min_match_rate_pct`
 (99.0) for any school year and level. It compares matched / ambiguous /
 unmatched / excluded per school year and level with `gate.profiled_counts`:

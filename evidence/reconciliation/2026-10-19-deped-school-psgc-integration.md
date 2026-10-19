@@ -33,6 +33,12 @@ and 2022-23 enrollment Silver). That change touches no file under `etl/` or
 `config/mappings/deped_enrollment.json` and the docs, so the Silver rows and
 this map are the same; the runs below were not repeated.
 
+After review (@maeveylain, @mafelisilda), `fc35756` and `25a0842` read the
+Isabela province and Manila's districts from PSGC Silver and move the
+Maguindanao split and the NCR scope into the rules file, and `b996426` adds four
+gate checks that reconcile each row with its Silver inputs. Runs 5 and 6 below
+ran at `b996426` on the same database.
+
 ```bash
 python -m src.job.local_run \
   --landing "$RAW_DATA_DIR" \
@@ -49,6 +55,21 @@ python -m src.job.local_run \
 | Published rows | none | 724,044 | 724,044 | 724,044 |
 | Business-content SHA-256 | none | not kept (run 3 replaced the table) | `2339a6e70b6c50784312ad37c98c3263eced319780021e7a25d72f8b0f18a9b2` | same |
 
+| | Run 5 | Run 6 |
+|---|---|---|
+| `run_id` | `ec0f9007-9074-4849-b4ff-23a9037b55bf` | `b9c9332d-96f8-4cba-865c-324f572a9e18` |
+| Code | `b996426` | `b996426` |
+| Integration build / gate | 2.39 s / 1.00 s | 2.19 s / 0.91 s |
+| Gate results | 44 PASS, 5 WARN, 0 FAIL | same |
+| Published rows | 724,044 | 724,044 |
+| Business-content SHA-256 | `2339a6e70b6c50784312ad37c98c3263eced319780021e7a25d72f8b0f18a9b2` | same |
+
+Runs 5 and 6 have the same hash as runs 3 and 4, so reading Isabela and
+Manila from Silver and moving the Maguindanao and NCR rules to the rules file
+changed no row. The four new checks (`enrollment_fields_reconcile`,
+`crosswalk_lineage_reconciles`, `psgc_fields_reconcile`, `review_fields_valid`)
+PASS on every row.
+
 Run 1 shows the gate holding back a delivery whose counts nobody has reviewed:
 it built the map and published nothing. Its SY 2021-22 and 2022-23 counts are
 the ones added to `gate.profiled_counts` in `7bf16ba`. Runs 2 to 4 skipped every
@@ -63,7 +84,7 @@ SELECT COUNT(*) AS n, sha256(string_agg(t::VARCHAR, chr(10) ORDER BY school_year
 FROM (SELECT * EXCLUDE (run_id, built_at_utc, code_revision) FROM "04-integration".deped_school_psgc_map) AS t;
 ```
 
-The five WARN results are the intentionally visible `unmatched` (276),
+In runs 5 and 6, the five WARN results are the intentionally visible `unmatched` (276),
 `ambiguous` (611), `excluded` (554), `review_pending` (1,441) and
 `override_without_unit` (4) counts. `code_not_in_psgc` PASSes: every EMISD
 code has a unit in the master PSGC. Every `match_rate_*` check is at or above
@@ -76,7 +97,8 @@ There are 362,022 enrollment rows and 724,044 map rows: exactly two map rows
 per enrollment row, no missing or extra source key, and no duplicate key. All
 matched codes resolve to the one master PSGC publication, every matched
 barangay belongs to its accepted city or municipality, all lineage fields are
-populated, and the gate recorded 0 FAIL.
+populated, every row's carried values and lineage reconcile with the current
+Silver rows, and the gate recorded 0 FAIL.
 
 | School year | Level | Matched | Ambiguous | Unmatched | Excluded | Total |
 |---|---|---:|---:|---:|---:|---:|
