@@ -185,7 +185,7 @@ DOWNSTREAM = {
     "11_build_fact_school_classroom_capacity": {
         "90_validate_deped_facilities_clean", "90_validate_dim_school", "90_validate_dim_school_year"},
     "90_validate_fact_school_classroom_capacity": {
-        "11_build_fact_school_classroom_capacity", "90_validate_fact_school_enrollment"},
+        "11_build_fact_school_classroom_capacity"},
     "12_build_fact_school_teacher_capacity": {
         "90_validate_deped_personnel_clean", "90_validate_dim_school", "90_validate_dim_school_year",
         "90_validate_dim_education_level"},

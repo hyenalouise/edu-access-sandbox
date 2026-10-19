@@ -173,7 +173,7 @@ def fake_repo(root, config):
         shutil.copy(REPO_ROOT / "config" / name, root / "config" / name)
     shutil.copytree(REPO_ROOT / "config" / "mappings", root / "config" / "mappings", dirs_exist_ok=True)
     write_config(root, config)
-    for stage in ("01_control", "02_bronze", "03_silver", "04_integration"):
+    for stage in ("01_control", "02_bronze", "03_silver", "04_integration", "05_gold"):
         shutil.copytree(REPO_ROOT / "etl" / stage, root / "etl" / stage, dirs_exist_ok=True)
     return root
 
