@@ -365,6 +365,7 @@ def test_a_barangay_code_missing_from_the_psgc_counts_as_no_code(tmp_path, monke
     ("source_keys_match", f"UPDATE {CANDIDATE} SET school_id = '999999', source_row_ref = school_year || '/999999/' || geographic_level WHERE school_id = '100001'"),
     ("barangay_inside_city", f"UPDATE {CANDIDATE} SET psgc_code = '0102802001' WHERE school_id = '100001' AND geographic_level = 'bgy'"),
     ("status_combination_valid", f"UPDATE {CANDIDATE} SET match_status = 'ambiguous' WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
+    ("status_combination_valid", f"UPDATE {CANDIDATE} SET match_method = NULL WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
     ("psgc_level_valid", f"UPDATE {CANDIDATE} SET psgc_code = '0102800000' WHERE school_id = '100001' AND geographic_level = 'city_mun'"),
     ("lineage_complete", f"UPDATE {CANDIDATE} SET source_reference_date = NULL WHERE school_id = '100001'"),
     ("rows_built_by_this_run", f"UPDATE {CANDIDATE} SET run_id = 'an-earlier-run' WHERE school_id = '100001'"),
