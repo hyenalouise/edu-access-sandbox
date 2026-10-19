@@ -210,6 +210,10 @@ gold_tables:
     build_file: 12_build_fact_school_teacher_capacity.sql
     validate_file: 90_validate_fact_school_teacher_capacity.sql
     grain: One school, school year, and education level.
+  - table: fact_city_population
+    build_file: 13_build_fact_city_population.sql
+    validate_file: 90_validate_fact_city_population.sql
+    grain: One regular city or municipality of dim_city_municipality and reference year (2024, PSGC 2024 Population).
   - table: fact_city_school_age_population
     build_file: 14_build_fact_city_school_age_population.sql
     validate_file: 90_validate_fact_city_school_age_population.sql
