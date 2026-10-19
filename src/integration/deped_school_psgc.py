@@ -711,6 +711,7 @@ def gate_sql(spec):
     enr, cross = ref(SILVER, spec.enrollment_table), ref(SILVER, spec.crosswalk_table)
     psgc = ref(SILVER, spec.psgc_table)
     candidate, published = ref(SCHEMA, spec.candidate), ref(SCHEMA, spec.map_table)
+    summary = ref(SCHEMA, spec.map_table + "_gate_summary")
     profile = _values([tuple(str(v) for v in row) for row in spec.profiled],
                       ("school_year", "geographic_level", "matched", "ambiguous", "unmatched", "excluded"))
     overrides = _values([(o.province, o.municipality, o.barangay, o.reason, o.reviewer) for o in spec.overrides],
@@ -721,11 +722,9 @@ def gate_sql(spec):
 DECLARE OR REPLACE VARIABLE integration_gate_started_at_utc TIMESTAMP;
 SET VARIABLE integration_gate_started_at_utc = current_timestamp();
 
-INSERT INTO {CONTROL}.data_quality_results
-  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
-SELECT :run_id, CAST(NULL AS STRING), '{SOURCE}', 'integration', 'edu_access.{SCHEMA}.{spec.candidate}',
-       check_name, status, expected, actual, current_timestamp(), :code_revision
-FROM (
+-- The one-row summary the checks read is written to a table first. Read 25 times as a common table expression,
+-- it made Databricks SQL's optimizer fail with INTERNAL_ERROR (sandbox run, 2026-10-19); each part ran alone.
+CREATE OR REPLACE TABLE {summary} USING DELTA AS
 WITH e AS (SELECT school_year, school_id, school_name, region, province, municipality, barangay,
                   batch_id, source_sha256, source_row_number FROM {enr}),
 x AS (SELECT school_id, psgc_city_municipality, psgc_barangay, batch_id, source_row_number FROM {cross}),
@@ -737,7 +736,6 @@ p AS (
   FROM p0 AS x LEFT JOIN p0 AS pp ON pp.psgc_code = x.city_municipality_code
 ),
 m AS (SELECT * FROM {candidate}),
-profile AS ({profile}),
 overrides AS ({overrides}),
 expected_keys AS (
   SELECT e.school_year, e.school_id, l.geographic_level
@@ -778,13 +776,6 @@ stats AS (
     (SELECT COUNT(*) FROM overrides AS o WHERE NOT EXISTS (SELECT 1 FROM {enr} AS x WHERE x.province = o.province
        AND x.municipality = o.municipality AND x.barangay = o.barangay)) AS overrides_without_school
   FROM m LEFT JOIN p ON p.psgc_code = m.psgc_code
-),
-level_counts AS (
-  SELECT school_year, geographic_level,
-         CAST(COUNT_IF(match_status = 'matched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'ambiguous') AS STRING) || '/'
-           || CAST(COUNT_IF(match_status = 'unmatched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'excluded') AS STRING) AS counts,
-         100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
-  FROM m GROUP BY school_year, geographic_level
 ),
 hierarchy AS (
   SELECT COUNT_IF(NOT (b.psgc_code IS NULL OR c.psgc_code IS NULL OR COALESCE(pb.city_roll = c.psgc_code, FALSE))) AS bad_parent
@@ -832,8 +823,25 @@ reconcile AS (
   LEFT JOIN m AS c ON c.school_year = m.school_year AND c.school_id = m.school_id AND c.geographic_level = 'city_mun'
   LEFT JOIN overrides AS o ON m.geographic_level = 'bgy' AND c.match_status = 'matched'
     AND o.province = m.source_province AND o.municipality = m.source_city_municipality AND o.barangay = m.source_barangay
+)
+SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile;
+ALTER TABLE {summary} OWNER TO `{OWNER_GROUP}`;
+
+INSERT INTO {CONTROL}.data_quality_results
+  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, CAST(NULL AS STRING), '{SOURCE}', 'integration', 'edu_access.{SCHEMA}.{spec.candidate}',
+       check_name, status, expected, actual, current_timestamp(), :code_revision
+FROM (
+WITH m AS (SELECT * FROM {candidate}),
+profile AS ({profile}),
+level_counts AS (
+  SELECT school_year, geographic_level,
+         CAST(COUNT_IF(match_status = 'matched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'ambiguous') AS STRING) || '/'
+           || CAST(COUNT_IF(match_status = 'unmatched') AS STRING) || '/' || CAST(COUNT_IF(match_status = 'excluded') AS STRING) AS counts,
+         100.0 * COUNT_IF(match_status = 'matched') / NULLIF(COUNT_IF(match_status <> 'excluded'), 0) AS match_rate
+  FROM m GROUP BY school_year, geographic_level
 ),
-s AS (SELECT * FROM stats CROSS JOIN hierarchy CROSS JOIN key_membership CROSS JOIN unknown_codes CROSS JOIN reconcile),
+s AS (SELECT * FROM {summary}),
 checks AS (
   SELECT 'inputs_present' AS check_name, CASE WHEN enrollment_rows > 0 AND psgc_rows > 0 THEN 'PASS' ELSE 'FAIL' END AS status,
          'enrollment and master PSGC rows' AS expected, CAST(enrollment_rows AS STRING) || ' / ' || CAST(psgc_rows AS STRING) AS actual FROM s
