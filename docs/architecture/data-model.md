@@ -42,6 +42,12 @@ cannot be matched. `excluded` keeps a record intentionally outside Philippine
 city-level analysis. Facts use these explicit members instead of silent NULL
 geography keys.
 
+Technical member codes (proposed on #174): `UNKNOWN` and `EXCLUDED` in
+`dim_city_municipality`; in `dim_barangay`, `<city_mun_psgc_code>-UNKNOWN` for
+each regular city or municipality, plus `UNKNOWN` and `EXCLUDED` under the
+matching city members. They are text, so they never collide with or pass as a
+ten-digit PSGC code; the facts' `psgc_match_status` keeps the reason.
+
 ## Facts
 
 | Table | Grain | Key | Measures |
@@ -120,6 +126,23 @@ deployment bands are not an active current benchmark.
 | `is_sga` | BOOLEAN | Approved Special Geographic Area rule |
 | `member_type` | STRING | `regular`, `unknown`, or `excluded` |
 | `source_psgc_quarter` | STRING | PSGC master reference used to build the member |
+
+Built in `etl/05_gold/04_build_dim_city_municipality.sql`. Regular members are
+the master quarter's `City` and `Mun` rows of `psa_psgc_clean` (1,642 for 2Q
+2026: 149 cities, 1,493 municipalities); the two blank-level containers,
+`0990100000` City of Isabela (Not a Province) and `1999900000` Special
+Geographic Area, are not members (D-035). The province is Silver's
+`province_code` as published, so the City of Isabela and the 8 Special
+Geographic Area municipalities carry their container, and the 33 highly
+urbanized cities and Pateros have none. `lgu_type` is `city` or
+`municipality`. `land_area_sqkm` is the area of the HDX feature matched to the
+unit in the latest HDX release (D-052), rounded to 4 decimals, with
+`land_area_source = 'hdx_boundaries'`; both are NULL for the 8 Special
+Geographic Area municipalities, which no HDX feature matches. Technical members
+carry only their code, name, `member_type`, `is_sga = false`, and the quarter.
+The gate (`90_validate_dim_city_municipality.sql`) reconciles the regular
+members to Silver and FAILs on a repeated key or a broken rule; it WARNs on
+members without land area.
 
 ### `dim_barangay`
 

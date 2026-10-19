@@ -32,3 +32,8 @@ When approved, use one dimension or fact per file and give each dimension gate
 a uniqueness check on its declared key. Files follow `NN_<verb>_<object>.sql`,
 with checks in `90_validate_<object>.sql` (see [File naming and
 layout](../../docs/architecture/overview.md#file-naming-and-layout)).
+
+Implemented: `dim_city_municipality` (`04_build_dim_city_municipality.sql`,
+gate `90_validate_dim_city_municipality.sql`). The build writes a candidate;
+the gate publishes it only after every check passes, so a FAIL keeps the last
+good build.

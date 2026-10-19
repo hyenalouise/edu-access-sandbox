@@ -175,6 +175,11 @@ integration_tables:
     grain: One row per census year and city or municipality of psa_school_age_population_clean (census_year, place_name, parent_name).
     purpose: PSA school-age population places matched to PSGC by name inside a reviewed parent, overrides in config (D-055).
 
+gold_tables:
+  - table: dim_city_municipality
+    build_file: 04_build_dim_city_municipality.sql
+    validate_file: 90_validate_dim_city_municipality.sql
+    grain: One PSGC city or municipality of the master quarter, plus the UNKNOWN and EXCLUDED technical members.
+
 deferred_layers:
-  - gold
   - analytics
