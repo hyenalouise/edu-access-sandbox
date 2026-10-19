@@ -959,7 +959,6 @@ resources:
         - task_key: 90_validate_fact_school_classroom_capacity
           depends_on:
             - task_key: 11_build_fact_school_classroom_capacity
-            - task_key: 90_validate_fact_school_enrollment
           run_if: ALL_SUCCESS
           sql_task:
             file:

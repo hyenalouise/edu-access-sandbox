@@ -125,9 +125,16 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     deliver(repo, landing)
     db = tmp_path / "job.duckdb"
     results = run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None)
-    assert set(statuses(results).values()) <= {"succeeded", "disabled"}  # every task runs once Gold and Analytics are built
+    failed = [(result.task_key, result.status, result.detail) for result in results if result.status not in {"succeeded", "disabled"}]
+    assert not failed, failed
     _, job = load_job(repo)
     assert [r.task_key for r in results] == [t["task_key"] for t in in_order(job["tasks"])]
+    result_statuses = statuses(results)
+    enabled_gold_tasks = [task["task_key"] for task in job["tasks"]
+                          if task.get("sql_task", {}).get("file", {}).get("path", "").startswith("etl/05_gold/")
+                          and not task.get("disabled")]
+    assert enabled_gold_tasks
+    assert {key: result_statuses[key] for key in enabled_gold_tasks} == {key: "succeeded" for key in enabled_gold_tasks}
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE status = 'FAIL'") == [(0,)]
