@@ -71,7 +71,7 @@ Raw files are kept exactly as downloaded and are never overwritten (D-016, provi
 
 A re-download of a published file therefore sits beside the earlier one. The pipeline searches `raw/deped/` at any depth and identifies files by checksum, so the layout does not matter to it, and it also works with the flat local layout used for profiling (`raw-data/deped/original/`).
 
-**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. Last used for SY 2020-21 enrollment (#161): held in `raw/_holding/deped/2026-10-16/` from 2026-10-16 and moved to `raw/deped/2026-10-16/` on 2026-10-18, after its contract pull request merged ([evidence](../../evidence/pipeline-runs/2026-10-18-deped-enrollment-2020-21-databricks.md)). Nothing is waiting now.
+**Not yet approved: `raw/_holding/`.** The pipeline blocks any file in `raw/deped/` that is named like a delivery but is not in the contract (`unregistered_delivery`), and a blocked file fails the whole run. A file that is downloaded and profiled before its contract pull request is merged therefore waits in `raw/_holding/<publisher>/<download date>/`, with its `SHA256SUMS.txt`, outside every source's landing folder. When the contract pull request merges, move the folder's files to `raw/<publisher>/<download date>/`, check the checksums there, and delete the emptied holding folder; `_holding/` is empty whenever nothing is waiting for approval. Locally, the same file in `raw-data/deped/original/` blocks local loads until then. Used for SY 2020-21 enrollment (#161): held in `raw/_holding/deped/2026-10-16/` from 2026-10-16 and moved to `raw/deped/2026-10-16/` on 2026-10-18, after its contract pull request merged ([evidence](../../evidence/pipeline-runs/2026-10-18-deped-enrollment-2020-21-databricks.md)). Then for SY 2021-22 and 2022-23 enrollment (#182): held in `raw/_holding/deped/2026-10-19/` from 2026-10-19, and moved to `raw/deped/2026-10-19/` once their contract pull request merges.
 
 ## Validation
 
@@ -419,7 +419,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 - Approval is manual by design: a new year needs a profile update and a pull request before it loads.
 - A revision reloads all rows of the school year (about 60,000), even if one value changed.
 - No `prod` target yet; `dev` is the only deploy target.
-- SY 2017-18 to 2019-20, 2021-22, and 2022-23 are published but not acquired; their headers are unknown and may need new schema versions (SY 2020-21 turned out to be `v1`).
+- SY 2017-18 to 2019-20 are published but not acquired; their headers are unknown and may need new schema versions (SY 2020-21, 2021-22, and 2022-23 turned out to be `v1`).
 
 ## Open questions
 

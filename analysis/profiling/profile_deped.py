@@ -36,6 +36,18 @@ FILES = {
         "csv": "enrollment_2020-21.csv",
         "encoding": "utf-8",
     },
+    "enr_2021_22": {
+        "zip": "Enrollment-in-SY-2021-2022.zip",
+        "zip_sha256": "62f412466435db6feba57684643f5af99ca901c6ea88accb420efe9a9bfb0acd",
+        "csv": "enrollment_2021-22.csv",
+        "encoding": "utf-8",
+    },
+    "enr_2022_23": {
+        "zip": "Enrollment-in-SY-2022-2023.zip",
+        "zip_sha256": "6d567d801a8d4eb6c9dec3c032ba208e4cd929c226b6326bc7c687c83efbf9bf",
+        "csv": "enrollment_2022-23.csv",
+        "encoding": "utf-8",
+    },
     "enr_2023_24": {
         "zip": "Enrollment-in-SY-2023-2024.zip",
         "zip_sha256": "a10f4d0f9082919c13b3a091774c8231c99c95b1b1872310714107013b77dbbb",
@@ -61,10 +73,8 @@ FILES = {
         "encoding": "utf-8",
     },
 }
-ENROLLMENT = ["enr_2020_21", "enr_2023_24", "enr_2024_25", "enr_2025_26"]
-# SY 2021-22 and 2022-23 are not acquired, so 2020-21 -> 2023-24 is a
-# three-year gap, compared separately from the consecutive years.
-CONSECUTIVE = [("enr_2023_24", "enr_2024_25"), ("enr_2024_25", "enr_2025_26")]
+ENROLLMENT = ["enr_2020_21", "enr_2021_22", "enr_2022_23", "enr_2023_24", "enr_2024_25", "enr_2025_26"]
+CONSECUTIVE = list(zip(ENROLLMENT, ENROLLMENT[1:]))
 
 con = duckdb.connect()
 
@@ -131,6 +141,9 @@ for t in ENROLLMENT:
               FROM {t}""")[0]
     full_dupes = one(f"SELECT count(*) - (SELECT count(*) FROM (SELECT DISTINCT * FROM {t})) FROM {t}")
     show("O-1", f"{t}: blank={r[0]} non_numeric={r[1]} not_6_digits={r[2]} duplicate_ids={r[3]} full_duplicate_rows={full_dupes}")
+r = q("""SELECT school_id, school_name, sector, municipality, kinder_male, kinder_female FROM enr_2022_23 WHERE length(school_id) <> 6""")
+show("O-1", f"enr_2022_23 school_id not 6 digits (school, name, sector, municipality, kinder male, kinder female): {r}; "
+     f"same name in the same file: {q(f'SELECT school_id FROM enr_2022_23 WHERE school_name = {chr(39)}{r[0][1]}{chr(39)} AND length(school_id) = 6')}")
 
 for t in ENROLLMENT:
     cc = count_columns(t)
@@ -142,7 +155,7 @@ for t in ENROLLMENT:
 
 for t in ENROLLMENT:
     show("O-3", f"{t}: total learners = {one(f'SELECT sum({total_expr(count_columns(t))}) FROM {t}'):,}")
-for t in ["enr_2020_21", "enr_2023_24"]:
+for t in ENROLLMENT[:4]:
     show("O-3", f"{t}: learners by sector = {q(f'SELECT sector, sum({total_expr(count_columns(t))}) FROM {t} GROUP BY 1 ORDER BY 2 DESC')}")
 
 psgc_like = [c for t in ENROLLMENT for c in columns(t) if "psgc" in c.lower() or c.lower().endswith("_code")]
@@ -190,11 +203,20 @@ show("O-7", "enr_2025_26 Modified Curricular Offering Classification: " + "; ".j
 
 for col in ["sector", "school_management", "annex_status", "offers_es"]:
     for t in ENROLLMENT:
-        vals = q(f"SELECT '[' || coalesce({col}, 'NULL') || ']', count(*) FROM {t} GROUP BY 1 ORDER BY 2 DESC")
+        vals = q(f"SELECT '[' || coalesce({col}, 'NULL') || ']', count(*) FROM {t} GROUP BY 1 ORDER BY 2 DESC, 1")
         show("O-8", f"{t}.{col}: " + "; ".join(f"{v} {n:,}" for v, n in vals))
 lg = q("""SELECT b.school_management, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
           WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
 show("O-8", f"enr_2020_21 'Local Government' schools, by 2023-24 school_management: {lg}")
+for t in ENROLLMENT:
+    show("O-8", f"{t}: 'Local Government' rows = {one(f'SELECT count(*) FROM {t} WHERE school_management = {chr(39)}Local Government{chr(39)}')}")
+lg = q("""SELECT coalesce(b.school_management, '(not in 2021-22)'), count(*) FROM enr_2020_21 a LEFT JOIN enr_2021_22 b USING (school_id)
+          WHERE a.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
+show("O-8", f"enr_2020_21 'Local Government' schools, by 2021-22 school_management: {lg}")
+for a, b in CONSECUTIVE[1:3]:
+    lg = q(f"""SELECT coalesce(y.school_management, '(not in {b})'), count(*) FROM {a} x LEFT JOIN {b} y USING (school_id)
+               WHERE x.school_management = 'Local Government' GROUP BY 1 ORDER BY 2 DESC""")
+    show("O-8", f"{a} 'Local Government' schools, by {b} school_management: {lg}")
 gone = q("""SELECT sector, region, municipality, count(*) FROM enr_2020_21 WHERE school_management = 'Local Government'
              AND school_id NOT IN (SELECT school_id FROM enr_2023_24) AND school_id NOT IN (SELECT school_id FROM enr_2024_25)
              GROUP BY ALL ORDER BY 4 DESC, 3""")
@@ -212,6 +234,22 @@ show("O-10", f"region changes 2020-21 -> 2023-24 (region, region, division, divi
 by_sector = q("""SELECT a.division, a.sector, count(*) FROM enr_2020_21 a JOIN enr_2023_24 b USING (school_id)
                  WHERE a.region <> b.region GROUP BY ALL ORDER BY 1, 3 DESC""")
 show("O-10", f"those schools by 2020-21 division and sector: {by_sector}")
+# With SY 2021-22 and 2022-23 acquired, the year of the Region XII -> BARMM relabel is visible.
+for a, b in CONSECUTIVE[:3]:
+    moves = q(f"""SELECT x.region, y.region, x.division, y.division, count(*) FROM {a} x JOIN {b} y USING (school_id)
+                  WHERE x.region <> y.region GROUP BY ALL ORDER BY 5 DESC""")
+    show("O-10", f"region changes {a} -> {b} (region, region, division, division, schools): {moves}")
+relabelled_gone = q("""SELECT x.school_id, x.school_name, x.sector, x.division FROM enr_2020_21 x JOIN enr_2021_22 y USING (school_id)
+            WHERE x.region <> y.region AND x.school_id NOT IN (SELECT school_id FROM enr_2023_24)""")
+show("O-10", f"relabelled 2020-21 -> 2021-22 but absent from enr_2023_24, so 192 there vs 191 in the direct comparison "
+     f"(school, name, sector, division): {relabelled_gone}")
+moved = q("""SELECT x.school_id, x.school_name, x.sector, x.municipality, y.municipality FROM enr_2021_22 x JOIN enr_2022_23 y USING (school_id)
+             WHERE x.region = 'NCR' AND y.region <> 'NCR'""")
+show("O-10", f"enr_2021_22 NCR schools outside NCR in enr_2022_23 (school, name, sector, municipality, municipality): {moved}")
+# Selected by division, not province: from SY 2024-25 some of these schools publish province '(SGA - North Cotabato)' (O-11).
+for t in ENROLLMENT:
+    show("O-10", f"{t}: BARMM schools in the Special Geographic division (province, division, schools) = "
+         f"{q(f'SELECT province, division, count(*) FROM {t} WHERE region = {chr(39)}BARMM{chr(39)} AND division LIKE {chr(39)}Special Geographic%{chr(39)} GROUP BY ALL ORDER BY 3 DESC')}")
 
 for t in ENROLLMENT:
     show("O-11", f"{t}: distinct provinces = {one(f'SELECT count(DISTINCT province) FROM {t}')}")
@@ -225,6 +263,12 @@ for a, b in [("enr_2020_21", "enr_2023_24")] + CONSECUTIVE:
 for side, keep, other in [("dropped", "enr_2020_21", "enr_2023_24"), ("new", "enr_2023_24", "enr_2020_21")]:
     show("O-12", f"2020-21 -> 2023-24 {side} by sector = "
          f"{q(f'SELECT sector, count(*) FROM {keep} WHERE school_id NOT IN (SELECT school_id FROM {other}) GROUP BY 1 ORDER BY 2 DESC')}")
+for a, b in CONSECUTIVE[:3]:
+    show("O-12", f"{a} -> {b} dropped by sector = "
+         f"{q(f'SELECT sector, count(*) FROM {a} WHERE school_id NOT IN (SELECT school_id FROM {b}) GROUP BY 1 ORDER BY 2 DESC')}")
+gap = q("""SELECT count(*), count(*) FILTER (WHERE school_id NOT IN (SELECT school_id FROM enr_2021_22)) FROM enr_2020_21
+           WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24)""")[0]
+show("O-12", f"2020-21 IDs absent from 2023-24: {gap[0]:,}, of which already absent from 2021-22: {gap[1]:,}")
 # AP4 counts learners, not schools (D-042), so the dropped IDs are also measured in learners.
 learners_2020 = total_expr(count_columns("enr_2020_21"))
 r = q(f"""SELECT sum({learners_2020}) FILTER (WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24)), sum({learners_2020})
@@ -232,7 +276,7 @@ r = q(f"""SELECT sum({learners_2020}) FILTER (WHERE school_id NOT IN (SELECT sch
 show("O-12", f"2020-21 -> 2023-24 dropped: learners {r[0]:,} of {r[1]:,} ({r[0] / r[1]:.1%}); by sector = "
      f"{q(f'SELECT sector, sum({learners_2020}) FROM enr_2020_21 WHERE school_id NOT IN (SELECT school_id FROM enr_2023_24) GROUP BY 1 ORDER BY 2 DESC')}")
 
-for t in ["enr_2020_21", "enr_2023_24"]:
+for t in ENROLLMENT[:4]:
     show("O-13", f"{t} rows with region PSO: {one(f'SELECT count(*) FROM {t} WHERE region = {chr(39)}PSO{chr(39)}')}")
 pso_places = q("SELECT municipality, count(*) FROM enr_2025_26 WHERE region = 'PSO' GROUP BY 1")
 show("O-13", f"enr_2025_26 PSO municipality values: {pso_places}")
@@ -276,6 +320,17 @@ zero = f"SELECT school_id FROM enr_2020_21 WHERE ({total_expr(count_columns('enr
 r = q(f"""SELECT count(*), count(b.school_id), count(*) FILTER (WHERE ({total_expr(count_columns('enr_2023_24'))}) > 0)
           FROM ({zero}) z LEFT JOIN enr_2023_24 b USING (school_id)""")[0]
 show("S-1", f"enr_2020_21 zero-learner schools: {r[0]}, of which in enr_2023_24 = {r[1]}, with learners there = {r[2]}")
+for a, b in CONSECUTIVE[:3]:
+    zero = f"SELECT school_id FROM {a} WHERE ({total_expr(count_columns(a))}) = 0"
+    r = q(f"""SELECT count(*), count(y.school_id), count(*) FILTER (WHERE ({total_expr(count_columns(b))}) > 0)
+              FROM ({zero}) z LEFT JOIN {b} y USING (school_id)""")[0]
+    show("S-1", f"{a} zero-learner schools: {r[0]}, of which in {b} = {r[1]}, with learners there = {r[2]}")
+
+for t in ENROLLMENT[:4]:
+    r = q(f"""SELECT count(*), sum({total_expr(count_columns(t))}),
+                     count(*) FILTER (WHERE ({total_expr(count_columns(t))}) = 0)
+              FROM {t} WHERE sector = 'Private'""")[0]
+    show("S-5", f"{t}: private schools = {r[0]:,}, private learners = {r[1]:,}, private schools with zero learners = {r[2]}")
 
 STRANDS = ("abm", "arts", "gas", "humss", "maritime", "sports", "stem", "tvl", "unique")
 
@@ -292,6 +347,12 @@ for before, after in CONSECUTIVE:
                        WHERE {strand_total('a', 'g11', s)} >= 1000 AND {strand_total('a', 'g11', s)} >= 5 * {strand_total('b', 'g11', s)}""")
     show("S-4", f"{before} -> {after}: Grade 11 strands with 1,000+ learners and 5x the year before "
          f"(school, strand, G11 before, G11 after, G12 after) = {sorted(jumps)}")
+    # The cohort test: do those Grade 11 learners reach Grade 12 the year after?
+    following = dict(CONSECUTIVE).get(after)
+    if following:
+        cohort = [(sid, s, g11, one(f"SELECT coalesce(max({strand_total(following, 'g12', s)}), 0) FROM {following} WHERE school_id = '{sid}'"))
+                  for sid, s, _, g11, _ in sorted(jumps)]
+        show("S-4", f"  same strands in {following} (school, strand, G11 in {after}, G12 in {following}) = {cohort}")
 
 # %% deped_facilities
 print("\n=== deped_facilities ===")
