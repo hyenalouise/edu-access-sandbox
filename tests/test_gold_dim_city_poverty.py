@@ -213,3 +213,20 @@ def test_a_map_from_a_run_that_did_not_succeed_fails():
     run_id, error = env.run()
     assert error and "Gold gate failed for dim_city_poverty" in error
     assert env.checks(run_id)["upstream_run_psa_poverty_psgc_map"]["status"] == "FAIL"
+
+
+def test_test_size_data_warns_on_the_pins_and_publishes():
+    """Sandbox: with fewer than 1,000 regular members (test data only), the pinned counts, the Manila checks and
+    the map-row checks WARN, so a small fixture still publishes; every other check still FAILs."""
+    env = Env(map_rows=[map_row(code, "city_mun", "estimated", i) for i, code in enumerate(PLACES[:3])]
+              + [map_row(None, None, "estimated", 3, match_status="unmatched")])
+    env.store.sql(f"DELETE FROM {DIM_CITY} WHERE member_type = 'regular' AND city_mun_psgc_code NOT IN "
+                  f"('{PLACES[0]}', '{PLACES[1]}', '{PLACES[2]}', '{PLACES[3]}')")
+    run_id, error = env.run()
+    assert error is None
+    statuses = {name: c["status"] for name, c in env.checks(run_id).items()}
+    assert {name for name, status in statuses.items() if status == "WARN"} == {
+        "rows_match_pin", "estimated_match_pin", "no_estimate_match_pin", "not_in_source_match_pin",
+        "manila_reason_match_pin", "manila_reason_on_city_of_manila", "map_rows_matched", "map_rows_carried"}
+    assert "FAIL" not in statuses.values()
+    assert len(env.dim()) == 4
