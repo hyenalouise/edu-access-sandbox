@@ -10,6 +10,19 @@ Each source landed unchanged, every column as text, plus provenance columns sayi
 Implemented sources: `deped_enrollment`, `deped_facilities`, `psa_psgc` (an xlsx workbook per quarter; rows identified by the workbook's SHA-256 and the Excel row number, carrying `source_sheet`, `publication_period` and `publication_date`), `psa_poverty_stat` (an xlsx workbook; its rows are identified by the workbook's SHA-256 and the Excel row number, and carry `source_sheet` and `source_row_kind`; every row of the sheet is kept, including title, header and footer rows), `hdx_boundaries` (one GeoJSON file, table `hdx_adm3_raw`; rows are identified by the file's SHA-256 and the feature's position, and the geometry is kept as raw GeoJSON text), `deped_enrollment_psgc` (the DepEd EMISD workbook, format `xlsx_report`; rows are identified by the workbook's SHA-256 and the Excel row number, and carry `school_year`, `source_sheet` and `source_row_kind`; every row below the header is kept, including blank rows), `psa_school_age_population` (two census workbooks, format `xlsx_census`; both sheets of each are loaded, so rows are identified by the workbook's SHA-256, the sheet and the Excel row number, and carry `logical_dataset`, `census_year` and `source_row_kind`; every row of each sheet is kept, including title, header, note and source rows). Final names for these and the known sources still awaiting ingestion contracts are in the
 [ETL table registry](../../docs/standards/tables.md).
 
+## Files
+
+| Source | Table | Create | Gate |
+|---|---|---|---|
+| `deped_enrollment` | `deped_enrollment_raw` | `01_create_deped_enrollment_raw.sql` | `90_validate_deped_enrollment_raw.sql` |
+| `deped_facilities` | `deped_facilities_raw` | `02_create_deped_facilities_raw.sql` | `90_validate_deped_facilities_raw.sql` |
+| `deped_personnel` | `deped_personnel_raw` | `03_create_deped_personnel_raw.sql` | `90_validate_deped_personnel_raw.sql` |
+| `psa_psgc` | `psa_psgc_raw` | `04_create_psa_psgc_raw.sql` | `90_validate_psa_psgc_raw.sql` |
+| `psa_poverty_stat` | `psa_poverty_stat_raw` | `05_create_psa_poverty_stat_raw.sql` | `90_validate_psa_poverty_stat_raw.sql` |
+| `hdx_boundaries` | `hdx_adm3_raw` | `06_create_hdx_adm3_raw.sql` | `90_validate_hdx_adm3_raw.sql` |
+| `deped_enrollment_psgc` | `deped_enrollment_psgc_raw` | `07_create_deped_enrollment_psgc_raw.sql` | `90_validate_deped_enrollment_psgc_raw.sql` |
+| `psa_school_age_population` | `psa_school_age_population_raw` | `08_create_psa_school_age_population_raw.sql` | `90_validate_psa_school_age_population_raw.sql` |
+
 Loading is Python (`src/ingestion/`), because the files arrive as zips with a declared encoding, as workbooks whose cells must be kept exactly as stored, or as one GeoJSON file with polygons of several megabytes. The rules:
 
 - Values are kept exactly as received, as text. A blank stays `''`; a column that a year's file does not have is `NULL`. No trimming, relabeling, typing, or deduplication: that is Silver.

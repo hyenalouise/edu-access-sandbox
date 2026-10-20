@@ -50,8 +50,8 @@ EMISD crosswalk, and PSGC Silver gates, the HDX map for the HDX and PSGC Silver
 gates, the poverty map for the poverty and PSGC Silver gates, and the school-age
 map for the school-age population and PSGC Silver gates.
 
-The remaining candidate mapping names are documented as drafts in the
-[ETL table registry](../../docs/standards/tables.md); they are not reserved until
-keys, grains, and review rules are approved. Files follow
+Every map table is listed in the [ETL table registry](../../docs/standards/tables.md#integration-tables).
+`deped_annex_mother_map` is `04_map_deped_annex_mother.sql` and
+`90_validate_deped_annex_mother_map.sql`. Files follow
 `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see
 [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).

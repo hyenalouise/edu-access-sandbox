@@ -13,7 +13,7 @@ SQL for each pipeline stage. A stage number matches its folder and its Unity Cat
 
 Files run in name order inside a stage: `NN_<verb>_<object>.sql`, then `90_validate_<object>.sql`.
 
-The finalized Bronze and Silver names, plus draft Integration candidates, are
-in the [ETL table registry](../docs/standards/tables.md). Gold and Analytics
-names remain intentionally unassigned until the business problem and analytical
-questions are approved.
+Every layer is implemented and enabled in the `edu_access_pipeline` job
+([`databricks.yml`](../databricks.yml)). Each stage README lists its files; the
+name and grain of every table are in the
+[ETL table registry](../docs/standards/tables.md).
