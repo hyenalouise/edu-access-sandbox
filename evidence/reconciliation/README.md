@@ -1,19 +1,21 @@
 # Reconciliation evidence
 
-Store reviewed source-to-Bronze-to-Silver-to-Gold count and measure
-reconciliations here once those layers exist. Each record must identify its code
-revision, source versions, and limitations.
+Counts and totals compared from one layer to the next, newest last. How to write one: [evidence](../README.md#writing-a-record).
 
-| Evidence | Claim | Issue |
-|---|---|---|
-| [2026-10-07-deped-enrollment-bronze-to-silver.md](2026-10-07-deped-enrollment-bronze-to-silver.md) | DepEd enrollment Bronze → Silver, local run on the real data (superseded: skip-when-unchanged design) | #85 |
-| [2026-10-09-deped-enrollment-bronze-to-silver.md](2026-10-09-deped-enrollment-bronze-to-silver.md) | DepEd enrollment Bronze → Silver, two local job runs on the real data that rebuild identical content | #85 |
-| [2026-10-09-psa-poverty-stat-bronze-to-silver.md](2026-10-09-psa-poverty-stat-bronze-to-silver.md) | PSA Poverty Stat Bronze → Silver, two local runs of its lane on the real workbook: 1,612 rows per estimate year, every value equal to Bronze, identical content on rebuild; then two Databricks `dev` runs at `6cc39ca`, every check OK | #89 |
-| [2026-10-10-psa-psgc-bronze-to-silver.md](2026-10-10-psa-psgc-bronze-to-silver.md) | PSA PSGC Bronze → Silver, local run at `9d2ee01` on the real 2Q 2026 workbook: 43,768 clean rows, 0 quarantined, 50 checks PASS, identical content on rebuild; then two Databricks `dev` runs at `a6d34a9` and, after review, at `a4d21b0` (52 checks), every check OK | #88 |
-| [2026-10-15-hdx-adm3-psgc-map.md](2026-10-15-hdx-adm3-psgc-map.md) | HDX ADM3 Silver to the PSGC map, local run at `adcbf0c` and, after review, at `882873e`: 1,642 rows, 1,634 matched, 12 reviewed, 0 pending, no FAIL | #93 |
-| [2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md](2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md) | DepEd enrollment SY 2020-21 as the fourth delivery: two local job runs at `98487d6` on the real data, 60,957 rows per layer, 26,227,022 learners, 153 Silver checks PASS, the earlier years' Silver hash unchanged, and identical content on rebuild. Local only | #170 |
-| [2026-10-18-psa-school-age-population-bronze-to-silver.md](2026-10-18-psa-school-age-population-bronze-to-silver.md) | PSA school-age population Bronze → Silver, two local runs of its lane at `6bb76a6` on the real 2020 and 2024 workbooks: 418,320 clean rows, 0 quarantined, levels from the sums equal the profile's place counts, 116 checks with 0 FAIL / 4 WARN, identical content on rebuild | #158 |
-| [2026-10-19-deped-enrollment-2021-23-bronze.md](2026-10-19-deped-enrollment-2021-23-bronze.md) | DepEd enrollment SY 2021-22 and 2022-23 as the fifth and sixth deliveries: two local job runs at `68f6c68` on the real data, 60,429 and 60,137 Bronze rows, one `school_id_format` WARN, the four other years' Bronze hash equal to the 2026-10-16 record and `main`, and nothing inserted on rerun |
-| [2026-10-19-deped-enrollment-2021-23-silver.md](2026-10-19-deped-enrollment-2021-23-silver.md) | DepEd enrollment SY 2021-22 and 2022-23 in Silver: two local job runs at `263ce85`, 60,429 and 60,136 clean rows, 1 quarantined (`1404066`), 227 checks with 2 WARN, the other four years' Silver hash unchanged, and identical content on rebuild |
-| [2026-10-19-psa-poverty-psgc-map.md](2026-10-19-psa-poverty-psgc-map.md) | PSA poverty Silver to the PSGC map, two local job runs at `0e927a4` on the real workbooks: 4,836 rows, all matched by Correspondence Code, 61 names differ per year, 44 PSGC cities and municipalities with no PSA row, 0 FAIL, identical content on rerun. Local only | #92 |
-| [2026-10-19-psa-school-age-population-psgc-map.md](2026-10-19-psa-school-age-population-psgc-map.md) | PSA school-age population Silver to the PSGC map, local run at `796a5df`: 2024 1,642 of 1,642 matched, 2020 1,634 matched and 8 clusters reviewed unmatched, 0 pending, no FAIL, identical on rerun | #159 |
+| Date | Claim |
+|---|---|
+| 2026-10-07 | [DepEd enrollment Silver reconciles with Bronze, and a second run skips](2026-10-07-deped-enrollment-bronze-to-silver.md) (superseded by [2026-10-09](2026-10-09-deped-enrollment-bronze-to-silver.md)) |
+| 2026-10-09 | [DepEd enrollment Silver reconciles with Bronze, and every run rebuilds the same rows](2026-10-09-deped-enrollment-bronze-to-silver.md) |
+| 2026-10-09 | [PSA Poverty Stat Silver reconciles with Bronze per estimate year, and every run rebuilds the same rows](2026-10-09-psa-poverty-stat-bronze-to-silver.md) |
+| 2026-10-10 | [PSGC 2Q 2026 Bronze reconciles to Silver, and a rebuild gives the same content](2026-10-10-psa-psgc-bronze-to-silver.md) |
+| 2026-10-11 | [DepEd facilities Silver reconciles with Bronze, and every run rebuilds the same rows](2026-10-11-deped-facilities-bronze-to-silver.md) |
+| 2026-10-15 | [HDX ADM3 features map to PSGC one-to-one except the 8 Special Geographic Area units, with every exception reviewed](2026-10-15-hdx-adm3-psgc-map.md) |
+| 2026-10-16 | [DepEd enrollment SY 2020-21 loads into the existing Bronze and Silver lane, reconciles per school year, and reruns change nothing](2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md) |
+| 2026-10-16 | [The DepEd school-to-PSGC crosswalk reconciles from Bronze to Silver locally, row by row, and a rebuild gives the same rows](2026-10-16-deped-enrollment-psgc-bronze-to-silver.md) |
+| 2026-10-16 | [The 2023 poverty statuses behind D-046 recount from Silver](2026-10-16-psa-poverty-2023-city-recount.md) |
+| 2026-10-18 | [PSA school-age population Bronze reconciles to Silver, and a rebuild gives the same content](2026-10-18-psa-school-age-population-bronze-to-silver.md) |
+| 2026-10-19 | [DepEd enrollment SY 2021-22 and 2022-23 load into the existing Bronze table, reconcile per school year, and reruns change nothing](2026-10-19-deped-enrollment-2021-23-bronze.md) |
+| 2026-10-19 | [DepEd enrollment SY 2021-22 and 2022-23 reconcile from Bronze to Silver per school year, one malformed ID is quarantined, and the other four years are unchanged](2026-10-19-deped-enrollment-2021-23-silver.md) |
+| 2026-10-19 | [DepEd schools map to PSGC at city and barangay level](2026-10-19-deped-school-psgc-integration.md) |
+| 2026-10-19 | [Every PSA poverty estimate row maps to one PSGC unit by Correspondence Code, and the 44 uncovered cities and municipalities are counted](2026-10-19-psa-poverty-psgc-map.md) |
+| 2026-10-19 | [Every PSA school-age population place maps to PSGC 2Q 2026, except the 8 2020 Interim Province clusters, which are reviewed unmatched](2026-10-19-psa-school-age-population-psgc-map.md) |

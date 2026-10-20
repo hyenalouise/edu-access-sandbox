@@ -1,42 +1,28 @@
 # Evidence
 
-Records that prove a claim about pipeline behavior. Results contain counts and
-identifiers only, never source records or bulk outputs.
+Records that prove a claim about the pipeline: that a load is idempotent, that a layer reconciles, that a gate stops a bad build. Each record cites its job run and commit, so a claim in a pull request or a document can link to proof.
 
-| Folder | Contents |
-|---|---|
-| `pipeline-runs/` | Run-specific, human-readable execution and rerun evidence |
-| `source-validation/` | Compact machine-readable source-gate results when implemented |
-| `reconciliation/` | Source-to-layer count and measure reconciliation when implemented |
+```mermaid
+flowchart LR
+    claim[A claim in a PR or doc] --> run[Run on dev or locally]
+    run --> record[YYYY-MM-DD-topic.md<br/>run IDs, commit, counts, limits]
+    record --> index[Folder README index]
+    record -.superseded by a newer design.-> newer[Newer record, never an edit]
+```
 
-| Evidence | Claim | Issue |
+| Folder | Holds | Records |
 |---|---|---|
-| [2026-10-06-deped-enrollment-idempotency.md](pipeline-runs/2026-10-06-deped-enrollment-idempotency.md) | Loading DepEd enrollment into Bronze twice on Databricks inserts nothing the second time | #11 |
-| [2026-10-06-deped-facilities-idempotency.md](pipeline-runs/2026-10-06-deped-facilities-idempotency.md) | DepEd facilities loads once from its own contract, a second run inserts nothing, and enrollment is untouched | #11 |
-| [2026-10-07-deped-enrollment-bronze-to-silver.md](reconciliation/2026-10-07-deped-enrollment-bronze-to-silver.md) | Superseded by the 2026-10-09 record: the earlier skip-when-unchanged design of DepEd enrollment Silver, run locally on the real data | #85 |
-| [2026-10-09-deped-personnel-databricks-idempotency.md](pipeline-runs/2026-10-09-deped-personnel-databricks-idempotency.md) | DepEd Personnel loads 60,167 rows once, skips unchanged input on rerun, and its create, load, and separate Bronze gate succeed in `edu_access_pipeline` | #81 |
-| [2026-10-07-psa-poverty-stat-local-idempotency.md](pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md) | PSA Poverty Stat loads once, skips on rerun, loads new and older estimate years incrementally, blocks a changed file, and recovers from a crash (local: made-up workbooks, and the real workbook loaded then skipped; Databricks: skip runs only, in the 2026-10-08 `edu_access_pipeline` evidence) | #83 |
-| [2026-10-08-pipeline-dag-databricks-idempotency.md](pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md) | The `edu_access_pipeline` DAG runs every delivered Bronze lane and gate on Databricks, a second run inserts nothing, and each load joins to its gate through `job_run_id` (local: the same DAG loads the real files, then skips them) | #47 |
-| [2026-10-09-deped-enrollment-bronze-to-silver.md](reconciliation/2026-10-09-deped-enrollment-bronze-to-silver.md) | DepEd enrollment Silver, built locally by the job from the real Bronze data, reconciles with Bronze per school year (rows and learners), passes every gate check, and a second run rebuilds identical content | #85 |
-| [2026-10-09-psa-poverty-stat-bronze-to-silver.md](reconciliation/2026-10-09-psa-poverty-stat-bronze-to-silver.md) | PSA Poverty Stat Silver, built locally from the real workbook's Bronze rows, reconciles per estimate year (1,612 each), matches every Bronze cell, passes every FAIL check (9 WARN: statistical flags), and a second run rebuilds identical content. Local only | #89 |
-| [2026-10-09-deped-enrollment-silver.md](pipeline-runs/2026-10-09-deped-enrollment-silver.md) | DepEd enrollment Silver builds and passes its gate on Databricks `dev`, a second run rebuilds identical rows, and Bronze loads nothing new | #85 |
-| [2026-10-11-deped-personnel-silver.md](pipeline-runs/2026-10-11-deped-personnel-silver.md) | Superseded design: DepEd Personnel Silver reconciled 60,167 Bronze rows to 60,158 clean and 9 enrollment-outlier quarantines on Databricks `dev`; D-041 moves that comparison to Integration and requires a new confirmation | #87 |
-| [2026-10-12-deped-personnel-silver.md](pipeline-runs/2026-10-12-deped-personnel-silver.md) | Current design: DepEd Personnel Silver reconciles 60,167 Bronze rows to 60,167 clean and 0 quarantine rows on Databricks `dev`, preserves 1,090 principal-total discrepancies, and passes all 24 checks | #87 |
-| [2026-10-09-silver-publish-after-gate.md](pipeline-runs/2026-10-09-silver-publish-after-gate.md) | DepEd enrollment Silver is published only after its gate passes: two Databricks `dev` runs publish the same rows as before, and a failing build (local, real data) leaves the last good one in place | #119 |
-| [2026-10-09-hdx-adm3-silver-databricks.md](pipeline-runs/2026-10-09-hdx-adm3-silver-databricks.md) | HDX ADM3 Silver builds 1,642 rows and passes all 38 gate checks on Databricks `dev` in two runs; every geometry function in the generated SQL runs as written | #90 |
-| [2026-10-11-deped-facilities-bronze-to-silver.md](reconciliation/2026-10-11-deped-facilities-bronze-to-silver.md) | DepEd facilities Silver, built locally by the job from the real SY 2023-24 Bronze, reconciles rows, counts, TRUE values, and blanks with Bronze, places every school in enrollment Silver, passes all 38 checks, and a second run rebuilds identical content; re-run at `1c2317b` and `02089c9` (the enrollment check moved to Integration) with the same content. Local only | #86 |
-| [2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md](reconciliation/2026-10-16-deped-enrollment-2020-21-bronze-to-silver.md) | DepEd enrollment SY 2020-21, added as the fourth delivery of the existing lane, loads and reconciles per school year in Bronze and Silver (rows and learners), keeps `Local Government` as its own value, leaves the earlier years' Silver rows unchanged, and a second run inserts nothing and rebuilds identical content. Local only | #170 |
-| [2026-10-18-deped-enrollment-2020-21-databricks.md](pipeline-runs/2026-10-18-deped-enrollment-2020-21-databricks.md) | DepEd enrollment SY 2020-21 loads on Databricks `dev` as a backfill of 60,957 rows, the three earlier years skip, Silver passes all 153 checks with 241,457 clean rows and 26,227,022 SY 2020-21 learners, and a second run inserts nothing | #170 |
-| [2026-10-11-deped-facilities-silver.md](pipeline-runs/2026-10-11-deped-facilities-silver.md) | DepEd facilities Silver builds and passes its gate on Databricks `dev`, twice at `6b2844d` (38 checks) and twice at `9197926` as a parallel lane (37 checks); every run rebuilds identical rows, and Bronze loads nothing new | #86 |
-| [2026-10-11-source-lane-fan-in.md](pipeline-runs/2026-10-11-source-lane-fan-in.md) | The source-lane fan-in runs on Databricks `dev` after the Silver gates, writes one PASS per Silver lane switched on, stamped with the commit (enrollment and PSA Poverty Stat at `1962bce`; plus facilities at `3719301`, after #126; plus PSGC at `a405f70`, after #124; plus HDX at `7e4b2a5`, after #122), and the three maps depend only on it | #127 |
-| [2026-10-15-hdx-adm3-psgc-map.md](reconciliation/2026-10-15-hdx-adm3-psgc-map.md) | The HDX ADM3 to PSGC map, run locally at `adcbf0c` and again at `882873e` after review on the real Silver tables: 1,642 rows, 1,634 matched one-to-one (99.51%), the 12 exceptions reviewed (4 renamed LGUs, 8 Special Geographic Area units unmatched), 0 pending, no FAIL; the issue's 1,500 code matches reconciled. Databricks in the record below | #93 |
-| [2026-10-15-hdx-adm3-psgc-map-databricks.md](pipeline-runs/2026-10-15-hdx-adm3-psgc-map-databricks.md) | The HDX ADM3 to PSGC map builds and passes its gate on Databricks `dev` in two runs at `99b0387` and two at `882873e` (after review), after the source-lane fan-in: 1,642 rows, the same count per method as locally, 0 FAIL; 29 PASS, 1 WARN at `99b0387` and 29 PASS, 2 WARN at `882873e` (8 Special Geographic Area units unmatched, and the 8 PSGC municipalities without a feature) | #93 |
-| [2026-10-19-psa-poverty-psgc-map-databricks.md](pipeline-runs/2026-10-19-psa-poverty-psgc-map-databricks.md) | The PSA poverty to PSGC map builds and passes its gate on Databricks `dev` at `e36725b` in two runs: 4,836 rows, all matched, 44 PASS / 4 WARN / 0 FAIL, the same content on rerun, every count equal to the local run | #92 |
-| [2026-10-16-psa-poverty-2023-city-recount.md](reconciliation/2026-10-16-psa-poverty-2023-city-recount.md) | PSA poverty 2023 Silver joined to PSGC 2Q 2026 Silver gives the counts D-046 checks in `dim_city_poverty`: 1,642 cities and municipalities, 1,597 `estimated`, 1 `no_estimate`, 44 `not_in_source` (local, real workbooks, rerunnable query) | #104 |
-| [2026-10-18-per-lane-job.md](pipeline-runs/2026-10-18-per-lane-job.md) | Under D-051, run `18257140364359` at `135c1ac` succeeds; the annex map starts the moment the enrollment Silver gate passes while personnel and HDX still run; disabled EMISD Silver tasks resolve only when the EMISD Bronze gate finishes, so the fan-in and then freshness follow every Bronze load; 6 lane PASS and 7 freshness PASS | #47 |
-| [2026-10-18-psa-school-age-population-silver-databricks.md](pipeline-runs/2026-10-18-psa-school-age-population-silver-databricks.md) | PSA school-age population Silver builds on Databricks `dev` twice at `8d90086`: 124 checks, 0 FAIL / 4 WARN, 418,320 rows, identical content | #158 |
-| [2026-10-19-deped-enrollment-2021-23-bronze.md](reconciliation/2026-10-19-deped-enrollment-2021-23-bronze.md) | DepEd enrollment SY 2021-22 and 2022-23, added as the fifth and sixth deliveries of the existing lane, load into Bronze and reconcile per school year, the seven-digit `1404066` is kept with a WARN, the four other years' Bronze rows equal the 2026-10-16 record and a `main` run, and a second run inserts nothing | #183 |
-| [2026-10-19-deped-enrollment-2021-23-silver.md](reconciliation/2026-10-19-deped-enrollment-2021-23-silver.md) | DepEd enrollment SY 2021-22 and 2022-23 reconcile from Bronze to Silver per school year with no rule change, SY 2022-23's `1404066` is quarantined with a WARN, `Local Government` is kept, the other four years' Silver rows are unchanged, and a rerun rebuilds the same content | #183 |
-| [2026-10-19-deped-enrollment-2021-23-databricks.md](pipeline-runs/2026-10-19-deped-enrollment-2021-23-databricks.md) | DepEd enrollment SY 2021-22 and 2022-23 load on Databricks `dev` (60,429 and 60,137 rows) while the other four years skip, and Silver passes all 227 checks with 2 WARN and no FAIL; one run, so rerun safety is shown locally | #183 |
-| [2026-10-19-psa-school-age-population-psgc-map.md](reconciliation/2026-10-19-psa-school-age-population-psgc-map.md) | The PSA school-age population to PSGC map, run locally at `796a5df` on the real Silver tables: 1,642 places per census year, 2024 all matched one-to-one, 2020 1,634 matched and the 8 Interim Province clusters reviewed unmatched, 17 overrides, 0 pending, population reconciles in every cell, identical content on rerun; the profile's X-2 baseline (1,602 and 1,585) reconciled. Databricks in the record below | #159 |
-| [2026-10-19-psa-school-age-population-psgc-map-databricks.md](pipeline-runs/2026-10-19-psa-school-age-population-psgc-map-databricks.md) | The PSA school-age population to PSGC map builds and passes its gate on Databricks `dev` in two runs at `8c57f54`: 3,284 rows, the same count per method as locally, 33 PASS, 3 WARN, 0 FAIL, and identical content in both runs (Delta versions 0 and 1) | #159 |
+| [`pipeline-runs/`](pipeline-runs/README.md) | Loads, reruns, gates, alerts, and whole-job runs, on Databricks `dev` or locally | 35 |
+| [`reconciliation/`](reconciliation/README.md) | Counts and totals compared from one layer to the next | 15 |
+| [`source-validation/`](source-validation/README.md) | Reserved for machine-readable gate results; currently empty | 0 |
+
+Totals compared from source file to Gold, across layers, are in [validation](../docs/operations/validation.md).
+
+## Writing a record
+
+- One file per claim, named `YYYY-MM-DD-<topic>.md`, with the claim as its title.
+- Include the job run IDs, `code_revision`, the commands or queries, the results, and what the run does not prove.
+- Say where it ran: Databricks `dev` or local DuckDB.
+- Counts and identifiers only: never source rows, table exports, logs, credentials, or screenshots with personal data.
+- Records are history. Do not edit an old result to match the current pipeline; add a new record and mark the old one superseded in the index.
+- Add the record to its folder's index in the same pull request.
