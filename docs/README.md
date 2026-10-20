@@ -3,6 +3,26 @@
 Use this page as the entry point. Each subject has one canonical location; other
 documents should link to it rather than duplicate current-state claims.
 
+```mermaid
+flowchart LR
+    why[Why: business/] --> what[What data: data/]
+    what --> how[How it is built: architecture/]
+    how --> run[How to run it: operations/, getting-started/]
+    run --> rules[Rules: standards/, governance/]
+```
+
+| Folder | Read it for |
+|---|---|
+| [`business/`](business/README.md) | The planners, the approved questions, and the metric formulas |
+| [`data/`](data/README.md) | Each source, the Silver tables, and how the sources join |
+| [`architecture/`](architecture/README.md) | Pipeline stages, the job graph, the Gold model, and the ERD |
+| [`operations/`](operations/README.md) | Running and checking each layer, and the team workflow |
+| [`getting-started/`](getting-started/README.md) | Setting up a laptop |
+| [`standards/`](standards/README.md) | Naming and the table registry |
+| [`governance/`](governance/README.md) | Decisions and known limitations |
+
+## Find a document
+
 | Need | Read |
 |---|---|
 | Understand pipeline stages and system boundaries | [Architecture overview](architecture/overview.md) |
