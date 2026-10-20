@@ -248,5 +248,9 @@ analytics_tables:
     build_file: 05_build_priority_matrix.sql
     validate_file: 90_validate_priority_matrix.sql
     grain: One regular city or municipality, SY 2023-24 (D-057 priority tier).
+  - table: lgu_priority_outlier_schools
+    build_file: 06_build_outlier_schools.sql
+    validate_file: 90_validate_outlier_schools.sql
+    grain: One public school (AP2) or school level (AP3) above its D-057 outlier fence, SY 2023-24.
 
 deferred_layers: []
