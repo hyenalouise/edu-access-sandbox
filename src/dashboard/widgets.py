@@ -193,9 +193,10 @@ def table(b, dataset, title, columns, desc=None):
                  disaggregated=True, version=2)
 
 
-def param_filter(b, keyword, title, targets, desc=None):
-    """Single-select filter bound to one parameter on every target dataset that takes it."""
-    option_dataset, option_field = b.option_fields[keyword]
+def param_filter(b, keyword, title, targets, desc=None, options=None):
+    """Single-select filter bound to one parameter on every target dataset that takes it. `options` names a page's own
+    (dataset, field) for the choices when the default option dataset is shared with another page's filter."""
+    option_dataset, option_field = options or b.option_fields[keyword]
     queries = [{"name": f"opt_{option_dataset}", "query": {"datasetName": option_dataset,
                                                            "fields": [{"name": option_field, "expression": bt(option_field)}],
                                                            "disaggregated": False}}]

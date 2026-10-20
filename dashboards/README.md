@@ -19,10 +19,10 @@ A planner moves from many places, to one place, to its schools, then checks how 
 
 | View | Question | Main content |
 |---|---|---|
-| **Overview** | Which cities and municipalities should be reviewed first? | Priority map, what drives each tier, how far high places are above the typical place, the ranked priority list |
-| **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier, what stands out, why this tier, how reliable the result is, teachers by level and funding, enrollment and school-age population (context only), barangay access, the first schools to follow up |
+| **Overview** | Which cities and municipalities should be reviewed first? | Priority map, what drives each tier, how far high places are above the typical place, pressure and enrollment together (tier × enrollment direction, context only), the ranked priority list |
+| **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier, what stands out, why this tier, how reliable the result is, teachers by level and funding, a demand section (enrollment by sector and by level, children coming up by school level, children aged 5-17 against enrollment; all context only), barangay access, the first schools to follow up |
 | **School Action** | Which schools should we check, and why? | The selected school, its place among schools in the same LGU, its enrollment, rooms and teachers, the exact figures to verify, the school action list |
-| **Data and Method** | Can we rely on these results, and how were they produced? | How the priority is determined, the typical place of each type, coverage and reasons for data review, whether the Critical list holds under D-057's checks, overlap of measures, source years and data quality checks, limits |
+| **Data and Method** | Can we rely on these results, and how were they produced? | How the priority is determined, the typical place of each type, coverage and reasons for data review, how complete the enrollment trend is, whether the Critical list holds under D-057's checks, overlap of measures, source years and data quality checks, limits |
 
 The tier is D-057 from [`lgu_priority_matrix`](../etl/06_analytics/README.md): AP1 to AP3 at or above the 90th percentile within LGU type, after the 90% coverage gate, counted into Critical, Elevated, Targeted, Monitor or Data review. Relative pressure (the LGU's ratio over the median of its type) and D-057's checks come from `lgu_priority_checks`, and the outlier fences from `lgu_priority_outlier_schools`. The dashboard filters, labels and arranges these values; it computes no tier.
 
@@ -54,15 +54,15 @@ Every filter is a query parameter applied after the stored percentiles and tiers
 | Filter | Where it applies |
 |---|---|
 | Region, Province, LGU type (global) | Every view. Province options follow Region. National checks on Data and Method (the Critical list, the check heatmap, overlap and the typical place) follow LGU type only, and say so |
-| City or municipality (global) | LGU Profile and School Action. Defaults to the top place in the filters; a choice outside them falls back to that place and says so |
-| Barangay (global) | The barangay and school sections of LGU Profile, and School Action |
+| City or municipality (LGU Profile; School Action) | A page filter on each of the two views, so each keeps its own choice. Both default to the top place in Region, Province and LGU type; a choice outside them falls back to that place and says so |
+| Barangay (LGU Profile; School Action) | A page filter on each: the barangay table and school teaser on LGU Profile, and every school visual on School Action |
 | Priority tier, Coverage status (Overview) | The KPIs, map, drivers and priority list. Not the relative-pressure chart, which always compares high places with the rest |
 | Order list by, Show values as (Overview) | The priority list only. *Order* keeps D-057's order or sorts by the largest relative pressure, with places below the coverage gate last; *Show values* switches the three measure columns between relative pressure (×) and percentile. Neither changes a tier |
 | Education level, School (School Action) | Every School Action visual. School defaults to the first school to check |
 | School status (School Action) | The school action list only |
 | Measure, Validation check (Data and Method) | Measure: coverage and reasons. Validation check: the published-tier-against-check heatmap |
 
-Databricks dashboards cannot open another page from a click, so a planner picks the place once in *City or municipality*; it stays selected on LGU Profile and School Action.
+Databricks dashboards cannot open another page from a click or share a page filter between pages, so a planner picks the place on LGU Profile and again on School Action. Both start on the same top place.
 
 ## What stands out
 
