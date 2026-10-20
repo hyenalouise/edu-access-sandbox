@@ -1,0 +1,636 @@
+# Which data-quality attribute each check in data_quality_results tests (#97).
+# Read by src/dashboard/data_quality.py, which builds the data-quality dashboard
+# (dashboards/data_quality.lvdash.json); regenerate after a change:
+#   python -m src.dashboard.data_quality > dashboards/data_quality.lvdash.json
+#
+# This file only labels checks for the dashboard. It does not change what a
+# check does, its status, or any alert.
+#
+# How a recorded check_name finds its entry, first match wins:
+#   1. exact: the check_name as recorded, after removing a leading "<sheet>: "
+#      (Bronze checks of a workbook read sheet by sheet, src/ingestion/bronze.py
+#      and xlsx_census.py);
+#   2. qualified: the same name without one trailing qualifier: "_<year>",
+#      "_<school year>", "_<school year>_<level>", "_household", "_total", or
+#      "/<school year>/<level>" (gates that check each estimate year, census
+#      concept, school year, or level separately, e.g. rows_reconcile_2018,
+#      key_unique_household, match_rate_2023-24_bgy, learners/2023-24/ES);
+#   3. family: a name that starts with one of the families below. Families are
+#      only for names a generator builds from a list (one per mapped column,
+#      cleaning rule, match method, or row kind).
+# A name that matches nothing is shown as Unclassified, never hidden, and never
+# counted as covering an attribute. tests/test_dashboard.py fails when a check
+# a gate can write is not listed here.
+#
+# Some identifier checks are named after the source's identifier column
+# (school_id_format, psgc_code_not_blank, "PSGC ID_unique_in_file"); a new
+# source with a new identifier column needs its names added here.
+
+version: 1
+
+# Display order. Each attribute says what its checks look at. The first six are the core
+# data-quality attributes, each shown as a donut on the dashboard; the last three show with each open issue.
+attributes:
+  - name: Completeness
+    core: true
+    means: The presence of all required records, fields, and values without missing or null data
+  - name: Uniqueness
+    core: true
+    means: Each entity, transaction, or record appears only once in a dataset, free from duplication
+  - name: Validity
+    core: true
+    means: Data values conform to pre-established formats, syntax, value ranges, and business rules
+  - name: Accuracy
+    core: true
+    means: The degree to which data correctly reflects the real-world object, event, or condition it represents; here, agreement with the published source or a reviewed reference
+  - name: Consistency
+    core: true
+    means: No contradictions or conflicts when the same data appears across different systems, tables, or fields
+  - name: Timeliness
+    core: true
+    means: How up to date the data is and whether it is available when needed; here, the latest succeeded delivery is within its limit in config/freshness.yml
+  - name: Referential integrity
+    means: Rows resolve to a known batch, parent unit, or PSGC unit; match outcomes of the maps
+  - name: Reconciliation
+    means: Rows, values, and quarantined rows are accounted for between file, Bronze, and Silver
+  - name: Lineage
+    means: Run, batch, code revision, and provenance columns are filled for every row
+
+checks:
+  Completeness:
+    - row_count_nonzero
+    - required_columns_present
+    - approved_deliveries_present
+    - current_batch_present
+    - current_batches_present
+    - inputs_present
+    - estimate_year_covered
+    - geometry_not_null
+    - geometry_not_empty
+    - population_not_null
+    - school_id_not_blank
+    - adm3_pcode_not_blank
+    - psgc_code_not_blank
+    - province_code_missing_only_where_listed
+    - annexes_not_dropped
+    - flag_partial_estimate
+    - quarantine_reason_school_id_blank
+    - quarantine_reason_adm3_pcode_blank
+    - quarantine_reason_psgc_code_blank
+    - quarantine_reason_psgc_id_blank
+    - quarantine_reason_population_blank
+    - quarantine_reason_geometry_empty
+    - profiled_coordinate_missing
+    - profiled_barangay_source_na
+    - profiled_city_source_na
+    - dq_barangay_blank
+    - dq_blank_correspondence_code
+    - dq_blank_geographic_level
+    - dq_longitude_blank
+    - dq_psgc_barangay_blank
+    - dq_urp_blank
+    - known_issue_unit_rows_without_estimates
+    # Gold, Analytics, and the PSGC maps (#193-#210)
+    - psgc_units_present
+    - psgc_barangays_present
+    - regular_members_present
+    - members_without_population
+    - every_age_present
+    - every_school_year_per_member
+    - both_levels_present
+    - estimate_complete
+    - geography_not_null
+    - key_not_null
+    - required_values_not_null
+    - school_name_available
+    - land_area_has_source
+    - regular_without
+    - regular_without_land_area
+    - regular_without_urban_rural
+    - regular_census_rows_without_population
+    - offered_all_blank
+    - offered_partial
+    - offering_flag_blank
+    - offered_levels_without_room_data
+    - offered_levels_without_teacher_data
+    - schools_incomplete
+  Uniqueness:
+    - school_id_unique
+    - school_id_unique_in_file
+    - school_id_duplicates
+    - adm3_pcode_unique
+    - adm3_pcode_unique_in_file
+    - psgc_code_unique
+    - psgc_code_unique_in_file
+    - psgc_code_duplicates_absent
+    - psgc_code_taken_once
+    - psgc_id_unique
+    - PSGC ID_unique_in_file
+    - annex_key_unique
+    - key_unique
+    - duplicate_rows_in_file
+    - no_pipeline_duplicates
+    - one_row_per_feature
+    - one_current_batch_per_census_year
+    - one_country
+    - place_rows_have_one_sex_block
+    - quarantine_reason_school_id_duplicated
+    - quarantine_reason_adm3_pcode_duplicated
+    - quarantine_reason_psgc_code_duplicated
+    - quarantine_reason_psgc_id_duplicated
+    - profiled_quarantine_school_id_duplicated
+    - profiled_quarantine_school_id_identical_copy
+    # Gold, Analytics, and the PSGC maps (#193-#210)
+    - grain_unique
+    - one_row_per_place
+    - one_row_per_school_year_level
+    - one_row_per_source_row
+    - one_trend_per_member
+    - one_place_per_school_year
+    - one_unknown_barangay_per_city_mun
+    - land_area_one_feature
+  Validity:
+    - school_id_format
+    - school_id_valid
+    - adm3_pcode_format
+    - adm3_pcode_valid
+    - psgc_code_format
+    - psgc_code_valid
+    - psgc_code_number_cells_match_format
+    - psgc_code_stored_as_number
+    - psgc_id_valid
+    - PSGC ID_format_on_unit_rows
+    - codes_ten_digits
+    - code_values_recognized
+    - coordinate_values_recognized
+    - region_province_values_recognized
+    - enrollment_status_valid
+    - estimate_status_valid
+    - estimate_years_known
+    - status_valid
+    - method_valid
+    - review_status_valid
+    - area_positive
+    - counts_non_negative
+    - counts_within_plausible_max
+    - counts_are_whole_numbers
+    - cv_non_negative
+    - se_non_negative
+    - poverty_incidence_within_bounds
+    - no_all_zero_place
+    - zero_population_cells
+    - geometry_parsed
+    - geometry_type_allowed
+    - geometry_types_allowed
+    - geometry_valid
+    - crs_is_wgs84
+    - no_byte_order_mark
+    - text_mojibake
+    - error_cells
+    - formula_cells
+    - non_numeric_estimate_values
+    - valid_on_is_reference_date
+    - valid_on_is_the_approved_period
+    - place_label_parsed
+    - place_levels_assigned
+    - region_banner_assigned
+    - sheets_match_approved
+    - sheets_match_contract
+    - range_matches_approved
+    - used_range_matches_approved
+    - no_cells_outside_layout
+    - ignored_columns_empty
+    - unclassified_rows
+    - age_row_matches_layout
+    - band_row_matches_layout
+    - national_summary_readable
+    - flag_lower_limit_not_positive
+    - quarantine_reason_school_id_malformed
+    - quarantine_reason_adm3_pcode_malformed
+    - quarantine_reason_psgc_code_malformed
+    - quarantine_reason_psgc_id_malformed
+    - quarantine_reason_correspondence_code_malformed
+    - quarantine_reason_count_uncastable
+    - quarantine_reason_count_negative
+    - quarantine_reason_count_above_plausible_max
+    - quarantine_reason_area_uncastable
+    - quarantine_reason_area_not_positive
+    - quarantine_reason_center_uncastable
+    - quarantine_reason_geometry_unparseable
+    - quarantine_reason_geometry_wrong_type
+    - quarantine_reason_population_uncastable
+    - quarantine_reason_population_negative
+    - quarantine_reason_population_not_whole_number
+    - quarantine_reason_measure_uncastable
+    - quarantine_reason_cv_negative
+    - quarantine_reason_se_negative
+    - quarantine_reason_incidence_out_of_range
+    - quarantine_reason_valid_on_uncastable
+    - quarantine_reason_valid_to_uncastable
+    - quarantine_reason_measure_negative
+    - quarantine_reason_measure_above_int_max
+    - profiled_quarantine_school_id_malformed
+    - profiled_coordinate_zero
+    - profiled_coordinate_outside_philippines
+    - profiled_barangay_codes_padded
+    - dq_column_j_footnote_filled
+    - dq_income_class_capital_st
+    - dq_income_class_dash
+    - dq_income_class_starred
+    - dq_longitude_na
+    - dq_longitude_zero
+    - dq_name_trailing_space
+    - dq_population_not_whole_number
+    - dq_population_zero
+    - dq_psgc_barangay_9_digits
+    - dq_psgc_barangay_na
+    - dq_psgc_city_municipality_na
+    - dq_psgc_region_9_digits
+    - dq_urban_rural_dash
+    - known_issue_lower_limit_zero_or_negative
+    - known_issue_place_label_footnote_marker
+    - known_issue_province_label_continued
+    - known_issue_psgc_id_leading_zero_lost
+    - known_issue_source_line_misspelled
+    - known_issue_title_names_only_city_municipality
+    # Gold, Analytics, and the PSGC maps (#193-#210)
+    - member_type_allowed
+    - lgu_type_allowed
+    - income_class_allowed
+    - urban_rural_allowed
+    - estimate_status_allowed
+    - match_status_allowed
+    - poverty_status_allowed
+    - status_reason_allowed
+    - sector_allowed
+    - source_id_valid
+    - sex_male_or_female
+    - psgc_level_valid
+    - review_fields_valid
+    - names_agree_valid
+    - coverage_gate_valid
+    - level_coverage_gate_valid
+    - assessment_and_high_valid
+    - land_area_positive
+    - measures_nonnegative
+    - population_not_negative
+    - population_not_null_or_negative
+    - reference_year
+    - estimate_year
+    - three_members
+    - members_match_contract
+    - offering_flag_published
+    - zero_room_denominators
+    - zero_teacher_denominators
+  Accuracy:
+    - city_class_matches_bronze
+    - correspondence_code_matches_bronze
+    - geographic_level_matches_bronze
+    - income_class_matches_bronze
+    - income_class_null_reason_matches_bronze
+    - income_class_retained_after_downgrade_matches_bronze
+    - is_master_reference_matches_bronze
+    - name_matches_bronze
+    - old_names_matches_bronze
+    - population_footnote_matches_bronze
+    - population_matches_bronze
+    - population_null_reason_matches_bronze
+    - psgc_code_matches_bronze
+    - publication_date_matches_bronze
+    - publication_period_matches_bronze
+    - status_matches_bronze
+    - urban_rural_matches_bronze
+    - urban_rural_null_reason_matches_bronze
+    - ci90_lower_limit_matches_bronze
+    - ci90_upper_limit_matches_bronze
+    - coefficient_of_variation_matches_bronze
+    - standard_error_matches_bronze
+    - poverty_incidence_matches_bronze
+    - codes_as_published
+    - geometry_as_published
+    - values_kept
+    - recorded_zero_preserved
+    - code_is_the_pcode
+    - correspondence_is_the_old_code
+    - psgc_name_matches_unit
+    - name_match_inside_province
+    - region_moved_is_sulu
+    - levels_match_expected
+    - place_status_match_expected
+    - flag_cv_over_20
+    - known_issue_cv_over_20
+    # Gold, Analytics, and the PSGC maps (#193-#210); Analytics gates recompute each output from Gold
+    - values_match_source
+    - values_equal_map
+    - learner_count_matches_silver
+    - is_offered_matches_silver
+    - annex_status_matches_silver
+    - sector_matches_silver
+    - cells_match_silver
+    - population_equals_psgc
+    - total_equals_psgc
+    - status_and_reason_equal_psgc
+    - estimates_unchanged
+    - latest_name_preserved
+    - geographic_level_matches_unit
+    - male_plus_female_is_published_total
+    - city_matches_map
+    - barangay_matches_map
+    - match_status_matches_map
+    - rows_match_pin
+    - estimated_match_pin
+    - no_estimate_match_pin
+    - not_in_source_match_pin
+    - manila_reason_match_pin
+    - manila_reason_on_city_of_manila
+    - tier_follows_d057
+    - national_tier_and_stable
+    - order_within_tier
+    - targeted_names_its_measure
+    - high_at_90th_percentile
+    - percentile_is_percent_rank
+    - level_percentile_is_percent_rank
+    - highest_level_reranked
+    - ratio_and_coverage_arithmetic
+    - arithmetic_holds
+    - year_over_year_change_holds
+    - learner_count_follows_rule
+    - census_context_only_on_aligned_years
+    - comparable_only_with_both_years
+  Consistency:
+    - flags_consistent
+    - hierarchy_consistent
+    - levels_null_together
+    - concepts_pair_up
+    - household_not_above_total
+    - null_reason_matches_code
+    - facility_values_within_offered_levels
+    - facility_data_public_only
+    - sheets_are_concepts
+    - status_combination_valid
+    - one_psgc_version
+    - master_reference_current
+    - match_fields_consistent
+    - center_inside_geometry
+    - ci_contains_estimate
+    - coordinates_in_pairs
+    - only_annexes_listed
+    - sexes_add_up
+    - tree_closes
+    - national_both_sexes_by_age
+    - unmatched_has_no_psgc
+    - overrides_applied
+    - missing_counts_stay_null
+    - missing_booleans_stay_null
+    - missing_measures_stay_null
+    - blank_measures_stay_null
+    - absent_columns_stay_null
+    - all_blank_measure_flagged
+    - all_blank_measure_retained
+    - flag_se_cv_inconsistent
+    - known_issue_se_disagrees_with_cv
+    - quarantine_reason_ci_inconsistent
+    - quarantine_reason_measure_outside_public_scope
+    - quarantine_reason_measure_outside_offered_level
+    - profiled  # profiled_<school year>_<level>: map counts equal the reviewed counts
+    - profiled_bronze_unit_rows
+    - profiled_bronze_other_rows
+    - profiled_recoded
+    # Gold, Analytics, and the PSGC maps (#193-#210)
+    - member_type_fits_code
+    - match_status_fits_code
+    - member_follows_status
+    - population_follows_status
+    - status_reason_follows_status
+    - cv_over_20_follows_cv
+    - school_year_consistent
+    - source_quarter_is_master
+    - psgc_version_is_master
+    - master_psgc_version
+    - sga_inside_container
+    - population_on_excluded
+    - no_partial_estimate
+    - no_value_without_estimate
+    - cells_before_start_blank
+    - not_offered_positive
+    - not_offered_without_learners
+    - names_differ
+    - no_name_rule_match
+    - city_without_class
+    - municipality_without_city_class
+    - rows_are_regular_members
+    - technical_members
+  Timeliness:
+    - source_fresh
+  Referential integrity:
+    - rows_have_a_known_batch
+    - rows_resolve_to_current_bronze
+    - rows_resolve_to_current_bronze_cells
+    - rows_resolve_to_current_bronze_units
+    - city_municipality_code_exists
+    - province_code_exists
+    - region_code_exists
+    - parents_resolve
+    - hierarchy_units_without_region
+    - hierarchy_municipalities_without_province
+    - hierarchy_barangays_without_city_or_municipality
+    - hierarchy_no_province_region_has_no_provinces
+    - matched_has_psgc_unit
+    - unmatched
+    - ambiguous
+    - review_pending
+    - override_feature_missing
+    - psgc_units_without_feature
+    - annexes_without_mother_school
+    - profiled_barangay_not_in_workbook
+    - profiled_city_not_in_workbook
+    - profiled_barangay_outside_city
+    # Gold, Analytics, and the PSGC maps (#193-#210); match_rate_<school year>_<level> FAILs below 99%
+    - city_in_dimension
+    - city_in_dim_city_municipality
+    - barangay_in_dimension
+    - school_in_dimension
+    - school_year_in_dimension
+    - education_level_in_dimension
+    - keys_in_dimension
+    - school_fk_resolves
+    - school_year_fk_resolves
+    - education_level_fk_resolves
+    - map_rows_in_dimension
+    - map_rows_matched
+    - regular_in_psgc_master
+    - parent_is_city_or_municipality
+    - province_name_resolved
+    - region_resolved
+    - barangay_in_city
+    - barangay_inside_city
+    - parent_match_valid
+    - matched_on_regular_member
+    - every_place_mapped
+    - every_capacity_school_has_enrollment
+    - code_not_in_psgc
+    - rule_codes_in_psgc
+    - override_place_missing
+    - override_without_school
+    - override_without_unit
+    - province_without_psgc_parent
+    - region_not_listed
+    - match_rate
+    - excluded
+    - psgc_units_without_place
+    - psgc_units_not_in_source
+    - unplaced_active_public_schools
+    - unplaced_public_learners
+    - unplaced_school_age_population
+    - schools_city_unknown
+    - schools_barangay_unknown
+    - unknown_member_population
+    - excluded_member_population
+    - learners_on_technical_members
+  Reconciliation:
+    - rows_reconcile
+    - counts_reconcile
+    - learners_reconcile
+    - coordinates_reconcile
+    - true_values_reconcile
+    - values_reconcile
+    - bronze_rows_accounted
+    - succeeded_batches_reconcile
+    - bronze_rows_match_source
+    - bronze_row_kinds_match_source
+    - bronze_sheets_match_source
+    - row_count_matches_approved
+    - row_numbers_complete
+    - blank_rows_match_approved
+    - body_rows_match_approved
+    - footer_rows_match_approved
+    - unit_rows_match_approved
+    - region_banner_rows_match_approved
+    - no_identifier_rows_match_approved
+    - place_rows_match_approved
+    - sheet_rows_match_approved
+    - sex_female_rows_match_place_rows
+    - sex_male_rows_match_place_rows
+    - sex_total_rows_match_place_rows
+    - region_population_reconciles_to_national
+    - quarantine_rate
+    - quarantined_cells
+    # Gold, Analytics, and the PSGC maps (#193-#210)
+    - regular_rows_reconcile
+    - rows_match_silver
+    - rows_match_gold
+    - rows_match_regular_lgus
+    - map_rows_carried
+    - enrollment_join_adds_no_rows
+    - enrollment_reconciles_by_school_year
+    - population_reconciles
+    - population_reconciles_by_year
+    - population_reconciles_by_census_year
+    - schools_and_enrollment_reconcile
+    - schools_learners_rooms_reconcile
+    - levels_reconcile_with_gold
+    - lgu_membership_reconciles
+    - inputs_match_ap_outputs
+    - source_availability_reconciles
+    - source_rows_reconcile
+    - source_totals_and_nulls_reconcile
+    - derived_values_reconcile
+    - enrollment_fields_reconcile
+    - psgc_fields_reconcile
+    - source_rows_not_dropped
+    - total_equals_regions
+    - source_keys_match
+  Lineage:
+    - lineage_complete
+    - evidence_and_lineage_complete
+    - provenance_complete
+    - one_timestamp_per_run
+    - rows_built_by_this_run
+    # Gold, Analytics, and the PSGC maps (#193-#210)
+    - crosswalk_lineage_reconciles
+
+# Name families (rule 3 above). Prefixes must not overlap.
+families:
+  labels_mapped_:
+    attribute: Validity
+    basis: One per mapped column; every label is in the reviewed mapping (config/mappings)
+  level_count_:
+    attribute: Reconciliation
+    basis: One per PSGC level; the level's unit count equals the workbook's national summary
+  upstream_run_:
+    attribute: Lineage
+    basis: One per table a Gold gate reads; the build it read succeeded in this job run
+
+# Results that record a count and are always PASS by construction: how many rows
+# a cleaning rule changed or flagged, how many matches each method made, how
+# many rows of each kind a workbook has. They are evidence, not tests, so the
+# dashboard shows them as "Recorded count" and leaves them out of the pass rate.
+recorded_counts:
+  checks:
+    - flag_barangay_blank
+    - flag_barangay_possibly_truncated
+    - flag_enrollment_all_zero
+    - flag_enrollment_no_counts
+    - flag_es_classrooms_missing
+    - flag_has_facility_data
+    - flag_has_population_footnote
+    - flag_is_overseas
+    - flag_level_blank
+    - flag_population_is_zero
+    - flag_public_without_facility_data
+    - match_rate_percent
+    - principal_total_discrepancies
+    - places_with_equal_concepts
+    # Gold, Analytics, and the PSGC maps (#193-#210): counts a gate records with no expected value
+    - cities
+    - municipalities
+    - regular_members
+    - regular_barangays
+    - regular_without_province
+    - sga_members
+    - rolled_up_from_district
+    - district_rows_kept_out
+    - codes_not_comparable
+    - rows_not_comparable
+    - cv_over_20_rows
+    - lower_limit_not_positive
+    - fact_total
+    - members_with_zero_population
+    - population
+    - rows
+    - enrollment
+    - learners
+    - offered_complete
+    - partial_published_cells
+    - schools_excluded
+    - outlier_schools
+    - outlier_school_levels
+    - members_increasing
+    - members_decreasing
+    - members_no_change
+    - lgus_high
+    - lgus_critical
+    - lgus_elevated
+    - lgus_targeted
+    - lgus_monitor
+    - lgus_data_review
+    - lgus_stable
+    - no_estimate_rows
+    - sub_municipality_rows
+    - not_in_source_huc
+    - not_in_source_other
+    - not_in_source_with_sub_municipality_rows
+    - not_in_source_without_correspondence_code
+    - ap4_population_matched_percent
+    - partial_room_reporting
+    - partial_teacher_reporting
+  families:
+    rule_: How many rows each cleaning rule changed
+    method_: How many map rows each match method matched
+    rows_kind_: How many workbook rows of each kind Silver read
+
+# Checks deliberately left without an attribute, with the reason. They are shown
+# as Unclassified, like an unknown check, but the explorer says why.
+unclassified:
+  - check: silver_lane_succeeded
+    reason: Whether a source lane's Silver build succeeded in the job run; a pipeline outcome, shown with pipeline health

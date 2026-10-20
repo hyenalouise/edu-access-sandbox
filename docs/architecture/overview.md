@@ -115,6 +115,8 @@ Bronze checks are listed in [ingestion, Validation](../operations/ingestion.md#v
 
 Silver adds its own gate per source (`etl/03_silver/90_validate_<table>.sql`, `layer = 'silver'`): reconciliation with Bronze per school year (rows and learners), unique non-NULL keys, counts non-negative and integer-typed, NULLs kept as NULL, every label in the reviewed mapping, complete lineage, and the quarantine rate; it also records how many rows each cleaning rule changed or flagged. For Silver, WARN means rows were quarantined (at most 1% of a school year) and the build stands; FAIL means the candidate build cannot be trusted: the task fails before publishing, the run is marked `failed`, and the Silver tables keep the last build that passed (D-025). Details: [Silver, The gate](../operations/silver.md#the-gate).
 
+The [data-quality dashboard](../../dashboards/README.md) shows these results: each check's newest result (current) apart from every recorded result (history), by layer, source, and quality attribute, with job runs and source freshness. It reads only `01-control`.
+
 ## Orchestration
 
 <!-- TODO(Phase 6): task order for the full pipeline. -->
