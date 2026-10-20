@@ -4,6 +4,19 @@ This layer publishes one dataset per analytical question and the LGU priority ta
 
 AP1 to AP3 and the priority table have one row per regular city or municipality. AP4 has one row per city member (regular, `UNKNOWN` or `EXCLUDED`) and school year, so its totals add up; the priority table reads its regular rows. Each build writes a candidate table, its paired `90_validate_*` gate recomputes it from Gold, and only a passing candidate replaces the published table.
 
+```mermaid
+flowchart LR
+    enroll[(fact_school_enrollment)] --> ap1 & ap2 & ap3 & ap4
+    age[(fact_city_school_age_population)] --> ap1 & ap4
+    rooms[(fact_school_classroom_capacity)] --> ap2
+    teachers[(fact_school_teacher_capacity)] --> ap3
+    city[(dim_city_municipality)] --> ap1 & ap2 & ap3 & matrix
+    ap1[ap1_school_provision] --> matrix
+    ap2[ap2_classroom_pressure] --> matrix
+    ap3[ap3_teacher_pressure] --> matrix
+    ap4[ap4_enrollment_trend] -->|context only| matrix[lgu_priority_matrix]
+```
+
 | Build | Gate | Output | Measure |
 |---|---|---|---|
 | `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | SY 2023-24 learners per public school (ranked), and 2024 school-age population (5–17) per public school (context) |
@@ -21,3 +34,5 @@ AP1 to AP3 and the priority table have one row per regular city or municipality.
 Each gate writes its one-row check summary to a table named for the run (`<output>_gate_summary_r_<sha256(run_id)>`) and drops it once the checks are recorded, as the Gold gates do (#202). Gates also record unplaced schools and learners as `WARN`, and the priority gate records the number of LGUs per tier.
 
 Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).
+
+**Known dependency gap.** `04_answer_ap4.sql` reads `fact_city_school_age_population`, but its task in `databricks.yml` waits only for `90_validate_fact_school_enrollment`. If the school-age gate fails, AP4 still builds, from the last published school-age table.

@@ -7,6 +7,45 @@ The provisional model, grains, keys, analytical-question mapping, and ERD are in
 The AP1 to AP4 implementation contract is D-050. Building these source-aligned
 tables does not by itself make an analytical result or dashboard output ready.
 
+```mermaid
+flowchart LR
+    subgraph inputs[Silver and Integration]
+        enroll[(deped_enrollment_clean)]
+        fac[(deped_facilities_clean)]
+        pers[(deped_personnel_clean)]
+        psgc[(psa_psgc_clean)]
+        maps[(PSGC maps)]
+        age[(psa_school_age_population_clean)]
+    end
+    subgraph dims[Dimensions]
+        dim_school[dim_school]
+        dim_year[dim_school_year]
+        dim_level[dim_education_level]
+        dim_city[dim_city_municipality]
+        dim_bgy[dim_barangay]
+        dim_pov[dim_city_poverty]
+    end
+    subgraph facts[Facts]
+        f_enroll[fact_school_enrollment]
+        f_class[fact_school_classroom_capacity]
+        f_teach[fact_school_teacher_capacity]
+        f_pop[fact_city_population]
+        f_age[fact_city_school_age_population]
+        f_avail[fact_school_year_source_availability]
+    end
+    enroll --> dim_school & dim_year & f_enroll
+    psgc --> dim_city & dim_bgy & f_pop
+    maps --> dim_city & dim_pov & f_enroll & f_age
+    fac --> f_class
+    pers --> f_teach
+    age --> f_age
+    enroll & fac & pers --> f_avail
+    dims --> facts
+    facts --> analytics[06 Analytics]
+```
+
+Gold holds keys and measures at their natural grain and no ratios or ranks; those belong to Analytics. `dim_education_level` is a fixed list (ES, JHS, SHS) and reads no table.
+
 All six dimensions and six facts are implemented and enabled in the job. Grains are in the [ETL table registry](../../docs/standards/tables.md#gold-names).
 
 | Table | Build | Gate |

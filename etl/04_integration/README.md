@@ -1,57 +1,45 @@
 # 04 Integration
 
-Matching across sources: DepEd place names to PSGC codes, and other sources to the shared geography.
+Matches the sources to one shared geography, PSGC, so Gold can join them. Each map keeps one row per source row, including the ones it cannot match, with a match method, a status, and a reason.
 
-The first implemented map is `deped_annex_mother_map`, one row per annex school
-and school year. The acquired DepEd releases identify annexes but do not include
-their mother-school IDs, so every current row is retained as `unmatched` with
-evidence and lineage. The validation gate records the unmatched count and fails
-if an annex is dropped, duplicated, or represented inconsistently. No totals are
-consolidated until a reliable crosswalk is reviewed (D-044).
+```mermaid
+flowchart LR
+    enroll[(deped_enrollment_clean)] --> school_map[deped_school_psgc_map]
+    emisd[(deped_enrollment_psgc_clean)] --> school_map
+    psgc[(psa_psgc_clean)] --> school_map
+    psgc --> poverty_map[psa_poverty_psgc_map]
+    poverty[(psa_poverty_stat_clean)] --> poverty_map
+    psgc --> hdx_map[hdx_adm3_psgc_map]
+    hdx[(hdx_adm3_clean)] --> hdx_map
+    psgc --> age_map[psa_school_age_population_psgc_map]
+    age[(psa_school_age_population_clean)] --> age_map
+    enroll --> annex_map[deped_annex_mother_map]
+    school_map --> fact_enroll[fact_school_enrollment]
+    poverty_map --> dim_poverty[dim_city_poverty]
+    hdx_map --> dim_city[dim_city_municipality]
+    age_map --> fact_age[fact_city_school_age_population]
+```
 
-The DepEd school geography spine is `01_map_deped_school_psgc.sql` and
-`90_validate_deped_school_psgc_map.sql` (#91, D-049), generated from
-`config/mappings/integration/deped_school_psgc.json`. It keeps one row per
-enrollment school, school year, and level (`city_mun`, `bgy`), including
-unmatched, ambiguous, excluded, and overseas schools. It matches cities once
-per distinct (province, municipality) and barangays once per distinct place
-before joining decisions back to schools, avoiding a school-by-PSGC cross
-product on a small SQL warehouse. Its gate also requires exact source-key
-membership and the configured master PSGC version, fails a match rate below
-the rules file's floor, and blocks publication when reviewed counts change.
-The expensive reused stages are run-specific Delta work tables whose names
-contain a SHA-256 hash of `run_id`; they are unpublished diagnostic state,
-cannot collide across jobs, and are dropped after a successful candidate build.
-A failed run may leave only its own tables for diagnosis and manual cleanup;
-see the [Integration runbook](../../docs/operations/integration.md#internal-work-tables).
+Each map waits only for the Silver gates of the tables it reads (D-051), and, like every layer from Silver on, builds a candidate that replaces the published map only when its gate passes.
 
-The HDX ADM3 to PSGC map is `03_map_hdx_adm3_psgc.sql` and
-`90_validate_hdx_adm3_psgc_map.sql` (#93, D-052), generated from
-`config/integration/hdx_adm3_psgc.json` by `python -m src.integration.hdx_adm3_psgc sql|gate`;
-`tests/test_integration_hdx.py` fails if they differ.
+## Maps
 
-The PSA poverty to PSGC map is `02_map_psa_poverty_psgc.sql` and
-`90_validate_psa_poverty_psgc_map.sql` (#92, D-054), written by hand. One row per
-`psa_poverty_stat_clean` row (`psgc_id`, `estimate_year`), matched by `Correspondence Code`
-only, with the estimates copied unchanged. Names are compared, never matched; Manila's 14
-districts keep their own sub-municipality codes. The gate counts the PSGC cities and
-municipalities with no PSA row per estimate year (D-028) and publishes only if no check
-fails. Tests: `tests/test_integration_poverty.py`.
+| Map | Build | Gate | Written | Matches | Decision |
+|---|---|---|---|---|---|
+| `deped_school_psgc_map` | `01_map_deped_school_psgc.sql` | `90_validate_deped_school_psgc_map.sql` | Generated from [`config/mappings/integration/`](../../config/mappings/integration/README.md) | Each school, school year, and level (`city_mun`, `bgy`): EMISD code first, reviewed name as fallback | #91, D-049 |
+| `psa_poverty_psgc_map` | `02_map_psa_poverty_psgc.sql` | `90_validate_psa_poverty_psgc_map.sql` | By hand | Each poverty estimate row, by `Correspondence Code` only; estimates copied unchanged | #92, D-054 |
+| `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | `90_validate_hdx_adm3_psgc_map.sql` | Generated from [`config/integration/`](../../config/integration/README.md) | Each COD-AB ADM3 feature, by code and name together | #93, D-052 |
+| `deped_annex_mother_map` | `04_map_deped_annex_mother.sql` | `90_validate_deped_annex_mother_map.sql` | By hand | Each annex school and year to its mother school | D-044 |
+| `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | `90_validate_psa_school_age_population_psgc_map.sql` | Generated from [`config/integration/`](../../config/integration/README.md) | Each census place, inside its province | #159, D-055 |
 
-The PSA school-age population to PSGC map is
-`05_map_psa_school_age_population_psgc.sql` and `90_validate_psa_school_age_population_psgc_map.sql`
-(#159, D-055), generated from `config/integration/psa_school_age_population_psgc.json` by
-`python -m src.integration.psa_school_age_population_psgc sql|gate`; `tests/test_integration_school_age.py`
-fails if they differ. It waits for the school-age population and PSGC Silver gates.
+Regenerate a generated map with `python -m src.integration.<module> sql|gate` ([src/integration](../../src/integration/README.md)); its test fails until the committed SQL matches.
 
-Each map starts from the Silver gates of the sources it reads, not from the
-source-lane fan-in (D-051). The DepEd school map waits for the enrollment,
-EMISD crosswalk, and PSGC Silver gates, the HDX map for the HDX and PSGC Silver
-gates, the poverty map for the poverty and PSGC Silver gates, and the school-age
-map for the school-age population and PSGC Silver gates.
+## Notes per map
 
-Every map table is listed in the [ETL table registry](../../docs/standards/tables.md#integration-tables).
-`deped_annex_mother_map` is `04_map_deped_annex_mother.sql` and
-`90_validate_deped_annex_mother_map.sql`. Files follow
-`NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see
-[File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).
+- **`deped_school_psgc_map`** matches each distinct (province, municipality) and barangay place once, then joins the decisions back to schools, so the warehouse never builds a school-by-PSGC cross product. Its gate fails below the match-rate floor in its rules file, requires the configured PSGC version, and blocks publication when reviewed counts change. Its expensive stages are run-specific work tables named with a hash of `run_id`, dropped after a successful build ([Integration, Internal work tables](../../docs/operations/integration.md#internal-work-tables)).
+- **`psa_poverty_psgc_map`** compares names but never matches by them. Manila's 14 districts keep their own sub-municipality codes, and the gate counts the PSGC cities and municipalities with no PSA row in each estimate year (D-028).
+- **`hdx_adm3_psgc_map`**: COD-AB P-codes are not PSGC codes, so a code counts only when the names agree. The 8 Special Geographic Area units stay unmatched.
+- **`deped_annex_mother_map`**: the DepEd releases name annexes but not their mother schools, so every row is `unmatched` with its evidence, and no totals are consolidated until a reviewed crosswalk exists. Nothing downstream reads it yet.
+- **`psa_school_age_population_psgc_map`**: census regions are mapped to today's PSGC regions first, then names are matched inside their province only.
+
+Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql`.

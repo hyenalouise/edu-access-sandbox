@@ -2,12 +2,33 @@
 
 Each source landed unchanged, every column as text, plus provenance columns saying where each row came from.
 
+```mermaid
+flowchart LR
+    volume[(00-source volume<br/>raw files)] --> ddl[NN_create_table_raw<br/>creates the table once]
+    ddl --> load[bronze_source_id<br/>Python loader]
+    volume --> load
+    load -->|insert-only MERGE| raw[(02-bronze<br/>source_raw)]
+    load --> control[(01-control<br/>runs, batches, attempts)]
+    raw --> gate{90_validate_table_raw}
+    gate --> dq[(data_quality_results)]
+    gate -->|pass| silver[03 Silver, through<br/>current_batches]
+```
+
 | File | What it does |
 |---|---|
 | `NN_create_<table>.sql` | One table per logical source, including all delivery years. `NN` is the source order in `config/tables.yml`. Generated from `config/ingestion/<source_id>.json` once that source has an ingestion contract (`python -m src.ingestion.cli ddl --source <source_id>`); a test fails if it differs |
 | `90_validate_<table>.sql` | Bronze gate, run after every load (in the job, as its own SQL task right after the load): no pipeline duplicates, every row has a known batch, every succeeded batch reconciles to its file. Writes to `data_quality_results` and fails on any FAIL. Reads `:run_id` and `:code_revision`. Generated the same way (`cli gate`) |
 
-Implemented sources: `deped_enrollment`, `deped_facilities`, `psa_psgc` (an xlsx workbook per quarter; rows identified by the workbook's SHA-256 and the Excel row number, carrying `source_sheet`, `publication_period` and `publication_date`), `psa_poverty_stat` (an xlsx workbook; its rows are identified by the workbook's SHA-256 and the Excel row number, and carry `source_sheet` and `source_row_kind`; every row of the sheet is kept, including title, header and footer rows), `hdx_boundaries` (one GeoJSON file, table `hdx_adm3_raw`; rows are identified by the file's SHA-256 and the feature's position, and the geometry is kept as raw GeoJSON text), `deped_enrollment_psgc` (the DepEd EMISD workbook, format `xlsx_report`; rows are identified by the workbook's SHA-256 and the Excel row number, and carry `school_year`, `source_sheet` and `source_row_kind`; every row below the header is kept, including blank rows), `psa_school_age_population` (two census workbooks, format `xlsx_census`; both sheets of each are loaded, so rows are identified by the workbook's SHA-256, the sheet and the Excel row number, and carry `logical_dataset`, `census_year` and `source_row_kind`; every row of each sheet is kept, including title, header, note and source rows). Final names for these and the known sources still awaiting ingestion contracts are in the
+What each source's rows carry, beyond the publisher's columns as text:
+
+| Source | Format | A row is identified by | Also carries |
+|---|---|---|---|
+| `deped_enrollment`, `deped_facilities`, `deped_personnel` | `zip_csv` | The zip's SHA-256 and the CSV row number | `school_year` |
+| `psa_psgc` | `xlsx_table` | The workbook's SHA-256 and the Excel row number | `source_sheet`, `publication_period`, `publication_date` |
+| `psa_poverty_stat` | `xlsx_sheet` | The workbook's SHA-256 and the Excel row number | `source_sheet`, `source_row_kind`; title, header, and footer rows kept |
+| `deped_enrollment_psgc` | `xlsx_report` | The workbook's SHA-256 and the Excel row number | `school_year`, `source_sheet`, `source_row_kind`; blank rows kept |
+| `psa_school_age_population` | `xlsx_census` | The workbook's SHA-256, the sheet, and the Excel row number | `logical_dataset`, `census_year`, `source_row_kind`; both sheets loaded |
+| `hdx_boundaries` | `geojson_features` | The file's SHA-256 and the feature's position | Geometry as raw GeoJSON text |
 [ETL table registry](../../docs/standards/tables.md).
 
 ## Files
