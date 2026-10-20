@@ -179,8 +179,10 @@ SEL = f"""sel AS (
 
 PR_CARD = f"""WITH {PRI},
 {SEL}
-SELECT p.lgu_label, p.lgu_type_label, p.province_label, p.region_name, p.tier, p.tier_meaning,
-       CAST(p.national_rank AS STRING) || ' of ' || CAST((SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS STRING) AS rank_label,
+SELECT p.lgu_label, p.city_mun_name, p.lgu_type_label, p.province_label, p.region_name, p.tier, p.tier_meaning,
+       CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name
+            ELSE p.province_label || ', ' || p.region_name END AS province_region,
+       p.national_rank, (SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS places_ranked,
        p.high_count_label, p.high_areas, p.affected_learners, p.stability,
        CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu
             THEN '(Your selection is outside the filters, so this shows the top LGU in them.)' ELSE '' END AS notice
@@ -849,10 +851,12 @@ def lgu_profile(b):
     p.row([(text(b, "# Why is this place a priority, and where should the board look?\n",
                  "Choose the place in *City or municipality* and, for the barangay and school sections, a *Barangay* at "
                  "the top. Figures are SY 2023-24 unless a title says otherwise."), 12)], 2)
-    p.row([(table(b, "pr_card", "Selected city or municipality", [
-        ("lgu_label", "City or municipality", None), ("lgu_type_label", "Type", None), ("tier", "Tier", None),
-        ("rank_label", "Rank", None), ("high_areas", "High on", None), ("tier_meaning", "What the tier means", None),
-        ("stability", "Stability", None), ("notice", "Note", None)]), 12)], 3)
+    p.row([(kpi(b, "pr_card", "Selected city or municipality", "city_mun_name", None,
+                desc="Change it in City or municipality at the top"), 12)], 2)
+    p.row([(table(b, "pr_card", "Place details", [
+        ("lgu_type_label", "Type", None), ("province_region", "Province and region", None), ("tier", "Tier", None),
+        ("national_rank", "Rank", num()), ("places_ranked", "Of places ranked", num()), ("stability", "Stability", None),
+        ("notice", "Note", None)]), 12)], 2)
     p.row([(kpi(b, "pr_card", "High-pressure measures", "high_count_label", None,
                 desc="At or above the 90th percentile of its type"), 3),
            (kpi(b, "pr_card", "Public learners", "affected_learners", num(), desc="SY 2023-24, complete school counts"), 3),
@@ -917,10 +921,12 @@ def school_action(b):
            (param_filter(b, "level", "Education level", targets), 2),
            (param_filter(b, "school_status", "School status", ["sa_list"]), 2),
            (param_filter(b, "school", "School", targets, "Defaults to the first school to check."), 2)], 2)
-    p.row([(table(b, "sa_school", "Selected school", [
-        ("school_name", "School", None), ("school_id", "School ID", None), ("barangay_name", "Barangay", None),
-        ("school_kind", "Main or annex", None), ("levels_offered", "Levels", None), ("learners", "Learners", num()),
-        ("check_label", "Figures", None), ("notice", "Note", None)]), 12)], 3)
+    p.row([(kpi(b, "sa_school", "Selected school", "school_name", None,
+                desc="Change it in School above"), 12)], 2)
+    p.row([(table(b, "sa_school", "School details", [
+        ("school_id", "School ID", None), ("barangay_name", "Barangay", None), ("school_kind", "Main or annex", None),
+        ("levels_offered", "Levels", None), ("learners", "Learners, SY 2023-24", num()), ("check_label", "Figures", None),
+        ("notice", "Note", None)]), 12)], 2)
     p.row([(kpi(b, "sa_school", "Learners per reported room", "learners_per_room", num(1),
                 desc="All levels · rooms include labs"), 3),
            (kpi(b, "sa_school", "Learners per teacher", "teacher_ratio", num(1), desc="At the education level chosen above"), 3),
