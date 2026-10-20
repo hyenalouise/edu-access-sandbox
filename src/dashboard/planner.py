@@ -65,7 +65,7 @@ TIER_SORT = ("CASE {c} WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targe
 
 
 def r1(expr):
-    return f"COALESCE(CAST(ROUND({expr}, 1) AS STRING), 'n/a')"
+    return f"COALESCE(format_number({expr}, 1), 'n/a')"
 
 
 def r2(expr):
@@ -73,11 +73,11 @@ def r2(expr):
 
 
 def cov(expr):
-    return f"COALESCE(CAST(CAST(ROUND({expr}) AS BIGINT) AS STRING) || '%', 'n/a')"
+    return f"COALESCE(format_number({expr}, 0) || '%', 'n/a')"
 
 
 def r0(expr):
-    return f"COALESCE(CAST(CAST(ROUND({expr}) AS BIGINT) AS STRING), 'n/a')"
+    return f"COALESCE(format_number({expr}, 0), 'n/a')"
 
 
 # Every LGU's published D-057 row with its checks and plain-language labels.
@@ -125,6 +125,8 @@ FROM (
   SELECT ROW_NUMBER() OVER (ORDER BY tier_sort DESC, order_in_tier) AS rank_in_view, national_rank,
          city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, tier, tier_level, tier_meaning,
          high_areas, high_count_label, data_review_reason, stability, affected_learners, ap3_highest_level,
+         NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)
+           AS lowest_coverage_pct,
          100.0 * ap1_percentile AS ap1_pct, 100.0 * ap2_percentile AS ap2_pct, 100.0 * ap3_percentile AS ap3_pct
   FROM pri
   WHERE {OV_FILTER}
@@ -186,8 +188,8 @@ SELECT p.lgu_label, p.city_mun_name, p.lgu_type_label, p.province_label, p.regio
        p.national_rank, (SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS places_ranked,
        p.lgu_type_label || ' · '
          || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END
-         || ' · ' || p.tier || ' · rank ' || CAST(p.national_rank AS STRING) || ' of '
-         || CAST((SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS STRING)
+         || ' · ' || p.tier || ' · rank ' || format_number(p.national_rank, 0) || ' of '
+         || format_number((SELECT COUNT(*) FROM {A}.lgu_priority_matrix), 0)
          || CASE WHEN p.is_stable THEN ' · Stable' ELSE '' END
          || CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu THEN ' · top place in the filters' ELSE '' END AS details,
        p.high_count_label, p.high_areas, p.affected_learners, p.stability,
@@ -219,12 +221,12 @@ FROM p
 UNION ALL SELECT 2, '{MEASURES[1]}', {r1('ap2_learners_per_classroom')}, {r1('ap2_same_type_median')},
        {r0('100 * ap2_percentile')}, {cov('ap2_learner_coverage_pct')},
        CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,
-       'Schools above the fence: ' || CAST(COALESCE(ap2_outlier_school_count, 0) AS STRING)
+       'Schools above the fence: ' || format_number(COALESCE(ap2_outlier_school_count, 0), 0)
 FROM p
 UNION ALL SELECT 3, '{MEASURES[2]} · ' || COALESCE(ap3_level, 'no level'), {r1('ap3_value')}, {r1('ap3_same_type_median')},
        {r0('100 * ap3_percentile')}, {cov('ap3_coverage_pct')},
        CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not assessed' END,
-       'School levels above the fence: ' || CAST(COALESCE(ap3_outlier_school_level_count, 0) AS STRING)
+       'School levels above the fence: ' || format_number(COALESCE(ap3_outlier_school_level_count, 0), 0)
 FROM p
 UNION ALL SELECT 4, 'Tier without the flagged schools', COALESCE(tier_without_outliers, 'n/a'), tier, '', '',
        CASE WHEN outliers_change_tier THEN 'Changes' ELSE 'Holds' END, ''
@@ -488,24 +490,24 @@ rules AS (
   UNION ALL
   SELECT 2, CASE WHEN tier = 'Data review' THEN 'Not given a tier yet: ' || data_review_reason || '.'
                  ELSE 'School figures above the outlier fence: '
-                      || CAST(COALESCE(ap2_outlier_school_count, 0) + COALESCE(ap3_outlier_school_level_count, 0) AS STRING)
+                      || format_number(COALESCE(ap2_outlier_school_count, 0) + COALESCE(ap3_outlier_school_level_count, 0), 0)
                       || '. The tier '
                       || CASE WHEN outliers_change_tier THEN 'changes to ' || tier_without_outliers ELSE 'stays ' || tier END
                       || ' without them, so check them with the Schools Division Office.' END
   FROM p
   WHERE tier = 'Data review' OR COALESCE(ap2_outlier_school_count, 0) + COALESCE(ap3_outlier_school_level_count, 0) > 0
   UNION ALL
-  SELECT 3, 'Enrollment in all sectors went from ' || CAST(first_value AS STRING) || ' in SY ' || first_year || ' to '
-            || CAST(last_value AS STRING) || ' in SY ' || last_year || ' (' || CASE WHEN change_pct >= 0 THEN '+' ELSE '' END
+  SELECT 3, 'Enrollment in all sectors went from ' || format_number(first_value, 0) || ' in SY ' || first_year || ' to '
+            || format_number(last_value, 0) || ' in SY ' || last_year || ' (' || CASE WHEN change_pct >= 0 THEN '+' ELSE '' END
             || {r1('100 * change_pct')} || '%). Context only: it does not set the tier.'
   FROM trend WHERE incomplete = 0 AND first_value IS NOT NULL AND last_value IS NOT NULL AND change_pct IS NOT NULL
   UNION ALL
-  SELECT 4, CAST(without_es AS STRING) || ' of ' || CAST(barangays AS STRING) || ' barangays '
+  SELECT 4, format_number(without_es, 0) || ' of ' || format_number(barangays, 0) || ' barangays '
             || CASE WHEN without_es = 1 THEN 'has' ELSE 'have' END
             || ' no matched public elementary school. A nearby school may still serve them.'
   FROM brgy WHERE without_es > 0
   UNION ALL
-  SELECT 5, CAST(local AS STRING) || ' of ' || CAST(teachers AS STRING)
+  SELECT 5, format_number(local, 0) || ' of ' || format_number(teachers, 0)
             || ' public-school teachers are locally funded (SEF, LGU or other local funds), SY 2023-24.'
   FROM teachers WHERE teachers > 0
 )
@@ -534,7 +536,7 @@ SELECT s.school_name, s.school_id, s.barangay_name, s.school_kind, s.levels_offe
        s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,
        CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,
        'ID ' || s.school_id || ' · ' || s.barangay_name || ' · ' || s.school_kind || ' · ' || s.levels_offered
-         || ' · ' || COALESCE(CAST(s.learners AS STRING), 'n/a') || ' learners · '
+         || ' · ' || COALESCE(format_number(s.learners, 0), 'n/a') || ' learners · '
          || CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END
          || CASE WHEN :school <> '{FIRST_SCHOOL}' AND s.school_name || ' · ' || s.school_id <> :school
                  THEN ' · first school to check' ELSE '' END AS details,
@@ -600,6 +602,21 @@ WHERE {SCHOOL_FILTERS}
 ORDER BY list_order"""
 
 # ============================================================ 4 Data and Method
+FRESHNESS = f"""WITH runs AS (
+  SELECT MAX(finished_at_utc) AS last_run FROM edu_access.`01-control`.pipeline_runs WHERE status = 'succeeded'
+),
+years AS (
+  SELECT MIN(CASE WHEN source_id = 'deped_enrollment' AND has_data THEN school_year END) AS first_enrollment,
+         MAX(CASE WHEN source_id = 'deped_enrollment' AND has_data THEN school_year END) AS last_enrollment,
+         MAX(CASE WHEN source_id IN ('deped_facilities', 'deped_personnel') AND has_data THEN school_year END) AS last_capacity
+  FROM {G}.fact_school_year_source_availability
+)
+SELECT 'Data as of ' || COALESCE(CAST(CAST(runs.last_run AS DATE) AS STRING), 'n/a')
+       || ' · classrooms and teachers SY ' || COALESCE(years.last_capacity, 'n/a')
+       || ' · enrollment SY ' || COALESCE(years.first_enrollment, 'n/a') || ' to ' || COALESCE(years.last_enrollment, 'n/a')
+         AS freshness
+FROM runs CROSS JOIN years"""
+
 DM_KPI = f"""WITH {PRI}
 SELECT COUNT(*) AS lgus,
        COUNT_IF(tier <> 'Data review') AS assessed,
@@ -791,6 +808,7 @@ def datasets(b):
     b.dataset("sa_rooms", "School Action: rooms and teachers", SA_ROOMS, SCHOOL_P)
     b.dataset("sa_verify", "School Action: figures to verify", SA_VERIFY, SCHOOL_P)
     b.dataset("sa_list", "School Action: action list", SA_LIST, LGU_P + ["barangay", "level", "school_status"])
+    b.dataset("freshness", "Data freshness", FRESHNESS)
     b.dataset("dm_kpi", "Data and Method: KPIs", DM_KPI, GEO_P)
     b.dataset("dm_refs", "Data and Method: same-type medians", DM_REFS, ["lgu_type"])
     b.dataset("dm_coverage", "Data and Method: coverage bands", DM_COVERAGE, GEO_P + ["measure"])
@@ -828,6 +846,8 @@ def overview(b):
            (param_filter(b, "tier", "Priority tier", targets), 3),
            (param_filter(b, "coverage", "Coverage status", targets,
                          "Assessed places have every measure at 90% coverage or more."), 3)], 2)
+    p.row([(kpi(b, "freshness", "Data freshness", "freshness", None,
+                desc="Latest successful pipeline run and the school years it covers"), 12)], 2)
     p.row([(kpi(b, "ov_kpi", "Priority LGUs", "priority_lgus", num(), desc="Critical or Elevated: high on 2 or 3 measures"), 3),
            (kpi(b, "ov_kpi", "Public learners in priority LGUs", "priority_learners", num(1, True),
                 "{{ @formatted }} ({{share_txt}})", "SY 2023-24 · share of public learners in view",
@@ -835,11 +855,11 @@ def overview(b):
            (kpi(b, "ov_kpi", "Critical LGUs", "critical_lgus", num(), desc="High on all three measures"), 3),
            (kpi(b, "ov_kpi", "LGUs needing data review", "data_review_lgus", num(),
                 desc="Under 90% coverage on a measure: no tier"), 3)], 3)
-    p.row([(choropleth(b, "ov_lgu", "Where the priority places are", "tier_level", "Tier (0 data review, 4 Critical)",
+    p.row([(choropleth(b, "ov_lgu", "Where the priority places are", "tier_level", "Tier",
                        [("lgu_label", "City or municipality"), ("tier", "Tier"), ("high_areas", "High on")],
                        "#B4B2A9", "#712B13",
-                       "Darker is a higher tier. Grey is data review (0). The 8 Special Geographic Area municipalities "
-                       "have no boundary and are not drawn; a missing area is not a low priority."), 7),
+                       "Tier scale: 4 Critical, 3 Elevated, 2 Targeted, 1 Monitor, 0 data review (grey). The 8 Special "
+                       "Geographic Area municipalities have no boundary and are not drawn; a missing area is not a low priority."), 7),
            (bar(b, "ov_drivers", "What drives each tier", "high_areas", "High on", "count", "city_mun_psgc_code",
                 "Cities and municipalities", color="tier", color_label="Tier", mappings=TIER_COLORS,
                 color_order=TIERS[:3], order=DRIVER_ORDER,
@@ -858,9 +878,11 @@ def overview(b):
         ("tier", "Tier", None), ("high_areas", "High on", None), ("ap1_pct", "Schools pct", num()),
         ("ap2_pct", "Classrooms pct", num()), ("ap3_pct", "Teachers pct", num()),
         ("ap3_highest_level", "Teacher level used", None), ("affected_learners", "Public learners", num()),
-        ("stability", "Stability", None), ("data_review_reason", "Data review reason", None)],
+        ("lowest_coverage_pct", "Lowest coverage %", num()), ("stability", "Stability", None),
+        ("data_review_reason", "Data review reason", None)],
         "Ranked by tier, then public learners, then the lowest of the three percentiles (D-057). pct is the "
-        "within-type percentile (90 or more is high). Stable means Critical within type and nationally. Download "
+        "within-type percentile (90 or more is high). Lowest coverage is the least complete of the three measures; under 90 "
+        "means data review, not low pressure. Stable means Critical within type and nationally. Download "
         "from the table menu."), 12)], 10)
     p.row([(text(b, "**Next:** choose a place in *City or municipality* at the top, then open **LGU Profile**. "
                  "A tier is relative pressure compared with similar places, not a count of schools, classrooms or "
@@ -990,6 +1012,8 @@ def data_and_method(b):
                  "Start with the summary and the rule; the checks behind them follow."), 6),
            (param_filter(b, "measure", "Measure", ["dm_coverage", "dm_reasons"]), 3),
            (param_filter(b, "scenario", "Validation check", ["dm_transition"]), 3)], 2)
+    p.row([(kpi(b, "freshness", "Data freshness", "freshness", None,
+                desc="Latest successful pipeline run and the school years it covers"), 12)], 2)
     p.row([(kpi(b, "dm_kpi", "Assessed LGUs", "assessed", num(), "{{ @formatted }} of {{lgus}}",
                 "Every measure at 90% coverage or more", extra=("lgus",)), 3),
            (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), desc="A measure below the coverage gate"), 3),

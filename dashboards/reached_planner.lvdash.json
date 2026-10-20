@@ -48,6 +48,8 @@
         "  SELECT ROW_NUMBER() OVER (ORDER BY tier_sort DESC, order_in_tier) AS rank_in_view, national_rank,\n",
         "         city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, tier, tier_level, tier_meaning,\n",
         "         high_areas, high_count_label, data_review_reason, stability, affected_learners, ap3_highest_level,\n",
+        "         NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)\n",
+        "           AS lowest_coverage_pct,\n",
         "         100.0 * ap1_percentile AS ap1_pct, 100.0 * ap2_percentile AS ap2_pct, 100.0 * ap3_percentile AS ap3_pct\n",
         "  FROM pri\n",
         "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:tier = 'All tiers' OR tier = :tier) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND tier <> 'Data review') OR (:coverage = 'Data review' AND tier = 'Data review'))\n",
@@ -553,8 +555,8 @@
         "       p.national_rank, (SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix) AS places_ranked,\n",
         "       p.lgu_type_label || ' \u00b7 '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
-        "         || ' \u00b7 ' || p.tier || ' \u00b7 rank ' || CAST(p.national_rank AS STRING) || ' of '\n",
-        "         || CAST((SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix) AS STRING)\n",
+        "         || ' \u00b7 ' || p.tier || ' \u00b7 rank ' || format_number(p.national_rank, 0) || ' of '\n",
+        "         || format_number((SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix), 0)\n",
         "         || CASE WHEN p.is_stable THEN ' \u00b7 Stable' ELSE '' END\n",
         "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 top place in the filters' ELSE '' END AS details,\n",
         "       p.high_count_label, p.high_areas, p.affected_learners, p.stability,\n",
@@ -688,14 +690,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -907,14 +909,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -1019,11 +1021,11 @@
         "    SELECT measure, pctl, value_txt, rp_txt,\n",
         "           ROW_NUMBER() OVER (ORDER BY pctl DESC) AS rn\n",
         "    FROM (\n",
-        "      SELECT 'Schools: ' || COALESCE(CAST(CAST(ROUND(ap1_learners_per_public_school) AS BIGINT) AS STRING), 'n/a') || ' learners per public school' AS measure,\n",
+        "      SELECT 'Schools: ' || COALESCE(format_number(ap1_learners_per_public_school, 0), 'n/a') || ' learners per public school' AS measure,\n",
         "             ap1_percentile AS pctl, '' AS value_txt, COALESCE(CAST(ROUND(ap1_relative_pressure, 2) AS STRING), 'n/a') AS rp_txt FROM p WHERE ap1_assessed\n",
-        "      UNION ALL SELECT 'Classrooms: ' || COALESCE(CAST(ROUND(ap2_learners_per_classroom, 1) AS STRING), 'n/a') || ' learners per classroom', ap2_percentile, '',\n",
+        "      UNION ALL SELECT 'Classrooms: ' || COALESCE(format_number(ap2_learners_per_classroom, 1), 'n/a') || ' learners per classroom', ap2_percentile, '',\n",
         "             COALESCE(CAST(ROUND(ap2_relative_pressure, 2) AS STRING), 'n/a') FROM p WHERE ap2_assessed\n",
-        "      UNION ALL SELECT 'Teachers: ' || COALESCE(CAST(ROUND(ap3_value, 1) AS STRING), 'n/a') || ' learners per teacher at ' || CASE ap3_level WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END,\n",
+        "      UNION ALL SELECT 'Teachers: ' || COALESCE(format_number(ap3_value, 1), 'n/a') || ' learners per teacher at ' || CASE ap3_level WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END,\n",
         "             ap3_percentile, '', COALESCE(CAST(ROUND(ap3_relative_pressure, 2) AS STRING), 'n/a') FROM p WHERE ap3_assessed AND ap3_level IS NOT NULL\n",
         "    ) AS u\n",
         "  ) AS ranked WHERE rn = 1\n",
@@ -1045,30 +1047,30 @@
         "),\n",
         "teachers AS (SELECT SUM(teachers) AS teachers, SUM(locally_funded_teachers) AS local FROM schools),\n",
         "rules AS (\n",
-        "  SELECT 1 AS ord, measure || ' is the strongest pressure, at the ' || COALESCE(CAST(CAST(ROUND(100 * pctl) AS BIGINT) AS STRING), 'n/a')\n",
+        "  SELECT 1 AS ord, measure || ' is the strongest pressure, at the ' || COALESCE(format_number(100 * pctl, 0), 'n/a')\n",
         "         || 'th percentile among ' || (SELECT type_plural FROM p) || ' (' || rp_txt || ' times the typical one).' AS insight\n",
         "  FROM strongest\n",
         "  UNION ALL\n",
         "  SELECT 2, CASE WHEN tier = 'Data review' THEN 'Not given a tier yet: ' || data_review_reason || '.'\n",
         "                 ELSE 'School figures above the outlier fence: '\n",
-        "                      || CAST(COALESCE(ap2_outlier_school_count, 0) + COALESCE(ap3_outlier_school_level_count, 0) AS STRING)\n",
+        "                      || format_number(COALESCE(ap2_outlier_school_count, 0) + COALESCE(ap3_outlier_school_level_count, 0), 0)\n",
         "                      || '. The tier '\n",
         "                      || CASE WHEN outliers_change_tier THEN 'changes to ' || tier_without_outliers ELSE 'stays ' || tier END\n",
         "                      || ' without them, so check them with the Schools Division Office.' END\n",
         "  FROM p\n",
         "  WHERE tier = 'Data review' OR COALESCE(ap2_outlier_school_count, 0) + COALESCE(ap3_outlier_school_level_count, 0) > 0\n",
         "  UNION ALL\n",
-        "  SELECT 3, 'Enrollment in all sectors went from ' || CAST(first_value AS STRING) || ' in SY ' || first_year || ' to '\n",
-        "            || CAST(last_value AS STRING) || ' in SY ' || last_year || ' (' || CASE WHEN change_pct >= 0 THEN '+' ELSE '' END\n",
-        "            || COALESCE(CAST(ROUND(100 * change_pct, 1) AS STRING), 'n/a') || '%). Context only: it does not set the tier.'\n",
+        "  SELECT 3, 'Enrollment in all sectors went from ' || format_number(first_value, 0) || ' in SY ' || first_year || ' to '\n",
+        "            || format_number(last_value, 0) || ' in SY ' || last_year || ' (' || CASE WHEN change_pct >= 0 THEN '+' ELSE '' END\n",
+        "            || COALESCE(format_number(100 * change_pct, 1), 'n/a') || '%). Context only: it does not set the tier.'\n",
         "  FROM trend WHERE incomplete = 0 AND first_value IS NOT NULL AND last_value IS NOT NULL AND change_pct IS NOT NULL\n",
         "  UNION ALL\n",
-        "  SELECT 4, CAST(without_es AS STRING) || ' of ' || CAST(barangays AS STRING) || ' barangays '\n",
+        "  SELECT 4, format_number(without_es, 0) || ' of ' || format_number(barangays, 0) || ' barangays '\n",
         "            || CASE WHEN without_es = 1 THEN 'has' ELSE 'have' END\n",
         "            || ' no matched public elementary school. A nearby school may still serve them.'\n",
         "  FROM brgy WHERE without_es > 0\n",
         "  UNION ALL\n",
-        "  SELECT 5, CAST(local AS STRING) || ' of ' || CAST(teachers AS STRING)\n",
+        "  SELECT 5, format_number(local, 0) || ' of ' || format_number(teachers, 0)\n",
         "            || ' public-school teachers are locally funded (SEF, LGU or other local funds), SY 2023-24.'\n",
         "  FROM teachers WHERE teachers > 0\n",
         ")\n",
@@ -1316,21 +1318,21 @@
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT 1 AS ord, 'Schools (AP1)' AS measure, COALESCE(CAST(ROUND(ap1_learners_per_public_school, 1) AS STRING), 'n/a') AS value,\n",
-        "       COALESCE(CAST(ROUND(ap1_same_type_median, 1) AS STRING), 'n/a') AS typical, COALESCE(CAST(CAST(ROUND(100 * ap1_percentile) AS BIGINT) AS STRING), 'n/a') AS percentile,\n",
-        "       COALESCE(CAST(CAST(ROUND(ap1_coverage_pct) AS BIGINT) AS STRING) || '%', 'n/a') AS coverage,\n",
+        "SELECT 1 AS ord, 'Schools (AP1)' AS measure, COALESCE(format_number(ap1_learners_per_public_school, 1), 'n/a') AS value,\n",
+        "       COALESCE(format_number(ap1_same_type_median, 1), 'n/a') AS typical, COALESCE(format_number(100 * ap1_percentile, 0), 'n/a') AS percentile,\n",
+        "       COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'n/a') AS coverage,\n",
         "       CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END AS assessed,\n",
         "       'No outlier rule' AS unusual_schools\n",
         "FROM p\n",
-        "UNION ALL SELECT 2, 'Classrooms (AP2)', COALESCE(CAST(ROUND(ap2_learners_per_classroom, 1) AS STRING), 'n/a'), COALESCE(CAST(ROUND(ap2_same_type_median, 1) AS STRING), 'n/a'),\n",
-        "       COALESCE(CAST(CAST(ROUND(100 * ap2_percentile) AS BIGINT) AS STRING), 'n/a'), COALESCE(CAST(CAST(ROUND(ap2_learner_coverage_pct) AS BIGINT) AS STRING) || '%', 'n/a'),\n",
+        "UNION ALL SELECT 2, 'Classrooms (AP2)', COALESCE(format_number(ap2_learners_per_classroom, 1), 'n/a'), COALESCE(format_number(ap2_same_type_median, 1), 'n/a'),\n",
+        "       COALESCE(format_number(100 * ap2_percentile, 0), 'n/a'), COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'n/a'),\n",
         "       CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
-        "       'Schools above the fence: ' || CAST(COALESCE(ap2_outlier_school_count, 0) AS STRING)\n",
+        "       'Schools above the fence: ' || format_number(COALESCE(ap2_outlier_school_count, 0), 0)\n",
         "FROM p\n",
-        "UNION ALL SELECT 3, 'Teachers (AP3) \u00b7 ' || COALESCE(ap3_level, 'no level'), COALESCE(CAST(ROUND(ap3_value, 1) AS STRING), 'n/a'), COALESCE(CAST(ROUND(ap3_same_type_median, 1) AS STRING), 'n/a'),\n",
-        "       COALESCE(CAST(CAST(ROUND(100 * ap3_percentile) AS BIGINT) AS STRING), 'n/a'), COALESCE(CAST(CAST(ROUND(ap3_coverage_pct) AS BIGINT) AS STRING) || '%', 'n/a'),\n",
+        "UNION ALL SELECT 3, 'Teachers (AP3) \u00b7 ' || COALESCE(ap3_level, 'no level'), COALESCE(format_number(ap3_value, 1), 'n/a'), COALESCE(format_number(ap3_same_type_median, 1), 'n/a'),\n",
+        "       COALESCE(format_number(100 * ap3_percentile, 0), 'n/a'), COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
         "       CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
-        "       'School levels above the fence: ' || CAST(COALESCE(ap3_outlier_school_level_count, 0) AS STRING)\n",
+        "       'School levels above the fence: ' || format_number(COALESCE(ap3_outlier_school_level_count, 0), 0)\n",
         "FROM p\n",
         "UNION ALL SELECT 4, 'Tier without the flagged schools', COALESCE(tier_without_outliers, 'n/a'), tier, '', '',\n",
         "       CASE WHEN outliers_change_tier THEN 'Changes' ELSE 'Holds' END, ''\n",
@@ -1469,7 +1471,7 @@
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code)),\n",
         "labelled AS (\n",
         "  SELECT t.*, CASE t.education_level_code WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END || ' \u00b7 ' ||\n",
-        "         COALESCE(CAST(ROUND(CASE t.education_level_code WHEN 'ES' THEN p.ap3_es_learners_per_teacher WHEN 'JHS' THEN p.ap3_jhs_learners_per_teacher ELSE p.ap3_shs_learners_per_teacher END, 1) AS STRING), 'n/a')\n",
+        "         COALESCE(format_number(CASE t.education_level_code WHEN 'ES' THEN p.ap3_es_learners_per_teacher WHEN 'JHS' THEN p.ap3_jhs_learners_per_teacher ELSE p.ap3_shs_learners_per_teacher END, 1), 'n/a')\n",
         "         || ' learners per teacher' AS level_label,\n",
         "         CASE t.education_level_code WHEN 'ES' THEN 1 WHEN 'JHS' THEN 2 ELSE 3 END AS ord\n",
         "  FROM t CROSS JOIN p\n",
@@ -1786,14 +1788,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -2018,14 +2020,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -2240,14 +2242,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -2329,7 +2331,7 @@
         "       s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,\n",
         "       CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,\n",
         "       'ID ' || s.school_id || ' \u00b7 ' || s.barangay_name || ' \u00b7 ' || s.school_kind || ' \u00b7 ' || s.levels_offered\n",
-        "         || ' \u00b7 ' || COALESCE(CAST(s.learners AS STRING), 'n/a') || ' learners \u00b7 '\n",
+        "         || ' \u00b7 ' || COALESCE(format_number(s.learners, 0), 'n/a') || ' learners \u00b7 '\n",
         "         || CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END\n",
         "         || CASE WHEN :school <> '(First school to check)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
         "                 THEN ' \u00b7 first school to check' ELSE '' END AS details,\n",
@@ -2507,14 +2509,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -2768,14 +2770,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -3034,14 +3036,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -3301,14 +3303,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -3560,14 +3562,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -3751,6 +3753,27 @@
           }
         }
       ]
+    },
+    {
+      "name": "freshness",
+      "displayName": "Data freshness",
+      "queryLines": [
+        "WITH runs AS (\n",
+        "  SELECT MAX(finished_at_utc) AS last_run FROM edu_access.`01-control`.pipeline_runs WHERE status = 'succeeded'\n",
+        "),\n",
+        "years AS (\n",
+        "  SELECT MIN(CASE WHEN source_id = 'deped_enrollment' AND has_data THEN school_year END) AS first_enrollment,\n",
+        "         MAX(CASE WHEN source_id = 'deped_enrollment' AND has_data THEN school_year END) AS last_enrollment,\n",
+        "         MAX(CASE WHEN source_id IN ('deped_facilities', 'deped_personnel') AND has_data THEN school_year END) AS last_capacity\n",
+        "  FROM edu_access.`05-gold`.fact_school_year_source_availability\n",
+        ")\n",
+        "SELECT 'Data as of ' || COALESCE(CAST(CAST(runs.last_run AS DATE) AS STRING), 'n/a')\n",
+        "       || ' \u00b7 classrooms and teachers SY ' || COALESCE(years.last_capacity, 'n/a')\n",
+        "       || ' \u00b7 enrollment SY ' || COALESCE(years.first_enrollment, 'n/a') || ' to ' || COALESCE(years.last_enrollment, 'n/a')\n",
+        "         AS freshness\n",
+        "FROM runs CROSS JOIN years"
+      ],
+      "parameters": []
     },
     {
       "name": "dm_kpi",
@@ -4219,11 +4242,11 @@
         "  FROM c GROUP BY s, check_name\n",
         "),\n",
         "base AS (SELECT critical AS published FROM k WHERE s = 1)\n",
-        "SELECT CAST(k.s AS STRING) || ' ' || k.check_name || ' \u00b7 ' || COALESCE(CAST(CAST(ROUND(100.0 * k.kept / NULLIF(base.published, 0)) AS BIGINT) AS STRING), 'n/a') || '% kept' AS check_label,\n",
+        "SELECT CAST(k.s AS STRING) || ' ' || k.check_name || ' \u00b7 ' || COALESCE(format_number(100.0 * k.kept / NULLIF(base.published, 0), 0), 'n/a') || '% kept' AS check_label,\n",
         "       'Critical under this check' AS series, k.critical AS lgus\n",
         "FROM k CROSS JOIN base\n",
         "UNION ALL\n",
-        "SELECT CAST(k.s AS STRING) || ' ' || k.check_name || ' \u00b7 ' || COALESCE(CAST(CAST(ROUND(100.0 * k.kept / NULLIF(base.published, 0)) AS BIGINT) AS STRING), 'n/a') || '% kept',\n",
+        "SELECT CAST(k.s AS STRING) || ' ' || k.check_name || ' \u00b7 ' || COALESCE(format_number(100.0 * k.kept / NULLIF(base.published, 0), 0), 'n/a') || '% kept',\n",
         "       'Also Critical under the published rule', k.kept\n",
         "FROM k CROSS JOIN base"
       ],
@@ -4733,14 +4756,14 @@
         "),\n",
         "o AS (\n",
         "  SELECT school_id,\n",
-        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the outlier fence of '\n",
-        "                  || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS room_fence_reason,\n",
+        "         MAX(CASE WHEN measure = 'AP2' THEN 'Learners per classroom ' || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the outlier fence of '\n",
+        "                  || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS room_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'ES' THEN 'Learners per teacher at Elementary '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS es_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS es_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'JHS' THEN 'Learners per teacher at Junior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS jhs_fence_reason,\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS jhs_fence_reason,\n",
         "         MAX(CASE WHEN measure = 'AP3' AND education_level_code = 'SHS' THEN 'Learners per teacher at Senior high '\n",
-        "                  || COALESCE(CAST(ROUND(school_ratio, 1) AS STRING), 'n/a') || ' is above the fence of ' || COALESCE(CAST(ROUND(upper_fence, 1) AS STRING), 'n/a') END) AS shs_fence_reason\n",
+        "                  || COALESCE(format_number(school_ratio, 1), 'n/a') || ' is above the fence of ' || COALESCE(format_number(upper_fence, 1), 'n/a') END) AS shs_fence_reason\n",
         "  FROM edu_access.`06-analytics`.lgu_priority_outlier_schools GROUP BY school_id\n",
         "),\n",
         "x AS (\n",
@@ -5170,6 +5193,48 @@
               {
                 "name": "main_query",
                 "query": {
+                  "datasetName": "freshness",
+                  "fields": [
+                    {
+                      "name": "freshness",
+                      "expression": "`freshness`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "freshness",
+                  "displayName": "Data freshness"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Data freshness",
+                "showDescription": true,
+                "description": "Latest successful pipeline run and the school years it covers"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_005",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
                   "datasetName": "ov_kpi",
                   "fields": [
                     {
@@ -5207,14 +5272,14 @@
           },
           "position": {
             "x": 0,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "kpi_005",
+            "name": "kpi_006",
             "queries": [
               {
                 "name": "main_query",
@@ -5262,14 +5327,14 @@
           },
           "position": {
             "x": 3,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "kpi_006",
+            "name": "kpi_007",
             "queries": [
               {
                 "name": "main_query",
@@ -5311,14 +5376,14 @@
           },
           "position": {
             "x": 6,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "kpi_007",
+            "name": "kpi_008",
             "queries": [
               {
                 "name": "main_query",
@@ -5360,14 +5425,14 @@
           },
           "position": {
             "x": 9,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "choropleth_map_008",
+            "name": "choropleth_map_009",
             "queries": [
               {
                 "name": "main_query",
@@ -5411,7 +5476,7 @@
                 },
                 "color": {
                   "fieldName": "tier_level",
-                  "displayName": "Tier (0 data review, 4 Critical)",
+                  "displayName": "Tier",
                   "scale": {
                     "type": "quantitative",
                     "colorRamp": {
@@ -5442,20 +5507,20 @@
                 "showTitle": true,
                 "title": "Where the priority places are",
                 "showDescription": true,
-                "description": "Darker is a higher tier. Grey is data review (0). The 8 Special Geographic Area municipalities have no boundary and are not drawn; a missing area is not a low priority."
+                "description": "Tier scale: 4 Critical, 3 Elevated, 2 Targeted, 1 Monitor, 0 data review (grey). The 8 Special Geographic Area municipalities have no boundary and are not drawn; a missing area is not a low priority."
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 5,
+            "y": 7,
             "width": 7,
             "height": 9
           }
         },
         {
           "widget": {
-            "name": "bar_009",
+            "name": "bar_010",
             "queries": [
               {
                 "name": "main_query",
@@ -5557,14 +5622,14 @@
           },
           "position": {
             "x": 7,
-            "y": 5,
+            "y": 7,
             "width": 5,
             "height": 9
           }
         },
         {
           "widget": {
-            "name": "bar_010",
+            "name": "bar_011",
             "queries": [
               {
                 "name": "main_query",
@@ -5676,14 +5741,14 @@
           },
           "position": {
             "x": 0,
-            "y": 14,
+            "y": 16,
             "width": 12,
             "height": 6
           }
         },
         {
           "widget": {
-            "name": "table_011",
+            "name": "table_012",
             "queries": [
               {
                 "name": "main_query",
@@ -5729,6 +5794,10 @@
                     {
                       "name": "affected_learners",
                       "expression": "`affected_learners`"
+                    },
+                    {
+                      "name": "lowest_coverage_pct",
+                      "expression": "`lowest_coverage_pct`"
                     },
                     {
                       "name": "stability",
@@ -5817,6 +5886,17 @@
                     }
                   },
                   {
+                    "fieldName": "lowest_coverage_pct",
+                    "displayName": "Lowest coverage %",
+                    "format": {
+                      "type": "number-plain",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 0
+                      }
+                    }
+                  },
+                  {
                     "fieldName": "stability",
                     "displayName": "Stability"
                   },
@@ -5830,20 +5910,20 @@
                 "showTitle": true,
                 "title": "Priority list",
                 "showDescription": true,
-                "description": "Ranked by tier, then public learners, then the lowest of the three percentiles (D-057). pct is the within-type percentile (90 or more is high). Stable means Critical within type and nationally. Download from the table menu."
+                "description": "Ranked by tier, then public learners, then the lowest of the three percentiles (D-057). pct is the within-type percentile (90 or more is high). Lowest coverage is the least complete of the three measures; under 90 means data review, not low pressure. Stable means Critical within type and nationally. Download from the table menu."
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 20,
+            "y": 22,
             "width": 12,
             "height": 10
           }
         },
         {
           "widget": {
-            "name": "text_012",
+            "name": "text_013",
             "multilineTextboxSpec": {
               "lines": [
                 "**Next:** choose a place in *City or municipality* at the top, then open **LGU Profile**. A tier is relative pressure compared with similar places, not a count of schools, classrooms or teachers to add."
@@ -5852,7 +5932,7 @@
           },
           "position": {
             "x": 0,
-            "y": 30,
+            "y": 32,
             "width": 12,
             "height": 1
           }
@@ -5867,7 +5947,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_013",
+            "name": "text_014",
             "multilineTextboxSpec": {
               "lines": [
                 "# Why is this place a priority, and where should the board look?\n",
@@ -5884,7 +5964,7 @@
         },
         {
           "widget": {
-            "name": "kpi_014",
+            "name": "kpi_015",
             "queries": [
               {
                 "name": "main_query",
@@ -5926,7 +6006,7 @@
         },
         {
           "widget": {
-            "name": "kpi_015",
+            "name": "kpi_016",
             "queries": [
               {
                 "name": "main_query",
@@ -5968,7 +6048,7 @@
         },
         {
           "widget": {
-            "name": "kpi_016",
+            "name": "kpi_017",
             "queries": [
               {
                 "name": "main_query",
@@ -6010,7 +6090,7 @@
         },
         {
           "widget": {
-            "name": "kpi_017",
+            "name": "kpi_018",
             "queries": [
               {
                 "name": "main_query",
@@ -6059,7 +6139,7 @@
         },
         {
           "widget": {
-            "name": "kpi_018",
+            "name": "kpi_019",
             "queries": [
               {
                 "name": "main_query",
@@ -6117,7 +6197,7 @@
         },
         {
           "widget": {
-            "name": "kpi_019",
+            "name": "kpi_020",
             "queries": [
               {
                 "name": "main_query",
@@ -6171,7 +6251,7 @@
         },
         {
           "widget": {
-            "name": "table_020",
+            "name": "table_021",
             "queries": [
               {
                 "name": "main_query",
@@ -6215,7 +6295,7 @@
         },
         {
           "widget": {
-            "name": "bar_021",
+            "name": "bar_022",
             "queries": [
               {
                 "name": "main_query",
@@ -6336,7 +6416,7 @@
         },
         {
           "widget": {
-            "name": "table_022",
+            "name": "table_023",
             "queries": [
               {
                 "name": "main_query",
@@ -6428,7 +6508,7 @@
         },
         {
           "widget": {
-            "name": "bar_023",
+            "name": "bar_024",
             "queries": [
               {
                 "name": "main_query",
@@ -6508,7 +6588,7 @@
         },
         {
           "widget": {
-            "name": "line_024",
+            "name": "line_025",
             "queries": [
               {
                 "name": "main_query",
@@ -6604,7 +6684,7 @@
         },
         {
           "widget": {
-            "name": "bar_025",
+            "name": "bar_026",
             "queries": [
               {
                 "name": "main_query",
@@ -6704,7 +6784,7 @@
         },
         {
           "widget": {
-            "name": "table_026",
+            "name": "table_027",
             "queries": [
               {
                 "name": "main_query",
@@ -6794,7 +6874,7 @@
         },
         {
           "widget": {
-            "name": "table_027",
+            "name": "table_028",
             "queries": [
               {
                 "name": "main_query",
@@ -6885,7 +6965,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_028",
+            "name": "text_029",
             "multilineTextboxSpec": {
               "lines": [
                 "# Which schools should we check, and why?\n",
@@ -6902,7 +6982,7 @@
         },
         {
           "widget": {
-            "name": "filter_029",
+            "name": "filter_030",
             "queries": [
               {
                 "name": "opt_opt_level",
@@ -7076,7 +7156,7 @@
         },
         {
           "widget": {
-            "name": "filter_030",
+            "name": "filter_031",
             "queries": [
               {
                 "name": "opt_opt_status",
@@ -7148,7 +7228,7 @@
         },
         {
           "widget": {
-            "name": "filter_031",
+            "name": "filter_032",
             "queries": [
               {
                 "name": "opt_opt_school",
@@ -7290,7 +7370,7 @@
         },
         {
           "widget": {
-            "name": "kpi_032",
+            "name": "kpi_033",
             "queries": [
               {
                 "name": "main_query",
@@ -7332,7 +7412,7 @@
         },
         {
           "widget": {
-            "name": "kpi_033",
+            "name": "kpi_034",
             "queries": [
               {
                 "name": "main_query",
@@ -7374,7 +7454,7 @@
         },
         {
           "widget": {
-            "name": "kpi_034",
+            "name": "kpi_035",
             "queries": [
               {
                 "name": "main_query",
@@ -7423,7 +7503,7 @@
         },
         {
           "widget": {
-            "name": "kpi_035",
+            "name": "kpi_036",
             "queries": [
               {
                 "name": "main_query",
@@ -7472,7 +7552,7 @@
         },
         {
           "widget": {
-            "name": "kpi_036",
+            "name": "kpi_037",
             "queries": [
               {
                 "name": "main_query",
@@ -7521,7 +7601,7 @@
         },
         {
           "widget": {
-            "name": "kpi_037",
+            "name": "kpi_038",
             "queries": [
               {
                 "name": "main_query",
@@ -7570,7 +7650,7 @@
         },
         {
           "widget": {
-            "name": "scatter_038",
+            "name": "scatter_039",
             "queries": [
               {
                 "name": "main_query",
@@ -7680,7 +7760,7 @@
         },
         {
           "widget": {
-            "name": "table_039",
+            "name": "table_040",
             "queries": [
               {
                 "name": "main_query",
@@ -7740,7 +7820,7 @@
         },
         {
           "widget": {
-            "name": "line_040",
+            "name": "line_041",
             "queries": [
               {
                 "name": "main_query",
@@ -7852,7 +7932,7 @@
         },
         {
           "widget": {
-            "name": "table_041",
+            "name": "table_042",
             "queries": [
               {
                 "name": "main_query",
@@ -7986,7 +8066,7 @@
         },
         {
           "widget": {
-            "name": "table_042",
+            "name": "table_043",
             "queries": [
               {
                 "name": "main_query",
@@ -8130,7 +8210,7 @@
         },
         {
           "widget": {
-            "name": "text_043",
+            "name": "text_044",
             "multilineTextboxSpec": {
               "lines": [
                 "Confirm flagged figures with the Schools Division Office before using them for planning. The dashboard identifies pressure and data requiring review; it does not prescribe how many classrooms, teachers, or schools to add."
@@ -8154,7 +8234,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_044",
+            "name": "text_045",
             "multilineTextboxSpec": {
               "lines": [
                 "# Can we rely on these results, and how were they produced?\n",
@@ -8171,7 +8251,7 @@
         },
         {
           "widget": {
-            "name": "filter_045",
+            "name": "filter_046",
             "queries": [
               {
                 "name": "opt_opt_measure",
@@ -8260,7 +8340,7 @@
         },
         {
           "widget": {
-            "name": "filter_046",
+            "name": "filter_047",
             "queries": [
               {
                 "name": "opt_opt_scenario",
@@ -8332,7 +8412,49 @@
         },
         {
           "widget": {
-            "name": "kpi_047",
+            "name": "kpi_048",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "freshness",
+                  "fields": [
+                    {
+                      "name": "freshness",
+                      "expression": "`freshness`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "freshness",
+                  "displayName": "Data freshness"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Data freshness",
+                "showDescription": true,
+                "description": "Latest successful pipeline run and the school years it covers"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_049",
             "queries": [
               {
                 "name": "main_query",
@@ -8379,14 +8501,14 @@
           },
           "position": {
             "x": 0,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "kpi_048",
+            "name": "kpi_050",
             "queries": [
               {
                 "name": "main_query",
@@ -8428,14 +8550,14 @@
           },
           "position": {
             "x": 3,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "kpi_049",
+            "name": "kpi_051",
             "queries": [
               {
                 "name": "main_query",
@@ -8482,14 +8604,14 @@
           },
           "position": {
             "x": 6,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "kpi_050",
+            "name": "kpi_052",
             "queries": [
               {
                 "name": "main_query",
@@ -8531,14 +8653,14 @@
           },
           "position": {
             "x": 9,
-            "y": 2,
+            "y": 4,
             "width": 3,
             "height": 3
           }
         },
         {
           "widget": {
-            "name": "text_051",
+            "name": "text_053",
             "multilineTextboxSpec": {
               "lines": [
                 "## How the priority is determined\n\n",
@@ -8553,14 +8675,14 @@
           },
           "position": {
             "x": 0,
-            "y": 5,
+            "y": 7,
             "width": 7,
             "height": 8
           }
         },
         {
           "widget": {
-            "name": "table_052",
+            "name": "table_054",
             "queries": [
               {
                 "name": "main_query",
@@ -8635,14 +8757,14 @@
           },
           "position": {
             "x": 7,
-            "y": 5,
+            "y": 7,
             "width": 5,
             "height": 8
           }
         },
         {
           "widget": {
-            "name": "bar_053",
+            "name": "bar_055",
             "queries": [
               {
                 "name": "main_query",
@@ -8726,14 +8848,14 @@
           },
           "position": {
             "x": 0,
-            "y": 13,
+            "y": 15,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_054",
+            "name": "bar_056",
             "queries": [
               {
                 "name": "main_query",
@@ -8807,14 +8929,14 @@
           },
           "position": {
             "x": 6,
-            "y": 13,
+            "y": 15,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_055",
+            "name": "bar_057",
             "queries": [
               {
                 "name": "main_query",
@@ -8887,14 +9009,14 @@
           },
           "position": {
             "x": 0,
-            "y": 20,
+            "y": 22,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "heatmap_056",
+            "name": "heatmap_058",
             "queries": [
               {
                 "name": "main_query",
@@ -8981,14 +9103,14 @@
           },
           "position": {
             "x": 6,
-            "y": 20,
+            "y": 22,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "table_057",
+            "name": "table_059",
             "queries": [
               {
                 "name": "main_query",
@@ -9078,14 +9200,14 @@
           },
           "position": {
             "x": 0,
-            "y": 27,
+            "y": 29,
             "width": 6,
             "height": 6
           }
         },
         {
           "widget": {
-            "name": "heatmap_058",
+            "name": "heatmap_060",
             "queries": [
               {
                 "name": "main_query",
@@ -9152,14 +9274,14 @@
           },
           "position": {
             "x": 6,
-            "y": 27,
+            "y": 29,
             "width": 6,
             "height": 6
           }
         },
         {
           "widget": {
-            "name": "bar_059",
+            "name": "bar_061",
             "queries": [
               {
                 "name": "main_query",
@@ -9242,14 +9364,14 @@
           },
           "position": {
             "x": 0,
-            "y": 33,
+            "y": 35,
             "width": 6,
             "height": 6
           }
         },
         {
           "widget": {
-            "name": "text_060",
+            "name": "text_062",
             "multilineTextboxSpec": {
               "lines": [
                 "## What this dashboard cannot tell you\n\n",
@@ -9263,7 +9385,7 @@
           },
           "position": {
             "x": 6,
-            "y": 33,
+            "y": 35,
             "width": 6,
             "height": 6
           }
@@ -9278,7 +9400,7 @@
       "layout": [
         {
           "widget": {
-            "name": "filter_061",
+            "name": "filter_063",
             "queries": [
               {
                 "name": "opt_opt_region",
@@ -9792,7 +9914,7 @@
         },
         {
           "widget": {
-            "name": "filter_062",
+            "name": "filter_064",
             "queries": [
               {
                 "name": "opt_opt_province",
@@ -10289,7 +10411,7 @@
         },
         {
           "widget": {
-            "name": "filter_063",
+            "name": "filter_065",
             "queries": [
               {
                 "name": "opt_opt_type",
@@ -10854,7 +10976,7 @@
         },
         {
           "widget": {
-            "name": "filter_064",
+            "name": "filter_066",
             "queries": [
               {
                 "name": "opt_opt_lgu",
@@ -11217,7 +11339,7 @@
         },
         {
           "widget": {
-            "name": "filter_065",
+            "name": "filter_067",
             "queries": [
               {
                 "name": "opt_opt_barangay",

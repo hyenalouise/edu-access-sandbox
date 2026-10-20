@@ -11,7 +11,7 @@ from src.dashboard import planner
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
 PAGES = ["overview", "lgu_profile", "school_action", "data_and_method"]
-HEADINGS = ("Selected city or municipality", "Place details", "Selected school", "School details")  # not KPIs
+HEADINGS = ("Selected city or municipality", "Place details", "Selected school", "School details", "Data freshness")  # not KPIs
 
 
 def load():
