@@ -20,7 +20,7 @@ A planner moves from many places, to one place, to its schools, then checks how 
 | View | Question | Main content |
 |---|---|---|
 | **Overview** | Which cities and municipalities should be reviewed first? | Priority map, what drives each tier, how far high places are above the typical place, pressure and enrollment together (tier × enrollment direction, context only), the ranked priority list |
-| **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier, what stands out, why this tier, how reliable the result is, teachers by level and funding, a demand section (enrollment by sector and by level, children coming up by school level, children aged 5-17 against enrollment; all context only), barangay access, the first schools to follow up |
+| **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier; counts of schools, classrooms, teachers and learners; what stands out; the four questions answered for this place (counts, ratio, typical place, × typical, result); how far above the typical place by question; learners per teacher by level against the typical place; how solid the result is; demand (context only); barangay access; the first schools to follow up |
 | **School Action** | Which schools should we check, and why? | The selected school, its place among schools in the same LGU, its enrollment, rooms and teachers, the exact figures to verify, the school action list |
 | **Data and Method** | Can we rely on these results, and how were they produced? | How the priority is determined, the typical place of each type, coverage and reasons for data review, how complete the enrollment trend is, whether the Critical list holds under D-057's checks, overlap of measures, source years and data quality checks, limits |
 
@@ -34,10 +34,10 @@ The tier is D-057 from [`lgu_priority_matrix`](../etl/06_analytics/README.md): A
 | | Public learners in priority LGUs | SY 2023-24 public-school learners (`affected_learners`) in Critical and Elevated places, with their share of the places in view |
 | | Critical LGUs | High on all three measures |
 | | LGUs needing data review | Not given a tier because a measure is below the coverage gate |
-| LGU Profile | High-pressure measures | Measures at or above the 90th percentile, of 3 |
+| LGU Profile | Public schools | Active public schools, SY 2023-24 (AP1's count) |
+| | Instructional classrooms | Usable instructional rooms in AP2's ratio, SY 2023-24 |
+| | Teachers | AP3's teachers at elementary, junior high and senior high, SY 2023-24 |
 | | Public learners | `affected_learners`, SY 2023-24 |
-| | Barangays without a public elementary school | Regular PSGC barangays with no matched active public school offering elementary, of all regular barangays (an upper bound when schools are not matched to a barangay) |
-| | Schools with figures to verify | Public schools above an AP2 or AP3 outlier fence, missing a report, or reporting zero rooms or teachers |
 | School Action | Learners per reported room | The selected school, all levels, SY 2023-24 |
 | | Learners per teacher | At the education level chosen, or all levels |
 | | Enrollment change | SY 2020-21 to SY 2025-26, only when both years are complete |

@@ -212,21 +212,23 @@ SEL = f"""sel AS (
 
 PR_CARD = f"""WITH {PRI},
 {SEL}
-SELECT p.lgu_label, p.city_mun_name, p.lgu_type_label, p.province_label, p.region_name, p.tier, p.tier_meaning,
-       CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name
-            ELSE p.province_label || ', ' || p.region_name END AS province_region,
-       p.national_rank, (SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS places_ranked,
+SELECT p.lgu_label, p.city_mun_name, p.tier,
        p.lgu_type_label || ' · '
          || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END
-         || ' · ' || p.tier || ' · rank ' || format_number(p.national_rank, 0) || ' of '
+         || ' · ' || p.tier
+         || CASE WHEN p.high_measure_count > 0 THEN ' (high on ' || lower(p.high_areas) || ')' ELSE '' END
+         || ' · rank ' || format_number(p.national_rank, 0) || ' of '
          || format_number((SELECT COUNT(*) FROM {A}.lgu_priority_matrix), 0)
          || CASE WHEN p.is_stable THEN ' · Stable' ELSE '' END
          || CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu THEN ' · top place in the filters' ELSE '' END AS details,
-       p.high_count_label, p.high_areas, p.affected_learners, p.stability,
-       CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu
-            THEN '(Your selection is outside the filters, so this shows the top LGU in them.)' ELSE '' END AS notice
+       a1.active_public_school_count AS public_schools, a2.reported_instructional_classrooms AS classrooms,
+       COALESCE(a3.es_teacher_count, 0) + COALESCE(a3.jhs_teacher_count, 0) + COALESCE(a3.shs_teacher_count, 0) AS teachers,
+       p.affected_learners
 FROM pri AS p
-JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code"""
+JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code
+LEFT JOIN {A}.ap1_school_provision AS a1 ON a1.city_mun_psgc_code = p.city_mun_psgc_code
+LEFT JOIN {A}.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = p.city_mun_psgc_code
+LEFT JOIN {A}.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = p.city_mun_psgc_code"""
 
 PR_WHY = f"""WITH {PRI},
 {SEL},
@@ -242,55 +244,49 @@ UNION ALL SELECT '{MEASURES[2]}', 3, ap3_relative_pressure,
 PR_RELIABILITY = f"""WITH {PRI},
 {SEL},
 p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))
-SELECT 1 AS ord, '{MEASURES[0]}' AS measure, {r1('ap1_learners_per_public_school')} AS value,
-       {r1('ap1_same_type_median')} AS typical, {r0('100 * ap1_percentile')} AS percentile,
-       {cov('ap1_coverage_pct')} AS coverage,
+SELECT 1 AS ord, '{MEASURES[0]}' AS measure, {cov('ap1_coverage_pct')} AS coverage,
        CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END AS assessed,
-       'No outlier rule' AS unusual_schools
+       'No outlier rule for schools' AS unusual_schools
 FROM p
-UNION ALL SELECT 2, '{MEASURES[1]}', {r1('ap2_learners_per_classroom')}, {r1('ap2_same_type_median')},
-       {r0('100 * ap2_percentile')}, {cov('ap2_learner_coverage_pct')},
+UNION ALL SELECT 2, '{MEASURES[1]}', {cov('ap2_learner_coverage_pct')},
        CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,
-       'Schools above the fence: ' || format_number(COALESCE(ap2_outlier_school_count, 0), 0)
+       format_number(COALESCE(ap2_outlier_school_count, 0), 0)
+         || CASE WHEN ap2_outlier_school_count = 1 THEN ' school' ELSE ' schools' END || ' above the outlier fence'
 FROM p
-UNION ALL SELECT 3, '{MEASURES[2]} · ' || COALESCE(ap3_level, 'no level'), {r1('ap3_value')}, {r1('ap3_same_type_median')},
-       {r0('100 * ap3_percentile')}, {cov('ap3_coverage_pct')},
+UNION ALL SELECT 3, '{MEASURES[2]}', {cov('ap3_coverage_pct')},
        CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not assessed' END,
-       'School levels above the fence: ' || format_number(COALESCE(ap3_outlier_school_level_count, 0), 0)
+       format_number(COALESCE(ap3_outlier_school_level_count, 0), 0)
+         || CASE WHEN ap3_outlier_school_level_count = 1 THEN ' school level' ELSE ' school levels' END || ' above the outlier fence'
 FROM p
-UNION ALL SELECT 4, 'Tier without the flagged schools', COALESCE(tier_without_outliers, 'n/a'), tier, '', '',
-       CASE WHEN outliers_change_tier THEN 'Changes' ELSE 'Holds' END, ''
+UNION ALL SELECT 4, 'Tier without those schools', COALESCE(tier_without_outliers, 'n/a'),
+       CASE WHEN outliers_change_tier THEN 'Changes' ELSE 'Same tier' END, ''
 FROM p"""
 
 LEVEL_LABEL = "CASE {c} WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END"
-PR_TEACHERS = f"""WITH {PRI},
+PR_TEACHERS = f"""WITH {LGU},
 {SEL},
-active AS (
-  SELECT e.school_id, MAX(CASE WHEN e.is_offered AND e.learner_count > 0 THEN 1 ELSE 0 END) AS is_active
-  FROM {G}.fact_school_enrollment AS e JOIN sel ON sel.city_mun_psgc_code = e.city_mun_psgc_code
-  WHERE e.school_year = '2023-24' AND e.sector = 'Public' AND e.psgc_match_status = 'matched'
-  GROUP BY e.school_id
+lv AS (
+  SELECT city_mun_psgc_code, lgu_type, 1 AS ord, 'ES' AS lvl, es_offered_school_count AS offered, es_teacher_count AS teachers,
+         es_learners_per_teacher AS ratio, es_passes_gate AS passes FROM {A}.ap3_teacher_pressure
+  UNION ALL SELECT city_mun_psgc_code, lgu_type, 2, 'JHS', jhs_offered_school_count, jhs_teacher_count,
+         jhs_learners_per_teacher, jhs_passes_gate FROM {A}.ap3_teacher_pressure
+  UNION ALL SELECT city_mun_psgc_code, lgu_type, 3, 'SHS', shs_offered_school_count, shs_teacher_count,
+         shs_learners_per_teacher, shs_passes_gate FROM {A}.ap3_teacher_pressure
 ),
-t AS (
-  SELECT t.education_level_code,
-         SUM(COALESCE(t.teacher_count, 0)) AS teachers,
-         SUM(COALESCE(t.sef_provincial_teacher_count, 0) + COALESCE(t.sef_city_municipal_teacher_count, 0)
-             + COALESCE(t.lgu_funded_teacher_count, 0) + COALESCE(t.other_funded_teacher_count, 0)) AS locally_funded
-  FROM {G}.fact_school_teacher_capacity AS t
-  JOIN active AS a ON a.school_id = t.school_id AND a.is_active = 1
-  WHERE t.school_year = '2023-24'
-  GROUP BY t.education_level_code
+typical AS (
+  SELECT lgu_type, lvl, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ratio) AS median_ratio
+  FROM lv WHERE passes GROUP BY lgu_type, lvl
 ),
-p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code)),
-labelled AS (
-  SELECT t.*, {LEVEL_LABEL.format(c='t.education_level_code')} || ' · ' ||
-         {r1("CASE t.education_level_code WHEN 'ES' THEN p.ap3_es_learners_per_teacher WHEN 'JHS' THEN p.ap3_jhs_learners_per_teacher ELSE p.ap3_shs_learners_per_teacher END")}
-         || ' learners per teacher' AS level_label,
-         CASE t.education_level_code WHEN 'ES' THEN 1 WHEN 'JHS' THEN 2 ELSE 3 END AS ord
-  FROM t CROSS JOIN p
+me AS (
+  SELECT lv.*, t.median_ratio,
+         {LEVEL_LABEL.format(c='lv.lvl')} || ' · ' || format_number(lv.teachers, 0) || ' teachers' AS level_label,
+         (SELECT type_plural FROM lgu JOIN sel USING (city_mun_psgc_code)) AS type_plural
+  FROM lv JOIN sel USING (city_mun_psgc_code)
+  LEFT JOIN typical AS t ON t.lgu_type = lv.lgu_type AND t.lvl = lv.lvl
+  WHERE lv.offered > 0
 )
-SELECT level_label, ord, 'DepEd-funded' AS funding, GREATEST(teachers - locally_funded, 0) AS teachers FROM labelled
-UNION ALL SELECT level_label, ord, 'Locally funded (SEF, LGU, other)', locally_funded FROM labelled"""
+SELECT level_label, ord, 'This place' AS series, ratio AS learners_per_teacher FROM me
+UNION ALL SELECT level_label, ord, 'Typical place of its type', median_ratio FROM me"""
 
 PR_ENROLLMENT = f"""WITH {LGU},
 {SEL},
@@ -466,23 +462,72 @@ schools AS (
 
 BARANGAY = f"(:barangay = '{ALL_BARANGAYS}' OR barangay_name = :barangay)"
 
-PR_LOCAL_KPI = f"""WITH {school_base(level_param=False)},
+RESULT = ("CASE WHEN NOT {a} THEN 'Not assessed: under 90% reported' WHEN {h} THEN 'High: among the top 10% of ' || p.type_plural "
+          "ELSE 'Not high' END")
+PR_ANSWERS = f"""WITH {school_base(level_param=False)},
+{PRI_CTE},
+p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code)),
+a1 AS (SELECT a.* FROM {A}.ap1_school_provision AS a JOIN sel USING (city_mun_psgc_code)),
+a2 AS (SELECT a.* FROM {A}.ap2_classroom_pressure AS a JOIN sel USING (city_mun_psgc_code)),
+a3 AS (SELECT a.* FROM {A}.ap3_teacher_pressure AS a JOIN sel USING (city_mun_psgc_code)),
+tr AS (
+  SELECT MAX(CASE WHEN school_year = first_school_year THEN enrollment_all_sectors END) AS first_value,
+         MAX(CASE WHEN school_year = latest_school_year THEN enrollment_all_sectors END) AS last_value,
+         MAX(first_school_year) AS first_year, MAX(latest_school_year) AS last_year,
+         MAX(enrollment_change_pct_first_to_latest) AS change_pct,
+         MAX(CASE WHEN census_year = 2020 THEN school_age_population END) AS children_2020,
+         MAX(CASE WHEN census_year = 2024 THEN school_age_population END) AS children_2024
+  FROM {A}.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code)
+),
 br AS (
-  SELECT b.barangay_name,
-         MAX(CASE WHEN s.offers_es = 1 AND s.learners > 0 THEN 1 ELSE 0 END) AS has_public_es
-  FROM {G}.dim_barangay AS b
-  JOIN sel ON sel.city_mun_psgc_code = b.city_mun_psgc_code
-  LEFT JOIN schools AS s ON s.barangay_name = b.barangay_name
-  WHERE b.member_type = 'regular'
-  GROUP BY b.barangay_name
-)
-SELECT (SELECT COUNT_IF(has_public_es = 0) FROM br) AS barangays_without_public_es,
-       (SELECT COUNT(*) FROM br) AS regular_barangays,
-       (SELECT COUNT_IF(to_check) FROM schools) AS schools_to_check,
-       (SELECT COUNT(*) FROM schools) AS schools,
-       (SELECT COUNT_IF(barangay_name = 'Barangay not matched') FROM schools) AS schools_without_barangay,
-       CASE WHEN (SELECT COUNT_IF(barangay_name = 'Barangay not matched') FROM schools) > 0 THEN 'At most ' ELSE '' END
-         AS bound_prefix"""
+  SELECT COUNT_IF(has_es = 0) AS without_es, COUNT(*) AS barangays FROM (
+    SELECT b.barangay_name, MAX(CASE WHEN s.offers_es = 1 AND s.learners > 0 THEN 1 ELSE 0 END) AS has_es
+    FROM {G}.dim_barangay AS b JOIN sel ON sel.city_mun_psgc_code = b.city_mun_psgc_code
+    LEFT JOIN schools AS s ON s.barangay_name = b.barangay_name
+    WHERE b.member_type = 'regular' GROUP BY b.barangay_name) AS z
+),
+tc AS (SELECT SUM(locally_funded_teachers) AS local_teachers FROM schools)
+SELECT 1 AS ord, 'AP1 · Are there enough public schools for the learners?' AS question,
+       format_number(a1.active_public_school_count, 0) || ' public schools · ' || format_number(a1.public_school_enrollment, 0)
+         || ' learners' AS counted,
+       {r0('a1.learners_per_public_school')} || ' learners per school' AS this_place,
+       {r0('p.ap1_same_type_median')} AS typical, p.ap1_relative_pressure AS times_typical,
+       {RESULT.format(a='p.ap1_assessed', h='p.ap1_high')} AS result,
+       format_number(br.without_es, 0) || ' of ' || format_number(br.barangays, 0)
+         || ' barangays have no matched public elementary school' AS also
+FROM p CROSS JOIN a1 CROSS JOIN br
+UNION ALL
+SELECT 2, 'AP2 · Are classrooms crowded?',
+       format_number(a2.reported_instructional_classrooms, 0) || ' classrooms · ' || format_number(a2.eligible_learners, 0)
+         || ' learners in them',
+       {r1('a2.learners_per_classroom')} || ' learners per classroom',
+       {r1('p.ap2_same_type_median')}, p.ap2_relative_pressure,
+       {RESULT.format(a='p.ap2_assessed', h='p.ap2_high')},
+       format_number(a2.missing_room_school_count + a2.zero_room_school_count, 0)
+         || CASE WHEN a2.missing_room_school_count + a2.zero_room_school_count = 1 THEN ' school reports' ELSE ' schools report' END
+         || ' no usable classroom count'
+FROM p CROSS JOIN a2
+UNION ALL
+SELECT 3, 'AP3 · Are there enough teachers?',
+       concat_ws(' · ', CASE WHEN a3.es_offered_school_count > 0 THEN 'ES ' || format_number(a3.es_teacher_count, 0) END,
+                        CASE WHEN a3.jhs_offered_school_count > 0 THEN 'JHS ' || format_number(a3.jhs_teacher_count, 0) END,
+                        CASE WHEN a3.shs_offered_school_count > 0 THEN 'SHS ' || format_number(a3.shs_teacher_count, 0) END)
+         || ' teachers',
+       {r1('p.ap3_value')} || ' learners per teacher at ' || COALESCE({LEVEL_LABEL.format(c='p.ap3_level')}, 'no level'),
+       {r1('p.ap3_same_type_median')}, p.ap3_relative_pressure,
+       {RESULT.format(a='p.ap3_assessed', h='p.ap3_high')},
+       format_number(tc.local_teachers, 0) || ' teachers are locally funded (SEF, LGU or other)'
+FROM p CROSS JOIN a3 CROSS JOIN tc
+UNION ALL
+SELECT 4, 'AP4 · Is enrollment growing? (context only)',
+       format_number(tr.first_value, 0) || ' to ' || format_number(tr.last_value, 0) || ' learners, all sectors',
+       CASE WHEN tr.change_pct >= 0 THEN '+' ELSE '' END || {r1('100 * tr.change_pct')} || '% from SY ' || tr.first_year
+         || ' to SY ' || tr.last_year,
+       '', CAST(NULL AS DOUBLE), 'Context only: not used in the tier',
+       'Children aged 5-17: ' || COALESCE(format_number(tr.children_2020, 0), 'n/a') || ' (2020) to '
+         || COALESCE(format_number(tr.children_2024, 0), 'n/a') || ' (2024)'
+FROM tr
+ORDER BY ord"""
 
 PR_BARANGAYS = f"""WITH {school_base(level_param=False)},
 bs AS (
@@ -514,14 +559,15 @@ p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code)),
 strongest AS (
   SELECT * FROM (
     SELECT measure, pctl, value_txt, rp_txt,
-           ROW_NUMBER() OVER (ORDER BY pctl DESC) AS rn
+           ROW_NUMBER() OVER (ORDER BY rp DESC) AS rn
     FROM (
       SELECT 'Schools: ' || {r0('ap1_learners_per_public_school')} || ' learners per public school' AS measure,
-             ap1_percentile AS pctl, '' AS value_txt, {r2('ap1_relative_pressure')} AS rp_txt FROM p WHERE ap1_assessed
+             ap1_percentile AS pctl, '' AS value_txt, {r2('ap1_relative_pressure')} AS rp_txt, ap1_relative_pressure AS rp
+      FROM p WHERE ap1_assessed
       UNION ALL SELECT 'Classrooms: ' || {r1('ap2_learners_per_classroom')} || ' learners per classroom', ap2_percentile, '',
-             {r2('ap2_relative_pressure')} FROM p WHERE ap2_assessed
+             {r2('ap2_relative_pressure')}, ap2_relative_pressure FROM p WHERE ap2_assessed
       UNION ALL SELECT 'Teachers: ' || {r1('ap3_value')} || ' learners per teacher at ' || {LEVEL_LABEL.format(c='ap3_level')},
-             ap3_percentile, '', {r2('ap3_relative_pressure')} FROM p WHERE ap3_assessed AND ap3_level IS NOT NULL
+             ap3_percentile, '', {r2('ap3_relative_pressure')}, ap3_relative_pressure FROM p WHERE ap3_assessed AND ap3_level IS NOT NULL
     ) AS u
   ) AS ranked WHERE rn = 1
 ),
@@ -542,8 +588,8 @@ brgy AS (
 ),
 teachers AS (SELECT SUM(teachers) AS teachers, SUM(locally_funded_teachers) AS local FROM schools),
 rules AS (
-  SELECT 1 AS ord, measure || ' is the strongest pressure, at the ' || {r0('100 * pctl')}
-         || 'th percentile among ' || (SELECT type_plural FROM p) || ' (' || rp_txt || ' times the typical one).' AS insight
+  SELECT 1 AS ord, measure || ', ' || rp_txt || ' times the typical one among ' || (SELECT type_plural FROM p)
+         || '. This is the largest gap of the three.' AS insight
   FROM strongest
   UNION ALL
   SELECT 2, CASE WHEN tier = 'Data review' THEN 'Not given a tier yet: ' || data_review_reason || '.'
@@ -864,7 +910,7 @@ def datasets(b):
     b.dataset("ov_relative", "Overview: typical relative pressure", OV_RP, GEO_P)
     b.dataset("ov_demand", "Overview: tier against enrollment direction", OV_DEMAND, OV_P)
     b.dataset("pr_card", "LGU Profile: selected LGU", PR_CARD, LGU_P)
-    b.dataset("pr_local", "LGU Profile: barangay and school counts", PR_LOCAL_KPI, LGU_P)
+    b.dataset("pr_answers", "LGU Profile: the four questions", PR_ANSWERS, LGU_P)
     b.dataset("pr_insights", "LGU Profile: what stands out", PR_INSIGHTS, LGU_P)
     b.dataset("pr_why", "LGU Profile: why this tier", PR_WHY, LGU_P)
     b.dataset("pr_reliability", "LGU Profile: result reliability", PR_RELIABILITY, LGU_P)
@@ -988,38 +1034,41 @@ def lgu_profile(b):
     p.row([(kpi(b, "pr_card", "Selected city or municipality", "city_mun_name", None,
                 desc="Change it with City or municipality above"), 12)], 2)
     p.row([(kpi(b, "pr_card", "Place details", "details", None,
-                desc="Type · province (or region) · tier · national rank · Stable if Critical both ways"), 12)], 2)
-    p.row([(kpi(b, "pr_card", "High-pressure measures", "high_count_label", None,
-                desc="At or above the 90th percentile of its type"), 3),
-           (kpi(b, "pr_card", "Public learners", "affected_learners", num(), desc="SY 2023-24, complete school counts"), 3),
-           (kpi(b, "pr_local", "Barangays without a public elementary school", "barangays_without_public_es", num(),
-                "{{bound_prefix}}{{ @formatted }} of {{regular_barangays}}", "Matched public schools · a screening count",
-                extra=("bound_prefix", "regular_barangays")), 3),
-           (kpi(b, "pr_local", "Schools with figures to verify", "schools_to_check", num(),
-                "{{ @formatted }} of {{schools}}", "Unusual, missing or zero · see School Action", extra=("schools",)), 3)], 3)
+                desc="Type · province (or region) · tier and the measures that are high · national rank"), 12)], 2)
+    p.row([(kpi(b, "pr_card", "Public schools", "public_schools", num(), desc="Active, SY 2023-24 · AP1"), 3),
+           (kpi(b, "pr_card", "Instructional classrooms", "classrooms", num(), desc="Usable counts, SY 2023-24 · AP2"), 3),
+           (kpi(b, "pr_card", "Teachers", "teachers", num(), desc="Elementary to senior high, SY 2023-24 · AP3"), 3),
+           (kpi(b, "pr_card", "Public learners", "affected_learners", num(), desc="Complete school counts, SY 2023-24"), 3)], 3)
     p.row([(table(b, "pr_insights", "What stands out", [("insight", "Finding", None)],
                   "Up to four facts, each from a fixed rule over the same tables as the charts, and left out when its "
                   "data is incomplete. They describe the place; they do not explain why."), 12)], 4)
-    p.row([(bar(b, "pr_why", "Why this tier", "measure", "Measure", "max", "relative_pressure",
-                "Relative pressure (1.00 = typical place of its type)", color="status", color_label="Result",
+    p.row([(table(b, "pr_answers", "The four questions, answered for this place", [
+        ("question", "Question", None), ("counted", "What is counted", None), ("this_place", "This place", None),
+        ("typical", "Typical place", None), ("times_typical", "× typical", num(2)), ("result", "Result", None),
+        ("also", "Also", None)],
+        "Typical place is the median city or municipality of the same type. × typical is this place's ratio divided by "
+        "it: 2.00 means twice the typical place. High means among the top 10% of its type; that is what sets the tier. "
+        "AP4 is context and never changes the tier."), 12)], 6)
+    p.row([(bar(b, "pr_why", "How far above the typical place, by question", "measure", "Measure", "max",
+                "relative_pressure", "Times the typical place of its type", color="status", color_label="Result",
                 mappings=[{"value": "High", "color": "#712B13"}, {"value": "Not high", "color": "#A9B4BF"},
                           {"value": "Not assessed", "color": "#8A96A3"}],
                 order=MEASURES, color_order=["High", "Not high", "Not assessed"], fmt=num(2),
-                desc="High comes from the percentile; the bar shows how far the place is from the typical one.",
+                desc="The × column above as bars. Past the 1.00 line means more learners per school, classroom or "
+                     "teacher than the typical place. Dark bars are the measures that set the tier.",
                 annotations=[ref_line("x", 1, "Typical place")]), 6),
-           (table(b, "pr_reliability", "How reliable the result is", [
-               ("measure", "Measure", None), ("value", "This place", None), ("typical", "Typical place", None),
-               ("percentile", "Percentile", None), ("coverage", "Coverage", None), ("assessed", "Status", None),
-               ("unusual_schools", "Unusual figures", None)],
-               "Coverage is the share of learners reported (schools for AP1, the lowest offered level for AP3); below 90% "
-               "means not assessed. Schools above an outlier fence stay in every total; the last row "
-               "shows whether the tier holds without them."), 6)], 7)
-    p.row([(bar(b, "pr_teachers", "Teachers by level, and who funds them", "level_label", "Level", "sum", "teachers",
-                "Teachers", color="funding", color_label="Funding", layout="stack",
-                mappings=[{"value": "DepEd-funded", "color": "#5B6B7A"},
-                          {"value": "Locally funded (SEF, LGU, other)", "color": "#C9A227"}],
-                desc="Public-school teachers, SY 2023-24. Learners per teacher in each label is the AP3 ratio for the level; "
-                     "locally funded positions are included in it."), 12)], 5)
+           (bar(b, "pr_teachers", "Learners per teacher by level", "level_label", "Level", "max", "learners_per_teacher",
+                "Learners per teacher", horizontal=False, color="series", color_label="",
+                mappings=[{"value": "This place", "color": "#712B13"}, {"value": "Typical place of its type", "color": "#A9B4BF"}],
+                color_order=["This place", "Typical place of its type"], layout="group", fmt=num(1), sort_by="alphabetical",
+                desc="Which school level is shortest of teachers compared with the typical place. AP3 uses the level "
+                     "with the largest gap. Labels give the number of teachers at each level."), 6)], 7)
+    p.row([(table(b, "pr_reliability", "How solid the result is", [
+        ("measure", "Measure", None), ("coverage", "Share reported", None), ("assessed", "Status", None),
+        ("unusual_schools", "Unusual figures", None)],
+        "Share reported is the share of learners counted (schools for AP1; the least complete level for AP3). Below 90% "
+        "a measure is not assessed. Schools with unusual figures stay in every total; the last row shows whether the "
+        "tier would change without them."), 12)], 4)
     p.row([(text(b, "### Demand · context only\n",
                  "Enrollment and the number of children describe demand. They never change the tier."), 12)], 1)
     p.row([(line(b, "pr_enrollment", "Enrollment each school year · context only", "school_year_label", "School year",

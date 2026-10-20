@@ -724,21 +724,23 @@
         "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END DESC, p.order_in_tier\n",
         "  LIMIT 1\n",
         ")\n",
-        "SELECT p.lgu_label, p.city_mun_name, p.lgu_type_label, p.province_label, p.region_name, p.tier, p.tier_meaning,\n",
-        "       CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name\n",
-        "            ELSE p.province_label || ', ' || p.region_name END AS province_region,\n",
-        "       p.national_rank, (SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix) AS places_ranked,\n",
+        "SELECT p.lgu_label, p.city_mun_name, p.tier,\n",
         "       p.lgu_type_label || ' \u00b7 '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
-        "         || ' \u00b7 ' || p.tier || ' \u00b7 rank ' || format_number(p.national_rank, 0) || ' of '\n",
+        "         || ' \u00b7 ' || p.tier\n",
+        "         || CASE WHEN p.high_measure_count > 0 THEN ' (high on ' || lower(p.high_areas) || ')' ELSE '' END\n",
+        "         || ' \u00b7 rank ' || format_number(p.national_rank, 0) || ' of '\n",
         "         || format_number((SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix), 0)\n",
         "         || CASE WHEN p.is_stable THEN ' \u00b7 Stable' ELSE '' END\n",
         "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 top place in the filters' ELSE '' END AS details,\n",
-        "       p.high_count_label, p.high_areas, p.affected_learners, p.stability,\n",
-        "       CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu\n",
-        "            THEN '(Your selection is outside the filters, so this shows the top LGU in them.)' ELSE '' END AS notice\n",
+        "       a1.active_public_school_count AS public_schools, a2.reported_instructional_classrooms AS classrooms,\n",
+        "       COALESCE(a3.es_teacher_count, 0) + COALESCE(a3.jhs_teacher_count, 0) + COALESCE(a3.shs_teacher_count, 0) AS teachers,\n",
+        "       p.affected_learners\n",
         "FROM pri AS p\n",
-        "JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code"
+        "JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code\n",
+        "LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a1 ON a1.city_mun_psgc_code = p.city_mun_psgc_code\n",
+        "LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = p.city_mun_psgc_code\n",
+        "LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = p.city_mun_psgc_code"
       ],
       "parameters": [
         {
@@ -804,8 +806,8 @@
       ]
     },
     {
-      "name": "pr_local",
-      "displayName": "LGU Profile: barangay and school counts",
+      "name": "pr_answers",
+      "displayName": "LGU Profile: the four questions",
       "queryLines": [
         "WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
@@ -942,22 +944,97 @@
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
+        "pri AS (\n",
+        "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
+        "         CASE m.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END AS tier_sort,\n",
+        "         CASE m.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END AS tier_level,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE m.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END DESC, m.order_in_tier) AS national_rank,\n",
+        "         COALESCE(NULLIF(concat_ws(' + ', CASE WHEN m.ap1_high THEN 'Schools' END,\n",
+        "                                          CASE WHEN m.ap2_high THEN 'Classrooms' END,\n",
+        "                                          CASE WHEN m.ap3_high THEN 'Teachers' END), ''), 'None') AS high_areas,\n",
+        "         CAST(m.high_measure_count AS STRING) || ' of 3' AS high_count_label,\n",
+        "         CASE WHEN m.tier = 'Data review'\n",
+        "              THEN concat_ws('; ', 'schools: ' || a1.not_assessed_reason, 'classrooms: ' || a2.not_assessed_reason,\n",
+        "                             'teachers: ' || a3.not_assessed_reason) END AS data_review_reason,\n",
+        "         CASE WHEN m.is_stable THEN 'Stable' ELSE '' END AS stability,\n",
+        "         k.ap1_same_type_median, k.ap1_relative_pressure, k.ap2_same_type_median, k.ap2_relative_pressure,\n",
+        "         k.ap3_level, k.ap3_same_type_median, k.ap3_relative_pressure,\n",
+        "         k.tier_at_line_085, k.tier_at_line_080, k.tier_at_gate_95, k.tier_without_outliers, k.outliers_change_tier,\n",
+        "         NULLIF(LEAST(CASE WHEN a3.es_offered_school_count > 0 THEN COALESCE(a3.es_learner_coverage_pct, 0) ELSE 999 END,\n",
+        "                      CASE WHEN a3.jhs_offered_school_count > 0 THEN COALESCE(a3.jhs_learner_coverage_pct, 0) ELSE 999 END,\n",
+        "                      CASE WHEN a3.shs_offered_school_count > 0 THEN COALESCE(a3.shs_learner_coverage_pct, 0) ELSE 999 END),\n",
+        "                999) AS ap3_coverage_pct,\n",
+        "         CASE a3.highest_level WHEN 'ES' THEN m.ap3_es_learners_per_teacher WHEN 'JHS' THEN m.ap3_jhs_learners_per_teacher\n",
+        "              WHEN 'SHS' THEN m.ap3_shs_learners_per_teacher END AS ap3_value\n",
+        "  FROM edu_access.`06-analytics`.lgu_priority_matrix AS m\n",
+        "  JOIN lgu AS l ON l.city_mun_psgc_code = m.city_mun_psgc_code\n",
+        "  LEFT JOIN edu_access.`06-analytics`.lgu_priority_checks AS k ON k.city_mun_psgc_code = m.city_mun_psgc_code\n",
+        "  LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a1 ON a1.city_mun_psgc_code = m.city_mun_psgc_code\n",
+        "  LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = m.city_mun_psgc_code\n",
+        "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
+        "),\n",
+        "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code)),\n",
+        "a1 AS (SELECT a.* FROM edu_access.`06-analytics`.ap1_school_provision AS a JOIN sel USING (city_mun_psgc_code)),\n",
+        "a2 AS (SELECT a.* FROM edu_access.`06-analytics`.ap2_classroom_pressure AS a JOIN sel USING (city_mun_psgc_code)),\n",
+        "a3 AS (SELECT a.* FROM edu_access.`06-analytics`.ap3_teacher_pressure AS a JOIN sel USING (city_mun_psgc_code)),\n",
+        "tr AS (\n",
+        "  SELECT MAX(CASE WHEN school_year = first_school_year THEN enrollment_all_sectors END) AS first_value,\n",
+        "         MAX(CASE WHEN school_year = latest_school_year THEN enrollment_all_sectors END) AS last_value,\n",
+        "         MAX(first_school_year) AS first_year, MAX(latest_school_year) AS last_year,\n",
+        "         MAX(enrollment_change_pct_first_to_latest) AS change_pct,\n",
+        "         MAX(CASE WHEN census_year = 2020 THEN school_age_population END) AS children_2020,\n",
+        "         MAX(CASE WHEN census_year = 2024 THEN school_age_population END) AS children_2024\n",
+        "  FROM edu_access.`06-analytics`.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code)\n",
+        "),\n",
         "br AS (\n",
-        "  SELECT b.barangay_name,\n",
-        "         MAX(CASE WHEN s.offers_es = 1 AND s.learners > 0 THEN 1 ELSE 0 END) AS has_public_es\n",
-        "  FROM edu_access.`05-gold`.dim_barangay AS b\n",
-        "  JOIN sel ON sel.city_mun_psgc_code = b.city_mun_psgc_code\n",
-        "  LEFT JOIN schools AS s ON s.barangay_name = b.barangay_name\n",
-        "  WHERE b.member_type = 'regular'\n",
-        "  GROUP BY b.barangay_name\n",
-        ")\n",
-        "SELECT (SELECT COUNT_IF(has_public_es = 0) FROM br) AS barangays_without_public_es,\n",
-        "       (SELECT COUNT(*) FROM br) AS regular_barangays,\n",
-        "       (SELECT COUNT_IF(to_check) FROM schools) AS schools_to_check,\n",
-        "       (SELECT COUNT(*) FROM schools) AS schools,\n",
-        "       (SELECT COUNT_IF(barangay_name = 'Barangay not matched') FROM schools) AS schools_without_barangay,\n",
-        "       CASE WHEN (SELECT COUNT_IF(barangay_name = 'Barangay not matched') FROM schools) > 0 THEN 'At most ' ELSE '' END\n",
-        "         AS bound_prefix"
+        "  SELECT COUNT_IF(has_es = 0) AS without_es, COUNT(*) AS barangays FROM (\n",
+        "    SELECT b.barangay_name, MAX(CASE WHEN s.offers_es = 1 AND s.learners > 0 THEN 1 ELSE 0 END) AS has_es\n",
+        "    FROM edu_access.`05-gold`.dim_barangay AS b JOIN sel ON sel.city_mun_psgc_code = b.city_mun_psgc_code\n",
+        "    LEFT JOIN schools AS s ON s.barangay_name = b.barangay_name\n",
+        "    WHERE b.member_type = 'regular' GROUP BY b.barangay_name) AS z\n",
+        "),\n",
+        "tc AS (SELECT SUM(locally_funded_teachers) AS local_teachers FROM schools)\n",
+        "SELECT 1 AS ord, 'AP1 \u00b7 Are there enough public schools for the learners?' AS question,\n",
+        "       format_number(a1.active_public_school_count, 0) || ' public schools \u00b7 ' || format_number(a1.public_school_enrollment, 0)\n",
+        "         || ' learners' AS counted,\n",
+        "       COALESCE(format_number(a1.learners_per_public_school, 0), 'n/a') || ' learners per school' AS this_place,\n",
+        "       COALESCE(format_number(p.ap1_same_type_median, 0), 'n/a') AS typical, p.ap1_relative_pressure AS times_typical,\n",
+        "       CASE WHEN NOT p.ap1_assessed THEN 'Not assessed: under 90% reported' WHEN p.ap1_high THEN 'High: among the top 10% of ' || p.type_plural ELSE 'Not high' END AS result,\n",
+        "       format_number(br.without_es, 0) || ' of ' || format_number(br.barangays, 0)\n",
+        "         || ' barangays have no matched public elementary school' AS also\n",
+        "FROM p CROSS JOIN a1 CROSS JOIN br\n",
+        "UNION ALL\n",
+        "SELECT 2, 'AP2 \u00b7 Are classrooms crowded?',\n",
+        "       format_number(a2.reported_instructional_classrooms, 0) || ' classrooms \u00b7 ' || format_number(a2.eligible_learners, 0)\n",
+        "         || ' learners in them',\n",
+        "       COALESCE(format_number(a2.learners_per_classroom, 1), 'n/a') || ' learners per classroom',\n",
+        "       COALESCE(format_number(p.ap2_same_type_median, 1), 'n/a'), p.ap2_relative_pressure,\n",
+        "       CASE WHEN NOT p.ap2_assessed THEN 'Not assessed: under 90% reported' WHEN p.ap2_high THEN 'High: among the top 10% of ' || p.type_plural ELSE 'Not high' END,\n",
+        "       format_number(a2.missing_room_school_count + a2.zero_room_school_count, 0)\n",
+        "         || CASE WHEN a2.missing_room_school_count + a2.zero_room_school_count = 1 THEN ' school reports' ELSE ' schools report' END\n",
+        "         || ' no usable classroom count'\n",
+        "FROM p CROSS JOIN a2\n",
+        "UNION ALL\n",
+        "SELECT 3, 'AP3 \u00b7 Are there enough teachers?',\n",
+        "       concat_ws(' \u00b7 ', CASE WHEN a3.es_offered_school_count > 0 THEN 'ES ' || format_number(a3.es_teacher_count, 0) END,\n",
+        "                        CASE WHEN a3.jhs_offered_school_count > 0 THEN 'JHS ' || format_number(a3.jhs_teacher_count, 0) END,\n",
+        "                        CASE WHEN a3.shs_offered_school_count > 0 THEN 'SHS ' || format_number(a3.shs_teacher_count, 0) END)\n",
+        "         || ' teachers',\n",
+        "       COALESCE(format_number(p.ap3_value, 1), 'n/a') || ' learners per teacher at ' || COALESCE(CASE p.ap3_level WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END, 'no level'),\n",
+        "       COALESCE(format_number(p.ap3_same_type_median, 1), 'n/a'), p.ap3_relative_pressure,\n",
+        "       CASE WHEN NOT p.ap3_assessed THEN 'Not assessed: under 90% reported' WHEN p.ap3_high THEN 'High: among the top 10% of ' || p.type_plural ELSE 'Not high' END,\n",
+        "       format_number(tc.local_teachers, 0) || ' teachers are locally funded (SEF, LGU or other)'\n",
+        "FROM p CROSS JOIN a3 CROSS JOIN tc\n",
+        "UNION ALL\n",
+        "SELECT 4, 'AP4 \u00b7 Is enrollment growing? (context only)',\n",
+        "       format_number(tr.first_value, 0) || ' to ' || format_number(tr.last_value, 0) || ' learners, all sectors',\n",
+        "       CASE WHEN tr.change_pct >= 0 THEN '+' ELSE '' END || COALESCE(format_number(100 * tr.change_pct, 1), 'n/a') || '% from SY ' || tr.first_year\n",
+        "         || ' to SY ' || tr.last_year,\n",
+        "       '', CAST(NULL AS DOUBLE), 'Context only: not used in the tier',\n",
+        "       'Children aged 5-17: ' || COALESCE(format_number(tr.children_2020, 0), 'n/a') || ' (2020) to '\n",
+        "         || COALESCE(format_number(tr.children_2024, 0), 'n/a') || ' (2024)'\n",
+        "FROM tr\n",
+        "ORDER BY ord"
       ],
       "parameters": [
         {
@@ -1194,14 +1271,15 @@
         "strongest AS (\n",
         "  SELECT * FROM (\n",
         "    SELECT measure, pctl, value_txt, rp_txt,\n",
-        "           ROW_NUMBER() OVER (ORDER BY pctl DESC) AS rn\n",
+        "           ROW_NUMBER() OVER (ORDER BY rp DESC) AS rn\n",
         "    FROM (\n",
         "      SELECT 'Schools: ' || COALESCE(format_number(ap1_learners_per_public_school, 0), 'n/a') || ' learners per public school' AS measure,\n",
-        "             ap1_percentile AS pctl, '' AS value_txt, COALESCE(CAST(ROUND(ap1_relative_pressure, 2) AS STRING), 'n/a') AS rp_txt FROM p WHERE ap1_assessed\n",
+        "             ap1_percentile AS pctl, '' AS value_txt, COALESCE(CAST(ROUND(ap1_relative_pressure, 2) AS STRING), 'n/a') AS rp_txt, ap1_relative_pressure AS rp\n",
+        "      FROM p WHERE ap1_assessed\n",
         "      UNION ALL SELECT 'Classrooms: ' || COALESCE(format_number(ap2_learners_per_classroom, 1), 'n/a') || ' learners per classroom', ap2_percentile, '',\n",
-        "             COALESCE(CAST(ROUND(ap2_relative_pressure, 2) AS STRING), 'n/a') FROM p WHERE ap2_assessed\n",
+        "             COALESCE(CAST(ROUND(ap2_relative_pressure, 2) AS STRING), 'n/a'), ap2_relative_pressure FROM p WHERE ap2_assessed\n",
         "      UNION ALL SELECT 'Teachers: ' || COALESCE(format_number(ap3_value, 1), 'n/a') || ' learners per teacher at ' || CASE ap3_level WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END,\n",
-        "             ap3_percentile, '', COALESCE(CAST(ROUND(ap3_relative_pressure, 2) AS STRING), 'n/a') FROM p WHERE ap3_assessed AND ap3_level IS NOT NULL\n",
+        "             ap3_percentile, '', COALESCE(CAST(ROUND(ap3_relative_pressure, 2) AS STRING), 'n/a'), ap3_relative_pressure FROM p WHERE ap3_assessed AND ap3_level IS NOT NULL\n",
         "    ) AS u\n",
         "  ) AS ranked WHERE rn = 1\n",
         "),\n",
@@ -1222,8 +1300,8 @@
         "),\n",
         "teachers AS (SELECT SUM(teachers) AS teachers, SUM(locally_funded_teachers) AS local FROM schools),\n",
         "rules AS (\n",
-        "  SELECT 1 AS ord, measure || ' is the strongest pressure, at the ' || COALESCE(format_number(100 * pctl, 0), 'n/a')\n",
-        "         || 'th percentile among ' || (SELECT type_plural FROM p) || ' (' || rp_txt || ' times the typical one).' AS insight\n",
+        "  SELECT 1 AS ord, measure || ', ' || rp_txt || ' times the typical one among ' || (SELECT type_plural FROM p)\n",
+        "         || '. This is the largest gap of the three.' AS insight\n",
         "  FROM strongest\n",
         "  UNION ALL\n",
         "  SELECT 2, CASE WHEN tier = 'Data review' THEN 'Not given a tier yet: ' || data_review_reason || '.'\n",
@@ -1493,24 +1571,22 @@
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT 1 AS ord, 'Schools (AP1)' AS measure, COALESCE(format_number(ap1_learners_per_public_school, 1), 'n/a') AS value,\n",
-        "       COALESCE(format_number(ap1_same_type_median, 1), 'n/a') AS typical, COALESCE(format_number(100 * ap1_percentile, 0), 'n/a') AS percentile,\n",
-        "       COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'n/a') AS coverage,\n",
+        "SELECT 1 AS ord, 'Schools (AP1)' AS measure, COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'n/a') AS coverage,\n",
         "       CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END AS assessed,\n",
-        "       'No outlier rule' AS unusual_schools\n",
+        "       'No outlier rule for schools' AS unusual_schools\n",
         "FROM p\n",
-        "UNION ALL SELECT 2, 'Classrooms (AP2)', COALESCE(format_number(ap2_learners_per_classroom, 1), 'n/a'), COALESCE(format_number(ap2_same_type_median, 1), 'n/a'),\n",
-        "       COALESCE(format_number(100 * ap2_percentile, 0), 'n/a'), COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'n/a'),\n",
+        "UNION ALL SELECT 2, 'Classrooms (AP2)', COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'n/a'),\n",
         "       CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
-        "       'Schools above the fence: ' || format_number(COALESCE(ap2_outlier_school_count, 0), 0)\n",
+        "       format_number(COALESCE(ap2_outlier_school_count, 0), 0)\n",
+        "         || CASE WHEN ap2_outlier_school_count = 1 THEN ' school' ELSE ' schools' END || ' above the outlier fence'\n",
         "FROM p\n",
-        "UNION ALL SELECT 3, 'Teachers (AP3) \u00b7 ' || COALESCE(ap3_level, 'no level'), COALESCE(format_number(ap3_value, 1), 'n/a'), COALESCE(format_number(ap3_same_type_median, 1), 'n/a'),\n",
-        "       COALESCE(format_number(100 * ap3_percentile, 0), 'n/a'), COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
+        "UNION ALL SELECT 3, 'Teachers (AP3)', COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
         "       CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
-        "       'School levels above the fence: ' || format_number(COALESCE(ap3_outlier_school_level_count, 0), 0)\n",
+        "       format_number(COALESCE(ap3_outlier_school_level_count, 0), 0)\n",
+        "         || CASE WHEN ap3_outlier_school_level_count = 1 THEN ' school level' ELSE ' school levels' END || ' above the outlier fence'\n",
         "FROM p\n",
-        "UNION ALL SELECT 4, 'Tier without the flagged schools', COALESCE(tier_without_outliers, 'n/a'), tier, '', '',\n",
-        "       CASE WHEN outliers_change_tier THEN 'Changes' ELSE 'Holds' END, ''\n",
+        "UNION ALL SELECT 4, 'Tier without those schools', COALESCE(tier_without_outliers, 'n/a'),\n",
+        "       CASE WHEN outliers_change_tier THEN 'Changes' ELSE 'Same tier' END, ''\n",
         "FROM p"
       ],
       "parameters": [
@@ -1590,35 +1666,6 @@
         "  FROM edu_access.`05-gold`.dim_city_municipality AS d\n",
         "  WHERE d.member_type = 'regular'\n",
         "),\n",
-        "pri AS (\n",
-        "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END AS tier_sort,\n",
-        "         CASE m.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END AS tier_level,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END DESC, m.order_in_tier) AS national_rank,\n",
-        "         COALESCE(NULLIF(concat_ws(' + ', CASE WHEN m.ap1_high THEN 'Schools' END,\n",
-        "                                          CASE WHEN m.ap2_high THEN 'Classrooms' END,\n",
-        "                                          CASE WHEN m.ap3_high THEN 'Teachers' END), ''), 'None') AS high_areas,\n",
-        "         CAST(m.high_measure_count AS STRING) || ' of 3' AS high_count_label,\n",
-        "         CASE WHEN m.tier = 'Data review'\n",
-        "              THEN concat_ws('; ', 'schools: ' || a1.not_assessed_reason, 'classrooms: ' || a2.not_assessed_reason,\n",
-        "                             'teachers: ' || a3.not_assessed_reason) END AS data_review_reason,\n",
-        "         CASE WHEN m.is_stable THEN 'Stable' ELSE '' END AS stability,\n",
-        "         k.ap1_same_type_median, k.ap1_relative_pressure, k.ap2_same_type_median, k.ap2_relative_pressure,\n",
-        "         k.ap3_level, k.ap3_same_type_median, k.ap3_relative_pressure,\n",
-        "         k.tier_at_line_085, k.tier_at_line_080, k.tier_at_gate_95, k.tier_without_outliers, k.outliers_change_tier,\n",
-        "         NULLIF(LEAST(CASE WHEN a3.es_offered_school_count > 0 THEN COALESCE(a3.es_learner_coverage_pct, 0) ELSE 999 END,\n",
-        "                      CASE WHEN a3.jhs_offered_school_count > 0 THEN COALESCE(a3.jhs_learner_coverage_pct, 0) ELSE 999 END,\n",
-        "                      CASE WHEN a3.shs_offered_school_count > 0 THEN COALESCE(a3.shs_learner_coverage_pct, 0) ELSE 999 END),\n",
-        "                999) AS ap3_coverage_pct,\n",
-        "         CASE a3.highest_level WHEN 'ES' THEN m.ap3_es_learners_per_teacher WHEN 'JHS' THEN m.ap3_jhs_learners_per_teacher\n",
-        "              WHEN 'SHS' THEN m.ap3_shs_learners_per_teacher END AS ap3_value\n",
-        "  FROM edu_access.`06-analytics`.lgu_priority_matrix AS m\n",
-        "  JOIN lgu AS l ON l.city_mun_psgc_code = m.city_mun_psgc_code\n",
-        "  LEFT JOIN edu_access.`06-analytics`.lgu_priority_checks AS k ON k.city_mun_psgc_code = m.city_mun_psgc_code\n",
-        "  LEFT JOIN edu_access.`06-analytics`.ap1_school_provision AS a1 ON a1.city_mun_psgc_code = m.city_mun_psgc_code\n",
-        "  LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = m.city_mun_psgc_code\n",
-        "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
-        "),\n",
         "sel AS (\n",
         "  SELECT l.city_mun_psgc_code, l.lgu_label\n",
         "  FROM lgu AS l\n",
@@ -1627,32 +1674,28 @@
         "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END DESC, p.order_in_tier\n",
         "  LIMIT 1\n",
         "),\n",
-        "active AS (\n",
-        "  SELECT e.school_id, MAX(CASE WHEN e.is_offered AND e.learner_count > 0 THEN 1 ELSE 0 END) AS is_active\n",
-        "  FROM edu_access.`05-gold`.fact_school_enrollment AS e JOIN sel ON sel.city_mun_psgc_code = e.city_mun_psgc_code\n",
-        "  WHERE e.school_year = '2023-24' AND e.sector = 'Public' AND e.psgc_match_status = 'matched'\n",
-        "  GROUP BY e.school_id\n",
+        "lv AS (\n",
+        "  SELECT city_mun_psgc_code, lgu_type, 1 AS ord, 'ES' AS lvl, es_offered_school_count AS offered, es_teacher_count AS teachers,\n",
+        "         es_learners_per_teacher AS ratio, es_passes_gate AS passes FROM edu_access.`06-analytics`.ap3_teacher_pressure\n",
+        "  UNION ALL SELECT city_mun_psgc_code, lgu_type, 2, 'JHS', jhs_offered_school_count, jhs_teacher_count,\n",
+        "         jhs_learners_per_teacher, jhs_passes_gate FROM edu_access.`06-analytics`.ap3_teacher_pressure\n",
+        "  UNION ALL SELECT city_mun_psgc_code, lgu_type, 3, 'SHS', shs_offered_school_count, shs_teacher_count,\n",
+        "         shs_learners_per_teacher, shs_passes_gate FROM edu_access.`06-analytics`.ap3_teacher_pressure\n",
         "),\n",
-        "t AS (\n",
-        "  SELECT t.education_level_code,\n",
-        "         SUM(COALESCE(t.teacher_count, 0)) AS teachers,\n",
-        "         SUM(COALESCE(t.sef_provincial_teacher_count, 0) + COALESCE(t.sef_city_municipal_teacher_count, 0)\n",
-        "             + COALESCE(t.lgu_funded_teacher_count, 0) + COALESCE(t.other_funded_teacher_count, 0)) AS locally_funded\n",
-        "  FROM edu_access.`05-gold`.fact_school_teacher_capacity AS t\n",
-        "  JOIN active AS a ON a.school_id = t.school_id AND a.is_active = 1\n",
-        "  WHERE t.school_year = '2023-24'\n",
-        "  GROUP BY t.education_level_code\n",
+        "typical AS (\n",
+        "  SELECT lgu_type, lvl, PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ratio) AS median_ratio\n",
+        "  FROM lv WHERE passes GROUP BY lgu_type, lvl\n",
         "),\n",
-        "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code)),\n",
-        "labelled AS (\n",
-        "  SELECT t.*, CASE t.education_level_code WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END || ' \u00b7 ' ||\n",
-        "         COALESCE(format_number(CASE t.education_level_code WHEN 'ES' THEN p.ap3_es_learners_per_teacher WHEN 'JHS' THEN p.ap3_jhs_learners_per_teacher ELSE p.ap3_shs_learners_per_teacher END, 1), 'n/a')\n",
-        "         || ' learners per teacher' AS level_label,\n",
-        "         CASE t.education_level_code WHEN 'ES' THEN 1 WHEN 'JHS' THEN 2 ELSE 3 END AS ord\n",
-        "  FROM t CROSS JOIN p\n",
+        "me AS (\n",
+        "  SELECT lv.*, t.median_ratio,\n",
+        "         CASE lv.lvl WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END || ' \u00b7 ' || format_number(lv.teachers, 0) || ' teachers' AS level_label,\n",
+        "         (SELECT type_plural FROM lgu JOIN sel USING (city_mun_psgc_code)) AS type_plural\n",
+        "  FROM lv JOIN sel USING (city_mun_psgc_code)\n",
+        "  LEFT JOIN typical AS t ON t.lgu_type = lv.lgu_type AND t.lvl = lv.lvl\n",
+        "  WHERE lv.offered > 0\n",
         ")\n",
-        "SELECT level_label, ord, 'DepEd-funded' AS funding, GREATEST(teachers - locally_funded, 0) AS teachers FROM labelled\n",
-        "UNION ALL SELECT level_label, ord, 'Locally funded (SEF, LGU, other)', locally_funded FROM labelled"
+        "SELECT level_label, ord, 'This place' AS series, ratio AS learners_per_teacher FROM me\n",
+        "UNION ALL SELECT level_label, ord, 'Typical place of its type', median_ratio FROM me"
       ],
       "parameters": [
         {
@@ -6814,9 +6857,9 @@
                 }
               },
               {
-                "name": "param_pr_local_lgu",
+                "name": "param_pr_answers_lgu",
                 "query": {
-                  "datasetName": "pr_local",
+                  "datasetName": "pr_answers",
                   "parameters": [
                     {
                       "name": "lgu",
@@ -6986,7 +7029,7 @@
                   },
                   {
                     "parameterName": "lgu",
-                    "queryName": "param_pr_local_lgu"
+                    "queryName": "param_pr_answers_lgu"
                   },
                   {
                     "parameterName": "lgu",
@@ -7223,7 +7266,7 @@
                 "showTitle": true,
                 "title": "Place details",
                 "showDescription": true,
-                "description": "Type \u00b7 province (or region) \u00b7 tier \u00b7 national rank \u00b7 Stable if Critical both ways"
+                "description": "Type \u00b7 province (or region) \u00b7 tier and the measures that are high \u00b7 national rank"
               }
             }
           },
@@ -7244,8 +7287,8 @@
                   "datasetName": "pr_card",
                   "fields": [
                     {
-                      "name": "high_count_label",
-                      "expression": "`high_count_label`"
+                      "name": "public_schools",
+                      "expression": "`public_schools`"
                     }
                   ],
                   "disaggregated": true
@@ -7257,15 +7300,22 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "high_count_label",
-                  "displayName": "High-pressure measures"
+                  "fieldName": "public_schools",
+                  "displayName": "Public schools",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "High-pressure measures",
+                "title": "Public schools",
                 "showDescription": true,
-                "description": "At or above the 90th percentile of its type"
+                "description": "Active, SY 2023-24 \u00b7 AP1"
               }
             }
           },
@@ -7279,6 +7329,104 @@
         {
           "widget": {
             "name": "kpi_023",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_card",
+                  "fields": [
+                    {
+                      "name": "classrooms",
+                      "expression": "`classrooms`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "classrooms",
+                  "displayName": "Instructional classrooms",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Instructional classrooms",
+                "showDescription": true,
+                "description": "Usable counts, SY 2023-24 \u00b7 AP2"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 6,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_024",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_card",
+                  "fields": [
+                    {
+                      "name": "teachers",
+                      "expression": "`teachers`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "teachers",
+                  "displayName": "Teachers",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Teachers",
+                "showDescription": true,
+                "description": "Elementary to senior high, SY 2023-24 \u00b7 AP3"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 6,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_025",
             "queries": [
               {
                 "name": "main_query",
@@ -7314,119 +7462,7 @@
                 "showTitle": true,
                 "title": "Public learners",
                 "showDescription": true,
-                "description": "SY 2023-24, complete school counts"
-              }
-            }
-          },
-          "position": {
-            "x": 3,
-            "y": 6,
-            "width": 3,
-            "height": 3
-          }
-        },
-        {
-          "widget": {
-            "name": "kpi_024",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "pr_local",
-                  "fields": [
-                    {
-                      "name": "barangays_without_public_es",
-                      "expression": "`barangays_without_public_es`"
-                    },
-                    {
-                      "name": "bound_prefix",
-                      "expression": "`bound_prefix`"
-                    },
-                    {
-                      "name": "regular_barangays",
-                      "expression": "`regular_barangays`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "barangays_without_public_es",
-                  "displayName": "Barangays without a public elementary school",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{bound_prefix}}{{ @formatted }} of {{regular_barangays}}"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Barangays without a public elementary school",
-                "showDescription": true,
-                "description": "Matched public schools \u00b7 a screening count"
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 6,
-            "width": 3,
-            "height": 3
-          }
-        },
-        {
-          "widget": {
-            "name": "kpi_025",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "pr_local",
-                  "fields": [
-                    {
-                      "name": "schools_to_check",
-                      "expression": "`schools_to_check`"
-                    },
-                    {
-                      "name": "schools",
-                      "expression": "`schools`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "schools_to_check",
-                  "displayName": "Schools with figures to verify",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} of {{schools}}"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Schools with figures to verify",
-                "showDescription": true,
-                "description": "Unusual, missing or zero \u00b7 see School Action"
+                "description": "Complete school counts, SY 2023-24"
               }
             }
           },
@@ -7483,7 +7519,106 @@
         },
         {
           "widget": {
-            "name": "bar_027",
+            "name": "table_027",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_answers",
+                  "fields": [
+                    {
+                      "name": "question",
+                      "expression": "`question`"
+                    },
+                    {
+                      "name": "counted",
+                      "expression": "`counted`"
+                    },
+                    {
+                      "name": "this_place",
+                      "expression": "`this_place`"
+                    },
+                    {
+                      "name": "typical",
+                      "expression": "`typical`"
+                    },
+                    {
+                      "name": "times_typical",
+                      "expression": "`times_typical`"
+                    },
+                    {
+                      "name": "result",
+                      "expression": "`result`"
+                    },
+                    {
+                      "name": "also",
+                      "expression": "`also`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "question",
+                    "displayName": "Question"
+                  },
+                  {
+                    "fieldName": "counted",
+                    "displayName": "What is counted"
+                  },
+                  {
+                    "fieldName": "this_place",
+                    "displayName": "This place"
+                  },
+                  {
+                    "fieldName": "typical",
+                    "displayName": "Typical place"
+                  },
+                  {
+                    "fieldName": "times_typical",
+                    "displayName": "\u00d7 typical",
+                    "format": {
+                      "type": "number-plain",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "result",
+                    "displayName": "Result"
+                  },
+                  {
+                    "fieldName": "also",
+                    "displayName": "Also"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "The four questions, answered for this place",
+                "showDescription": true,
+                "description": "Typical place is the median city or municipality of the same type. \u00d7 typical is this place's ratio divided by it: 2.00 means twice the typical place. High means among the top 10% of its type; that is what sets the tier. AP4 is context and never changes the tier."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 13,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_028",
             "queries": [
               {
                 "name": "main_query",
@@ -7516,7 +7651,7 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Relative pressure (1.00 = typical place of its type)",
+                  "displayName": "Times the typical place of its type",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -7572,9 +7707,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Why this tier",
+                "title": "How far above the typical place, by question",
                 "showDescription": true,
-                "description": "High comes from the percentile; the bar shows how far the place is from the typical one."
+                "description": "The \u00d7 column above as bars. Past the 1.00 line means more learners per school, classroom or teacher than the typical place. Dark bars are the measures that set the tier."
               },
               "annotations": [
                 {
@@ -7597,14 +7732,111 @@
           },
           "position": {
             "x": 0,
-            "y": 13,
+            "y": 19,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "table_028",
+            "name": "bar_029",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_teachers",
+                  "fields": [
+                    {
+                      "name": "level_label",
+                      "expression": "`level_label`"
+                    },
+                    {
+                      "name": "max(learners_per_teacher)",
+                      "expression": "MAX(`learners_per_teacher`)"
+                    },
+                    {
+                      "name": "series",
+                      "expression": "`series`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "level_label",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "alphabetical"
+                    }
+                  },
+                  "displayName": "Level"
+                },
+                "y": {
+                  "fieldName": "max(learners_per_teacher)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Learners per teacher",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "series",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "This place",
+                        "Typical place of its type"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "This place",
+                        "color": "#712B13"
+                      },
+                      {
+                        "value": "Typical place of its type",
+                        "color": "#A9B4BF"
+                      }
+                    ]
+                  },
+                  "displayName": ""
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Learners per teacher by level",
+                "showDescription": true,
+                "description": "Which school level is shortest of teachers compared with the typical place. AP3 uses the level with the largest gap. Labels give the number of teachers at each level."
+              },
+              "mark": {
+                "layout": "group"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 19,
+            "width": 6,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "table_030",
             "queries": [
               {
                 "name": "main_query",
@@ -7614,18 +7846,6 @@
                     {
                       "name": "measure",
                       "expression": "`measure`"
-                    },
-                    {
-                      "name": "value",
-                      "expression": "`value`"
-                    },
-                    {
-                      "name": "typical",
-                      "expression": "`typical`"
-                    },
-                    {
-                      "name": "percentile",
-                      "expression": "`percentile`"
                     },
                     {
                       "name": "coverage",
@@ -7654,20 +7874,8 @@
                     "displayName": "Measure"
                   },
                   {
-                    "fieldName": "value",
-                    "displayName": "This place"
-                  },
-                  {
-                    "fieldName": "typical",
-                    "displayName": "Typical place"
-                  },
-                  {
-                    "fieldName": "percentile",
-                    "displayName": "Percentile"
-                  },
-                  {
                     "fieldName": "coverage",
-                    "displayName": "Coverage"
+                    "displayName": "Share reported"
                   },
                   {
                     "fieldName": "assessed",
@@ -7681,102 +7889,22 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "How reliable the result is",
+                "title": "How solid the result is",
                 "showDescription": true,
-                "description": "Coverage is the share of learners reported (schools for AP1, the lowest offered level for AP3); below 90% means not assessed. Schools above an outlier fence stay in every total; the last row shows whether the tier holds without them."
-              }
-            }
-          },
-          "position": {
-            "x": 6,
-            "y": 13,
-            "width": 6,
-            "height": 7
-          }
-        },
-        {
-          "widget": {
-            "name": "bar_029",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "pr_teachers",
-                  "fields": [
-                    {
-                      "name": "level_label",
-                      "expression": "`level_label`"
-                    },
-                    {
-                      "name": "sum(teachers)",
-                      "expression": "SUM(`teachers`)"
-                    },
-                    {
-                      "name": "funding",
-                      "expression": "`funding`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "widgetType": "bar",
-              "encodings": {
-                "x": {
-                  "fieldName": "sum(teachers)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Teachers"
-                },
-                "y": {
-                  "fieldName": "level_label",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Level"
-                },
-                "color": {
-                  "fieldName": "funding",
-                  "scale": {
-                    "type": "categorical",
-                    "mappings": [
-                      {
-                        "value": "DepEd-funded",
-                        "color": "#5B6B7A"
-                      },
-                      {
-                        "value": "Locally funded (SEF, LGU, other)",
-                        "color": "#C9A227"
-                      }
-                    ]
-                  },
-                  "displayName": "Funding"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Teachers by level, and who funds them",
-                "showDescription": true,
-                "description": "Public-school teachers, SY 2023-24. Learners per teacher in each label is the AP3 ratio for the level; locally funded positions are included in it."
-              },
-              "mark": {
-                "layout": "stack"
+                "description": "Share reported is the share of learners counted (schools for AP1; the least complete level for AP3). Below 90% a measure is not assessed. Schools with unusual figures stay in every total; the last row shows whether the tier would change without them."
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 20,
+            "y": 26,
             "width": 12,
-            "height": 5
+            "height": 4
           }
         },
         {
           "widget": {
-            "name": "text_030",
+            "name": "text_031",
             "multilineTextboxSpec": {
               "lines": [
                 "### Demand \u00b7 context only\n",
@@ -7786,14 +7914,14 @@
           },
           "position": {
             "x": 0,
-            "y": 25,
+            "y": 30,
             "width": 12,
             "height": 1
           }
         },
         {
           "widget": {
-            "name": "line_031",
+            "name": "line_032",
             "queries": [
               {
                 "name": "main_query",
@@ -7882,14 +8010,14 @@
           },
           "position": {
             "x": 0,
-            "y": 26,
+            "y": 31,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "line_032",
+            "name": "line_033",
             "queries": [
               {
                 "name": "main_query",
@@ -7995,14 +8123,14 @@
           },
           "position": {
             "x": 6,
-            "y": 26,
+            "y": 31,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_033",
+            "name": "bar_034",
             "queries": [
               {
                 "name": "main_query",
@@ -8067,14 +8195,14 @@
           },
           "position": {
             "x": 0,
-            "y": 33,
+            "y": 38,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_034",
+            "name": "bar_035",
             "queries": [
               {
                 "name": "main_query",
@@ -8167,14 +8295,14 @@
           },
           "position": {
             "x": 6,
-            "y": 33,
+            "y": 38,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "table_035",
+            "name": "table_036",
             "queries": [
               {
                 "name": "main_query",
@@ -8257,14 +8385,14 @@
           },
           "position": {
             "x": 0,
-            "y": 40,
+            "y": 45,
             "width": 12,
             "height": 8
           }
         },
         {
           "widget": {
-            "name": "table_036",
+            "name": "table_037",
             "queries": [
               {
                 "name": "main_query",
@@ -8340,7 +8468,7 @@
           },
           "position": {
             "x": 0,
-            "y": 48,
+            "y": 53,
             "width": 12,
             "height": 5
           }
@@ -8355,7 +8483,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_037",
+            "name": "text_038",
             "multilineTextboxSpec": {
               "lines": [
                 "# Which schools should we check, and why?\n",
@@ -8372,7 +8500,7 @@
         },
         {
           "widget": {
-            "name": "filter_038",
+            "name": "filter_039",
             "queries": [
               {
                 "name": "opt_opt_lgu",
@@ -8565,7 +8693,7 @@
         },
         {
           "widget": {
-            "name": "filter_039",
+            "name": "filter_040",
             "queries": [
               {
                 "name": "opt_opt_barangay_school",
@@ -8739,7 +8867,7 @@
         },
         {
           "widget": {
-            "name": "filter_040",
+            "name": "filter_041",
             "queries": [
               {
                 "name": "opt_opt_level",
@@ -8913,7 +9041,7 @@
         },
         {
           "widget": {
-            "name": "filter_041",
+            "name": "filter_042",
             "queries": [
               {
                 "name": "opt_opt_status",
@@ -8985,7 +9113,7 @@
         },
         {
           "widget": {
-            "name": "filter_042",
+            "name": "filter_043",
             "queries": [
               {
                 "name": "opt_opt_school",
@@ -9127,7 +9255,7 @@
         },
         {
           "widget": {
-            "name": "kpi_043",
+            "name": "kpi_044",
             "queries": [
               {
                 "name": "main_query",
@@ -9169,7 +9297,7 @@
         },
         {
           "widget": {
-            "name": "kpi_044",
+            "name": "kpi_045",
             "queries": [
               {
                 "name": "main_query",
@@ -9211,7 +9339,7 @@
         },
         {
           "widget": {
-            "name": "kpi_045",
+            "name": "kpi_046",
             "queries": [
               {
                 "name": "main_query",
@@ -9260,7 +9388,7 @@
         },
         {
           "widget": {
-            "name": "kpi_046",
+            "name": "kpi_047",
             "queries": [
               {
                 "name": "main_query",
@@ -9309,7 +9437,7 @@
         },
         {
           "widget": {
-            "name": "kpi_047",
+            "name": "kpi_048",
             "queries": [
               {
                 "name": "main_query",
@@ -9358,7 +9486,7 @@
         },
         {
           "widget": {
-            "name": "kpi_048",
+            "name": "kpi_049",
             "queries": [
               {
                 "name": "main_query",
@@ -9407,7 +9535,7 @@
         },
         {
           "widget": {
-            "name": "scatter_049",
+            "name": "scatter_050",
             "queries": [
               {
                 "name": "main_query",
@@ -9517,7 +9645,7 @@
         },
         {
           "widget": {
-            "name": "table_050",
+            "name": "table_051",
             "queries": [
               {
                 "name": "main_query",
@@ -9577,7 +9705,7 @@
         },
         {
           "widget": {
-            "name": "line_051",
+            "name": "line_052",
             "queries": [
               {
                 "name": "main_query",
@@ -9689,7 +9817,7 @@
         },
         {
           "widget": {
-            "name": "table_052",
+            "name": "table_053",
             "queries": [
               {
                 "name": "main_query",
@@ -9823,7 +9951,7 @@
         },
         {
           "widget": {
-            "name": "table_053",
+            "name": "table_054",
             "queries": [
               {
                 "name": "main_query",
@@ -9967,7 +10095,7 @@
         },
         {
           "widget": {
-            "name": "text_054",
+            "name": "text_055",
             "multilineTextboxSpec": {
               "lines": [
                 "Confirm flagged figures with the Schools Division Office before using them for planning. The dashboard identifies pressure and data requiring review; it does not prescribe how many classrooms, teachers, or schools to add."
@@ -9991,7 +10119,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_055",
+            "name": "text_056",
             "multilineTextboxSpec": {
               "lines": [
                 "# Can we rely on these results, and how were they produced?\n",
@@ -10008,7 +10136,7 @@
         },
         {
           "widget": {
-            "name": "filter_056",
+            "name": "filter_057",
             "queries": [
               {
                 "name": "opt_opt_measure",
@@ -10097,7 +10225,7 @@
         },
         {
           "widget": {
-            "name": "filter_057",
+            "name": "filter_058",
             "queries": [
               {
                 "name": "opt_opt_scenario",
@@ -10169,7 +10297,7 @@
         },
         {
           "widget": {
-            "name": "kpi_058",
+            "name": "kpi_059",
             "queries": [
               {
                 "name": "main_query",
@@ -10211,7 +10339,7 @@
         },
         {
           "widget": {
-            "name": "kpi_059",
+            "name": "kpi_060",
             "queries": [
               {
                 "name": "main_query",
@@ -10265,7 +10393,7 @@
         },
         {
           "widget": {
-            "name": "kpi_060",
+            "name": "kpi_061",
             "queries": [
               {
                 "name": "main_query",
@@ -10314,7 +10442,7 @@
         },
         {
           "widget": {
-            "name": "kpi_061",
+            "name": "kpi_062",
             "queries": [
               {
                 "name": "main_query",
@@ -10368,7 +10496,7 @@
         },
         {
           "widget": {
-            "name": "kpi_062",
+            "name": "kpi_063",
             "queries": [
               {
                 "name": "main_query",
@@ -10417,7 +10545,7 @@
         },
         {
           "widget": {
-            "name": "text_063",
+            "name": "text_064",
             "multilineTextboxSpec": {
               "lines": [
                 "## How the priority is determined\n\n",
@@ -10439,7 +10567,7 @@
         },
         {
           "widget": {
-            "name": "table_064",
+            "name": "table_065",
             "queries": [
               {
                 "name": "main_query",
@@ -10521,7 +10649,7 @@
         },
         {
           "widget": {
-            "name": "bar_065",
+            "name": "bar_066",
             "queries": [
               {
                 "name": "main_query",
@@ -10612,7 +10740,7 @@
         },
         {
           "widget": {
-            "name": "bar_066",
+            "name": "bar_067",
             "queries": [
               {
                 "name": "main_query",
@@ -10693,7 +10821,7 @@
         },
         {
           "widget": {
-            "name": "bar_067",
+            "name": "bar_068",
             "queries": [
               {
                 "name": "main_query",
@@ -10757,7 +10885,7 @@
         },
         {
           "widget": {
-            "name": "bar_068",
+            "name": "bar_069",
             "queries": [
               {
                 "name": "main_query",
@@ -10837,7 +10965,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_069",
+            "name": "heatmap_070",
             "queries": [
               {
                 "name": "main_query",
@@ -10931,7 +11059,7 @@
         },
         {
           "widget": {
-            "name": "table_070",
+            "name": "table_071",
             "queries": [
               {
                 "name": "main_query",
@@ -11028,7 +11156,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_071",
+            "name": "heatmap_072",
             "queries": [
               {
                 "name": "main_query",
@@ -11102,7 +11230,7 @@
         },
         {
           "widget": {
-            "name": "bar_072",
+            "name": "bar_073",
             "queries": [
               {
                 "name": "main_query",
@@ -11192,7 +11320,7 @@
         },
         {
           "widget": {
-            "name": "text_073",
+            "name": "text_074",
             "multilineTextboxSpec": {
               "lines": [
                 "## What this dashboard cannot tell you\n\n",
@@ -11221,7 +11349,7 @@
       "layout": [
         {
           "widget": {
-            "name": "filter_074",
+            "name": "filter_075",
             "queries": [
               {
                 "name": "opt_opt_region",
@@ -11315,9 +11443,9 @@
                 }
               },
               {
-                "name": "param_pr_local_region",
+                "name": "param_pr_answers_region",
                 "query": {
-                  "datasetName": "pr_local",
+                  "datasetName": "pr_answers",
                   "parameters": [
                     {
                       "name": "region",
@@ -11689,7 +11817,7 @@
                   },
                   {
                     "parameterName": "region",
-                    "queryName": "param_pr_local_region"
+                    "queryName": "param_pr_answers_region"
                   },
                   {
                     "parameterName": "region",
@@ -11820,7 +11948,7 @@
         },
         {
           "widget": {
-            "name": "filter_075",
+            "name": "filter_076",
             "queries": [
               {
                 "name": "opt_opt_province",
@@ -11914,9 +12042,9 @@
                 }
               },
               {
-                "name": "param_pr_local_province",
+                "name": "param_pr_answers_province",
                 "query": {
-                  "datasetName": "pr_local",
+                  "datasetName": "pr_answers",
                   "parameters": [
                     {
                       "name": "province",
@@ -12275,7 +12403,7 @@
                   },
                   {
                     "parameterName": "province",
-                    "queryName": "param_pr_local_province"
+                    "queryName": "param_pr_answers_province"
                   },
                   {
                     "parameterName": "province",
@@ -12402,7 +12530,7 @@
         },
         {
           "widget": {
-            "name": "filter_076",
+            "name": "filter_077",
             "queries": [
               {
                 "name": "opt_opt_type",
@@ -12496,9 +12624,9 @@
                 }
               },
               {
-                "name": "param_pr_local_lgu_type",
+                "name": "param_pr_answers_lgu_type",
                 "query": {
-                  "datasetName": "pr_local",
+                  "datasetName": "pr_answers",
                   "parameters": [
                     {
                       "name": "lgu_type",
@@ -12909,7 +13037,7 @@
                   },
                   {
                     "parameterName": "lgu_type",
-                    "queryName": "param_pr_local_lgu_type"
+                    "queryName": "param_pr_answers_lgu_type"
                   },
                   {
                     "parameterName": "lgu_type",
