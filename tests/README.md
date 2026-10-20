@@ -11,7 +11,7 @@ python -m pytest tests -q
 | `factories/` | Python builders that create deterministic, made-up inputs in temporary directories |
 | `data/` | Small static, made-up files when a factory is not practical |
 | `test_repo_policy.py` | Data, secret, environment, and file-size rules |
-| `test_documentation_structure.py` | Required indexes, retired paths, and local Markdown links |
+| `test_documentation_structure.py` | Required indexes, retired paths, local Markdown links, every ETL file named in its stage README, every canonical doc reachable from an index, and no stale status lines |
 | `test_naming.py` | Naming configuration and ETL path conventions |
 | `test_ingestion_*.py` | Delivery validation, loading, rerun, and source-specific behavior |
 | `test_silver.py` | DepEd enrollment Silver: cleaning rules, quarantine, the gate, the run record, revisions, and the generated SQL |
