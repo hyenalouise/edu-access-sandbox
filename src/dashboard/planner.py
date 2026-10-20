@@ -27,6 +27,8 @@ ALL_BARANGAYS = "All barangays"
 ALL_LEVELS, ALL_SCHOOLS, FIRST_SCHOOL = "All levels", "All schools", "(First school to check)"
 ALL_MEASURES = "All measures"
 SCHOOL_YEARS = ["SY 2020-21", "SY 2021-22", "SY 2022-23", "SY 2023-24", "SY 2024-25", "SY 2025-26"]
+ORDERS = ["Priority rule (D-057)", "Largest relative pressure"]
+SHOW_AS = ["Relative pressure (×)", "Percentile"]
 SCENARIOS = ["Without outlier schools", "95% coverage gate", "High line at 0.85", "High line at 0.80", "Ranked nationally"]
 
 TIERS = ["Critical", "Elevated", "Targeted", "Monitor", "Data review"]
@@ -122,7 +124,19 @@ GEOM = "st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326)"
 OV_LGU = f"""SELECT b.*, {GEOM} AS boundary
 FROM (
   WITH {PRI}
-  SELECT ROW_NUMBER() OVER (ORDER BY tier_sort DESC, order_in_tier) AS rank_in_view, national_rank,
+  -- the list order is a display choice: the D-057 order, or the largest relative pressure among assessed measures with
+  -- places below the coverage gate last. Neither changes a tier.
+  SELECT ROW_NUMBER() OVER (ORDER BY
+           CASE WHEN :list_order = '{ORDERS[0]}' THEN tier_sort END DESC,
+           CASE WHEN :list_order = '{ORDERS[0]}' THEN order_in_tier END,
+           CASE WHEN :list_order <> '{ORDERS[0]}' AND tier = 'Data review' THEN 1 ELSE 0 END,
+           GREATEST(COALESCE(CASE WHEN ap1_assessed THEN ap1_relative_pressure END, 0),
+                    COALESCE(CASE WHEN ap2_assessed THEN ap2_relative_pressure END, 0),
+                    COALESCE(CASE WHEN ap3_assessed THEN ap3_relative_pressure END, 0)) DESC,
+           city_mun_psgc_code) AS rank_in_view, national_rank,
+         CASE WHEN :show_as = '{SHOW_AS[1]}' THEN 100.0 * ap1_percentile ELSE ap1_relative_pressure END AS schools_value,
+         CASE WHEN :show_as = '{SHOW_AS[1]}' THEN 100.0 * ap2_percentile ELSE ap2_relative_pressure END AS classrooms_value,
+         CASE WHEN :show_as = '{SHOW_AS[1]}' THEN 100.0 * ap3_percentile ELSE ap3_relative_pressure END AS teachers_value,
          city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, tier, tier_level, tier_meaning,
          high_areas, high_count_label, data_review_reason, stability, affected_learners, ap3_highest_level,
          NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)
@@ -773,13 +787,15 @@ SELECT school_option FROM (
 
 DEFAULTS = {"region": ALL_REGIONS, "province": ALL_PROVINCES, "lgu_type": ALL_TYPES, "tier": ALL_TIERS,
             "coverage": ALL_COVERAGE, "lgu": TOP_LGU, "barangay": ALL_BARANGAYS, "level": ALL_LEVELS,
-            "school_status": ALL_SCHOOLS, "school": FIRST_SCHOOL, "measure": ALL_MEASURES, "scenario": SCENARIOS[0]}
+            "school_status": ALL_SCHOOLS, "school": FIRST_SCHOOL, "measure": ALL_MEASURES, "scenario": SCENARIOS[0],
+            "list_order": ORDERS[0], "show_as": SHOW_AS[0]}
 OPTION_FIELDS = {"region": ("opt_region", "region"), "province": ("opt_province", "province"),
                  "lgu_type": ("opt_type", "lgu_type_option"), "tier": ("opt_tier", "tier_option"),
                  "coverage": ("opt_coverage", "coverage_option"), "lgu": ("opt_lgu", "lgu_option"),
                  "barangay": ("opt_barangay", "barangay_option"), "level": ("opt_level", "level_option"),
                  "school_status": ("opt_status", "status_option"), "school": ("opt_school", "school_option"),
-                 "measure": ("opt_measure", "measure_option"), "scenario": ("opt_scenario", "scenario_option")}
+                 "measure": ("opt_measure", "measure_option"), "scenario": ("opt_scenario", "scenario_option"),
+                 "list_order": ("opt_list_order", "list_order_option"), "show_as": ("opt_show_as", "show_as_option")}
 
 GEO_P = ["region", "province", "lgu_type"]
 OV_P = GEO_P + ["tier", "coverage"]
@@ -788,7 +804,7 @@ SCHOOL_P = LGU_P + ["barangay", "level", "school"]
 
 
 def datasets(b):
-    b.dataset("ov_lgu", "Overview: LGUs and boundaries", OV_LGU, OV_P)
+    b.dataset("ov_lgu", "Overview: LGUs and boundaries", OV_LGU, OV_P + ["list_order", "show_as"])
     b.dataset("ov_kpi", "Overview: KPIs", OV_KPI, OV_P)
     b.dataset("ov_drivers", "Overview: what drives the tier", OV_DRIVERS, OV_P)
     b.dataset("ov_relative", "Overview: typical relative pressure", OV_RP, GEO_P)
@@ -831,6 +847,8 @@ def datasets(b):
     b.dataset("opt_school", "Filter: school", OPT_SCHOOL, LGU_P + ["barangay", "level"])
     b.dataset("opt_measure", "Filter: measure", values("measure_option", [ALL_MEASURES] + MEASURES))
     b.dataset("opt_scenario", "Filter: validation check", values("scenario_option", SCENARIOS))
+    b.dataset("opt_list_order", "Filter: list order", values("list_order_option", ORDERS))
+    b.dataset("opt_show_as", "Filter: show values as", values("show_as_option", SHOW_AS))
 
 
 # ------------------------------------------------------------------------------------------ pages
@@ -842,10 +860,14 @@ def overview(b):
     p.row([(text(b, "# Which cities and municipalities should be reviewed first?\n",
                  "Each place is compared with others of the same type on learners per public school, per classroom and "
                  "per teacher (SY 2023-24). High means at or above the 90th percentile. Select a place on the map to "
-                 "narrow the list."), 6),
-           (param_filter(b, "tier", "Priority tier", targets), 3),
+                 "narrow the list."), 4),
+           (param_filter(b, "tier", "Priority tier", targets), 2),
            (param_filter(b, "coverage", "Coverage status", targets,
-                         "Assessed places have every measure at 90% coverage or more."), 3)], 2)
+                         "Assessed places have every measure at 90% coverage or more."), 2),
+           (param_filter(b, "list_order", "Order list by", ["ov_lgu"],
+                         "The priority rule keeps D-057's order; the other sorts by the largest relative pressure. "
+                         "Tiers never change."), 2),
+           (param_filter(b, "show_as", "Show values as", ["ov_lgu"]), 2)], 2)
     p.row([(kpi(b, "freshness", "Data freshness", "freshness", None,
                 desc="Latest successful pipeline run and the school years it covers"), 12)], 2)
     p.row([(kpi(b, "ov_kpi", "Priority LGUs", "priority_lgus", num(), desc="Critical or Elevated: high on 2 or 3 measures"), 3),
@@ -875,13 +897,14 @@ def overview(b):
                 annotations=[ref_line("y", 1, "Typical place = 1.00")]), 12)], 6)
     p.row([(table(b, "ov_lgu", "Priority list", [
         ("rank_in_view", "Rank", None), ("lgu_label", "City or municipality", None), ("lgu_type_label", "Type", None),
-        ("tier", "Tier", None), ("high_areas", "High on", None), ("ap1_pct", "Schools pct", num()),
-        ("ap2_pct", "Classrooms pct", num()), ("ap3_pct", "Teachers pct", num()),
+        ("tier", "Tier", None), ("high_areas", "High on", None), ("schools_value", "Schools", num(2)),
+        ("classrooms_value", "Classrooms", num(2)), ("teachers_value", "Teachers", num(2)),
         ("ap3_highest_level", "Teacher level used", None), ("affected_learners", "Public learners", num()),
         ("lowest_coverage_pct", "Lowest coverage %", num()), ("stability", "Stability", None),
         ("data_review_reason", "Data review reason", None)],
-        "Ranked by tier, then public learners, then the lowest of the three percentiles (D-057). pct is the "
-        "within-type percentile (90 or more is high). Lowest coverage is the least complete of the three measures; under 90 "
+        "Order and values follow the two filters above. Relative pressure (×): 1.00 is the typical place of its type. "
+        "Percentile: 90 or more is high, which is what sets the tier. The D-057 order is tier, then public learners, "
+        "then the lowest percentile. Lowest coverage is the least complete of the three measures; under 90 "
         "means data review, not low pressure. Stable means Critical within type and nationally. Download "
         "from the table menu."), 12)], 10)
     p.row([(text(b, "**Next:** choose a place in *City or municipality* at the top, then open **LGU Profile**. "

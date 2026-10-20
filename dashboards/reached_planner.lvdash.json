@@ -45,7 +45,19 @@
         "  LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = m.city_mun_psgc_code\n",
         "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
         ")\n",
-        "  SELECT ROW_NUMBER() OVER (ORDER BY tier_sort DESC, order_in_tier) AS rank_in_view, national_rank,\n",
+        "  -- the list order is a display choice: the D-057 order, or the largest relative pressure among assessed measures with\n",
+        "  -- places below the coverage gate last. Neither changes a tier.\n",
+        "  SELECT ROW_NUMBER() OVER (ORDER BY\n",
+        "           CASE WHEN :list_order = 'Priority rule (D-057)' THEN tier_sort END DESC,\n",
+        "           CASE WHEN :list_order = 'Priority rule (D-057)' THEN order_in_tier END,\n",
+        "           CASE WHEN :list_order <> 'Priority rule (D-057)' AND tier = 'Data review' THEN 1 ELSE 0 END,\n",
+        "           GREATEST(COALESCE(CASE WHEN ap1_assessed THEN ap1_relative_pressure END, 0),\n",
+        "                    COALESCE(CASE WHEN ap2_assessed THEN ap2_relative_pressure END, 0),\n",
+        "                    COALESCE(CASE WHEN ap3_assessed THEN ap3_relative_pressure END, 0)) DESC,\n",
+        "           city_mun_psgc_code) AS rank_in_view, national_rank,\n",
+        "         CASE WHEN :show_as = 'Percentile' THEN 100.0 * ap1_percentile ELSE ap1_relative_pressure END AS schools_value,\n",
+        "         CASE WHEN :show_as = 'Percentile' THEN 100.0 * ap2_percentile ELSE ap2_relative_pressure END AS classrooms_value,\n",
+        "         CASE WHEN :show_as = 'Percentile' THEN 100.0 * ap3_percentile ELSE ap3_relative_pressure END AS teachers_value,\n",
         "         city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, tier, tier_level, tier_meaning,\n",
         "         high_areas, high_count_label, data_review_reason, stability, affected_learners, ap3_highest_level,\n",
         "         NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)\n",
@@ -130,6 +142,36 @@
               "values": [
                 {
                   "value": "All LGUs"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "list_order",
+          "keyword": "list_order",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Priority rule (D-057)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "show_as",
+          "keyword": "show_as",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "Relative pressure (\u00d7)"
                 }
               ]
             }
@@ -4946,6 +4988,22 @@
         "SELECT * FROM (VALUES ('Without outlier schools'), ('95% coverage gate'), ('High line at 0.85'), ('High line at 0.80'), ('Ranked nationally')) AS v(scenario_option)"
       ],
       "parameters": []
+    },
+    {
+      "name": "opt_list_order",
+      "displayName": "Filter: list order",
+      "queryLines": [
+        "SELECT * FROM (VALUES ('Priority rule (D-057)'), ('Largest relative pressure')) AS v(list_order_option)"
+      ],
+      "parameters": []
+    },
+    {
+      "name": "opt_show_as",
+      "displayName": "Filter: show values as",
+      "queryLines": [
+        "SELECT * FROM (VALUES ('Relative pressure (\u00d7)'), ('Percentile')) AS v(show_as_option)"
+      ],
+      "parameters": []
     }
   ],
   "pages": [
@@ -4968,7 +5026,7 @@
           "position": {
             "x": 0,
             "y": 0,
-            "width": 6,
+            "width": 4,
             "height": 2
           }
         },
@@ -5072,9 +5130,9 @@
             }
           },
           "position": {
-            "x": 6,
+            "x": 4,
             "y": 0,
-            "width": 3,
+            "width": 2,
             "height": 2
           }
         },
@@ -5180,15 +5238,161 @@
             }
           },
           "position": {
-            "x": 9,
+            "x": 6,
             "y": 0,
-            "width": 3,
+            "width": 2,
             "height": 2
           }
         },
         {
           "widget": {
-            "name": "kpi_004",
+            "name": "filter_004",
+            "queries": [
+              {
+                "name": "opt_opt_list_order",
+                "query": {
+                  "datasetName": "opt_list_order",
+                  "fields": [
+                    {
+                      "name": "list_order_option",
+                      "expression": "`list_order_option`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_ov_lgu_list_order",
+                "query": {
+                  "datasetName": "ov_lgu",
+                  "parameters": [
+                    {
+                      "name": "list_order",
+                      "keyword": "list_order"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "list_order_option",
+                    "displayName": "Order list by",
+                    "queryName": "opt_opt_list_order"
+                  },
+                  {
+                    "parameterName": "list_order",
+                    "queryName": "param_ov_lgu_list_order"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Order list by",
+                "showDescription": true,
+                "description": "The priority rule keeps D-057's order; the other sorts by the largest relative pressure. Tiers never change."
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Priority rule (D-057)"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_005",
+            "queries": [
+              {
+                "name": "opt_opt_show_as",
+                "query": {
+                  "datasetName": "opt_show_as",
+                  "fields": [
+                    {
+                      "name": "show_as_option",
+                      "expression": "`show_as_option`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_ov_lgu_show_as",
+                "query": {
+                  "datasetName": "ov_lgu",
+                  "parameters": [
+                    {
+                      "name": "show_as",
+                      "keyword": "show_as"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "show_as_option",
+                    "displayName": "Show values as",
+                    "queryName": "opt_opt_show_as"
+                  },
+                  {
+                    "parameterName": "show_as",
+                    "queryName": "param_ov_lgu_show_as"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Show values as"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "Relative pressure (\u00d7)"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_006",
             "queries": [
               {
                 "name": "main_query",
@@ -5230,7 +5434,7 @@
         },
         {
           "widget": {
-            "name": "kpi_005",
+            "name": "kpi_007",
             "queries": [
               {
                 "name": "main_query",
@@ -5279,7 +5483,7 @@
         },
         {
           "widget": {
-            "name": "kpi_006",
+            "name": "kpi_008",
             "queries": [
               {
                 "name": "main_query",
@@ -5334,7 +5538,7 @@
         },
         {
           "widget": {
-            "name": "kpi_007",
+            "name": "kpi_009",
             "queries": [
               {
                 "name": "main_query",
@@ -5383,7 +5587,7 @@
         },
         {
           "widget": {
-            "name": "kpi_008",
+            "name": "kpi_010",
             "queries": [
               {
                 "name": "main_query",
@@ -5432,7 +5636,7 @@
         },
         {
           "widget": {
-            "name": "choropleth_map_009",
+            "name": "choropleth_map_011",
             "queries": [
               {
                 "name": "main_query",
@@ -5520,7 +5724,7 @@
         },
         {
           "widget": {
-            "name": "bar_010",
+            "name": "bar_012",
             "queries": [
               {
                 "name": "main_query",
@@ -5629,7 +5833,7 @@
         },
         {
           "widget": {
-            "name": "bar_011",
+            "name": "bar_013",
             "queries": [
               {
                 "name": "main_query",
@@ -5748,7 +5952,7 @@
         },
         {
           "widget": {
-            "name": "table_012",
+            "name": "table_014",
             "queries": [
               {
                 "name": "main_query",
@@ -5776,16 +5980,16 @@
                       "expression": "`high_areas`"
                     },
                     {
-                      "name": "ap1_pct",
-                      "expression": "`ap1_pct`"
+                      "name": "schools_value",
+                      "expression": "`schools_value`"
                     },
                     {
-                      "name": "ap2_pct",
-                      "expression": "`ap2_pct`"
+                      "name": "classrooms_value",
+                      "expression": "`classrooms_value`"
                     },
                     {
-                      "name": "ap3_pct",
-                      "expression": "`ap3_pct`"
+                      "name": "teachers_value",
+                      "expression": "`teachers_value`"
                     },
                     {
                       "name": "ap3_highest_level",
@@ -5838,35 +6042,35 @@
                     "displayName": "High on"
                   },
                   {
-                    "fieldName": "ap1_pct",
-                    "displayName": "Schools pct",
+                    "fieldName": "schools_value",
+                    "displayName": "Schools",
                     "format": {
                       "type": "number-plain",
                       "decimalPlaces": {
                         "type": "max",
-                        "places": 0
+                        "places": 2
                       }
                     }
                   },
                   {
-                    "fieldName": "ap2_pct",
-                    "displayName": "Classrooms pct",
+                    "fieldName": "classrooms_value",
+                    "displayName": "Classrooms",
                     "format": {
                       "type": "number-plain",
                       "decimalPlaces": {
                         "type": "max",
-                        "places": 0
+                        "places": 2
                       }
                     }
                   },
                   {
-                    "fieldName": "ap3_pct",
-                    "displayName": "Teachers pct",
+                    "fieldName": "teachers_value",
+                    "displayName": "Teachers",
                     "format": {
                       "type": "number-plain",
                       "decimalPlaces": {
                         "type": "max",
-                        "places": 0
+                        "places": 2
                       }
                     }
                   },
@@ -5910,7 +6114,7 @@
                 "showTitle": true,
                 "title": "Priority list",
                 "showDescription": true,
-                "description": "Ranked by tier, then public learners, then the lowest of the three percentiles (D-057). pct is the within-type percentile (90 or more is high). Lowest coverage is the least complete of the three measures; under 90 means data review, not low pressure. Stable means Critical within type and nationally. Download from the table menu."
+                "description": "Order and values follow the two filters above. Relative pressure (\u00d7): 1.00 is the typical place of its type. Percentile: 90 or more is high, which is what sets the tier. The D-057 order is tier, then public learners, then the lowest percentile. Lowest coverage is the least complete of the three measures; under 90 means data review, not low pressure. Stable means Critical within type and nationally. Download from the table menu."
               }
             }
           },
@@ -5923,7 +6127,7 @@
         },
         {
           "widget": {
-            "name": "text_013",
+            "name": "text_015",
             "multilineTextboxSpec": {
               "lines": [
                 "**Next:** choose a place in *City or municipality* at the top, then open **LGU Profile**. A tier is relative pressure compared with similar places, not a count of schools, classrooms or teachers to add."
@@ -5947,7 +6151,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_014",
+            "name": "text_016",
             "multilineTextboxSpec": {
               "lines": [
                 "# Why is this place a priority, and where should the board look?\n",
@@ -5964,7 +6168,7 @@
         },
         {
           "widget": {
-            "name": "kpi_015",
+            "name": "kpi_017",
             "queries": [
               {
                 "name": "main_query",
@@ -6006,7 +6210,7 @@
         },
         {
           "widget": {
-            "name": "kpi_016",
+            "name": "kpi_018",
             "queries": [
               {
                 "name": "main_query",
@@ -6048,7 +6252,7 @@
         },
         {
           "widget": {
-            "name": "kpi_017",
+            "name": "kpi_019",
             "queries": [
               {
                 "name": "main_query",
@@ -6090,7 +6294,7 @@
         },
         {
           "widget": {
-            "name": "kpi_018",
+            "name": "kpi_020",
             "queries": [
               {
                 "name": "main_query",
@@ -6139,7 +6343,7 @@
         },
         {
           "widget": {
-            "name": "kpi_019",
+            "name": "kpi_021",
             "queries": [
               {
                 "name": "main_query",
@@ -6197,7 +6401,7 @@
         },
         {
           "widget": {
-            "name": "kpi_020",
+            "name": "kpi_022",
             "queries": [
               {
                 "name": "main_query",
@@ -6251,7 +6455,7 @@
         },
         {
           "widget": {
-            "name": "table_021",
+            "name": "table_023",
             "queries": [
               {
                 "name": "main_query",
@@ -6295,7 +6499,7 @@
         },
         {
           "widget": {
-            "name": "bar_022",
+            "name": "bar_024",
             "queries": [
               {
                 "name": "main_query",
@@ -6416,7 +6620,7 @@
         },
         {
           "widget": {
-            "name": "table_023",
+            "name": "table_025",
             "queries": [
               {
                 "name": "main_query",
@@ -6508,7 +6712,7 @@
         },
         {
           "widget": {
-            "name": "bar_024",
+            "name": "bar_026",
             "queries": [
               {
                 "name": "main_query",
@@ -6588,7 +6792,7 @@
         },
         {
           "widget": {
-            "name": "line_025",
+            "name": "line_027",
             "queries": [
               {
                 "name": "main_query",
@@ -6684,7 +6888,7 @@
         },
         {
           "widget": {
-            "name": "bar_026",
+            "name": "bar_028",
             "queries": [
               {
                 "name": "main_query",
@@ -6784,7 +6988,7 @@
         },
         {
           "widget": {
-            "name": "table_027",
+            "name": "table_029",
             "queries": [
               {
                 "name": "main_query",
@@ -6874,7 +7078,7 @@
         },
         {
           "widget": {
-            "name": "table_028",
+            "name": "table_030",
             "queries": [
               {
                 "name": "main_query",
@@ -6965,7 +7169,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_029",
+            "name": "text_031",
             "multilineTextboxSpec": {
               "lines": [
                 "# Which schools should we check, and why?\n",
@@ -6982,7 +7186,7 @@
         },
         {
           "widget": {
-            "name": "filter_030",
+            "name": "filter_032",
             "queries": [
               {
                 "name": "opt_opt_level",
@@ -7156,7 +7360,7 @@
         },
         {
           "widget": {
-            "name": "filter_031",
+            "name": "filter_033",
             "queries": [
               {
                 "name": "opt_opt_status",
@@ -7228,7 +7432,7 @@
         },
         {
           "widget": {
-            "name": "filter_032",
+            "name": "filter_034",
             "queries": [
               {
                 "name": "opt_opt_school",
@@ -7370,7 +7574,7 @@
         },
         {
           "widget": {
-            "name": "kpi_033",
+            "name": "kpi_035",
             "queries": [
               {
                 "name": "main_query",
@@ -7412,7 +7616,7 @@
         },
         {
           "widget": {
-            "name": "kpi_034",
+            "name": "kpi_036",
             "queries": [
               {
                 "name": "main_query",
@@ -7454,7 +7658,7 @@
         },
         {
           "widget": {
-            "name": "kpi_035",
+            "name": "kpi_037",
             "queries": [
               {
                 "name": "main_query",
@@ -7503,7 +7707,7 @@
         },
         {
           "widget": {
-            "name": "kpi_036",
+            "name": "kpi_038",
             "queries": [
               {
                 "name": "main_query",
@@ -7552,7 +7756,7 @@
         },
         {
           "widget": {
-            "name": "kpi_037",
+            "name": "kpi_039",
             "queries": [
               {
                 "name": "main_query",
@@ -7601,7 +7805,7 @@
         },
         {
           "widget": {
-            "name": "kpi_038",
+            "name": "kpi_040",
             "queries": [
               {
                 "name": "main_query",
@@ -7650,7 +7854,7 @@
         },
         {
           "widget": {
-            "name": "scatter_039",
+            "name": "scatter_041",
             "queries": [
               {
                 "name": "main_query",
@@ -7760,7 +7964,7 @@
         },
         {
           "widget": {
-            "name": "table_040",
+            "name": "table_042",
             "queries": [
               {
                 "name": "main_query",
@@ -7820,7 +8024,7 @@
         },
         {
           "widget": {
-            "name": "line_041",
+            "name": "line_043",
             "queries": [
               {
                 "name": "main_query",
@@ -7932,7 +8136,7 @@
         },
         {
           "widget": {
-            "name": "table_042",
+            "name": "table_044",
             "queries": [
               {
                 "name": "main_query",
@@ -8066,7 +8270,7 @@
         },
         {
           "widget": {
-            "name": "table_043",
+            "name": "table_045",
             "queries": [
               {
                 "name": "main_query",
@@ -8210,7 +8414,7 @@
         },
         {
           "widget": {
-            "name": "text_044",
+            "name": "text_046",
             "multilineTextboxSpec": {
               "lines": [
                 "Confirm flagged figures with the Schools Division Office before using them for planning. The dashboard identifies pressure and data requiring review; it does not prescribe how many classrooms, teachers, or schools to add."
@@ -8234,7 +8438,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_045",
+            "name": "text_047",
             "multilineTextboxSpec": {
               "lines": [
                 "# Can we rely on these results, and how were they produced?\n",
@@ -8251,7 +8455,7 @@
         },
         {
           "widget": {
-            "name": "filter_046",
+            "name": "filter_048",
             "queries": [
               {
                 "name": "opt_opt_measure",
@@ -8340,7 +8544,7 @@
         },
         {
           "widget": {
-            "name": "filter_047",
+            "name": "filter_049",
             "queries": [
               {
                 "name": "opt_opt_scenario",
@@ -8412,7 +8616,7 @@
         },
         {
           "widget": {
-            "name": "kpi_048",
+            "name": "kpi_050",
             "queries": [
               {
                 "name": "main_query",
@@ -8454,7 +8658,7 @@
         },
         {
           "widget": {
-            "name": "kpi_049",
+            "name": "kpi_051",
             "queries": [
               {
                 "name": "main_query",
@@ -8508,7 +8712,7 @@
         },
         {
           "widget": {
-            "name": "kpi_050",
+            "name": "kpi_052",
             "queries": [
               {
                 "name": "main_query",
@@ -8557,7 +8761,7 @@
         },
         {
           "widget": {
-            "name": "kpi_051",
+            "name": "kpi_053",
             "queries": [
               {
                 "name": "main_query",
@@ -8611,7 +8815,7 @@
         },
         {
           "widget": {
-            "name": "kpi_052",
+            "name": "kpi_054",
             "queries": [
               {
                 "name": "main_query",
@@ -8660,7 +8864,7 @@
         },
         {
           "widget": {
-            "name": "text_053",
+            "name": "text_055",
             "multilineTextboxSpec": {
               "lines": [
                 "## How the priority is determined\n\n",
@@ -8682,7 +8886,7 @@
         },
         {
           "widget": {
-            "name": "table_054",
+            "name": "table_056",
             "queries": [
               {
                 "name": "main_query",
@@ -8764,7 +8968,7 @@
         },
         {
           "widget": {
-            "name": "bar_055",
+            "name": "bar_057",
             "queries": [
               {
                 "name": "main_query",
@@ -8855,7 +9059,7 @@
         },
         {
           "widget": {
-            "name": "bar_056",
+            "name": "bar_058",
             "queries": [
               {
                 "name": "main_query",
@@ -8936,7 +9140,7 @@
         },
         {
           "widget": {
-            "name": "bar_057",
+            "name": "bar_059",
             "queries": [
               {
                 "name": "main_query",
@@ -9016,7 +9220,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_058",
+            "name": "heatmap_060",
             "queries": [
               {
                 "name": "main_query",
@@ -9110,7 +9314,7 @@
         },
         {
           "widget": {
-            "name": "table_059",
+            "name": "table_061",
             "queries": [
               {
                 "name": "main_query",
@@ -9207,7 +9411,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_060",
+            "name": "heatmap_062",
             "queries": [
               {
                 "name": "main_query",
@@ -9281,7 +9485,7 @@
         },
         {
           "widget": {
-            "name": "bar_061",
+            "name": "bar_063",
             "queries": [
               {
                 "name": "main_query",
@@ -9371,7 +9575,7 @@
         },
         {
           "widget": {
-            "name": "text_062",
+            "name": "text_064",
             "multilineTextboxSpec": {
               "lines": [
                 "## What this dashboard cannot tell you\n\n",
@@ -9400,7 +9604,7 @@
       "layout": [
         {
           "widget": {
-            "name": "filter_063",
+            "name": "filter_065",
             "queries": [
               {
                 "name": "opt_opt_region",
@@ -9914,7 +10118,7 @@
         },
         {
           "widget": {
-            "name": "filter_064",
+            "name": "filter_066",
             "queries": [
               {
                 "name": "opt_opt_province",
@@ -10411,7 +10615,7 @@
         },
         {
           "widget": {
-            "name": "filter_065",
+            "name": "filter_067",
             "queries": [
               {
                 "name": "opt_opt_type",
@@ -10976,7 +11180,7 @@
         },
         {
           "widget": {
-            "name": "filter_066",
+            "name": "filter_068",
             "queries": [
               {
                 "name": "opt_opt_lgu",
@@ -11339,7 +11543,7 @@
         },
         {
           "widget": {
-            "name": "filter_067",
+            "name": "filter_069",
             "queries": [
               {
                 "name": "opt_opt_barangay",

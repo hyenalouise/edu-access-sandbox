@@ -57,6 +57,7 @@ Every filter is a query parameter applied after the stored percentiles and tiers
 | City or municipality (global) | LGU Profile and School Action. Defaults to the top place in the filters; a choice outside them falls back to that place and says so |
 | Barangay (global) | The barangay and school sections of LGU Profile, and School Action |
 | Priority tier, Coverage status (Overview) | The KPIs, map, drivers and priority list. Not the relative-pressure chart, which always compares high places with the rest |
+| Order list by, Show values as (Overview) | The priority list only. *Order* keeps D-057's order or sorts by the largest relative pressure, with places below the coverage gate last; *Show values* switches the three measure columns between relative pressure (×) and percentile. Neither changes a tier |
 | Education level, School (School Action) | Every School Action visual. School defaults to the first school to check |
 | School status (School Action) | The school action list only |
 | Measure, Validation check (Data and Method) | Measure: coverage and reasons. Validation check: the published-tier-against-check heatmap |
