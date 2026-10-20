@@ -231,7 +231,7 @@ analytics_tables:
   - table: ap1_school_provision
     build_file: 01_answer_ap1.sql
     validate_file: 90_validate_ap1.sql
-    grain: One regular city or municipality for SY 2024-25.
+    grain: One regular city or municipality for SY 2023-24.
   - table: ap2_classroom_pressure
     build_file: 02_answer_ap2.sql
     validate_file: 90_validate_ap2.sql
@@ -239,14 +239,14 @@ analytics_tables:
   - table: ap3_teacher_pressure
     build_file: 03_answer_ap3.sql
     validate_file: 90_validate_ap3.sql
-    grain: One regular city or municipality for SY 2023-24.
+    grain: One regular city or municipality for SY 2023-24, with ES, JHS and SHS side by side.
   - table: ap4_enrollment_trend
     build_file: 04_answer_ap4.sql
     validate_file: 90_validate_ap4.sql
-    grain: One regular city or municipality across SY 2020-21 through SY 2025-26.
+    grain: One city or municipality member (regular, UNKNOWN or EXCLUDED) and school year; census context on SY 2020-21 and 2024-25 only.
   - table: lgu_priority_matrix
     build_file: 05_build_priority_matrix.sql
     validate_file: 90_validate_priority_matrix.sql
-    grain: One regular city or municipality.
+    grain: One regular city or municipality, SY 2023-24 (D-057 priority tier).
 
 deferred_layers: []

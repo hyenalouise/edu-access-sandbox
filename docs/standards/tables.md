@@ -77,8 +77,10 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 (D-052) unless its own decision says otherwise. Gold names from #45 are documented
 in [`docs/architecture/data-model.md`](../architecture/data-model.md). Tables with
 reviewed inputs may be implemented independently; geography-dependent tables remain
-disabled until their Integration prerequisites are ready. Analytics names remain
-deferred until their inputs are implemented and gated.
+disabled until their Integration prerequisites are ready. Analytics names are
+registered in `config/tables.yml` (`analytics_tables`); `ap4_enrollment_trend` has
+one row per city or municipality member and school year, the others one row per
+regular city or municipality.
 
 ## Gold names
 

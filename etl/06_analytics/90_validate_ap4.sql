@@ -1,109 +1,226 @@
--- ap4 publication gate; a failure leaves the last valid output unchanged.
--- the one-row summary is written once to a table named for this run and dropped after the checks are recorded:
--- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
--- WARN: all-sector learners at schools not placed in a city or municipality (UNKNOWN or EXCLUDED) in SY 2020-21
--- and SY 2025-26. Counts only (PASS): the matched-learner share at each endpoint.
+-- Analytics gate for AP4 (#147). Checks ap4_enrollment_trend_candidate against the published Gold
+-- facts it reads, writes every result to data_quality_results (layer 'analytics'), stops on any FAIL,
+-- and only then publishes ap4_enrollment_trend. A FAIL keeps the last good output.
+--
+-- FAIL: a repeated or NULL key; a school year missing for a member, or one not in fact_school_enrollment;
+-- a school placed in two cities or municipalities in one school year; a school year's all-sector
+-- enrollment, or a census year's school-age population (5 to 17, male and female), that differs from the
+-- Gold facts (which count no Philippine School Overseas); census context on a school year without a
+-- census (only aligned years are compared); a change, share, gap or trend label that is not the
+-- arithmetic of its rows; a member_type that does not fit the code; a trend that differs between a
+-- member's rows; and any row that differs, in any column, from the row expected from the Gold facts
+-- (rows_match_gold).
+-- WARN: schools left out because an offered level has no learner_count; learners in schools on the
+-- UNKNOWN or EXCLUDED member; school-age population on EXCLUDED; regular rows in a census school year
+-- without population.
+-- Counts only (PASS): enrollment per school year (the national trend), rows, and members by trend.
+
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
 DECLARE OR REPLACE VARIABLE analytics_gate_summary STRING;
 SET VARIABLE analytics_gate_summary = '`edu_access`.`06-analytics`.`ap4_enrollment_trend_gate_summary_r_' || sha2(:run_id, 256) || '`';
 DECLARE OR REPLACE VARIABLE analytics_gate_owner_sql STRING;
 
-CREATE OR REPLACE TABLE IDENTIFIER(session.analytics_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one ap4_enrollment_trend gate. The gate drops it once its checks are recorded in data_quality_results.' AS
-WITH c AS (
-  SELECT * FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate
-), regular AS (
-  SELECT * FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
-), school_totals AS (
-  SELECT school_id, school_year, city_mun_psgc_code, MIN(psgc_match_status) AS psgc_match_status,
-         CASE WHEN COUNT_IF(is_offered IS NULL OR (is_offered AND learner_count IS NULL)) > 0 THEN NULL
-              ELSE SUM(CASE WHEN is_offered THEN learner_count ELSE 0 END) END AS learners
+-- Every row as the Gold facts say it should be, built once for the full-row comparison.
+CREATE OR REPLACE TEMPORARY VIEW ap4_expected AS
+WITH years AS (
+  SELECT DISTINCT school_year FROM edu_access.`05-gold`.fact_school_enrollment
+),
+first_last AS (
+  SELECT MIN(school_year) AS first_year, MAX(school_year) AS latest_year FROM years
+),
+schools AS (
+  SELECT school_year, school_id, MIN(city_mun_psgc_code) AS city_mun_psgc_code, MIN(sector) AS sector,
+         BOOL_AND(is_offered IS NOT NULL AND (NOT is_offered OR learner_count IS NOT NULL)) AS complete,
+         SUM(CASE WHEN is_offered THEN learner_count ELSE 0 END) AS learners
   FROM edu_access.`05-gold`.fact_school_enrollment
-  WHERE school_year IN ('2020-21', '2021-22', '2022-23', '2023-24', '2024-25', '2025-26')
-    AND sector IN ('Public', 'Private', 'SUC/LUC')
-  GROUP BY school_id, school_year, city_mun_psgc_code
-), expected AS (
-  SELECT city_mun_psgc_code, school_year, CAST(COALESCE(SUM(learners), 0) AS BIGINT) AS enrollment
-  FROM school_totals WHERE psgc_match_status = 'matched' GROUP BY city_mun_psgc_code, school_year
-), available AS (
-  SELECT school_year, TRUE AS has_data FROM edu_access.`05-gold`.fact_school_enrollment GROUP BY school_year
-), shares AS (
-  SELECT school_year,
-         CAST(100.0 * SUM(CASE WHEN psgc_match_status = 'matched' THEN learners ELSE 0 END)
-           / NULLIF(SUM(learners), 0) AS DOUBLE) AS matched_share,
-         COALESCE(SUM(CASE WHEN psgc_match_status <> 'matched' THEN learners END), 0) AS unplaced_learners
-  FROM school_totals GROUP BY school_year
-), actual AS (
-  SELECT city_mun_psgc_code, '2020-21' AS school_year, enrollment_2020_21 AS enrollment FROM c
-  UNION ALL SELECT city_mun_psgc_code, '2021-22', enrollment_2021_22 FROM c
-  UNION ALL SELECT city_mun_psgc_code, '2022-23', enrollment_2022_23 FROM c
-  UNION ALL SELECT city_mun_psgc_code, '2023-24', enrollment_2023_24 FROM c
-  UNION ALL SELECT city_mun_psgc_code, '2024-25', enrollment_2024_25 FROM c
-  UNION ALL SELECT city_mun_psgc_code, '2025-26', enrollment_2025_26 FROM c
+  WHERE sector <> 'PSO'
+  GROUP BY school_year, school_id
+),
+enrollment AS (
+  SELECT school_year, city_mun_psgc_code,
+         SUM(CASE WHEN complete THEN learners ELSE 0 END) AS enrollment_all_sectors,
+         SUM(CASE WHEN complete AND sector = 'Public' THEN learners ELSE 0 END) AS public_school_enrollment,
+         COUNT_IF(complete) AS schools_counted, COUNT_IF(NOT complete) AS schools_incomplete
+  FROM schools GROUP BY school_year, city_mun_psgc_code
+),
+population AS (
+  SELECT reference_year, city_mun_psgc_code, SUM(population) AS school_age_population,
+         BOOL_AND(is_2020_2024_geography_comparable) AS comparable
+  FROM edu_access.`05-gold`.fact_city_school_age_population
+  WHERE reference_year IN (2020, 2024) AND sex IN ('male', 'female') AND age >= 5 AND age <= 17
+  GROUP BY reference_year, city_mun_psgc_code
+),
+members AS (
+  SELECT city_mun_psgc_code FROM population
+  UNION
+  SELECT city_mun_psgc_code FROM enrollment
+),
+cells AS (
+  SELECT m.city_mun_psgc_code, y.school_year,
+         COALESCE(e.enrollment_all_sectors, 0) AS enrollment_all_sectors,
+         COALESCE(e.public_school_enrollment, 0) AS public_school_enrollment,
+         COALESCE(e.schools_counted, 0) AS schools_counted,
+         COALESCE(e.schools_incomplete, 0) AS schools_incomplete
+  FROM members AS m CROSS JOIN years AS y
+  LEFT JOIN enrollment AS e ON e.city_mun_psgc_code = m.city_mun_psgc_code AND e.school_year = y.school_year
 )
 SELECT
-  (SELECT COUNT(*) FROM c) AS rows, (SELECT COUNT(*) FROM regular) AS expected_rows,
-  (SELECT COUNT(*) - COUNT(DISTINCT city_mun_psgc_code) FROM c) AS duplicate_keys,
-  (SELECT COUNT(*) FROM c FULL OUTER JOIN regular USING (city_mun_psgc_code)
-    WHERE c.city_mun_psgc_code IS NULL OR regular.city_mun_psgc_code IS NULL) AS lgu_mismatch,
-  (SELECT COUNT(*) FROM actual a
-    LEFT JOIN available v ON v.school_year = a.school_year
-    LEFT JOIN expected e ON e.city_mun_psgc_code = a.city_mun_psgc_code AND e.school_year = a.school_year
-    WHERE a.enrollment IS DISTINCT FROM CASE WHEN COALESCE(v.has_data, FALSE) THEN COALESCE(e.enrollment, 0) END)
-    AS annual_enrollment_mismatch,
-  (SELECT COUNT(*) FROM c
-    LEFT JOIN shares f ON f.school_year = '2020-21'
-    LEFT JOIN shares t ON t.school_year = '2025-26'
-    WHERE c.matched_learner_share_2020_21_pct IS DISTINCT FROM f.matched_share
-       OR c.matched_learner_share_2025_26_pct IS DISTINCT FROM t.matched_share) AS matched_share_mismatch,
-  (SELECT COALESCE(COUNT_IF(((enrollment_2020_21 IS NULL OR enrollment_2020_21 = 0) AND pct_change IS NOT NULL)
-    OR (enrollment_2020_21 > 0 AND available_year_count = 6
-      AND ABS(pct_change - (enrollment_2025_26 - enrollment_2020_21) * 1.0 / enrollment_2020_21) > 1e-9)), 0) FROM c)
-    AS change_mismatch,
-  (SELECT COALESCE(COUNT_IF((pct_change > 0.05 AND trend_direction IS DISTINCT FROM 'Growing')
-    OR (pct_change < -0.05 AND trend_direction IS DISTINCT FROM 'Declining')
-    OR (ABS(pct_change) <= 0.05 AND trend_direction IS DISTINCT FROM 'Stable')
-    OR (pct_change IS NULL AND trend_direction IS NOT NULL)), 0) FROM c) AS trend_mismatch,
-  (SELECT COALESCE(COUNT_IF((trend_status = 'Complete') <> COALESCE(available_year_count = 6
-    AND enrollment_2020_21 > 0 AND incomplete_school_year_rows = 0
-    AND ABS(matched_learner_share_2025_26_pct - matched_learner_share_2020_21_pct) <= 2, FALSE)), 0) FROM c)
-    AS status_mismatch,
-  (SELECT COALESCE(MAX(unplaced_learners), 0) FROM shares WHERE school_year = '2020-21') AS unplaced_learners_2020_21,
-  (SELECT COALESCE(MAX(unplaced_learners), 0) FROM shares WHERE school_year = '2025-26') AS unplaced_learners_2025_26,
-  (SELECT MAX(matched_share) FROM shares WHERE school_year = '2020-21') AS matched_share_2020_21,
-  (SELECT MAX(matched_share) FROM shares WHERE school_year = '2025-26') AS matched_share_2025_26;
+  c.city_mun_psgc_code,
+  c.school_year,
+  CAST(c.enrollment_all_sectors AS BIGINT) AS enrollment_all_sectors,
+  CAST(c.public_school_enrollment AS BIGINT) AS public_school_enrollment,
+  c.schools_counted,
+  c.schools_incomplete,
+  CAST(f.enrollment_all_sectors AS BIGINT) AS enrollment_first_school_year,
+  CAST(l.enrollment_all_sectors AS BIGINT) AS enrollment_latest_school_year,
+  CASE WHEN c.city_mun_psgc_code IN ('UNKNOWN', 'EXCLUDED') THEN NULL
+       WHEN l.enrollment_all_sectors > f.enrollment_all_sectors THEN 'increasing'
+       WHEN l.enrollment_all_sectors < f.enrollment_all_sectors THEN 'decreasing'
+       ELSE 'no change' END AS enrollment_trend,
+  CAST(p.school_age_population AS BIGINT) AS school_age_population,
+  COALESCE(c.city_mun_psgc_code NOT IN ('UNKNOWN', 'EXCLUDED') AND k.comparable, FALSE) AS is_2020_2024_geography_comparable
+FROM cells AS c
+CROSS JOIN first_last AS b
+JOIN cells AS f ON f.city_mun_psgc_code = c.city_mun_psgc_code AND f.school_year = b.first_year
+JOIN cells AS l ON l.city_mun_psgc_code = c.city_mun_psgc_code AND l.school_year = b.latest_year
+LEFT JOIN population AS p
+  ON p.city_mun_psgc_code = c.city_mun_psgc_code AND p.reference_year = CAST(substr(c.school_year, 1, 4) AS INT)
+LEFT JOIN (SELECT city_mun_psgc_code, BOOL_AND(comparable) AS comparable FROM population GROUP BY city_mun_psgc_code) AS k
+  ON k.city_mun_psgc_code = c.city_mun_psgc_code;
+
+DECLARE OR REPLACE VARIABLE analytics_ap4_rows_not_matching BIGINT;
+SET VARIABLE analytics_ap4_rows_not_matching = (
+  (SELECT COUNT(*) FROM (
+     SELECT city_mun_psgc_code, school_year, enrollment_all_sectors, public_school_enrollment, schools_counted,
+            schools_incomplete, enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+            school_age_population, is_2020_2024_geography_comparable
+     FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate
+     EXCEPT ALL SELECT * FROM ap4_expected) AS x)
+  + (SELECT COUNT(*) FROM (
+     SELECT * FROM ap4_expected
+     EXCEPT ALL
+     SELECT city_mun_psgc_code, school_year, enrollment_all_sectors, public_school_enrollment, schools_counted,
+            schools_incomplete, enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+            school_age_population, is_2020_2024_geography_comparable
+     FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate) AS x));
+
+-- The full-row comparison is computed once, above, because the summary is read once per result row.
+-- The one-row summary the checks read is written to a table first. Read 20 times as a temporary view, it
+-- made Databricks SQL's optimizer fail with INTERNAL_ERROR (dev run, 2026-10-20), as the DepEd PSGC gate did
+-- (c64e949). The table is this run's own (its name holds a hash of run_id) and is dropped once the checks
+-- are recorded, whether the gate passes or fails.
+CREATE OR REPLACE TABLE IDENTIFIER(session.analytics_gate_summary) USING DELTA COMMENT 'Internal unpublished one-row summary for one ap4 gate. The gate drops it once its checks are recorded in data_quality_results.' AS
+WITH ap4 AS (
+  SELECT * FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate
+),
+gold_years AS (
+  SELECT DISTINCT school_year FROM edu_access.`05-gold`.fact_school_enrollment
+),
+school_places AS (
+  SELECT school_year, school_id, COUNT(DISTINCT city_mun_psgc_code) AS places
+  FROM edu_access.`05-gold`.fact_school_enrollment GROUP BY school_year, school_id
+),
+expected_by_year AS (
+  SELECT school_year, SUM(enrollment_all_sectors) AS enrollment, SUM(school_age_population) AS population
+  FROM ap4_expected GROUP BY school_year
+),
+ap4_by_year AS (
+  SELECT school_year, SUM(enrollment_all_sectors) AS enrollment, SUM(school_age_population) AS population
+  FROM ap4 GROUP BY school_year
+),
+member_years AS (
+  SELECT city_mun_psgc_code, COUNT(DISTINCT school_year) AS years,
+         COUNT(DISTINCT COALESCE(enrollment_trend, '-')) AS trends,
+         COUNT(DISTINCT is_2020_2024_geography_comparable) AS flags
+  FROM ap4 GROUP BY city_mun_psgc_code
+),
+previous AS (
+  SELECT a.city_mun_psgc_code, a.school_year, a.enrollment_change_from_previous_year, a.enrollment_change_pct_from_previous_year,
+         a.enrollment_all_sectors,
+         CASE WHEN LAG(a.school_year_start) OVER (PARTITION BY a.city_mun_psgc_code ORDER BY a.school_year) = a.school_year_start - 1
+              THEN LAG(a.enrollment_all_sectors) OVER (PARTITION BY a.city_mun_psgc_code ORDER BY a.school_year) END AS previous_enrollment
+  FROM ap4 AS a
+)
+SELECT
+  session.analytics_ap4_rows_not_matching AS rows_not_matching_gold,
+  (SELECT COUNT(*) FROM ap4) - (SELECT COUNT(*) FROM (SELECT DISTINCT city_mun_psgc_code, school_year FROM ap4) AS k) AS duplicate_keys,
+  (SELECT COUNT_IF(city_mun_psgc_code IS NULL OR school_year IS NULL) FROM ap4) AS null_keys,
+  (SELECT COUNT(*) FROM member_years WHERE years <> (SELECT COUNT(*) FROM gold_years)) AS members_missing_years,
+  (SELECT COUNT(*) FROM (SELECT DISTINCT school_year FROM ap4) AS a LEFT JOIN gold_years AS g ON g.school_year = a.school_year
+    WHERE g.school_year IS NULL) AS years_not_in_gold,
+  (SELECT COUNT_IF(places > 1) FROM school_places) AS schools_in_two_places,
+  (SELECT COUNT(*) FROM expected_by_year AS x FULL OUTER JOIN ap4_by_year AS a ON a.school_year = x.school_year
+    WHERE a.enrollment IS DISTINCT FROM x.enrollment) AS enrollment_years_not_reconciled,
+  (SELECT COUNT(*) FROM expected_by_year AS x FULL OUTER JOIN ap4_by_year AS a ON a.school_year = x.school_year
+    WHERE a.population IS DISTINCT FROM x.population) AS population_years_not_reconciled,
+  (SELECT COUNT_IF(NOT ((census_year = 2020 AND school_year = '2020-21') OR (census_year = 2024 AND school_year = '2024-25'))
+                   AND (census_year IS NOT NULL OR school_age_population IS NOT NULL OR population_enrollment_gap IS NOT NULL))
+   + COUNT_IF(school_year = '2020-21' AND census_year IS DISTINCT FROM 2020)
+   + COUNT_IF(school_year = '2024-25' AND census_year IS DISTINCT FROM 2024)
+   FROM ap4) AS unaligned_context_rows,
+  (SELECT COUNT_IF(public_school_share IS DISTINCT FROM CAST(public_school_enrollment AS DOUBLE) / NULLIF(enrollment_all_sectors, 0)
+                OR public_school_enrollment > enrollment_all_sectors
+                OR population_enrollment_gap IS DISTINCT FROM school_age_population - enrollment_all_sectors
+                OR gap_share IS DISTINCT FROM CAST(population_enrollment_gap AS DOUBLE) / NULLIF(school_age_population, 0)
+                OR enrollment_change_first_to_latest IS DISTINCT FROM enrollment_latest_school_year - enrollment_first_school_year
+                OR enrollment_change_pct_first_to_latest IS DISTINCT FROM
+                   CAST(enrollment_change_first_to_latest AS DOUBLE) / NULLIF(enrollment_first_school_year, 0)
+                OR (census_year IS NOT NULL AND (age_min <> 5 OR age_max <> 17))) FROM ap4) AS arithmetic_errors,
+  (SELECT COUNT_IF(enrollment_change_from_previous_year IS DISTINCT FROM enrollment_all_sectors - previous_enrollment
+                OR enrollment_change_pct_from_previous_year IS DISTINCT FROM
+                   CAST(enrollment_all_sectors - previous_enrollment AS DOUBLE) / NULLIF(previous_enrollment, 0)) FROM previous) AS change_errors,
+  (SELECT COUNT_IF(member_type IS DISTINCT FROM CASE city_mun_psgc_code WHEN 'UNKNOWN' THEN 'unknown'
+                                                      WHEN 'EXCLUDED' THEN 'excluded' ELSE 'regular' END) FROM ap4) AS bad_member_type,
+  (SELECT COUNT_IF(trends > 1 OR flags > 1) FROM member_years) AS members_with_two_trends,
+  (SELECT COALESCE(SUM(schools_incomplete), 0) FROM ap4) AS schools_incomplete,
+  (SELECT COALESCE(SUM(enrollment_all_sectors), 0) FROM ap4 WHERE member_type <> 'regular') AS learners_on_technical_members,
+  (SELECT COALESCE(SUM(school_age_population), 0) FROM ap4 WHERE member_type = 'excluded') AS population_on_excluded,
+  (SELECT COUNT_IF(member_type = 'regular' AND census_year IS NOT NULL AND school_age_population IS NULL) FROM ap4) AS regular_census_rows_without_population,
+  (SELECT COUNT(*) FROM ap4) AS total_rows,
+  (SELECT COUNT(DISTINCT CASE WHEN member_type = 'regular' AND enrollment_trend = 'increasing' THEN city_mun_psgc_code END) FROM ap4) AS members_increasing,
+  (SELECT COUNT(DISTINCT CASE WHEN member_type = 'regular' AND enrollment_trend = 'decreasing' THEN city_mun_psgc_code END) FROM ap4) AS members_decreasing,
+  (SELECT COUNT(DISTINCT CASE WHEN member_type = 'regular' AND enrollment_trend = 'no change' THEN city_mun_psgc_code END) FROM ap4) AS members_no_change;
 SET VARIABLE analytics_gate_owner_sql = 'ALTER TABLE ' || session.analytics_gate_summary || ' OWNER TO `reached-hq`';
 EXECUTE IMMEDIATE analytics_gate_owner_sql;
 
-INSERT INTO edu_access.`01-control`.data_quality_results
-  (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
-SELECT :run_id, NULL, 'ap4_enrollment_trend', 'analytics', 'edu_access.06-analytics.ap4_enrollment_trend_candidate',
-       check_name, status, expected, actual, current_timestamp(), :code_revision
+INSERT INTO edu_access.`01-control`.data_quality_results (run_id, batch_id, source_id, layer, table_name, check_name, status, expected, actual, checked_at_utc, code_revision)
+SELECT :run_id, NULL, 'ap4_enrollment_trend', 'analytics', 'edu_access.06-analytics.ap4_enrollment_trend_candidate', check_name, status, expected, actual, current_timestamp(), :code_revision
 FROM (
-  SELECT 'rows_match_regular_lgus' AS check_name, CASE WHEN rows = expected_rows THEN 'PASS' ELSE 'FAIL' END AS status,
-         CAST(expected_rows AS STRING) AS expected, CAST(rows AS STRING) AS actual FROM IDENTIFIER(session.analytics_gate_summary)
+  SELECT 'rows_match_gold' AS check_name, CASE WHEN rows_not_matching_gold = 0 THEN 'PASS' ELSE 'FAIL' END AS status, '0' AS expected, CAST(rows_not_matching_gold AS STRING) AS actual FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'annual_enrollment_reconciles', CASE WHEN annual_enrollment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(annual_enrollment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'matched_share_reconciles', CASE WHEN matched_share_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(matched_share_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'change_arithmetic', CASE WHEN change_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(change_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'trend_direction_valid', CASE WHEN trend_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(trend_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'trend_status_valid', CASE WHEN status_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'unplaced_learners_2020_21', CASE WHEN unplaced_learners_2020_21 = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_learners_2020_21 AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'unplaced_learners_2025_26', CASE WHEN unplaced_learners_2025_26 = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_learners_2025_26 AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'matched_learner_share_2020_21_pct', 'PASS', CAST(NULL AS STRING), CAST(matched_share_2020_21 AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'matched_learner_share_2025_26_pct', 'PASS', CAST(NULL AS STRING), CAST(matched_share_2025_26 AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-) AS checks;
+  UNION ALL SELECT 'key_not_null', CASE WHEN null_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'every_school_year_per_member', CASE WHEN members_missing_years = 0 AND years_not_in_gold = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(members_missing_years + years_not_in_gold AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'one_place_per_school_year', CASE WHEN schools_in_two_places = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(schools_in_two_places AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'enrollment_reconciles_by_school_year', CASE WHEN enrollment_years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(enrollment_years_not_reconciled AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'population_reconciles_by_census_year', CASE WHEN population_years_not_reconciled = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(population_years_not_reconciled AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'census_context_only_on_aligned_years', CASE WHEN unaligned_context_rows = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(unaligned_context_rows AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'arithmetic_holds', CASE WHEN arithmetic_errors = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(arithmetic_errors AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'year_over_year_change_holds', CASE WHEN change_errors = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(change_errors AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'member_type_fits_code', CASE WHEN bad_member_type = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(bad_member_type AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'one_trend_per_member', CASE WHEN members_with_two_trends = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(members_with_two_trends AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'schools_incomplete', CASE WHEN schools_incomplete = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(schools_incomplete AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'learners_on_technical_members', CASE WHEN learners_on_technical_members = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(learners_on_technical_members AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'population_on_excluded', CASE WHEN population_on_excluded = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(population_on_excluded AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'regular_census_rows_without_population', CASE WHEN regular_census_rows_without_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(regular_census_rows_without_population AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'rows', 'PASS', CAST(NULL AS STRING), CAST(total_rows AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'members_increasing', 'PASS', CAST(NULL AS STRING), CAST(members_increasing AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'members_decreasing', 'PASS', CAST(NULL AS STRING), CAST(members_decreasing AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'members_no_change', 'PASS', CAST(NULL AS STRING), CAST(members_no_change AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'enrollment_' || school_year, 'PASS', CAST(NULL AS STRING), CAST(enrollment AS STRING) FROM (SELECT school_year, SUM(enrollment_all_sectors) AS enrollment FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate GROUP BY school_year) AS national
+) AS results;
 
 -- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
 DROP TABLE IF EXISTS IDENTIFIER(session.analytics_gate_summary);
 
-SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Analytics gate failed for ap4_enrollment_trend: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s)') ELSE 1 END
+SELECT CASE WHEN COUNT(*) > 0 THEN raise_error('Analytics gate failed for ap4_enrollment_trend: ' || CAST(COUNT(*) AS STRING) || ' FAIL result(s) in data_quality_results for run ' || :run_id) END
 FROM edu_access.`01-control`.data_quality_results
 WHERE run_id = :run_id AND source_id = 'ap4_enrollment_trend' AND layer = 'analytics' AND status = 'FAIL'
   AND checked_at_utc >= session.analytics_gate_started_at_utc;
 
+-- Every check passed: publish.
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap4_enrollment_trend USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.ap4_enrollment_trend IS 'AP4 enrollment direction by regular LGU for SY 2020-21 through SY 2025-26.';
+
+COMMENT ON TABLE edu_access.`06-analytics`.ap4_enrollment_trend IS 'AP4: all-sector enrollment (PSO excluded) by city or municipality and school year, its year-over-year change and first-to-latest trend, with school-age population (5 to 17) and the gap as context on the 2020 and 2024 census school years only.';
 ALTER TABLE edu_access.`06-analytics`.ap4_enrollment_trend OWNER TO `reached-hq`;

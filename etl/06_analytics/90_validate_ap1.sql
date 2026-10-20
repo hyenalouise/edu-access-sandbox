@@ -1,8 +1,10 @@
 -- ap1 publication gate; a failure leaves the last valid output unchanged.
 -- the one-row summary is written once to a table named for this run and dropped after the checks are recorded:
 -- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
--- WARN: active public schools, learners and school-age population that are not placed in a city or municipality
--- (UNKNOWN or EXCLUDED), so what the matched-only measure leaves out is counted every run.
+-- FAIL: rows, keys or LGUs that differ from dim_city_municipality, school counts, enrollment or population that
+-- differ from a recount from Gold, wrong ratio or coverage arithmetic, an assessment that does not follow the 90%
+-- gate, a percentile that differs from PERCENT_RANK over the assessed LGUs, or a high flag that does not follow it.
+-- WARN: active public schools, learners and school-age population not placed in a city or municipality.
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
 DECLARE OR REPLACE VARIABLE analytics_gate_summary STRING;
@@ -14,64 +16,78 @@ WITH c AS (
   SELECT * FROM edu_access.`06-analytics`.ap1_school_provision_candidate
 ), regular AS (
   SELECT * FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'
-), expected_population AS (
-  SELECT city_mun_psgc_code, CAST(SUM(population) AS BIGINT) AS school_age_population
-  FROM edu_access.`05-gold`.fact_city_school_age_population
-  WHERE reference_year = 2024 AND sex IN ('male', 'female') AND age BETWEEN 5 AND 17
-    AND psgc_match_status = 'matched'
-  GROUP BY city_mun_psgc_code
 ), school_rows AS (
   SELECT school_id, city_mun_psgc_code, MIN(psgc_match_status) AS psgc_match_status,
          MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS active,
          COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete,
+         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS blank,
+         MAX(CASE WHEN annex_status = 'Annex/Extension School' THEN 1 ELSE 0 END) AS annex,
          SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners
   FROM edu_access.`05-gold`.fact_school_enrollment
-  WHERE school_year = '2024-25' AND sector = 'Public'
+  WHERE school_year = '2023-24' AND sector = 'Public'
   GROUP BY school_id, city_mun_psgc_code
 ), expected_schools AS (
-  SELECT city_mun_psgc_code, COUNT_IF(active = 1) AS active_public_school_count,
-         COUNT_IF(active = 1 AND incomplete = 0) AS complete_enrollment_school_count
+  SELECT city_mun_psgc_code,
+         COUNT_IF(active = 1) AS active_schools,
+         COUNT_IF(active = 1 AND annex = 1) AS annex_schools,
+         COUNT_IF(active = 1 AND incomplete = 0) AS complete_schools,
+         COUNT_IF(active = 1 AND incomplete > 0) AS incomplete_schools,
+         COUNT_IF(blank) AS blank_schools,
+         SUM(CASE WHEN active = 1 AND incomplete = 0 THEN learners ELSE 0 END) AS enrollment
   FROM school_rows WHERE psgc_match_status = 'matched' GROUP BY city_mun_psgc_code
-), type_refs AS (
-  SELECT lgu_type, CAST(SUM(school_age_population) AS DOUBLE) / NULLIF(SUM(active_public_school_count), 0) AS ratio
-  FROM c WHERE input_issue_reason IS NULL GROUP BY lgu_type
+), expected_population AS (
+  SELECT city_mun_psgc_code, CAST(SUM(population) AS BIGINT) AS school_age_population
+  FROM edu_access.`05-gold`.fact_city_school_age_population
+  WHERE reference_year = 2024 AND sex IN ('male', 'female') AND age BETWEEN 5 AND 17 AND psgc_match_status = 'matched'
+  GROUP BY city_mun_psgc_code
+), ranks AS (
+  SELECT city_mun_psgc_code,
+         PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY learners_per_public_school) AS type_pct,
+         PERCENT_RANK() OVER (ORDER BY learners_per_public_school) AS national_pct
+  FROM c WHERE is_assessed
 )
 SELECT
   (SELECT COUNT(*) FROM c) AS rows,
   (SELECT COUNT(*) FROM regular) AS expected_rows,
   (SELECT COUNT(*) - COUNT(DISTINCT city_mun_psgc_code) FROM c) AS duplicate_keys,
-  (SELECT COUNT_IF(city_mun_psgc_code IS NULL OR lgu_type IS NULL OR classification IS NULL) FROM c) AS null_required,
   (SELECT COUNT(*) FROM c FULL OUTER JOIN regular USING (city_mun_psgc_code)
     WHERE c.city_mun_psgc_code IS NULL OR regular.city_mun_psgc_code IS NULL) AS lgu_mismatch,
+  (SELECT COUNT(*) FROM c LEFT JOIN expected_schools s USING (city_mun_psgc_code)
+    WHERE c.active_public_school_count IS DISTINCT FROM COALESCE(s.active_schools, 0)
+       OR c.annex_school_count IS DISTINCT FROM COALESCE(s.annex_schools, 0)
+       OR c.complete_enrollment_school_count IS DISTINCT FROM COALESCE(s.complete_schools, 0)
+       OR c.incomplete_enrollment_school_count IS DISTINCT FROM COALESCE(s.incomplete_schools, 0)
+       OR c.blank_enrollment_school_count IS DISTINCT FROM COALESCE(s.blank_schools, 0)
+       OR c.public_school_enrollment IS DISTINCT FROM CAST(COALESCE(s.enrollment, 0) AS BIGINT)) AS school_mismatch,
   (SELECT COUNT(*) FROM c LEFT JOIN expected_population p USING (city_mun_psgc_code)
     WHERE c.school_age_population IS DISTINCT FROM p.school_age_population) AS population_mismatch,
-  (SELECT COUNT(*) FROM c LEFT JOIN expected_schools s USING (city_mun_psgc_code)
-    WHERE c.active_public_school_count IS DISTINCT FROM COALESCE(s.active_public_school_count, 0)
-       OR c.complete_enrollment_school_count IS DISTINCT FROM COALESCE(s.complete_enrollment_school_count, 0)) AS school_mismatch,
-  (SELECT COUNT_IF((input_issue_reason IS NULL) <> COALESCE(school_age_population IS NOT NULL
-    AND active_public_school_count > 0 AND coverage_pct >= 90, FALSE)) FROM c) AS input_issue_mismatch,
-  (SELECT COUNT(*) FROM c LEFT JOIN type_refs r USING (lgu_type)
-    WHERE (c.national_same_type_ratio IS NULL) <> (r.ratio IS NULL)
-       OR (c.national_same_type_ratio IS NOT NULL AND r.ratio IS NOT NULL
-           AND ABS(c.national_same_type_ratio - r.ratio) > 1e-9)) AS pooled_reference_mismatch,
-  (SELECT COUNT_IF((active_public_school_count = 0 AND school_age_population_per_public_school IS NOT NULL)
+  (SELECT COALESCE(COUNT_IF(
+       (complete_enrollment_school_count = 0 AND learners_per_public_school IS NOT NULL)
+    OR (complete_enrollment_school_count > 0
+      AND ABS(learners_per_public_school - public_school_enrollment * 1.0 / complete_enrollment_school_count) > 1e-9)
+    OR (active_public_school_count = 0 AND school_age_population_per_public_school IS NOT NULL)
     OR (active_public_school_count > 0 AND school_age_population IS NOT NULL
-      AND ABS(school_age_population_per_public_school - school_age_population * 1.0 / active_public_school_count) > 1e-9)) FROM c)
-    AS ratio_mismatch,
-  (SELECT COUNT_IF((coverage_pct IS NOT NULL AND (coverage_pct < 0 OR coverage_pct > 100))
-    OR (coverage_pct < 90 AND classification <> 'Data Review')
-    OR (outlier_flag AND classification <> 'Data Review')
-    OR (quality_issue_reason IS DISTINCT FROM input_issue_reason)
-    OR (quality_issue_reason IS NOT NULL AND classification <> 'Data Review')
-    OR (quality_issue_reason IS NULL AND NOT outlier_flag AND relative_pressure > 1 AND classification <> 'Above Reference')
-    OR (quality_issue_reason IS NULL AND NOT outlier_flag AND relative_pressure <= 1 AND classification <> 'At or Below Reference')) FROM c)
-    AS classification_mismatch,
+      AND ABS(school_age_population_per_public_school - school_age_population * 1.0 / active_public_school_count) > 1e-9)
+    OR (active_public_school_count + blank_enrollment_school_count > 0
+      AND ABS(coverage_pct - 100.0 * complete_enrollment_school_count
+        / (active_public_school_count + blank_enrollment_school_count)) > 1e-9)), 0) FROM c) AS arithmetic_mismatch,
+  (SELECT COALESCE(COUNT_IF(is_assessed IS DISTINCT FROM (not_assessed_reason IS NULL)
+    OR is_assessed IS DISTINCT FROM COALESCE(active_public_school_count > 0 AND learners_per_public_school IS NOT NULL
+      AND coverage_pct >= 90, FALSE)), 0) FROM c) AS assessment_mismatch,
+  (SELECT COUNT(*) FROM c LEFT JOIN ranks r USING (city_mun_psgc_code)
+    WHERE (c.within_type_percentile IS NULL) <> (r.type_pct IS NULL)
+       OR (c.national_percentile IS NULL) <> (r.national_pct IS NULL)
+       OR ABS(c.within_type_percentile - r.type_pct) > 1e-9
+       OR ABS(c.national_percentile - r.national_pct) > 1e-9) AS percentile_mismatch,
+  (SELECT COALESCE(COUNT_IF(is_high IS DISTINCT FROM COALESCE(within_type_percentile >= 0.9, FALSE)
+    OR is_high_nationally IS DISTINCT FROM COALESCE(national_percentile >= 0.9, FALSE)), 0) FROM c) AS high_mismatch,
   (SELECT COUNT(*) FROM school_rows WHERE active = 1 AND psgc_match_status <> 'matched') AS unplaced_active_schools,
-  (SELECT COALESCE(SUM(CASE WHEN active = 1 THEN learners END), 0) FROM school_rows WHERE psgc_match_status <> 'matched')
+  (SELECT COALESCE(SUM(learners), 0) FROM school_rows WHERE active = 1 AND psgc_match_status <> 'matched')
     AS unplaced_public_learners,
   (SELECT COALESCE(SUM(population), 0) FROM edu_access.`05-gold`.fact_city_school_age_population
     WHERE reference_year = 2024 AND sex IN ('male', 'female') AND age BETWEEN 5 AND 17
-      AND psgc_match_status <> 'matched') AS unplaced_school_age_population;
+      AND psgc_match_status <> 'matched') AS unplaced_school_age_population,
+  (SELECT COALESCE(COUNT_IF(is_high), 0) FROM c) AS high_lgus;
 SET VARIABLE analytics_gate_owner_sql = 'ALTER TABLE ' || session.analytics_gate_summary || ' OWNER TO `reached-hq`';
 EXECUTE IMMEDIATE analytics_gate_owner_sql;
 
@@ -83,17 +99,17 @@ FROM (
   SELECT 'rows_match_regular_lgus' AS check_name, CASE WHEN rows = expected_rows THEN 'PASS' ELSE 'FAIL' END AS status,
          CAST(expected_rows AS STRING) AS expected, CAST(rows AS STRING) AS actual FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'key_unique', CASE WHEN duplicate_keys = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_keys AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'required_values_present', CASE WHEN null_required = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(null_required AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgu_membership_reconciles', CASE WHEN lgu_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(lgu_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'schools_and_enrollment_reconcile', CASE WHEN school_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(school_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'population_reconciles', CASE WHEN population_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(population_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'schools_reconcile', CASE WHEN school_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(school_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'input_issue_valid', CASE WHEN input_issue_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(input_issue_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'same_type_reference_pools_clean_lgus', CASE WHEN pooled_reference_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(pooled_reference_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'ratio_arithmetic', CASE WHEN ratio_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(ratio_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
-  UNION ALL SELECT 'classification_valid', CASE WHEN classification_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(classification_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'ratio_and_coverage_arithmetic', CASE WHEN arithmetic_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(arithmetic_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'coverage_gate_valid', CASE WHEN assessment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(assessment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'percentile_is_percent_rank', CASE WHEN percentile_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(percentile_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'high_at_90th_percentile', CASE WHEN high_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(high_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_active_public_schools', CASE WHEN unplaced_active_schools = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_active_schools AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_public_learners', CASE WHEN unplaced_public_learners = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_public_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_school_age_population', CASE WHEN unplaced_school_age_population = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_school_age_population AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'lgus_high', 'PASS', CAST(NULL AS STRING), CAST(high_lgus AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
 ) AS checks;
 
 -- Every check is recorded, so the summary is no longer needed, whether the gate passes or fails.
@@ -106,5 +122,5 @@ WHERE run_id = :run_id AND source_id = 'ap1_school_provision' AND layer = 'analy
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap1_school_provision USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.ap1_school_provision_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.ap1_school_provision IS 'AP1 school-age population per active public school by regular LGU.';
+COMMENT ON TABLE edu_access.`06-analytics`.ap1_school_provision IS 'AP1 learners per public school (ranked, D-057) and school-age population per public school (context) by regular LGU, SY 2023-24.';
 ALTER TABLE edu_access.`06-analytics`.ap1_school_provision OWNER TO `reached-hq`;
