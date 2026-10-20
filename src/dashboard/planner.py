@@ -547,9 +547,9 @@ ORDER BY es_sort, learners DESC, b.barangay_name"""
 
 PR_TEASER = f"""WITH {school_base(level_param=False)}
 SELECT school_name, barangay_name, learners_per_room, status, reasons
-FROM schools
-WHERE list_order <= 5 AND {BARANGAY}
-ORDER BY list_order"""
+FROM (SELECT schools.*, ROW_NUMBER() OVER (ORDER BY list_order) AS teaser_order FROM schools WHERE {BARANGAY}) AS f
+WHERE teaser_order <= 5
+ORDER BY teaser_order"""
 
 # Deterministic insights: fixed rules over the same tables as the visuals, at most four, each suppressed when its
 # data is missing. They state facts and never a cause.
@@ -996,9 +996,8 @@ def overview(b):
                 color_label="Places", mappings=[{"value": RP_GROUPS[0], "color": "#712B13"},
                                                 {"value": RP_GROUPS[1], "color": "#A9B4BF"}],
                 order=MEASURES, color_order=RP_GROUPS, layout="group", fmt=num(2),
-                desc="Relative pressure is a place's ratio divided by the median of its type, so 1.00 is the typical "
-                     "place. The percentile decides who is high; this shows how far above the rest they are. Follows "
-                     "Region, Province and LGU type only, so high places are always compared with the rest.",
+                desc="Times the typical place of the same type (1.00). High places sit well above it; the rest sit near "
+                     "it. Follows Region, Province and LGU type only.",
                 annotations=[ref_line("y", 1, "Typical place = 1.00")]), 6),
            (heatmap(b, "ov_demand", "Pressure and enrollment together · enrollment is context only", "enrollment_direction",
                     "Enrollment, SY 2020-21 to 2025-26", DIRECTIONS, "tier", "Tier", TIERS, "count", "city_mun_psgc_code",
@@ -1011,12 +1010,10 @@ def overview(b):
         ("ap3_highest_level", "Teacher level used", None), ("affected_learners", "Public learners", num()),
         ("lowest_coverage_pct", "Lowest coverage %", num()), ("stability", "Stability", None),
         ("data_review_reason", "Data review reason", None)],
-        "Order and values follow the two filters above. Relative pressure (×): 1.00 is the typical place of its type. "
-        "Percentile: 90 or more is high, which is what sets the tier. The D-057 order is tier, then public learners, "
-        "then the lowest percentile. Lowest coverage is the least complete of the three measures; under 90 "
-        "means data review, not low pressure. Stable means Critical within type and nationally. Download "
-        "from the table menu."), 12)], 10)
-    p.row([(text(b, "**Next:** choose a place in *City or municipality* at the top, then open **LGU Profile**. "
+        "Values are times the typical place (1.00), or percentiles if chosen above (90 or more is high). Lowest "
+        "coverage under 90 means data review, not low pressure. Stable: Critical within type and nationally. "
+        "Download from the table menu."), 12)], 10)
+    p.row([(text(b, "**Next:** open **LGU Profile** and choose the place there. "
                  "A tier is relative pressure compared with similar places, not a count of schools, classrooms or "
                  "teachers to add."), 12)], 1)
     return p
@@ -1097,7 +1094,7 @@ def lgu_profile(b):
         ("barangay_name", "Barangay", None), ("urban_rural", "Urban or rural", None),
         ("public_schools", "Public schools", num()), ("public_es", "Public elementary", None),
         ("learners", "Public learners", num())],
-        "Every regular PSGC barangay, those with no matched public elementary school first. A screening view, not a "
+        "Every barangay on the official list, those with no matched public elementary school first. A screening view, not a "
         "barangay priority ranking."), 12)], 8)
     p.row([(table(b, "pr_teaser", "Schools to follow up first", [
         ("school_name", "School", None), ("barangay_name", "Barangay", None), ("learners_per_room", "Learners per classroom", num(1)),
@@ -1225,7 +1222,8 @@ def data_and_method(b):
                 horizontal=False, color="status", color_label="Result",
                 mappings=[{"value": "PASS", "color": "#5B6B7A"}, {"value": "WARN", "color": "#E3A008"},
                           {"value": "FAIL", "color": "#A32D2D"}],
-                order=["control", "bronze", "silver", "integration", "gold", "analytics"]), 6),
+                order=["control", "bronze", "silver", "integration", "gold", "analytics"],
+                desc="Each processing step's latest checks. A failed check stops that step from publishing."), 6),
            (text(b, "## What this dashboard cannot tell you\n\n",
                  "- **How many resources to add.** A tier is relative pressure, not a shortage count.\n",
                  "- **Why a place is under pressure.** Enrollment, population and poverty are context only.\n",

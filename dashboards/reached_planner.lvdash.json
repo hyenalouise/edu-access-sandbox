@@ -2508,9 +2508,9 @@
         "  FROM x\n",
         ")\n",
         "SELECT school_name, barangay_name, learners_per_room, status, reasons\n",
-        "FROM schools\n",
-        "WHERE list_order <= 5 AND (:barangay = 'All barangays' OR barangay_name = :barangay)\n",
-        "ORDER BY list_order"
+        "FROM (SELECT schools.*, ROW_NUMBER() OVER (ORDER BY list_order) AS teaser_order FROM schools WHERE (:barangay = 'All barangays' OR barangay_name = :barangay)) AS f\n",
+        "WHERE teaser_order <= 5\n",
+        "ORDER BY teaser_order"
       ],
       "parameters": [
         {
@@ -6486,7 +6486,7 @@
                 "showTitle": true,
                 "title": "How far above the typical place they are",
                 "showDescription": true,
-                "description": "Relative pressure is a place's ratio divided by the median of its type, so 1.00 is the typical place. The percentile decides who is high; this shows how far above the rest they are. Follows Region, Province and LGU type only, so high places are always compared with the rest."
+                "description": "Times the typical place of the same type (1.00). High places sit well above it; the rest sit near it. Follows Region, Province and LGU type only."
               },
               "mark": {
                 "layout": "group"
@@ -6774,7 +6774,7 @@
                 "showTitle": true,
                 "title": "Priority list",
                 "showDescription": true,
-                "description": "Order and values follow the two filters above. Relative pressure (\u00d7): 1.00 is the typical place of its type. Percentile: 90 or more is high, which is what sets the tier. The D-057 order is tier, then public learners, then the lowest percentile. Lowest coverage is the least complete of the three measures; under 90 means data review, not low pressure. Stable means Critical within type and nationally. Download from the table menu."
+                "description": "Values are times the typical place (1.00), or percentiles if chosen above (90 or more is high). Lowest coverage under 90 means data review, not low pressure. Stable: Critical within type and nationally. Download from the table menu."
               }
             }
           },
@@ -6790,7 +6790,7 @@
             "name": "text_016",
             "multilineTextboxSpec": {
               "lines": [
-                "**Next:** choose a place in *City or municipality* at the top, then open **LGU Profile**. A tier is relative pressure compared with similar places, not a count of schools, classrooms or teachers to add."
+                "**Next:** open **LGU Profile** and choose the place there. A tier is relative pressure compared with similar places, not a count of schools, classrooms or teachers to add."
               ]
             }
           },
@@ -8379,7 +8379,7 @@
                 "showTitle": true,
                 "title": "Barangay access",
                 "showDescription": true,
-                "description": "Every regular PSGC barangay, those with no matched public elementary school first. A screening view, not a barangay priority ranking."
+                "description": "Every barangay on the official list, those with no matched public elementary school first. A screening view, not a barangay priority ranking."
               }
             }
           },
@@ -11307,7 +11307,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Latest automatic data checks"
+                "title": "Latest automatic data checks",
+                "showDescription": true,
+                "description": "Each processing step's latest checks. A failed check stops that step from publishing."
               }
             }
           },
