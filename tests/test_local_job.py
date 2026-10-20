@@ -347,7 +347,7 @@ def test_every_dashboard_query_runs_on_the_job_output(repo, tmp_path):
     for name in datasets:
         sql, params = dataset_sql(name)
         store.query(sql, params)
-    aggregate = re.compile(r"\b(SUM|COUNT|MAX|MIN|AVG)\s*\(")
+    aggregate = re.compile(r"\b(SUM|COUNT|MAX|MIN|AVG|FIRST)\s*\(")
     for page in dashboard["pages"]:
         for item in page["layout"]:
             for q in item["widget"].get("queries", []):

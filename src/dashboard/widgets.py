@@ -40,10 +40,12 @@ def bt(column):
     return f"`{column}`"
 
 
-def frame(title, desc=None):
-    value = {"showTitle": True, "title": title}
+def frame(title, desc=None, show_title=True, show_desc=True, align=None):
+    value = {"showTitle": show_title, "title": title}
     if desc:
-        value.update({"showDescription": True, "description": desc})
+        value.update({"showDescription": show_desc, "description": desc})
+    if align:
+        value["contentAlignment"] = align
     return value
 
 
@@ -68,8 +70,10 @@ def agg(fn, column):
     return f"{fn.lower()}({column})", f"{fn.upper()}({bt(column)})"
 
 
-def cat(field, label, order=None, mappings=None, sort_by=None):
+def cat(field, label, order=None, mappings=None, sort_by=None, size=None):
     scale = {"type": "categorical"}
+    if size:
+        scale["categorySize"] = {"type": "number-of-categories", "number": size}
     if order:
         scale["sort"] = {"by": "custom-order", "orderedValues": order}
     elif sort_by:
@@ -106,14 +110,18 @@ def chart(b, kind, dataset, title, encodings, fields, desc=None, disaggregated=F
     return {"name": b.uid(kind.replace("-", "_")), "queries": query(dataset, fields, disaggregated), "spec": spec}
 
 
-def kpi(b, dataset, title, column, fmt=None, template=None, desc=None, extra=(), target=None, target_label=None):
-    """Counter on a one-row dataset; extra columns feed the template."""
+def kpi(b, dataset, title, column, fmt=None, template=None, desc=None, extra=(), target=None, target_label=None,
+        style=None, heading=False, align=None):
+    """Counter on a one-row dataset; extra columns feed the template. A heading shows only its value, styled large or
+    small, with the title and description hidden."""
     fields = [(column, bt(column))] + [(c, bt(c)) for c in extra]
     value = {"fieldName": column, "displayName": title}
     if fmt:
         value["format"] = fmt
     if template:
         value["formatTemplate"] = template
+    if style:
+        value["style"] = style
     encodings = {"value": value}
     if target:
         fields.append((target, bt(target)))
@@ -121,14 +129,16 @@ def kpi(b, dataset, title, column, fmt=None, template=None, desc=None, extra=(),
         if fmt:
             encodings["target"]["format"] = fmt
     return {"name": b.uid("kpi"), "queries": query(dataset, fields, True),
-            "spec": {"version": 2, "widgetType": "counter", "encodings": encodings, "frame": frame(title, desc)}}
+            "spec": {"version": 2, "widgetType": "counter", "encodings": encodings,
+                     "frame": frame(title, desc, not heading, not heading, align)}}
 
 
 def bar(b, dataset, title, x, x_label, fn, value, value_label, horizontal=True, color=None, color_label=None,
-        mappings=None, order=None, color_order=None, fmt=None, layout=None, desc=None, sort_by=None, annotations=None):
+        mappings=None, order=None, color_order=None, fmt=None, layout=None, desc=None, sort_by=None, annotations=None,
+        categories_shown=None):
     name, expression = agg(fn, value)
     fields = [(x, bt(x)), (name, expression)] + ([(color, bt(color))] if color and color != x else [])
-    category = cat(x, x_label, order, None, sort_by)
+    category = cat(x, x_label, order, None, sort_by, categories_shown)
     measure = quant(name, value_label, fmt)
     encodings = {"x": measure, "y": category} if horizontal else {"x": category, "y": measure}
     if color:
@@ -171,14 +181,15 @@ def heatmap(b, dataset, title, x, x_label, x_order, y, y_label, y_order, fn, val
     return chart(b, "heatmap", dataset, title, encodings, [(x, bt(x)), (y, bt(y)), (name, expression)], desc)
 
 
-def choropleth(b, dataset, title, value, value_label, extra, start, end, desc=None):
-    fields = [("boundary_geojson", "ST_ASGEOJSON(`boundary`)"), (value, bt(value))] + [(c, bt(c)) for c, _ in extra]
-    encodings = {"region": {"regionType": "geometry", "geometry": {"fieldName": "boundary_geojson"}},
-                 "color": {"fieldName": value, "displayName": value_label,
-                           "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
-                                                                           "colors": {"start": start, "end": end}}}},
+def choropleth(b, dataset, title, value, value_label, extra, mappings, order, desc=None):
+    """One colour per category (`mappings`), one shape per place: the boundary is taken once per value and extra."""
+    shape = "geo_first(boundary)"
+    fields = [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])]
+    fields.append((shape, "ST_ASGEOJSON(FIRST(`boundary`))"))
+    encodings = {"region": {"regionType": "custom", "fieldName": shape},
+                 "color": cat(value, value_label, order, mappings),
                  "extra": [{"fieldName": c, "displayName": label} for c, label in extra]}
-    return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, disaggregated=True, version=1)
+    return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, version=1)
 
 
 def table(b, dataset, title, columns, desc=None):
@@ -193,7 +204,7 @@ def table(b, dataset, title, columns, desc=None):
                  disaggregated=True, version=2)
 
 
-def param_filter(b, keyword, title, targets, desc=None, options=None):
+def param_filter(b, keyword, title, targets, desc=None, options=None, show_desc=True):
     """Single-select filter bound to one parameter on every target dataset that takes it. `options` names a page's own
     (dataset, field) for the choices when the default option dataset is shared with another page's filter."""
     option_dataset, option_field = options or b.option_fields[keyword]
@@ -210,7 +221,7 @@ def param_filter(b, keyword, title, targets, desc=None, options=None):
         fields.append({"parameterName": keyword, "queryName": name})
     return {"name": b.uid("filter"), "queries": queries,
             "spec": {"version": 2, "widgetType": "filter-single-select", "encodings": {"fields": fields},
-                     "frame": frame(title, desc),
+                     "frame": frame(title, desc, show_desc=show_desc),
                      "selection": {"defaultSelection": {"values": {"dataType": "STRING",
                                                                    "values": [{"value": b.defaults[keyword]}]}}}}}
 
@@ -226,6 +237,20 @@ class Page:
         x = 0
         for widget, width in widgets:
             self.items.append({"widget": widget, "position": {"x": x, "y": self.y, "width": width, "height": height}})
+            x += width
+        self.y += height
+
+    def columns(self, columns, height):
+        """Side-by-side columns of stacked widgets: columns are (width, [(widget, height), ...]), each column filling
+        `height` rows."""
+        assert sum(width for width, _ in columns) == 12, (self.name, [width for width, _ in columns])
+        x = 0
+        for width, stack in columns:
+            assert sum(h for _, h in stack) == height, (self.name, [h for _, h in stack])
+            y = self.y
+            for widget, h in stack:
+                self.items.append({"widget": widget, "position": {"x": x, "y": y, "width": width, "height": h}})
+                y += h
             x += width
         self.y += height
 
