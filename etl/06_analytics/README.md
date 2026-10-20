@@ -11,12 +11,16 @@ AP1 to AP3 and the priority table have one row per regular city or municipality.
 | `03_answer_ap3.sql` | `ap3_teacher_pressure` | SY 2023-24 learners per teacher for ES, JHS and SHS, re-ranked into one AP3 percentile (ranked) |
 | `04_answer_ap4.sql` | `ap4_enrollment_trend` | One row per city member and school year: all-sector enrollment, its change and `increasing` / `decreasing` / `no change` trend, with school-age population and the gap on SY 2020-21 and 2024-25 (context) |
 | `05_build_priority_matrix.sql` | `lgu_priority_matrix` | D-057 tier from the AP1 to AP3 high measures, order within the tier, Stable flag, and AP4 as context |
+| `06_build_outlier_schools.sql` | `lgu_priority_outlier_schools` | The D-057 outlier school list saved with the run: each public school (AP2) and school level (AP3) above Q3 + 3 × IQR within LGU type, with its ratio and fence |
+| `07_build_priority_checks.sql` | `lgu_priority_checks` | D-057's checks beside the ranking (tier at the 0.85 and 0.80 lines, with a 95% gate, and without the outlier schools) and, per measure, the same-type median and relative pressure |
 
 **Ranking (D-057).** A measure is ranked only when its coverage is at least 90%: learner coverage for AP2 and each AP3 level, and for AP1 the share of active public schools with complete all-level enrollment (schools whose offered counts are all blank are added to the denominator as missing data). Each measure is ranked with `PERCENT_RANK()` within LGU type, and it is high at 0.90 or above. AP3 ranks each level, then re-ranks each LGU's highest level, and names that level.
 
 **Tier (D-057).** Critical (3 high), Elevated (2), Targeted (1, naming the measure), Monitor (0), or Data review when a measure is not assessed. The order within a tier is affected learners, then the lowest percentile. The same rule run nationally gives the Stable flag. A count of high measures is not a weighted score, and the result is relative pressure, not a shortage.
 
-**Context, never changing a tier.** AP1's school-age population per school, AP4's gap and enrollment direction, outlier school counts, poverty and Similar LGUs (#96). D-057's checks beside the ranking (the 0.85 and 0.80 lines, the 95% gate, tier changes without outlier schools, and measure overlap) are a follow-up.
+**Context, never changing a tier.** AP1's school-age population per school, AP4's gap and enrollment direction, outlier school counts, poverty and Similar LGUs (#96).
+
+**Checks beside the ranking (D-057).** `lgu_priority_checks` reruns the tier with the high line at 0.85 and 0.80, with a 95% coverage gate, and without the schools in `lgu_priority_outlier_schools`, whose fences repeat AP2 and AP3 exactly (the outlier gate checks the counts match). It also publishes each measure's national same-type median, over the LGUs of the type that pass the gate, and relative pressure, the LGU's ratio divided by that median: 1.00 is the typical LGU of its type. AP3 uses the level that sets its percentile, so its typical value is above 1.00. Relative pressure shows size; only the percentile sets "high". The overlap of measures (Spearman and shared high flags) is computed from the published percentiles in the dashboard. None of these change a published tier.
 
 Each gate writes its one-row check summary to a table named for the run (`<output>_gate_summary_r_<sha256(run_id)>`) and drops it once the checks are recorded, as the Gold gates do (#202). Gates also record unplaced schools and learners as `WARN`, and the priority gate records the number of LGUs per tier.
 

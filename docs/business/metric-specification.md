@@ -302,7 +302,7 @@ The dashboard may show four distinct evidence types without treating them as int
 
 Similar LGUs replaces the proposed peer groups, which were parked on 2026-10-18 (D-057). For each city or municipality, the LGU profile will list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input (44 areas have no PSA poverty row, most of them highly urbanized cities, and the 8 Special Geographic Area municipalities have no HDX area; every city and municipality has a 2024 population in PSGC, Isabela City included: the `#N/A` is on the container row "City of Isabela (Not a Province)", not on the city), and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it is not a comparison group for the tier and never changes one.
 
-For each measure, the national same-type median, interquartile range, and the LGU's percentile are shown beside the LGU's value. Median is not the only statistic: the IQR shows spread and the percentile locates the LGU.
+For each measure, the national same-type median, interquartile range, and the LGU's percentile are shown beside the LGU's value. Median is not the only statistic: the IQR shows spread and the percentile locates the LGU. Relative pressure is the LGU's ratio divided by the national same-type median over the LGUs of its type that pass the measure's gate, so 1.00 is the typical LGU of its type; AP3 uses the level that sets its percentile. It is published in `lgu_priority_checks` to show size beside the percentile. It never sets "high" or a tier, and it is relative pressure, not an official standard or a shortage.
 
 ### Priority rule
 
@@ -317,7 +317,7 @@ The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on
 
 The result is labelled **relative capacity pressure**. Do not label it a shortage, deficit, or number of resources needed.
 
-These checks are reported beside the ranking and never change a tier:
+These checks are reported beside the ranking and never change a tier. They are built in `lgu_priority_checks` (lines, gate and outliers, with the outlier school list in `lgu_priority_outlier_schools`); the flag rate and the overlap of measures are computed from the published percentiles in the dashboard:
 
 | Check | Variation | Reported |
 |---|---|---|
@@ -361,7 +361,7 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **AP4 context** | enrollment in all sectors by school year, change from the previous year, change and trend from the first to the latest year, public-school share; on SY 2020-21 and 2024-25, population aged 5–17, gap and gap share; change in gap from 2020 to 2024 | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Built in `ap4_enrollment_trend` (#208); context only |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | Decided (D-046); not built |
 | **Comparisons** | applicable benchmark and status, within-type percentile per measure, national same-type median, Similar LGUs | benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison built (D-057, #208); Similar LGUs method planned in #96 |
-| **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Built in `lgu_priority_matrix` (D-057, #208); the checks beside the ranking are a follow-up |
+| **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Built in `lgu_priority_matrix` (D-057, #208); the checks beside the ranking in `lgu_priority_checks` (#96) |
 
 ## Separate follow-on decisions
 

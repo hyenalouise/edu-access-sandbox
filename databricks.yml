@@ -1118,6 +1118,46 @@ resources:
               path: etl/06_analytics/90_validate_priority_matrix.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
+        # D-057's checks beside the ranking: the outlier school list saved with the run, then the 0.85 and 0.80
+        # lines, the 95% gate, the tier without outlier schools and the same-type comparison. Never changes a tier.
+        - task_key: 06_build_outlier_schools
+          depends_on:
+            - task_key: 90_validate_ap2
+            - task_key: 90_validate_ap3
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/06_build_outlier_schools.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_outlier_schools
+          depends_on:
+            - task_key: 06_build_outlier_schools
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_outlier_schools.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 07_build_priority_checks
+          depends_on:
+            - task_key: 90_validate_priority_matrix
+            - task_key: 90_validate_outlier_schools
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/07_build_priority_checks.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_priority_checks
+          depends_on:
+            - task_key: 07_build_priority_checks
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/06_analytics/90_validate_priority_checks.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
 
         # Which DepEd sources have data for each school year, for the dashboard only. Kept out of
         # dim_school_year so a facilities or personnel failure does not stop every fact (D-051).

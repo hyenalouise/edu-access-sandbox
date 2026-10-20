@@ -301,3 +301,63 @@ def test_ap2_publishes_no_45_to_1_line(store):
         WHERE table_name = 'ap2_classroom_pressure'""")]
     assert "learners_per_classroom" in columns
     assert not [c for c in columns if "45" in c]
+
+
+CHECK_STEPS = STEPS + [
+    ("06_build_outlier_schools.sql", "90_validate_outlier_schools.sql"),
+    ("07_build_priority_checks.sql", "90_validate_priority_checks.sql"),
+]
+
+
+def test_outlier_list_names_the_schools_the_ap_outputs_count(store):
+    # the same extreme school as above: AP2 counts it, and the list saved with the run names it with its fence
+    for n in range(5):
+        add_public_school(store, f"T{n}", "M2", 210, 9, 9)
+    add_public_school(store, "X1", "M1", 60, 1, 1)
+    run_all(store, CHECK_STEPS)
+    rows = store.query(f"""SELECT school_id, measure, education_level_code, learners, denominator,
+        school_ratio > upper_fence FROM {ANALYTICS}.lgu_priority_outlier_schools WHERE measure = 'AP2'""")
+    assert rows == [("X1", "AP2", "ALL", 60, 1, True)]
+    assert store.query(f"""SELECT outlier_school_count FROM {ANALYTICS}.ap2_classroom_pressure
+        WHERE city_mun_psgc_code = 'M1'""") == [(1,)]
+
+
+def test_relative_pressure_divides_by_the_same_type_median(store):
+    # cities in SY 2023-24: City One 130 learners per school, City Two 330, so the city median is 230
+    run_all(store, CHECK_STEPS)
+    assert store.query(f"""SELECT ap1_same_type_median, ap1_relative_pressure, tier
+        FROM {ANALYTICS}.lgu_priority_checks WHERE city_mun_psgc_code = 'C2'""") == [
+        (pytest.approx(230.0), pytest.approx(330 / 230), "Critical")]
+
+
+def test_checks_never_change_the_published_tier(store):
+    for n in range(5):
+        add_public_school(store, f"T{n}", "M2", 210, 9, 9)
+    add_public_school(store, "X1", "M1", 60, 1, 1)
+    run_all(store, CHECK_STEPS)
+    published = dict(store.query(f"SELECT city_mun_psgc_code, tier FROM {ANALYTICS}.lgu_priority_matrix"))
+    checks = store.query(f"""SELECT city_mun_psgc_code, tier, tier_at_line_085, tier_at_line_080, tier_without_outliers,
+        outliers_change_tier FROM {ANALYTICS}.lgu_priority_checks""")
+    assert {r[0]: r[1] for r in checks} == published
+    for code, tier, at_085, at_080, without, changed in checks:
+        if tier == "Critical":
+            assert at_085 == at_080 == "Critical"   # a lower line only adds Critical LGUs
+        assert changed == (without != tier)
+
+
+def test_priority_checks_gate_rejects_a_wrong_relative_pressure(store):
+    run_all(store, CHECK_STEPS[:-1])
+    run(store, "07_build_priority_checks.sql")
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_checks_candidate SET ap1_relative_pressure = 9
+        WHERE city_mun_psgc_code = 'C2'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_checks.sql")
+
+
+def test_outlier_gate_rejects_a_list_that_disagrees_with_ap2(store):
+    run_all(store, CHECK_STEPS[:-2])
+    run(store, "06_build_outlier_schools.sql")
+    store.sql(f"""INSERT INTO {ANALYTICS}.lgu_priority_outlier_schools_candidate
+        SELECT 'S1', 'C1', 'City', '2023-24', 'AP2', 'ALL', 100, 1, 100.0, 1.0, 2.0, 5.0, 'x', 'a'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_outlier_schools.sql")
