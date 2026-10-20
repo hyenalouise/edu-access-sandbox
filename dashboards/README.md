@@ -56,8 +56,7 @@ Every filter is a query parameter applied after the stored percentiles and tiers
 | Region, Province, LGU type (global) | Every view. Province options follow Region. National checks on Data and Method (the Critical list, the check heatmap, overlap and the typical place) follow LGU type only, and say so |
 | City or municipality (LGU Profile; School Action) | A page filter on each of the two views, so each keeps its own choice. Both default to the top place in Region, Province and LGU type; a choice outside them falls back to that place and says so |
 | Barangay (LGU Profile; School Action) | A page filter on each: the barangay table and school teaser on LGU Profile, and every school visual on School Action |
-| Priority tier, Coverage status (Overview) | The KPIs, map, drivers and priority list. Not the relative-pressure chart, which always compares high places with the rest |
-| Order list by, Show values as (Overview) | The priority list only. *Order* keeps D-057's order or sorts by the largest relative pressure, with places below the coverage gate last; *Show values* switches the three measure columns between relative pressure (×) and percentile. Neither changes a tier |
+| Priority tier, Coverage status (Overview) | The KPIs, map, drivers and priority list. Not the relative-pressure chart, which always compares high places with the rest. The priority list keeps D-057's order and shows each measure as relative pressure (×) |
 | Education level, School (School Action) | Every School Action visual. School defaults to the first school to check |
 | School status (School Action) | The school action list only |
 | Measure, Validation check (Data and Method) | Measure: coverage and reasons. Validation check: the published-tier-against-check heatmap |

@@ -27,8 +27,6 @@ ALL_BARANGAYS = "All barangays"
 ALL_LEVELS, ALL_SCHOOLS, FIRST_SCHOOL = "All levels", "All schools", "(First school to check)"
 ALL_MEASURES = "All measures"
 SCHOOL_YEARS = ["SY 2020-21", "SY 2021-22", "SY 2022-23", "SY 2023-24", "SY 2024-25", "SY 2025-26"]
-ORDERS = ["Priority rule (D-057)", "Largest relative pressure"]
-SHOW_AS = ["Relative pressure (×)", "Percentile"]
 SCENARIOS = ["Without outlier schools", "95% coverage gate", "High line at 0.85", "High line at 0.80", "Ranked nationally"]
 
 TIERS = ["Critical", "Elevated", "Targeted", "Monitor", "Data review"]
@@ -42,7 +40,7 @@ KPI_STYLE = {"fontStyle": "normal", "fontWeight": 800}  # the view's four KPIs; 
 TITLE_STYLE = {"fontSize": 60, "fontStyle": "normal", "fontWeight": 800}  # the selected place or school
 DETAIL_STYLE = {"fontSize": 16, "fontStyle": "normal", "fontWeight": 400}  # the line of details under it
 SENTENCE_STYLE = {"fontStyle": "normal", "fontSize": 14, "fontWeight": 400}  # findings and answers on LGU Profile
-KPI_CARD = {"fontColor": {"light": "#FFFFFF"}}  # Overview and LGU Profile KPI cards
+KPI_CARD = {"fontColor": {"light": "#FFFFFF"}}  # every view's four KPI cards
 LEGEND_BOTTOM = {"position": "bottom"}
 FINDINGS = ["Strongest pressure", "Reliability", "Enrollment context", "Barangay follow-up"]  # pr_insights rules 1 to 4
 ANSWERS = [("Answer: AP1 schools", "AP1 · Enough public schools?", "Learners per public school in this place"),
@@ -143,19 +141,10 @@ OV_LGU = f"""SELECT b.*,
        {GEOM} AS boundary
 FROM (
   WITH {PRI}
-  -- the list order is a display choice: the D-057 order, or the largest relative pressure among assessed measures with
-  -- places below the coverage gate last. Neither changes a tier.
-  SELECT ROW_NUMBER() OVER (ORDER BY
-           CASE WHEN :list_order = '{ORDERS[0]}' THEN tier_sort END DESC,
-           CASE WHEN :list_order = '{ORDERS[0]}' THEN order_in_tier END,
-           CASE WHEN :list_order <> '{ORDERS[0]}' AND tier = 'Data review' THEN 1 ELSE 0 END,
-           GREATEST(COALESCE(CASE WHEN ap1_assessed THEN ap1_relative_pressure END, 0),
-                    COALESCE(CASE WHEN ap2_assessed THEN ap2_relative_pressure END, 0),
-                    COALESCE(CASE WHEN ap3_assessed THEN ap3_relative_pressure END, 0)) DESC,
-           city_mun_psgc_code) AS rank_in_view, national_rank,
-         CASE WHEN :show_as = '{SHOW_AS[1]}' THEN 100.0 * ap1_percentile ELSE ap1_relative_pressure END AS schools_value,
-         CASE WHEN :show_as = '{SHOW_AS[1]}' THEN 100.0 * ap2_percentile ELSE ap2_relative_pressure END AS classrooms_value,
-         CASE WHEN :show_as = '{SHOW_AS[1]}' THEN 100.0 * ap3_percentile ELSE ap3_relative_pressure END AS teachers_value,
+  -- the list keeps the D-057 order and shows each measure as relative pressure (×); neither changes a tier
+  SELECT ROW_NUMBER() OVER (ORDER BY tier_sort DESC, order_in_tier, city_mun_psgc_code) AS rank_in_view, national_rank,
+         ap1_relative_pressure AS schools_value, ap2_relative_pressure AS classrooms_value,
+         ap3_relative_pressure AS teachers_value,
          city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, tier, tier_level, tier_meaning,
          high_areas, high_count_label, data_review_reason, stability, affected_learners, ap3_highest_level,
          NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)
@@ -905,15 +894,13 @@ SELECT school_option FROM (
 
 DEFAULTS = {"region": ALL_REGIONS, "province": ALL_PROVINCES, "lgu_type": ALL_TYPES, "tier": ALL_TIERS,
             "coverage": ALL_COVERAGE, "lgu": TOP_LGU, "barangay": ALL_BARANGAYS, "level": ALL_LEVELS,
-            "school_status": ALL_SCHOOLS, "school": FIRST_SCHOOL, "measure": ALL_MEASURES, "scenario": SCENARIOS[0],
-            "list_order": ORDERS[0], "show_as": SHOW_AS[0]}
+            "school_status": ALL_SCHOOLS, "school": FIRST_SCHOOL, "measure": ALL_MEASURES, "scenario": SCENARIOS[0]}
 OPTION_FIELDS = {"region": ("opt_region", "region"), "province": ("opt_province", "province"),
                  "lgu_type": ("opt_type", "lgu_type_option"), "tier": ("opt_tier", "tier_option"),
                  "coverage": ("opt_coverage", "coverage_option"), "lgu": ("opt_lgu", "lgu_option"),
                  "barangay": ("opt_barangay", "barangay_option"), "level": ("opt_level", "level_option"),
                  "school_status": ("opt_status", "status_option"), "school": ("opt_school", "school_option"),
-                 "measure": ("opt_measure", "measure_option"), "scenario": ("opt_scenario", "scenario_option"),
-                 "list_order": ("opt_list_order", "list_order_option"), "show_as": ("opt_show_as", "show_as_option")}
+                 "measure": ("opt_measure", "measure_option"), "scenario": ("opt_scenario", "scenario_option")}
 
 GEO_P = ["region", "province", "lgu_type"]
 OV_P = GEO_P + ["tier", "coverage"]
@@ -922,7 +909,7 @@ SCHOOL_P = LGU_P + ["barangay", "level", "school"]
 
 
 def datasets(b):
-    b.dataset("ov_lgu", "Overview: LGUs and boundaries", OV_LGU, OV_P + ["list_order", "show_as"])
+    b.dataset("ov_lgu", "Overview: LGUs and boundaries", OV_LGU, OV_P)
     b.dataset("ov_kpi", "Overview: KPIs", OV_KPI, OV_P)
     b.dataset("ov_drivers", "Overview: what drives the tier", OV_DRIVERS, OV_P)
     b.dataset("ov_relative", "Overview: typical relative pressure", OV_RP, GEO_P)
@@ -969,8 +956,6 @@ def datasets(b):
     b.dataset("opt_school", "Filter: school", OPT_SCHOOL, LGU_P + ["barangay", "level"])
     b.dataset("opt_measure", "Filter: measure", values("measure_option", [ALL_MEASURES] + MEASURES))
     b.dataset("opt_scenario", "Filter: validation check", values("scenario_option", SCENARIOS))
-    b.dataset("opt_list_order", "Filter: list order", values("list_order_option", ORDERS))
-    b.dataset("opt_show_as", "Filter: show values as", values("show_as_option", SHOW_AS))
 
 
 # ------------------------------------------------------------------------------------------ pages
@@ -985,12 +970,7 @@ def overview(b):
     tier = param_filter(b, "tier", "Priority tier", targets, "Show LGUs belonging to selected priority tiers.")
     coverage = param_filter(b, "coverage", "Coverage status", targets,
                             "Separate assessed LGUs from places that require data review.")
-    list_order = param_filter(b, "list_order", "Order list by", ["ov_lgu"],
-                              "Orders LGUs by tier, affected public learners and pressure strength. This changes the "
-                              "list order only.")
-    show_as = param_filter(b, "show_as", "Show values as", ["ov_lgu"],
-                           "Change how pressure is displayed in the table. This does not recalculate the tier.")
-    p.columns([(8, [(intro, 4)]), (4, [(tier, 1), (coverage, 1), (show_as, 1), (list_order, 1)])], 4)
+    p.columns([(8, [(intro, 2)]), (4, [(tier, 1), (coverage, 1)])], 2)
     bold = {"fontStyle": "normal", "fontWeight": 700}
     p.row([(kpi(b, "ov_kpi", "Priority LGUs", "priority_lgus", num(), desc="Critical or Elevated: high on 2 or 3 measures",
                 style=bold, card_style=KPI_CARD), 3),
@@ -1017,6 +997,16 @@ def overview(b):
                     desc="Every region in view, stacked by tier with the same colors as the map. Follows Region, "
                          "Province, LGU type and the tier filters.")
     p.columns([(5, [(priority_map, 14)]), (7, [(drivers, 6), (by_region, 8)])], 14)
+    p.row([(table(b, "ov_lgu", "Priority List", [
+        ("rank_in_view", "Rank", None), ("lgu_label", "City or municipality", None), ("lgu_type_label", "Type", None),
+        ("tier", "Tier", None), ("high_areas", "High-pressure measures", None), ("schools_value", "School pressure", num(2)),
+        ("classrooms_value", "Classroom pressure", num(2)), ("teachers_value", "Teacher pressure", num(2)),
+        ("ap3_highest_level", "Teacher level used", None), ("affected_learners", "Public learners", num()),
+        ("lowest_coverage_pct", "Lowest coverage %", num()), ("stability", "Stability", None),
+        ("data_review_reason", "Data review reason", None)],
+        "Shows the cities and municipalities that should be reviewed first based on pressure on public schools, "
+        "classrooms and teachers. Use the list to choose an LGU for closer review; the ranking does not determine how "
+        "many resources should be added. Values are times the typical place of the same type (1.00)."), 12)], 10)
     p.row([(bar(b, "ov_relative", "**How much higher is the pressure in high-priority LGUs?**", "measure", "Measure",
                 "max", "typical_relative_pressure", "Typical relative pressure", horizontal=False, color="lgu_group",
                 color_label="Places", mappings=[{"value": RP_GROUPS[0], "color": "#712B13"},
@@ -1030,16 +1020,6 @@ def overview(b):
                 color_order=DIRECTIONS, layout="stack", legend={"hideTitle": False, "title": "Enrollment trend"},
                 desc="Shows the number of LGUs in each tier according to whether all-sector enrollment increased, "
                      "decreased or could not be fully assessed from SY 2020–21 to SY 2025–26."), 6)], 7)
-    p.row([(table(b, "ov_lgu", "Priority List", [
-        ("rank_in_view", "Rank", None), ("lgu_label", "City or municipality", None), ("lgu_type_label", "Type", None),
-        ("tier", "Tier", None), ("high_areas", "High-pressure measures", None), ("schools_value", "School pressure", num(2)),
-        ("classrooms_value", "Classroom pressure", num(2)), ("teachers_value", "Teacher pressure", num(2)),
-        ("ap3_highest_level", "Teacher level used", None), ("affected_learners", "Public learners", num()),
-        ("lowest_coverage_pct", "Lowest coverage %", num()), ("stability", "Stability", None),
-        ("data_review_reason", "Data review reason", None)],
-        "Shows the cities and municipalities that should be reviewed first based on pressure on public schools, "
-        "classrooms and teachers. Use the list to choose an LGU for closer review; the ranking does not determine how "
-        "many resources should be added."), 12)], 10)
     p.row([(text(b, "**Next:** Open **LGU Profile** and choose a city or municipality to review its underlying counts, "
                     "pressure measures, reporting coverage, barangays and first schools for follow-up.\n", "\n",
                  "A priority tier identifies relative capacity pressure. It does not prescribe how many schools, "
@@ -1056,9 +1036,9 @@ def lgu_profile(b):
     place = param_filter(b, "lgu", "City or municipality", profile, "Choose the LGU you want to review.")
     barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_teaser"],
                             "Narrow the barangay and school sections to one barangay.")
-    p.columns([(8, [(intro, 4)]), (4, [(place, 1), (barangay, 1)])], 4)
+    p.columns([(8, [(intro, 2)]), (4, [(place, 1), (barangay, 1)])], 2)
     p.row([(kpi(b, "pr_card", "Selected city or municipality", "city_mun_name", None,
-                desc="Change it with City or municipality above", style=TITLE_STYLE, heading=True, align="left"), 12)], 2)
+                desc="Change it with City or municipality above", style=TITLE_STYLE, heading=True, align="left"), 12)], 1)
     p.row([(kpi(b, "pr_card", "Place details", "details", None,
                 desc="Type · province (or region) · tier and the measures that are high · national rank",
                 style=DETAIL_STYLE, heading=True, align="left"), 12)], 1)
@@ -1135,24 +1115,24 @@ def school_action(b):
                          "Its own choice: picking a place on LGU Profile does not change it. Defaults to the top place.",
                          options=("opt_lgu", "lgu_option"))
     barangay = param_filter(b, "barangay", "Barangay", targets, options=("opt_barangay_school", "barangay_option"))
-    p.columns([(8, [(intro, 4)]), (4, [(place, 1), (barangay, 1)])], 4)
+    p.columns([(8, [(intro, 2)]), (4, [(place, 1), (barangay, 1)])], 2)
     level = param_filter(b, "level", "Education level", targets)
     status = param_filter(b, "school_status", "School status", ["sa_list"])
     school = param_filter(b, "school", "School", targets, "Defaults to the first school to check.")
     p.row([(school, 4), (status, 4), (level, 4)], 1)
     p.row([(kpi(b, "sa_school", "Selected school", "school_name", None,
-                desc="Change it in School above", style=TITLE_STYLE, heading=True, align="left"), 12)], 2)
+                desc="Change it in School above", style=TITLE_STYLE, heading=True, align="left"), 12)], 1)
     p.row([(kpi(b, "sa_school", "School details", "details", None,
                 desc="School ID · barangay · main or annex · levels · learners, SY 2023-24 · figures to check",
                 style={"fontSize": 16}, heading=True, align="left"), 12)], 1)
     p.row([(kpi(b, "sa_school", "Learners per reported room", "learners_per_room", num(1),
-                desc="All levels · rooms include labs", style=KPI_STYLE), 3),
+                desc="All levels · rooms include labs", style=KPI_STYLE, card_style=KPI_CARD), 3),
            (kpi(b, "sa_school", "Learners per teacher", "teacher_ratio", num(1), desc="At the education level chosen above",
-                style=KPI_STYLE), 3),
+                style=KPI_STYLE, card_style=KPI_CARD), 3),
            (kpi(b, "sa_school", "Enrollment change", "enrollment_change", pct(1), desc="SY 2020-21 to 2025-26, if complete",
-                style=KPI_STYLE), 3),
+                style=KPI_STYLE, card_style=KPI_CARD), 3),
            (kpi(b, "sa_school", "Temporary and makeshift rooms", "temporary_or_makeshift_rooms", num(),
-                desc="SY 2023-24", style=KPI_STYLE), 3)], 3)
+                desc="SY 2023-24", style=KPI_STYLE, card_style=KPI_CARD), 3)], 3)
     p.row([(scatter(b, "sa_peers", "This school among schools in the same place", "learners_per_room",
                     "Learners per classroom", "teacher_ratio", "Learners per teacher", "series", "School",
                     STATUS_COLORS, [c["value"] for c in STATUS_COLORS], "learners", "Learners", "school_name",
@@ -1187,19 +1167,22 @@ def school_action(b):
 
 def data_and_method(b):
     p = Page("data_and_method", "Data and Method")
-    p.row([(text(b, "# Can we rely on these results, and how were they produced?\n",
-                 "Start with the summary and the rule; the checks behind them follow."), 6),
-           (param_filter(b, "measure", "Measure", ["dm_coverage", "dm_reasons"]), 3),
-           (param_filter(b, "scenario", "Validation check", ["dm_transition"]), 3)], 2)
-    p.row([(kpi(b, "freshness", "Data freshness", "freshness", None,
-                desc="Latest successful pipeline run and the school years it covers"), 12)], 2)
+    intro = text(b, "# Can we rely on these results, and how were they produced?\n",
+                 "Start with the summary and the rule; the checks behind them follow.")
+    measure = param_filter(b, "measure", "Measure", ["dm_coverage", "dm_reasons"])
+    scenario = param_filter(b, "scenario", "Validation check", ["dm_transition"])
+    p.columns([(9, [(intro, 2)]), (3, [(measure, 1), (scenario, 1)])], 2)
     p.row([(kpi(b, "dm_kpi", "Assessed LGUs", "assessed", num(), "{{ @formatted }} of {{lgus}}",
-                "Every measure at 90% coverage or more", extra=("lgus",)), 3),
-           (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), desc="A measure below the coverage gate"), 3),
+                "Every measure at 90% coverage or more", extra=("lgus",), style=KPI_STYLE, card_style=KPI_CARD), 3),
+           (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), desc="A measure below the coverage gate",
+                style=KPI_STYLE, card_style=KPI_CARD), 3),
            (kpi(b, "dm_kpi", "Stable Critical results", "stable", num(), "{{ @formatted }} of {{critical}}",
-                "Critical within type and nationally", extra=("critical",)), 3),
+                "Critical within type and nationally", extra=("critical",), style=KPI_STYLE, card_style=KPI_CARD), 3),
            (kpi(b, "dm_kpi", "Tier changes without flagged schools", "outlier_changes", num(),
-                desc="Published tiers keep the flagged schools"), 3)], 3)
+                desc="Published tiers keep the flagged schools", style=KPI_STYLE, card_style=KPI_CARD), 3)], 3)
+    p.row([(kpi(b, "freshness", "Data freshness", "freshness", None,
+                desc="Latest successful pipeline run and the school years it covers", style={"fontSize": 16},
+                align="left"), 12)], 1)
     p.row([(text(b, "## How the priority is determined\n\n",
                  "1. **Three measures, SY 2023-24:** learners per public school (AP1), learners per reported instructional "
                  "room (AP2) and learners per teacher by level (AP3).\n",
@@ -1210,31 +1193,32 @@ def data_and_method(b):
                  "4. **Tier:** Critical (3 high), Elevated (2), Targeted (1), Monitor (0). A count, not a weighted score.\n",
                  "5. **Relative pressure** (ratio ÷ the median place of the same type) shows how far above the rest a "
                  "place is. It never sets the tier.\n",
-                 "6. **Context only:** enrollment trends, school-age population and poverty never change a tier."), 7),
+                 "6. **Context only:** enrollment trends, school-age population and poverty never change a tier."), 6),
            (table(b, "dm_refs", "Typical place of each type", [
                ("measure", "Measure", None), ("lgu_type_label", "Type", None),
                ("typical_value", "Median", num(1)), ("lgus", "Places compared", num())],
                "The middle place among the assessed places of each type, SY 2023-24. Relative pressure divides by it. "
                "Teachers use the median of the level that sets each place's AP3, so it is shown per place in LGU "
-               "Profile. Follows LGU type only."), 5)], 8)
+               "Profile. Follows LGU type only."), 6)], 5)
     p.row([(bar(b, "dm_coverage", "Coverage by measure", "measure", "Measure", "sum", "lgus", "Cities and municipalities",
                 color="coverage_band", color_label="Coverage", layout="stack", color_order=COVERAGE_BANDS,
-                order=COVERAGE_MEASURES, desc="Below 90% a measure is not assessed and the place goes to data review."), 4),
-           (bar(b, "dm_reasons", "Why places are not assessed", "reason", "Reason", "sum", "lgus", "Cities and municipalities",
-                color="measure", color_label="Measure", color_order=MEASURES, layout="stack", sort_by="value",
-                desc="A place can be counted under more than one measure."), 4),
+                order=COVERAGE_MEASURES, desc="Below 90% a measure is not assessed and the place goes to data review."), 5),
            (bar(b, "dm_ap4", "How complete the enrollment trend is", "ap4_status", "Status", "sum", "lgus",
                 "Cities and municipalities", order=AP4_STATUS,
                 desc="Context only. An incomplete year means a school total is missing in some year; boundary changes "
-                     "make 2020 and 2024 harder to compare."), 4)], 7)
-    p.row([(bar(b, "dm_hold", "Does the Critical list hold?", "check_label", "Check", "sum", "lgus",
-                "Critical places", color="series", color_label="Count", layout="group", color_order=HOLD_SERIES,
-                sort_by="alphabetical",
-                desc="D-057's checks. The rule is revisited if fewer than 80% stay Critical and at least 3 leave. "
-                     "None of these change the published tier. Follows LGU type only."), 6),
-           (heatmap(b, "dm_transition", "Published tier against the chosen check", "check_tier", "Tier under the check",
-                    TIERS, "published_tier", "Published tier", TIERS, "sum", "lgus", "Places",
-                    "Pick the check with Validation check above. The diagonal is agreement."), 6)], 7)
+                     "make 2020 and 2024 harder to compare."), 7)], 7)
+    reasons = bar(b, "dm_reasons", "Why places are not assessed", "reason", "Reason", "sum", "lgus",
+                  "Cities and municipalities", color="measure", color_label="Measure", color_order=MEASURES,
+                  layout="stack", legend=LEGEND_BOTTOM, desc="A place can be counted under more than one measure.")
+    hold = bar(b, "dm_hold", "Does the Critical list hold?", "check_label", "Check", "sum", "lgus",
+               "Critical places", color="series", color_label="Count", layout="group", color_order=HOLD_SERIES,
+               legend=LEGEND_BOTTOM,
+               desc="D-057's checks. The rule is revisited if fewer than 80% stay Critical and at least 3 leave. "
+                    "None of these change the published tier. Follows LGU type only.")
+    transition = heatmap(b, "dm_transition", "Published tier against the chosen check", "check_tier", "Tier under the check",
+                         TIERS, "published_tier", "Published tier", TIERS, "sum", "lgus", "Places",
+                         "Pick the check with Validation check above. The diagonal is agreement.")
+    p.columns([(8, [(reasons, 5), (hold, 7)]), (4, [(transition, 12)])], 12)
     p.row([(table(b, "dm_overlap", "Do the three measures repeat one signal?", [
         ("pair", "Measures", None), ("lgu_type_label", "Type", None), ("rank_agreement", "Rank agreement", num(2)),
         ("shared_high", "Also high", pct(0)), ("lgus_compared", "Places", num())],
@@ -1280,7 +1264,7 @@ def build():
             "selectionColor": {"light": "#712B13", "dark": "#F0997B"},
             "visualizationColors": ["#712B13", "#5B6B7A", "#C9A227", "#D85A30", "#A9B4BF", "#8A96A3", "#2F6F8F"],
             "fontFamily": "Inter", "fontSettings": {"base": {"fontFamily": "Inter"}, "widgetTitle": {"fontSize": 16}},
-            "widgetHeaderAlignment": "LEFT", "widgetPadding": 16, "widgetMargin": 8, "widgetCornerRadius": 8},
+            "widgetHeaderAlignment": "LEFT", "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP", "widgetPadding": 16, "widgetMargin": 8, "widgetCornerRadius": 8},
             "applyModeEnabled": False},
     }
 
