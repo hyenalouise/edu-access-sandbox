@@ -1,12 +1,12 @@
--- ap2 classroom pressure under the BP and AP metrics and the priority rule D-057.
+-- ap2 classroom-pressure screening.
 -- grain: one regular city or municipality for SY 2023-24.
 -- measure: enrollment in denominator-usable schools / reported instructional rooms in the same schools (D-047).
--- coverage gate (D-057): learner coverage, the share of learners in schools with a usable room count, at least 90%.
+-- coverage gate: learner coverage, the share of learners in schools with a usable room count, at least 90%.
 -- school coverage is shown beside it, with incomplete and blank-enrollment schools in its denominator.
--- outlier schools (above Q3 + 3 x IQR within LGU type) are counted and stay in every total, they never change a result.
--- benchmark: at least 50 learners per reported instructional room is congested, adopted from the EDCOM 2 summary
--- of PIDS Discussion Paper 2025-10. this is a congestion screen, not RA 7880's classroom-shortage calculation.
--- percentiles: PERCENT_RANK within LGU type and nationally, among LGUs that pass the gate.
+-- screen: each denominator-usable school at >=50 learners per reported instructional room is screened as congested;
+-- the LGU result is the count and share of learners in those schools, following the aggregation used in PIDS
+-- Discussion Paper 2025-10. PIDS calls 1:50 illustrative; the broader NSBI room field makes this a modified screen,
+-- not an official DepEd indicator, an RA 7880 shortage, or an entitlement to classrooms.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -35,22 +35,11 @@ WITH lgus AS (
   LEFT JOIN edu_access.`05-gold`.fact_school_classroom_capacity AS c
     ON c.school_id = e.school_id AND c.school_year = '2023-24'
 ), school_ratios AS (
-  SELECT s.school_id, s.city_mun_psgc_code, l.lgu_type,
-         CAST(s.total_learners AS DOUBLE) / s.instructional_classrooms_total AS school_ratio
+  SELECT s.school_id, s.city_mun_psgc_code, s.total_learners, s.instructional_classrooms_total,
+         CAST(s.total_learners AS DOUBLE) / s.instructional_classrooms_total AS school_ratio,
+         CAST(s.total_learners AS DOUBLE) / s.instructional_classrooms_total >= 50 AS passes_congestion_screen
   FROM schools AS s
-  JOIN lgus AS l USING (city_mun_psgc_code)
   WHERE s.in_ratio
-), fences AS (
-  SELECT lgu_type,
-         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY school_ratio) AS q1,
-         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY school_ratio) AS q3
-  FROM school_ratios
-  GROUP BY lgu_type
-), outliers AS (
-  SELECT r.city_mun_psgc_code, COUNT_IF(r.school_ratio > f.q3 + 3 * (f.q3 - f.q1)) AS outlier_school_count
-  FROM school_ratios AS r
-  JOIN fences AS f USING (lgu_type)
-  GROUP BY r.city_mun_psgc_code
 ), metrics AS (
   SELECT l.*, CAST('2023-24' AS STRING) AS school_year,
          COALESCE(COUNT_IF(s.is_active = 1), 0) AS active_public_school_count,
@@ -64,21 +53,29 @@ WITH lgus AS (
            AS public_school_enrollment,
          CAST(COALESCE(SUM(CASE WHEN s.in_ratio THEN s.total_learners ELSE 0 END), 0) AS BIGINT) AS eligible_learners,
          CAST(COALESCE(SUM(CASE WHEN s.in_ratio THEN s.instructional_classrooms_total ELSE 0 END), 0) AS BIGINT)
-           AS reported_instructional_classrooms
+           AS reported_instructional_classrooms,
+         COALESCE(MAX(r.congested_school_count), 0) AS congested_school_count,
+         CAST(COALESCE(MAX(r.learners_in_congested_schools), 0) AS BIGINT) AS learners_in_congested_schools
   FROM lgus AS l
   LEFT JOIN schools AS s USING (city_mun_psgc_code)
+  LEFT JOIN (
+    SELECT city_mun_psgc_code,
+           COUNT_IF(passes_congestion_screen) AS congested_school_count,
+           SUM(CASE WHEN passes_congestion_screen THEN total_learners ELSE 0 END) AS learners_in_congested_schools
+    FROM school_ratios
+    GROUP BY city_mun_psgc_code
+  ) AS r USING (city_mun_psgc_code)
   GROUP BY l.city_mun_psgc_code, l.city_mun_name, l.lgu_type, l.province_psgc_code, l.province_name,
            l.region_psgc_code, l.region_name
 ), ratios AS (
   SELECT m.*,
-         COALESCE(o.outlier_school_count, 0) AS outlier_school_count,
-         COALESCE(o.outlier_school_count, 0) > 0 AS outlier_flag,
          CAST(m.eligible_learners AS DOUBLE) / NULLIF(m.reported_instructional_classrooms, 0) AS learners_per_classroom,
+         CAST(100.0 * m.learners_in_congested_schools / NULLIF(m.public_school_enrollment, 0) AS DOUBLE)
+           AS congested_learner_share_pct,
          CAST(100.0 * m.ratio_school_count
            / NULLIF(m.active_public_school_count + m.blank_enrollment_school_count, 0) AS DOUBLE) AS school_coverage_pct,
          CAST(100.0 * m.eligible_learners / NULLIF(m.public_school_enrollment, 0) AS DOUBLE) AS learner_coverage_pct
   FROM metrics AS m
-  LEFT JOIN outliers AS o USING (city_mun_psgc_code)
 ), gated AS (
   SELECT *,
          CASE WHEN active_public_school_count = 0 THEN 'no active public school'
@@ -86,27 +83,16 @@ WITH lgus AS (
               WHEN learner_coverage_pct < 90 THEN 'learner coverage below 90%'
          END AS not_assessed_reason
   FROM ratios
-), ranked AS (
-  SELECT city_mun_psgc_code,
-         PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY learners_per_classroom) AS within_type_percentile,
-         PERCENT_RANK() OVER (ORDER BY learners_per_classroom) AS national_percentile
-  FROM gated
-  WHERE not_assessed_reason IS NULL
 )
 SELECT g.*,
        g.not_assessed_reason IS NULL AS is_assessed,
-       r.within_type_percentile,
-       r.national_percentile,
-       COALESCE(r.within_type_percentile >= 0.9, FALSE) AS is_high,
-       COALESCE(r.national_percentile >= 0.9, FALSE) AS is_high_nationally,
        CAST(50.0 AS DOUBLE) AS congestion_benchmark,
        CASE WHEN g.not_assessed_reason IS NOT NULL THEN 'not assessed'
-            WHEN g.learners_per_classroom >= 50 THEN 'congested'
-            ELSE 'not congested' END AS benchmark_status,
-       'learners per reported instructional room, congested at >=50 (EDCOM 2-PIDS, 2025)' AS measure_label,
+            WHEN g.congested_school_count > 0 THEN 'reported congestion identified'
+            ELSE 'no reported congestion identified' END AS benchmark_status,
+       'PIDS-style illustrative school screen at >=50 learners per reported NSBI instructional room' AS measure_label,
        :code_revision AS code_revision
-FROM gated AS g
-LEFT JOIN ranked AS r USING (city_mun_psgc_code);
+FROM gated AS g;
 
 COMMENT ON TABLE edu_access.`06-analytics`.ap2_classroom_pressure_candidate IS 'Unpublished AP2 build. Do not read: use ap2_classroom_pressure.';
 ALTER TABLE edu_access.`06-analytics`.ap2_classroom_pressure_candidate OWNER TO `reached-hq`;

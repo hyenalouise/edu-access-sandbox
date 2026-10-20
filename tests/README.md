@@ -13,7 +13,7 @@ python -m pytest tests -q
 | `test_repo_policy.py` | Data, secret, environment, and file-size rules |
 | `test_documentation_structure.py` | Required indexes, retired paths, and local Markdown links |
 | `test_naming.py` | Naming configuration and ETL path conventions |
-| `test_analytics_priority.py` | AP1–AP4 outputs, D-057 priority tiers, and D-059 AP2/AP3 benchmark values and classifications |
+| `test_analytics_priority.py` | AP1–AP4 outputs, the D-060 classroom review queue, and the bounded AP2/AP3 reference classifications |
 | `test_ingestion_*.py` | Delivery validation, loading, rerun, and source-specific behavior |
 | `test_silver.py` | DepEd enrollment Silver: cleaning rules, quarantine, the gate, the run record, revisions, and the generated SQL |
 | `test_silver_facilities.py` | DepEd facilities Silver on made-up deliveries with matching enrollment: typed counts and yes/no columns, blanks kept NULL, enrollment's labels, overseas, public-scope and missing-classroom flags, per-group maximums, quarantine, the enrollment reference, scope warnings, every gate check, revisions, publishing, and the rules file |

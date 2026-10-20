@@ -2,7 +2,7 @@
 
 **Status:** Research register, verified against official sources on 2026-10-14. An entry in this document is not automatically approved for dashboard use. The metric must still match the source definition, education level, geographic grain, and period.
 
-> **Superseded in part by [D-057](../governance/decisions.md#d-057-lgu-priority-rule-version-1)** (2026-10-19): peer groups no longer set any comparison. The within-type percentile sets the priority tier, and Similar LGUs (method in #96) is context only. Peer descriptors such as income class and density are planned inputs to Similar LGUs. The peer-group text below is kept until its full update in #178 and #96.
+> **Current use under D-060 (2026-10-21):** percentiles and composite tiers are not used. AP2 supplies a bounded classroom review queue; AP1, AP3, national distributions, and Similar LGUs remain separate context.
 
 ## Purpose and document boundary
 
@@ -31,8 +31,8 @@ Those questions are not interchangeable. An official formula may have no officia
 | Research area | Best-supported reference | What the project can say now |
 |---|---|---|
 | **AP1 · School provision** | DepEd Order No. 40, s. 2014 gives school-establishment screening criteria | School presence can be screened against the published criteria, but learners per school and Population 2024 per public school have no validated national cutoff in the reviewed sources |
-| **AP2 · Classrooms** | EDCOM 2's summary of PIDS Discussion Paper 2025-10 defines severe congestion as at least 50 learners per classroom | Apply >=50 as a congestion screen to learners per reported instructional room; do not call it an RA No. 7880 shortage calculation |
-| **AP3 · Teachers** | The World Bank Philippines Education Note gives an aggregate elementary reference; DepEd CALABARZON RM 379, s. 2025 gives JHS and SHS class-size and deployment factors | Use ES 35, derive JHS 36 and SHS 80/3 learners per teacher, and retain source-specific labels |
+| **AP2 · Classrooms** | PIDS Discussion Paper 2025-10 uses 1:50 for illustration at school and education-level grain; EDCOM 2 summarizes the result | Apply >=50 to each usable school's reported-room ratio as a clearly caveated review screen; do not call it the paper's exact measure or an RA No. 7880 shortage calculation |
+| **AP3 · Teachers** | A historical World Bank note gives an aggregate elementary reference; a DepEd staffing enclosure gives JHS/SHS class-size and deployment factors | Keep ES 35 as historical context and JHS 36/SHS 80/3 as derived comparisons only; do not create a teacher rank or shortage claim |
 | **AP4 · Enrollment need** | DepEd defines GER and NER by official school age; BEDP 2030 sets national NER targets | NER is a validated participation indicator, but the current project data cannot reproduce it at LGU level; the AP4 gap (population aged 5–17 minus enrollment in all sectors) is a project-defined difference, not NER or an out-of-school count |
 | **Peer context** | PSA and DOF provide official LGU type, income class, population, land area, density, and poverty data | These variables can describe comparable contexts, but the resulting peer group and its median are project-defined—not national standards |
 
@@ -57,11 +57,11 @@ Those questions are not interchangeable. An official formula may have no officia
 
 ## AP2 · Classroom references
 
-### Adopted congestion screen
+### Bounded illustrative congestion screen
 
-[EDCOM 2's summary of PIDS Discussion Paper 2025-10](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/) describes a congested school as having at least a 1:50 classroom-student ratio. AP2 therefore publishes `congested` when `learners_per_reported_instructional_room >= 50`, `not congested` below 50, and `not assessed` when the coverage gate does not pass.
+[PIDS Discussion Paper 2025-10](https://pidswebs.pids.gov.ph/CDN/document/pidsdps2510.pdf), also summarized by [EDCOM 2](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/), defines a school as congested at at least 1:50 **for illustration purposes**. The paper is marked preliminary and unedited/unreviewed, and its analysis is by school and education level. AP2 applies the line to each usable school's all-level reported NSBI instructional-room ratio, then aggregates passing schools and affected learners to the LGU.
 
-This is an adopted screening benchmark, not a claim that the project reproduces DepEd's published classroom-learner indicator. The denominator is still the broader NSBI reported-instructional-room field, and the status does not estimate a classroom shortage or change the D-057 priority tier.
+This is a **PIDS-style illustrative reported-room screen**, not a validated official benchmark or a claim that the project reproduces the paper or DepEd's published classroom-learner indicator. The denominator is the broader NSBI reported-instructional-room field. It supports a review queue under D-060 but does not estimate a classroom shortage or construction entitlement.
 
 ### Official computation
 
@@ -95,7 +95,7 @@ Therefore:
 - if the candidate metric is approved after data validation, the dashboard may publish the clearly labelled **learners per reported instructional room** descriptive measure, with its source shown as **DepEd School Facilities (NSBI)**;
 - it must not call that result the official DepEd classroom–learner ratio; and
 - it must not apply the 45:1 shortage threshold until a compatible count of K–12 classrooms excluding the legally excluded spaces is available; and
-- it may apply the separately sourced >=50 EDCOM 2/PIDS congestion screen, with the denominator caveat visible.
+- it may apply the >=50 PIDS-style illustrative screen per usable school, with the grain and denominator caveats visible.
 
 ### PSIP III classroom configuration
 
@@ -115,19 +115,19 @@ DepEd's [FY 2024 Q4 Budget Accountability Report](https://www.deped.gov.ph/wp-co
 
 ## AP3 · Teacher references
 
-### Adopted current deployment references
+### Historical and derived planning comparisons
 
-The [World Bank Philippines Education Note](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), pages 3 and 15, reports an average elementary reference of **35 learners per teacher**, calculated from ideal class size and teachers per class in DepEd service standards. AP3 uses it because both the study and the project aggregate elementary learners and teachers.
+The [World Bank Philippines Education Note](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), pages 3 and 15, reports an average elementary reference of **35 learners per teacher**, calculated from older DepEd service standards. AP3 retains it only as a historical comparison.
 
 [DepEd CALABARZON Regional Memorandum No. 379, s. 2025](https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf), page 5, gives maximum learners per class and teacher-to-class deployment factors. Two rows are compatible with AP3's level aggregates:
 
 | AP3 level | Published parameters | Derived maximum learners per teacher | Project status rule |
 |---|---|---:|---|
-| ES aggregate | World Bank study reference based on DepEd service standards | `35` | Above 35 is `above study reference`; 35 or below is `at or below study reference` |
-| JHS, Grades 7–10 | Maximum 45 learners per class; 5 teachers for every 4 classes | `45 * 4 / 5 = 36` | Above 36 is `above deployment reference`; 36 or below is `at or below deployment reference` |
-| SHS, Grades 11–12 | Maximum 40 learners per class; 9 teachers for every 6 classes | `40 * 6 / 9 = 80/3`, about 26.67 | Above 80/3 is `above deployment reference`; 80/3 or below is `at or below deployment reference` |
+| ES aggregate | Historical World Bank study reference based on older DepEd service standards | `35` | Historical comparison only |
+| JHS, Grades 7–10 | Maximum 45 learners per class; 5 teachers for every 4 classes | `45 * 4 / 5 = 36` | Derived comparison only |
+| SHS, Grades 11–12 | Maximum 40 learners per class; 9 teachers for every 6 classes | `40 * 6 / 9 = 80/3`, about 26.67 | Derived comparison only |
 
-The derivation converts the published class-size maxima and deployment factors into a common learner-per-teacher unit. It is a comparison reference for the project-defined LGU ratio, not an official teacher shortage, staffing entitlement, or claim that every teacher and class in an LGU is organized exactly this way. A supported level that fails the coverage gate is `not assessed`.
+The derivation converts published class-size maxima and deployment factors into a common learner-per-teacher unit. DepEd's staffing process is applied by grade and specialization, so these aggregate LGU values are not an official teacher shortage, staffing entitlement, or teacher-priority rule. A supported level that fails the coverage gate is `not assessed`.
 
 The distinction is necessary because **learners per class** and **learners per teacher** answer different questions. A secondary class has multiple subject teachers, so the memorandum's 45-learner JHS class and 40-learner SHS class do not imply 45 or 40 learners for each teacher. At the published deployment factors:
 
@@ -249,7 +249,7 @@ Poverty, income class, and density help explain context and support fair peer co
 | DepEd Order No. 40 school-presence screen | **Conditional**, as an AP1 count per city or municipality with barangay drill-down, carrying level, match-coverage, distance, demand, and feasibility caveats |
 | 2009 teacher deployment bands | **Legacy reference only**, not an active benchmark |
 | NER and BEDP targets | **Reference-ready**, but local calculation is blocked until compatible age-specific enrollment and population data exist |
-| Peer median, IQR, percentile, and national same-type median | **Descriptive method**, never labelled an official baseline |
+| National or Similar-LGU distribution summaries | **Descriptive method**, never labelled an official baseline or used for priority |
 | Poverty incidence | **Context only**, carrying estimate year, interval, CV, and missingness |
 
 ## Benchmark metadata required in the benchmark config

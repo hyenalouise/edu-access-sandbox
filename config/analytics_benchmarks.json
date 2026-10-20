@@ -1,31 +1,34 @@
 {
-  "version": 1,
+  "version": 2,
   "ap2": {
-    "benchmark_id": "edcom2_pids_classroom_congestion_2025",
-    "authority": "EDCOM 2 summary of PIDS Discussion Paper 2025-10",
-    "source_url": "https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/",
+    "benchmark_id": "pids_dp_2025_10_illustrative_congestion_screen",
+    "authority": "PIDS Discussion Paper 2025-10, supported by the EDCOM 2 summary",
+    "source_url": "https://pidswebs.pids.gov.ph/CDN/document/pidsdps2510.pdf",
+    "summary_url": "https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/",
     "published_date": "2025-06-18",
     "operator": ">=",
     "threshold": 50.0,
-    "unit": "learners_per_reported_instructional_room",
-    "label": "congested",
-    "caveat": "Screening benchmark only; it is not the RA 7880 classroom-shortage calculation."
+    "unit": "learners_per_reported_nsbi_instructional_room_at_school",
+    "label": "PIDS-style illustrative reported-room screen",
+    "source_note": "The paper is preliminary and unedited/unreviewed, and states that the 1:50 definition is for illustration purposes only.",
+    "caveat": "The project uses an all-level school total and a broader NSBI instructional-room field, while the paper analyzes congestion by school and education level using BEIS classroom data. This is a transparent review screen, not an exact reproduction, an official DepEd ratio, an RA 7880 shortage calculation, or a construction entitlement."
   },
   "ap3": {
-    "benchmark_id": "deped_calabarzon_rm_2025_379",
-    "authority": "DepEd CALABARZON Regional Memorandum No. 379, s. 2025",
+    "benchmark_id": "deped_dm_ouhrod_2025_1226_planning_context",
+    "authority": "DepEd DM-OUHROD-2025-1226 enclosure, reproduced in CALABARZON RM 379, s. 2025",
     "source_url": "https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf",
     "source_page": 5,
     "operator": ">",
     "es_max_learners_per_teacher": 35.0,
-    "es_authority": "World Bank Philippines Education Note based on DepEd service standards",
+    "es_authority": "Historical World Bank Philippines Education Note based on older DepEd service standards",
     "es_source_url": "https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf",
     "es_source_pages": [3, 15],
-    "es_label": "study reference",
+    "es_label": "historical study reference",
     "jhs_max_learners_per_teacher": 36.0,
     "jhs_derivation": "45 maximum learners per class * 4 classes / 5 teachers",
     "shs_max_learners_per_teacher": 26.666666666666668,
     "shs_derivation": "40 maximum learners per class * 6 classes / 9 teachers",
-    "caveat": "ES uses an aggregate study reference based on older DepEd service standards. RM 379 directly publishes JHS 45 and SHS 40 as learners per class, not per teacher. JHS 36 and SHS 80/3 are derived with the same table's teacher-to-class factors. None is a teacher shortage or staffing entitlement."
+    "priority_use": "none",
+    "caveat": "ES 35 is historical context. The memorandum directly publishes JHS 45 and SHS 40 as learners per class, not per teacher. JHS 36 and SHS 80/3 are derived comparisons using the same table's teacher-to-class factors. DepEd applies the staffing process by grade and specialization, so none of these aggregate LGU comparisons is a current national shortage formula, staffing entitlement, or teacher priority rank."
   }
 }
