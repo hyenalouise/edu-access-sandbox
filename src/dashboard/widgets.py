@@ -138,11 +138,13 @@ def bar(b, dataset, title, x, x_label, fn, value, value_label, horizontal=True, 
 
 
 def line(b, dataset, title, x, x_label, fn, value, value_label, fmt=None, color=None, color_label=None, desc=None,
-         kind="line", mappings=None, color_order=None):
+         kind="line", mappings=None, color_order=None, x_order=None):
+    """A time series; with x_order the x axis is categorical in that order (school years, not dates)."""
     name, expression = agg(fn, value)
     fields = [(x, bt(x)), (name, expression)] + ([(color, bt(color))] if color else [])
-    encodings = {"x": {"fieldName": x, "scale": {"type": "temporal"}, "displayName": x_label},
-                 "y": quant(name, value_label, fmt)}
+    x_encoding = (cat(x, x_label, x_order) if x_order
+                  else {"fieldName": x, "scale": {"type": "temporal"}, "displayName": x_label})
+    encodings = {"x": x_encoding, "y": quant(name, value_label, fmt)}
     if color:
         encodings["color"] = cat(color, color_label, color_order, mappings)
     return chart(b, kind, dataset, title, encodings, fields, desc)

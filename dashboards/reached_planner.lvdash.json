@@ -1563,8 +1563,8 @@
         "  LIMIT 1\n",
         "),\n",
         "y AS (SELECT a.* FROM edu_access.`06-analytics`.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT make_date(school_year_start, 6, 1) AS sy_date, 'All sectors' AS scope, enrollment_all_sectors AS learners FROM y\n",
-        "UNION ALL SELECT make_date(school_year_start, 6, 1), 'Public schools', public_school_enrollment FROM y"
+        "SELECT 'SY ' || school_year AS school_year_label, 'All sectors' AS scope, enrollment_all_sectors AS learners FROM y\n",
+        "UNION ALL SELECT 'SY ' || school_year, 'Public schools', public_school_enrollment FROM y"
       ],
       "parameters": [
         {
@@ -1650,14 +1650,16 @@
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
         "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.tier WHEN 'Critical' THEN 4 WHEN 'Elevated' THEN 3 WHEN 'Targeted' THEN 2 WHEN 'Monitor' THEN 1 ELSE 0 END DESC, p.order_in_tier\n",
         "  LIMIT 1\n",
+        "),\n",
+        "c AS (\n",
+        "  SELECT CAST(a.census_year AS STRING) || ' \u00b7 SY ' || a.school_year\n",
+        "           || CASE WHEN a.is_2020_2024_geography_comparable THEN '' ELSE ' (boundaries changed)' END AS period, a.*\n",
+        "  FROM edu_access.`06-analytics`.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code)\n",
+        "  WHERE a.census_year IS NOT NULL\n",
         ")\n",
-        "SELECT CAST(a.census_year AS STRING) || ' \u00b7 SY ' || a.school_year AS period, a.school_age_population,\n",
-        "       a.enrollment_all_sectors, a.population_enrollment_gap, a.gap_share,\n",
-        "       CASE WHEN a.is_2020_2024_geography_comparable THEN 'Comparable' ELSE 'Boundaries changed; compare with care' END AS comparability\n",
-        "FROM edu_access.`06-analytics`.ap4_enrollment_trend AS a\n",
-        "JOIN sel USING (city_mun_psgc_code)\n",
-        "WHERE a.census_year IS NOT NULL\n",
-        "ORDER BY a.census_year"
+        "SELECT period, 'Children aged 5-17' AS series, school_age_population AS people FROM c\n",
+        "UNION ALL SELECT period, 'Enrolled, all sectors', enrollment_all_sectors FROM c\n",
+        "UNION ALL SELECT period, 'Difference (children minus enrolled)', population_enrollment_gap FROM c"
       ],
       "parameters": [
         {
@@ -2848,12 +2850,19 @@
         "  WHERE (:barangay = 'All barangays' OR barangay_name = :barangay) AND offers_level = 1\n",
         "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
-        ")\n",
-        "SELECT make_date(CAST(left(e.school_year, 4) AS INT), 6, 1) AS sy_date,\n",
-        "       CASE e.education_level_code WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END AS level, SUM(e.learner_count) AS learners\n",
-        "FROM e JOIN pick USING (school_id)\n",
-        "WHERE e.is_offered\n",
-        "GROUP BY e.school_year, e.education_level_code"
+        "),\n",
+        "y AS (\n",
+        "  SELECT 'SY ' || e.school_year AS school_year_label, e.education_level_code, SUM(e.learner_count) AS learners\n",
+        "  FROM e JOIN pick USING (school_id)\n",
+        "  WHERE e.is_offered\n",
+        "  GROUP BY e.school_year, e.education_level_code\n",
+        "),\n",
+        "levels AS (SELECT COUNT(DISTINCT education_level_code) AS n FROM y)\n",
+        "-- the school's total first; each level only when the school offers more than one\n",
+        "SELECT school_year_label, 'All levels' AS series, SUM(learners) AS learners FROM y GROUP BY school_year_label\n",
+        "UNION ALL\n",
+        "SELECT school_year_label, CASE education_level_code WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END, learners FROM y\n",
+        "WHERE (SELECT n FROM levels) > 1"
       ],
       "parameters": [
         {
@@ -6448,18 +6457,18 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "level_label",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Level"
-                },
-                "y": {
                   "fieldName": "sum(teachers)",
                   "scale": {
                     "type": "quantitative"
                   },
                   "displayName": "Teachers"
+                },
+                "y": {
+                  "fieldName": "level_label",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Level"
                 },
                 "color": {
                   "fieldName": "funding",
@@ -6493,8 +6502,8 @@
           "position": {
             "x": 0,
             "y": 20,
-            "width": 6,
-            "height": 7
+            "width": 12,
+            "height": 5
           }
         },
         {
@@ -6507,8 +6516,8 @@
                   "datasetName": "pr_enrollment",
                   "fields": [
                     {
-                      "name": "sy_date",
-                      "expression": "`sy_date`"
+                      "name": "school_year_label",
+                      "expression": "`school_year_label`"
                     },
                     {
                       "name": "sum(learners)",
@@ -6528,11 +6537,22 @@
               "widgetType": "line",
               "encodings": {
                 "x": {
-                  "fieldName": "sy_date",
+                  "fieldName": "school_year_label",
                   "scale": {
-                    "type": "temporal"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "SY 2020-21",
+                        "SY 2021-22",
+                        "SY 2022-23",
+                        "SY 2023-24",
+                        "SY 2024-25",
+                        "SY 2025-26"
+                      ]
+                    }
                   },
-                  "displayName": "School year (start)"
+                  "displayName": "School year"
                 },
                 "y": {
                   "fieldName": "sum(learners)",
@@ -6569,22 +6589,22 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Enrollment, SY 2020-21 to 2025-26 \u00b7 context only",
+                "title": "Enrollment each school year \u00b7 context only",
                 "showDescription": true,
-                "description": "All-sector enrollment includes private and state or local college schools. Enrollment does not set the tier."
+                "description": "All sectors includes private and state or local college schools. Enrollment does not set the tier."
               }
             }
           },
           "position": {
-            "x": 6,
-            "y": 20,
+            "x": 0,
+            "y": 25,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "table_025",
+            "name": "bar_025",
             "queries": [
               {
                 "name": "main_query",
@@ -6596,102 +6616,90 @@
                       "expression": "`period`"
                     },
                     {
-                      "name": "school_age_population",
-                      "expression": "`school_age_population`"
+                      "name": "sum(people)",
+                      "expression": "SUM(`people`)"
                     },
                     {
-                      "name": "enrollment_all_sectors",
-                      "expression": "`enrollment_all_sectors`"
-                    },
-                    {
-                      "name": "population_enrollment_gap",
-                      "expression": "`population_enrollment_gap`"
-                    },
-                    {
-                      "name": "gap_share",
-                      "expression": "`gap_share`"
-                    },
-                    {
-                      "name": "comparability",
-                      "expression": "`comparability`"
+                      "name": "series",
+                      "expression": "`series`"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
             "spec": {
-              "version": 2,
-              "widgetType": "table",
+              "version": 3,
+              "widgetType": "bar",
               "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "period",
-                    "displayName": "Census \u00b7 school year"
+                "x": {
+                  "fieldName": "period",
+                  "scale": {
+                    "type": "categorical"
                   },
-                  {
-                    "fieldName": "school_age_population",
-                    "displayName": "Children aged 5-17",
-                    "format": {
-                      "type": "number-plain",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 0
-                      }
-                    }
+                  "displayName": "Census \u00b7 school year"
+                },
+                "y": {
+                  "fieldName": "sum(people)",
+                  "scale": {
+                    "type": "quantitative"
                   },
-                  {
-                    "fieldName": "enrollment_all_sectors",
-                    "displayName": "Enrolled, all sectors",
-                    "format": {
-                      "type": "number-plain",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 0
-                      }
-                    }
-                  },
-                  {
-                    "fieldName": "population_enrollment_gap",
-                    "displayName": "Difference",
-                    "format": {
-                      "type": "number-plain",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 0
-                      }
-                    }
-                  },
-                  {
-                    "fieldName": "gap_share",
-                    "displayName": "Difference share",
-                    "format": {
-                      "type": "number-percent",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 1
-                      }
-                    }
-                  },
-                  {
-                    "fieldName": "comparability",
-                    "displayName": "2020 to 2024"
+                  "displayName": "People",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    },
+                    "abbreviation": "compact"
                   }
-                ]
+                },
+                "color": {
+                  "fieldName": "series",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Children aged 5-17",
+                        "Enrolled, all sectors",
+                        "Difference (children minus enrolled)"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Children aged 5-17",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "Enrolled, all sectors",
+                        "color": "#A9B4BF"
+                      },
+                      {
+                        "value": "Difference (children minus enrolled)",
+                        "color": "#C9A227"
+                      }
+                    ]
+                  },
+                  "displayName": "Series"
+                }
               },
               "frame": {
                 "showTitle": true,
-                "title": "School-age population and enrollment \u00b7 context only",
+                "title": "Children aged 5-17 and enrolled learners \u00b7 context only",
                 "showDescription": true,
-                "description": "Children are counted where they live and learners where their school is, so the difference is not the number of children out of school. A negative difference usually means local schools also serve nearby places."
+                "description": "Children are counted where they live and learners where their school is, so the difference is not the number of children out of school. Below zero usually means local schools also serve nearby places."
+              },
+              "mark": {
+                "layout": "group"
               }
             }
           },
           "position": {
-            "x": 0,
-            "y": 27,
-            "width": 12,
-            "height": 4
+            "x": 6,
+            "y": 25,
+            "width": 6,
+            "height": 7
           }
         },
         {
@@ -6779,7 +6787,7 @@
           },
           "position": {
             "x": 0,
-            "y": 31,
+            "y": 32,
             "width": 12,
             "height": 8
           }
@@ -6862,7 +6870,7 @@
           },
           "position": {
             "x": 0,
-            "y": 39,
+            "y": 40,
             "width": 12,
             "height": 5
           }
@@ -7732,7 +7740,7 @@
         },
         {
           "widget": {
-            "name": "area_040",
+            "name": "line_040",
             "queries": [
               {
                 "name": "main_query",
@@ -7740,16 +7748,16 @@
                   "datasetName": "sa_trend",
                   "fields": [
                     {
-                      "name": "sy_date",
-                      "expression": "`sy_date`"
+                      "name": "school_year_label",
+                      "expression": "`school_year_label`"
                     },
                     {
                       "name": "sum(learners)",
                       "expression": "SUM(`learners`)"
                     },
                     {
-                      "name": "level",
-                      "expression": "`level`"
+                      "name": "series",
+                      "expression": "`series`"
                     }
                   ],
                   "disaggregated": false
@@ -7758,14 +7766,25 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "area",
+              "widgetType": "line",
               "encodings": {
                 "x": {
-                  "fieldName": "sy_date",
+                  "fieldName": "school_year_label",
                   "scale": {
-                    "type": "temporal"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "SY 2020-21",
+                        "SY 2021-22",
+                        "SY 2022-23",
+                        "SY 2023-24",
+                        "SY 2024-25",
+                        "SY 2025-26"
+                      ]
+                    }
                   },
-                  "displayName": "School year (start)"
+                  "displayName": "School year"
                 },
                 "y": {
                   "fieldName": "sum(learners)",
@@ -7782,24 +7801,45 @@
                   }
                 },
                 "color": {
-                  "fieldName": "level",
+                  "fieldName": "series",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
+                        "All levels",
                         "Elementary",
                         "Junior high",
                         "Senior high"
                       ]
-                    }
+                    },
+                    "mappings": [
+                      {
+                        "value": "All levels",
+                        "color": "#712B13"
+                      },
+                      {
+                        "value": "Elementary",
+                        "color": "#A9B4BF"
+                      },
+                      {
+                        "value": "Junior high",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "Senior high",
+                        "color": "#C9A227"
+                      }
+                    ]
                   },
-                  "displayName": "Level"
+                  "displayName": "Series"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Learners each school year, by level"
+                "title": "Learners each school year",
+                "showDescription": true,
+                "description": "The school's total first; each level is added when the school offers more than one."
               }
             }
           },

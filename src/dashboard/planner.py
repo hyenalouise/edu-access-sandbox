@@ -26,6 +26,7 @@ TOP_LGU = "(Top LGU in the filters)"
 ALL_BARANGAYS = "All barangays"
 ALL_LEVELS, ALL_SCHOOLS, FIRST_SCHOOL = "All levels", "All schools", "(First school to check)"
 ALL_MEASURES = "All measures"
+SCHOOL_YEARS = ["SY 2020-21", "SY 2021-22", "SY 2022-23", "SY 2023-24", "SY 2024-25", "SY 2025-26"]
 SCENARIOS = ["Without outlier schools", "95% coverage gate", "High line at 0.85", "High line at 0.80", "Ranked nationally"]
 
 TIERS = ["Critical", "Elevated", "Targeted", "Monitor", "Data review"]
@@ -262,18 +263,21 @@ UNION ALL SELECT level_label, ord, 'Locally funded (SEF, LGU, other)', locally_f
 PR_ENROLLMENT = f"""WITH {LGU},
 {SEL},
 y AS (SELECT a.* FROM {A}.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code))
-SELECT make_date(school_year_start, 6, 1) AS sy_date, 'All sectors' AS scope, enrollment_all_sectors AS learners FROM y
-UNION ALL SELECT make_date(school_year_start, 6, 1), 'Public schools', public_school_enrollment FROM y"""
+SELECT 'SY ' || school_year AS school_year_label, 'All sectors' AS scope, enrollment_all_sectors AS learners FROM y
+UNION ALL SELECT 'SY ' || school_year, 'Public schools', public_school_enrollment FROM y"""
 
+CENSUS_SERIES = ["Children aged 5-17", "Enrolled, all sectors", "Difference (children minus enrolled)"]
 PR_CENSUS = f"""WITH {LGU},
-{SEL}
-SELECT CAST(a.census_year AS STRING) || ' · SY ' || a.school_year AS period, a.school_age_population,
-       a.enrollment_all_sectors, a.population_enrollment_gap, a.gap_share,
-       CASE WHEN a.is_2020_2024_geography_comparable THEN 'Comparable' ELSE 'Boundaries changed; compare with care' END AS comparability
-FROM {A}.ap4_enrollment_trend AS a
-JOIN sel USING (city_mun_psgc_code)
-WHERE a.census_year IS NOT NULL
-ORDER BY a.census_year"""
+{SEL},
+c AS (
+  SELECT CAST(a.census_year AS STRING) || ' · SY ' || a.school_year
+           || CASE WHEN a.is_2020_2024_geography_comparable THEN '' ELSE ' (boundaries changed)' END AS period, a.*
+  FROM {A}.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code)
+  WHERE a.census_year IS NOT NULL
+)
+SELECT period, '{CENSUS_SERIES[0]}' AS series, school_age_population AS people FROM c
+UNION ALL SELECT period, '{CENSUS_SERIES[1]}', enrollment_all_sectors FROM c
+UNION ALL SELECT period, '{CENSUS_SERIES[2]}', population_enrollment_gap FROM c"""
 
 
 def school_base(level_param=True):
@@ -549,12 +553,19 @@ WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL
   AND COALESCE(s.learners_per_teacher_at_level, s.learners_per_teacher) IS NOT NULL"""
 
 SA_TREND = f"""WITH {school_base()},
-{PICK}
-SELECT make_date(CAST(left(e.school_year, 4) AS INT), 6, 1) AS sy_date,
-       {LEVEL_LABEL.format(c='e.education_level_code')} AS level, SUM(e.learner_count) AS learners
-FROM e JOIN pick USING (school_id)
-WHERE e.is_offered
-GROUP BY e.school_year, e.education_level_code"""
+{PICK},
+y AS (
+  SELECT 'SY ' || e.school_year AS school_year_label, e.education_level_code, SUM(e.learner_count) AS learners
+  FROM e JOIN pick USING (school_id)
+  WHERE e.is_offered
+  GROUP BY e.school_year, e.education_level_code
+),
+levels AS (SELECT COUNT(DISTINCT education_level_code) AS n FROM y)
+-- the school's total first; each level only when the school offers more than one
+SELECT school_year_label, 'All levels' AS series, SUM(learners) AS learners FROM y GROUP BY school_year_label
+UNION ALL
+SELECT school_year_label, {LEVEL_LABEL.format(c='education_level_code')}, learners FROM y
+WHERE (SELECT n FROM levels) > 1"""
 
 SA_ROOMS = f"""WITH {school_base()},
 {PICK},
@@ -892,22 +903,23 @@ def lgu_profile(b):
                "means not assessed. Schools above an outlier fence stay in every total; the last row "
                "shows whether the tier holds without them."), 6)], 7)
     p.row([(bar(b, "pr_teachers", "Teachers by level, and who funds them", "level_label", "Level", "sum", "teachers",
-                "Teachers", horizontal=False, color="funding", color_label="Funding", layout="stack",
+                "Teachers", color="funding", color_label="Funding", layout="stack",
                 mappings=[{"value": "DepEd-funded", "color": "#5B6B7A"},
                           {"value": "Locally funded (SEF, LGU, other)", "color": "#C9A227"}],
                 desc="Public-school teachers, SY 2023-24. Learners per teacher in each label is the AP3 ratio for the level; "
-                     "locally funded positions are included in it."), 6),
-           (line(b, "pr_enrollment", "Enrollment, SY 2020-21 to 2025-26 · context only", "sy_date", "School year (start)",
+                     "locally funded positions are included in it."), 12)], 5)
+    p.row([(line(b, "pr_enrollment", "Enrollment each school year · context only", "school_year_label", "School year",
                  "sum", "learners", "Learners", num(1, True), color="scope", color_label="Scope",
                  mappings=[{"value": "All sectors", "color": "#5B6B7A"}, {"value": "Public schools", "color": "#C9A227"}],
-                 desc="All-sector enrollment includes private and state or local college schools. Enrollment does not set "
-                      "the tier."), 6)], 7)
-    p.row([(table(b, "pr_census", "School-age population and enrollment · context only", [
-        ("period", "Census · school year", None), ("school_age_population", "Children aged 5-17", num()),
-        ("enrollment_all_sectors", "Enrolled, all sectors", num()), ("population_enrollment_gap", "Difference", num()),
-        ("gap_share", "Difference share", pct(1)), ("comparability", "2020 to 2024", None)],
-        "Children are counted where they live and learners where their school is, so the difference is not the number "
-        "of children out of school. A negative difference usually means local schools also serve nearby places."), 12)], 4)
+                 x_order=SCHOOL_YEARS,
+                 desc="All sectors includes private and state or local college schools. Enrollment does not set the tier."), 6),
+           (bar(b, "pr_census", "Children aged 5-17 and enrolled learners · context only", "period", "Census · school year",
+                "sum", "people", "People", horizontal=False, color="series", color_label="Series", layout="group",
+                mappings=[{"value": CENSUS_SERIES[0], "color": "#5B6B7A"}, {"value": CENSUS_SERIES[1], "color": "#A9B4BF"},
+                          {"value": CENSUS_SERIES[2], "color": "#C9A227"}],
+                color_order=CENSUS_SERIES, fmt=num(1, True),
+                desc="Children are counted where they live and learners where their school is, so the difference is not "
+                     "the number of children out of school. Below zero usually means local schools also serve nearby places."), 6)], 7)
     p.row([(table(b, "pr_barangays", "Barangay access", [
         ("barangay_name", "Barangay", None), ("urban_rural", "Urban or rural", None),
         ("public_schools", "Public schools", num()), ("public_es", "Public elementary", None),
@@ -948,9 +960,12 @@ def school_action(b):
            (table(b, "sa_verify", "Figures to verify", [("status", "Status", None), ("reason", "Exact reason", None),
                                                          ("next_step", "Next step", None)],
                   "A flag means verify, not incorrect. Flagged schools stay in every total."), 5)], 8)
-    p.row([(line(b, "sa_trend", "Learners each school year, by level", "sy_date", "School year (start)", "sum",
-                 "learners", "Learners", num(), color="level", color_label="Level", kind="area",
-                 color_order=["Elementary", "Junior high", "Senior high"]), 6),
+    p.row([(line(b, "sa_trend", "Learners each school year", "school_year_label", "School year", "sum",
+                 "learners", "Learners", num(), color="series", color_label="Series", x_order=SCHOOL_YEARS,
+                 mappings=[{"value": "All levels", "color": "#712B13"}, {"value": "Elementary", "color": "#A9B4BF"},
+                           {"value": "Junior high", "color": "#5B6B7A"}, {"value": "Senior high", "color": "#C9A227"}],
+                 color_order=["All levels", "Elementary", "Junior high", "Senior high"],
+                 desc="The school's total first; each level is added when the school offers more than one."), 6),
            (table(b, "sa_rooms", "Rooms and teachers", [
                ("level", "Level", None), ("learners", "Learners", num()), ("teachers", "Teachers", num()),
                ("learners_per_teacher", "Per teacher", num(1)), ("classrooms", "Classrooms", num()),
