@@ -11,8 +11,9 @@ flowchart LR
     silver_build[Silver builds and gates] --> runs
     batches --> current[[current_batches view]]
     current --> silver[03 Silver reads only these batches]
-    dq --> fan_in[90_validate_control<br/>fan-in]
+    runs --> fan_in[90_validate_control<br/>fan-in]
     current --> freshness[90_validate_freshness]
+    fan_in & freshness --> dq
     dq --> alerts[quality_failures and<br/>stale_sources alerts]
     dq --> dashboard[Data-quality dashboard]
 ```

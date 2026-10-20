@@ -41,7 +41,7 @@ Each source moves through Bronze and Silver in its own lane. From Silver on, eve
 | **Implemented** | 8 sources through Bronze and Silver, 5 Integration maps, 12 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
 | **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
 | **Not yet proven on Databricks** | The Analytics outputs and the data-quality dashboard: tested locally, with no Databricks run in `evidence/` yet |
-| **Not built** | A `prod` target (#99); the LGU planner dashboard is in review |
+| **Not built** | A `prod` target (#99); the LGU planner dashboard is in progress (#211) |
 
 A commit on `main` is not what runs in the workspace until it is deployed: the job records the commit it ran as `code_revision` on every row it writes.
 
