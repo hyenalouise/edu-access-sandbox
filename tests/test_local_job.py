@@ -361,6 +361,8 @@ def test_every_dashboard_query_runs_on_the_job_output(repo, tmp_path):
                 if not q["query"]["disaggregated"] and groups and len(groups) < len(fields):
                     sql += " GROUP BY " + ", ".join(groups)
                 store.query(sql, params)
-    insights = store.query(dataset_sql("pr_insights")[0], dataset_sql("pr_insights")[1])
-    assert 1 <= len(insights) <= 4 and all(text for _, text in insights)
+    insights = store.query(*dataset_sql("pr_insights"))  # one row of four findings, at least one filled
+    assert len(insights) == 1 and any(insights[0])
+    answers = store.query(*dataset_sql("pr_answers"))
+    assert len(answers) == 1 and any(answers[0])
     store.close()

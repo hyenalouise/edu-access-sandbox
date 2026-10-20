@@ -12,6 +12,7 @@ ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
 PAGES = ["overview", "lgu_profile", "school_action", "data_and_method"]
 HEADINGS = ("Selected city or municipality", "Place details", "Selected school", "School details", "Data freshness")  # not KPIs
+SENTENCES = tuple(planner.FINDINGS) + tuple(title for title, _, _ in planner.ANSWERS)  # LGU Profile findings and answers
 
 
 def load():
@@ -36,7 +37,7 @@ def test_four_views_in_order_then_the_global_filters():
 def test_no_page_has_more_than_four_kpis():
     for page in load()["pages"][:4]:
         counters = [w for w in widgets(page) if w.get("spec", {}).get("widgetType") == "counter"
-                    and w["spec"]["frame"]["title"] not in HEADINGS]
+                    and w["spec"]["frame"]["title"] not in HEADINGS + SENTENCES]
         assert len(counters) == 4, page["name"]
         for counter in counters:  # a counter shows its value large: no sentences in the template
             template = counter["spec"]["encodings"]["value"].get("formatTemplate", "")

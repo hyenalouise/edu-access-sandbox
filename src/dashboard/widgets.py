@@ -70,7 +70,7 @@ def agg(fn, column):
     return f"{fn.lower()}({column})", f"{fn.upper()}({bt(column)})"
 
 
-def cat(field, label, order=None, mappings=None, sort_by=None, size=None):
+def cat(field, label, order=None, mappings=None, sort_by=None, size=None, legend=None):
     scale = {"type": "categorical"}
     if size:
         scale["categorySize"] = {"type": "number-of-categories", "number": size}
@@ -80,7 +80,10 @@ def cat(field, label, order=None, mappings=None, sort_by=None, size=None):
         scale["sort"] = {"by": sort_by}
     if mappings:
         scale["mappings"] = mappings
-    return {"fieldName": field, "scale": scale, "displayName": label}
+    value = {"fieldName": field, "scale": scale, "displayName": label}
+    if legend:
+        value["legend"] = legend
+    return value
 
 
 def quant(field, label, fmt=None):
@@ -111,7 +114,7 @@ def chart(b, kind, dataset, title, encodings, fields, desc=None, disaggregated=F
 
 
 def kpi(b, dataset, title, column, fmt=None, template=None, desc=None, extra=(), target=None, target_label=None,
-        style=None, heading=False, align=None):
+        style=None, heading=False, align=None, card_style=None):
     """Counter on a one-row dataset; extra columns feed the template. A heading shows only its value, styled large or
     small, with the title and description hidden."""
     fields = [(column, bt(column))] + [(c, bt(c)) for c in extra]
@@ -128,21 +131,33 @@ def kpi(b, dataset, title, column, fmt=None, template=None, desc=None, extra=(),
         encodings["target"] = {"fieldName": target, "displayName": target_label}
         if fmt:
             encodings["target"]["format"] = fmt
-    return {"name": b.uid("kpi"), "queries": query(dataset, fields, True),
-            "spec": {"version": 2, "widgetType": "counter", "encodings": encodings,
-                     "frame": frame(title, desc, not heading, not heading, align)}}
+    spec = {"version": 2, "widgetType": "counter", "encodings": encodings,
+            "frame": frame(title, desc, not heading, not heading, align)}
+    if card_style:
+        spec["style"] = card_style
+    return {"name": b.uid("kpi"), "queries": query(dataset, fields, True), "spec": spec}
+
+
+def note(b, dataset, title, column, desc=None, style=None, show_title=True, label=None):
+    """A counter that shows one sentence (a finding or an answer), not a KPI."""
+    value = {"fieldName": column, "displayName": label or title}
+    if style:
+        value["style"] = style
+    return {"name": b.uid("note"), "queries": query(dataset, [(column, bt(column))], True),
+            "spec": {"version": 2, "widgetType": "counter", "encodings": {"value": value},
+                     "frame": frame(title, desc, show_title, bool(desc), None if desc else "left")}}
 
 
 def bar(b, dataset, title, x, x_label, fn, value, value_label, horizontal=True, color=None, color_label=None,
         mappings=None, order=None, color_order=None, fmt=None, layout=None, desc=None, sort_by=None, annotations=None,
-        categories_shown=None):
+        categories_shown=None, legend=None):
     name, expression = agg(fn, value)
     fields = [(x, bt(x)), (name, expression)] + ([(color, bt(color))] if color and color != x else [])
     category = cat(x, x_label, order, None, sort_by, categories_shown)
     measure = quant(name, value_label, fmt)
     encodings = {"x": measure, "y": category} if horizontal else {"x": category, "y": measure}
     if color:
-        encodings["color"] = cat(color, color_label, color_order, mappings)
+        encodings["color"] = cat(color, color_label, color_order, mappings, legend=legend)
     return chart(b, "bar", dataset, title, encodings, fields, desc, mark={"layout": layout} if layout else None,
                  annotations=annotations)
 
@@ -241,12 +256,12 @@ class Page:
         self.y += height
 
     def columns(self, columns, height):
-        """Side-by-side columns of stacked widgets: columns are (width, [(widget, height), ...]), each column filling
+        """Side-by-side columns of stacked widgets: columns are (width, [(widget, height), ...]), each column at most
         `height` rows."""
         assert sum(width for width, _ in columns) == 12, (self.name, [width for width, _ in columns])
         x = 0
         for width, stack in columns:
-            assert sum(h for _, h in stack) == height, (self.name, [h for _, h in stack])
+            assert sum(h for _, h in stack) <= height, (self.name, [h for _, h in stack])
             y = self.y
             for widget, h in stack:
                 self.items.append({"widget": widget, "position": {"x": x, "y": y, "width": width, "height": h}})
