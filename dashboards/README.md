@@ -36,15 +36,15 @@ The tier is D-057 from [`lgu_priority_matrix`](../etl/06_analytics/README.md): A
 | | LGUs needing data review | Not given a tier because a measure is below the coverage gate |
 | LGU Profile | High-pressure measures | Measures at or above the 90th percentile, of 3 |
 | | Public learners | `affected_learners`, SY 2023-24 |
-| | Barangays without a matched public elementary school | Regular PSGC barangays with no matched active public school offering elementary, of all regular barangays (an upper bound when schools are not matched to a barangay) |
+| | Barangays without a public elementary school | Regular PSGC barangays with no matched active public school offering elementary, of all regular barangays (an upper bound when schools are not matched to a barangay) |
 | | Schools with figures to verify | Public schools above an AP2 or AP3 outlier fence, missing a report, or reporting zero rooms or teachers |
-| School Action | Learners per reported instructional room | The selected school, all levels, SY 2023-24 |
+| School Action | Learners per reported room | The selected school, all levels, SY 2023-24 |
 | | Learners per teacher | At the education level chosen, or all levels |
 | | Enrollment change | SY 2020-21 to SY 2025-26, only when both years are complete |
 | | Temporary and makeshift rooms | Temporary learning spaces plus makeshift rooms, SY 2023-24 |
 | Data and Method | Assessed LGUs | Every measure at 90% coverage or more |
 | | LGUs requiring data review | At least one measure below the gate |
-| | Stable priority results | Critical within type and nationally, of all Critical |
+| | Stable Critical results | Critical within type and nationally, of all Critical |
 | | Tier changes without flagged schools | `outliers_change_tier` from `lgu_priority_checks` |
 
 ## Filters

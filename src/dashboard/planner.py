@@ -804,15 +804,13 @@ def overview(b):
            (param_filter(b, "tier", "Priority tier", targets), 3),
            (param_filter(b, "coverage", "Coverage status", targets,
                          "Assessed places have every measure at 90% coverage or more."), 3)], 2)
-    p.row([(kpi(b, "ov_kpi", "Priority LGUs", "priority_lgus", num(), "{{ @formatted }} Critical or Elevated",
-                "High on at least two of the three measures. Follows every filter on this page."), 3),
+    p.row([(kpi(b, "ov_kpi", "Priority LGUs", "priority_lgus", num(), desc="Critical or Elevated: high on 2 or 3 measures"), 3),
            (kpi(b, "ov_kpi", "Public learners in priority LGUs", "priority_learners", num(1, True),
-                "{{ @formatted }} · {{share_txt}} of public learners in view",
-                "SY 2023-24 public-school learners in Critical and Elevated places.", extra=("share_txt",)), 3),
-           (kpi(b, "ov_kpi", "Critical LGUs", "critical_lgus", num(), "{{ @formatted }} high on all three",
-                "High on schools, classrooms and teachers compared with places of the same type."), 3),
-           (kpi(b, "ov_kpi", "LGUs needing data review", "data_review_lgus", num(), "{{ @formatted }} not given a tier",
-                "A measure covers less than 90% of schools or learners, so no tier is assigned."), 3)], 3)
+                "{{ @formatted }} ({{share_txt}})", "SY 2023-24 · share of public learners in view",
+                extra=("share_txt",)), 3),
+           (kpi(b, "ov_kpi", "Critical LGUs", "critical_lgus", num(), desc="High on all three measures"), 3),
+           (kpi(b, "ov_kpi", "LGUs needing data review", "data_review_lgus", num(),
+                desc="Under 90% coverage on a measure: no tier"), 3)], 3)
     p.row([(choropleth(b, "ov_lgu", "Where the priority places are", "tier_level", "Tier (0 data review, 4 Critical)",
                        [("lgu_label", "City or municipality"), ("tier", "Tier"), ("high_areas", "High on")],
                        "#B4B2A9", "#712B13",
@@ -851,22 +849,18 @@ def lgu_profile(b):
     p.row([(text(b, "# Why is this place a priority, and where should the board look?\n",
                  "Choose the place in *City or municipality* and, for the barangay and school sections, a *Barangay* at "
                  "the top. Figures are SY 2023-24 unless a title says otherwise."), 12)], 2)
-    p.row([(kpi(b, "pr_card", "Selected city or municipality", "lgu_label", None,
-                "{{ @formatted }} · {{tier}} · rank {{rank_label}} · {{tier_meaning}} {{stability}} {{notice}}",
-                "The tier counts the measures at or above the 90th percentile within LGU type (D-057).",
-                extra=("tier", "rank_label", "tier_meaning", "stability", "notice")), 12)], 2)
-    p.row([(kpi(b, "pr_card", "High-pressure measures", "high_count_label", None, "{{ @formatted }} · {{high_areas}}",
-                "Measures at or above the 90th percentile among places of the same type.", extra=("high_areas",)), 3),
-           (kpi(b, "pr_card", "Public learners", "affected_learners", num(), "{{ @formatted }} learners",
-                "SY 2023-24 public-school learners in schools with a complete count."), 3),
-           (kpi(b, "pr_local", "Barangays without a matched public elementary school", "barangays_without_public_es",
-                num(), "{{bound_prefix}}{{ @formatted }} of {{regular_barangays}} barangays",
-                "A screening count, not a ranking. A school in a nearby barangay may still serve them.",
+    p.row([(table(b, "pr_card", "Selected city or municipality", [
+        ("lgu_label", "City or municipality", None), ("lgu_type_label", "Type", None), ("tier", "Tier", None),
+        ("rank_label", "Rank", None), ("high_areas", "High on", None), ("tier_meaning", "What the tier means", None),
+        ("stability", "Stability", None), ("notice", "Note", None)]), 12)], 3)
+    p.row([(kpi(b, "pr_card", "High-pressure measures", "high_count_label", None,
+                desc="At or above the 90th percentile of its type"), 3),
+           (kpi(b, "pr_card", "Public learners", "affected_learners", num(), desc="SY 2023-24, complete school counts"), 3),
+           (kpi(b, "pr_local", "Barangays without a public elementary school", "barangays_without_public_es", num(),
+                "{{bound_prefix}}{{ @formatted }} of {{regular_barangays}}", "Matched public schools · a screening count",
                 extra=("bound_prefix", "regular_barangays")), 3),
            (kpi(b, "pr_local", "Schools with figures to verify", "schools_to_check", num(),
-                "{{ @formatted }} of {{schools}} public schools",
-                "Above an outlier fence, missing a report, or reporting zero rooms or teachers. See School Action.",
-                extra=("schools",)), 3)], 3)
+                "{{ @formatted }} of {{schools}}", "Unusual, missing or zero · see School Action", extra=("schools",)), 3)], 3)
     p.row([(table(b, "pr_insights", "What stands out", [("insight", "Finding", None)],
                   "Up to four facts, each from a fixed rule over the same tables as the charts, and left out when its "
                   "data is incomplete. They describe the place; they do not explain why."), 12)], 4)
@@ -923,18 +917,16 @@ def school_action(b):
            (param_filter(b, "level", "Education level", targets), 2),
            (param_filter(b, "school_status", "School status", ["sa_list"]), 2),
            (param_filter(b, "school", "School", targets, "Defaults to the first school to check."), 2)], 2)
-    p.row([(kpi(b, "sa_school", "Selected school", "school_name", None,
-                "{{ @formatted }} · ID {{school_id}} · {{barangay_name}} · {{school_kind}} · {{levels_offered}} · "
-                "{{learners}} learners · {{check_label}} {{notice}}",
-                extra=("school_id", "barangay_name", "school_kind", "levels_offered", "learners", "check_label", "notice")), 12)], 2)
-    p.row([(kpi(b, "sa_school", "Learners per reported instructional room", "learners_per_room", num(1),
-                "{{ @formatted }} learners per room", "All levels; rooms include laboratories and other instructional rooms."), 3),
-           (kpi(b, "sa_school", "Learners per teacher", "teacher_ratio", num(1), "{{ @formatted }} at {{level_txt}}",
-                "At the education level chosen above.", extra=("level_txt",)), 3),
-           (kpi(b, "sa_school", "Enrollment change", "enrollment_change", pct(1), "{{ @formatted }} SY 2020-21 to 2025-26",
-                "Shown only when both years have complete counts."), 3),
+    p.row([(table(b, "sa_school", "Selected school", [
+        ("school_name", "School", None), ("school_id", "School ID", None), ("barangay_name", "Barangay", None),
+        ("school_kind", "Main or annex", None), ("levels_offered", "Levels", None), ("learners", "Learners", num()),
+        ("check_label", "Figures", None), ("notice", "Note", None)]), 12)], 3)
+    p.row([(kpi(b, "sa_school", "Learners per reported room", "learners_per_room", num(1),
+                desc="All levels · rooms include labs"), 3),
+           (kpi(b, "sa_school", "Learners per teacher", "teacher_ratio", num(1), desc="At the education level chosen above"), 3),
+           (kpi(b, "sa_school", "Enrollment change", "enrollment_change", pct(1), desc="SY 2020-21 to 2025-26, if complete"), 3),
            (kpi(b, "sa_school", "Temporary and makeshift rooms", "temporary_or_makeshift_rooms", num(),
-                "{{ @formatted }} rooms", "Temporary learning spaces plus makeshift rooms, SY 2023-24."), 3)], 3)
+                desc="SY 2023-24"), 3)], 3)
     p.row([(scatter(b, "sa_peers", "This school among schools in the same place", "learners_per_room",
                     "Learners per classroom", "teacher_ratio", "Learners per teacher", "series", "School",
                     STATUS_COLORS, [c["value"] for c in STATUS_COLORS], "learners", "Learners", "school_name",
@@ -971,14 +963,12 @@ def data_and_method(b):
            (param_filter(b, "measure", "Measure", ["dm_coverage", "dm_reasons"]), 3),
            (param_filter(b, "scenario", "Validation check", ["dm_transition"]), 3)], 2)
     p.row([(kpi(b, "dm_kpi", "Assessed LGUs", "assessed", num(), "{{ @formatted }} of {{lgus}}",
-                "Every measure at 90% coverage or more, so a tier is assigned.", extra=("lgus",)), 3),
-           (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), "{{ @formatted }} places",
-                "At least one measure below the coverage gate."), 3),
-           (kpi(b, "dm_kpi", "Stable priority results", "stable", num(), "{{ @formatted }} of {{critical}} Critical",
-                "Critical within type and also when every place is ranked together.", extra=("critical",)), 3),
-           (kpi(b, "dm_kpi", "Tier changes without flagged schools", "outlier_changes", num(), "{{ @formatted }} places",
-                "Places whose tier would differ if schools above an outlier fence were left out. The published tier "
-                "keeps them."), 3)], 3)
+                "Every measure at 90% coverage or more", extra=("lgus",)), 3),
+           (kpi(b, "dm_kpi", "LGUs requiring data review", "data_review", num(), desc="A measure below the coverage gate"), 3),
+           (kpi(b, "dm_kpi", "Stable Critical results", "stable", num(), "{{ @formatted }} of {{critical}}",
+                "Critical within type and nationally", extra=("critical",)), 3),
+           (kpi(b, "dm_kpi", "Tier changes without flagged schools", "outlier_changes", num(),
+                desc="Published tiers keep the flagged schools"), 3)], 3)
     p.row([(text(b, "## How the priority is determined\n\n",
                  "1. **Three measures, SY 2023-24:** learners per public school (AP1), learners per reported instructional "
                  "room (AP2) and learners per teacher by level (AP3).\n",

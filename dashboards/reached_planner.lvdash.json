@@ -5172,15 +5172,14 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} Critical or Elevated"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Priority LGUs",
                 "showDescription": true,
-                "description": "High on at least two of the three measures. Follows every filter on this page."
+                "description": "Critical or Elevated: high on 2 or 3 measures"
               }
             }
           },
@@ -5228,14 +5227,14 @@
                     },
                     "abbreviation": "compact"
                   },
-                  "formatTemplate": "{{ @formatted }} \u00b7 {{share_txt}} of public learners in view"
+                  "formatTemplate": "{{ @formatted }} ({{share_txt}})"
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Public learners in priority LGUs",
                 "showDescription": true,
-                "description": "SY 2023-24 public-school learners in Critical and Elevated places."
+                "description": "SY 2023-24 \u00b7 share of public learners in view"
               }
             }
           },
@@ -5277,15 +5276,14 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} high on all three"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Critical LGUs",
                 "showDescription": true,
-                "description": "High on schools, classrooms and teachers compared with places of the same type."
+                "description": "High on all three measures"
               }
             }
           },
@@ -5327,15 +5325,14 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} not given a tier"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "LGUs needing data review",
                 "showDescription": true,
-                "description": "A measure covers less than 90% of schools or learners, so no tier is assigned."
+                "description": "Under 90% coverage on a measure: no tier"
               }
             }
           },
@@ -5865,7 +5862,7 @@
         },
         {
           "widget": {
-            "name": "kpi_014",
+            "name": "table_014",
             "queries": [
               {
                 "name": "main_query",
@@ -5877,12 +5874,20 @@
                       "expression": "`lgu_label`"
                     },
                     {
+                      "name": "lgu_type_label",
+                      "expression": "`lgu_type_label`"
+                    },
+                    {
                       "name": "tier",
                       "expression": "`tier`"
                     },
                     {
                       "name": "rank_label",
                       "expression": "`rank_label`"
+                    },
+                    {
+                      "name": "high_areas",
+                      "expression": "`high_areas`"
                     },
                     {
                       "name": "tier_meaning",
@@ -5903,19 +5908,46 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "counter",
+              "widgetType": "table",
               "encodings": {
-                "value": {
-                  "fieldName": "lgu_label",
-                  "displayName": "Selected city or municipality",
-                  "formatTemplate": "{{ @formatted }} \u00b7 {{tier}} \u00b7 rank {{rank_label}} \u00b7 {{tier_meaning}} {{stability}} {{notice}}"
-                }
+                "columns": [
+                  {
+                    "fieldName": "lgu_label",
+                    "displayName": "City or municipality"
+                  },
+                  {
+                    "fieldName": "lgu_type_label",
+                    "displayName": "Type"
+                  },
+                  {
+                    "fieldName": "tier",
+                    "displayName": "Tier"
+                  },
+                  {
+                    "fieldName": "rank_label",
+                    "displayName": "Rank"
+                  },
+                  {
+                    "fieldName": "high_areas",
+                    "displayName": "High on"
+                  },
+                  {
+                    "fieldName": "tier_meaning",
+                    "displayName": "What the tier means"
+                  },
+                  {
+                    "fieldName": "stability",
+                    "displayName": "Stability"
+                  },
+                  {
+                    "fieldName": "notice",
+                    "displayName": "Note"
+                  }
+                ]
               },
               "frame": {
                 "showTitle": true,
-                "title": "Selected city or municipality",
-                "showDescription": true,
-                "description": "The tier counts the measures at or above the 90th percentile within LGU type (D-057)."
+                "title": "Selected city or municipality"
               }
             }
           },
@@ -5923,7 +5955,7 @@
             "x": 0,
             "y": 2,
             "width": 12,
-            "height": 2
+            "height": 3
           }
         },
         {
@@ -5938,10 +5970,6 @@
                     {
                       "name": "high_count_label",
                       "expression": "`high_count_label`"
-                    },
-                    {
-                      "name": "high_areas",
-                      "expression": "`high_areas`"
                     }
                   ],
                   "disaggregated": true
@@ -5954,21 +5982,20 @@
               "encodings": {
                 "value": {
                   "fieldName": "high_count_label",
-                  "displayName": "High-pressure measures",
-                  "formatTemplate": "{{ @formatted }} \u00b7 {{high_areas}}"
+                  "displayName": "High-pressure measures"
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "High-pressure measures",
                 "showDescription": true,
-                "description": "Measures at or above the 90th percentile among places of the same type."
+                "description": "At or above the 90th percentile of its type"
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -6004,21 +6031,20 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} learners"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Public learners",
                 "showDescription": true,
-                "description": "SY 2023-24 public-school learners in schools with a complete count."
+                "description": "SY 2023-24, complete school counts"
               }
             }
           },
           "position": {
             "x": 3,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -6055,7 +6081,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "barangays_without_public_es",
-                  "displayName": "Barangays without a matched public elementary school",
+                  "displayName": "Barangays without a public elementary school",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -6063,20 +6089,20 @@
                       "places": 0
                     }
                   },
-                  "formatTemplate": "{{bound_prefix}}{{ @formatted }} of {{regular_barangays}} barangays"
+                  "formatTemplate": "{{bound_prefix}}{{ @formatted }} of {{regular_barangays}}"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Barangays without a matched public elementary school",
+                "title": "Barangays without a public elementary school",
                 "showDescription": true,
-                "description": "A screening count, not a ranking. A school in a nearby barangay may still serve them."
+                "description": "Matched public schools \u00b7 a screening count"
               }
             }
           },
           "position": {
             "x": 6,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -6117,20 +6143,20 @@
                       "places": 0
                     }
                   },
-                  "formatTemplate": "{{ @formatted }} of {{schools}} public schools"
+                  "formatTemplate": "{{ @formatted }} of {{schools}}"
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Schools with figures to verify",
                 "showDescription": true,
-                "description": "Above an outlier fence, missing a report, or reporting zero rooms or teachers. See School Action."
+                "description": "Unusual, missing or zero \u00b7 see School Action"
               }
             }
           },
           "position": {
             "x": 9,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -6174,7 +6200,7 @@
           },
           "position": {
             "x": 0,
-            "y": 7,
+            "y": 8,
             "width": 12,
             "height": 4
           }
@@ -6295,7 +6321,7 @@
           },
           "position": {
             "x": 0,
-            "y": 11,
+            "y": 12,
             "width": 6,
             "height": 7
           }
@@ -6387,7 +6413,7 @@
           },
           "position": {
             "x": 6,
-            "y": 11,
+            "y": 12,
             "width": 6,
             "height": 7
           }
@@ -6467,7 +6493,7 @@
           },
           "position": {
             "x": 0,
-            "y": 18,
+            "y": 19,
             "width": 6,
             "height": 7
           }
@@ -6552,7 +6578,7 @@
           },
           "position": {
             "x": 6,
-            "y": 18,
+            "y": 19,
             "width": 6,
             "height": 7
           }
@@ -6664,7 +6690,7 @@
           },
           "position": {
             "x": 0,
-            "y": 25,
+            "y": 26,
             "width": 12,
             "height": 4
           }
@@ -6754,7 +6780,7 @@
           },
           "position": {
             "x": 0,
-            "y": 29,
+            "y": 30,
             "width": 12,
             "height": 8
           }
@@ -6837,7 +6863,7 @@
           },
           "position": {
             "x": 0,
-            "y": 37,
+            "y": 38,
             "width": 12,
             "height": 5
           }
@@ -7257,7 +7283,7 @@
         },
         {
           "widget": {
-            "name": "kpi_031",
+            "name": "table_031",
             "queries": [
               {
                 "name": "main_query",
@@ -7303,13 +7329,49 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "counter",
+              "widgetType": "table",
               "encodings": {
-                "value": {
-                  "fieldName": "school_name",
-                  "displayName": "Selected school",
-                  "formatTemplate": "{{ @formatted }} \u00b7 ID {{school_id}} \u00b7 {{barangay_name}} \u00b7 {{school_kind}} \u00b7 {{levels_offered}} \u00b7 {{learners}} learners \u00b7 {{check_label}} {{notice}}"
-                }
+                "columns": [
+                  {
+                    "fieldName": "school_name",
+                    "displayName": "School"
+                  },
+                  {
+                    "fieldName": "school_id",
+                    "displayName": "School ID"
+                  },
+                  {
+                    "fieldName": "barangay_name",
+                    "displayName": "Barangay"
+                  },
+                  {
+                    "fieldName": "school_kind",
+                    "displayName": "Main or annex"
+                  },
+                  {
+                    "fieldName": "levels_offered",
+                    "displayName": "Levels"
+                  },
+                  {
+                    "fieldName": "learners",
+                    "displayName": "Learners",
+                    "format": {
+                      "type": "number-plain",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 0
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "check_label",
+                    "displayName": "Figures"
+                  },
+                  {
+                    "fieldName": "notice",
+                    "displayName": "Note"
+                  }
+                ]
               },
               "frame": {
                 "showTitle": true,
@@ -7321,7 +7383,7 @@
             "x": 0,
             "y": 2,
             "width": 12,
-            "height": 2
+            "height": 3
           }
         },
         {
@@ -7348,28 +7410,27 @@
               "encodings": {
                 "value": {
                   "fieldName": "learners_per_room",
-                  "displayName": "Learners per reported instructional room",
+                  "displayName": "Learners per reported room",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 1
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} learners per room"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Learners per reported instructional room",
+                "title": "Learners per reported room",
                 "showDescription": true,
-                "description": "All levels; rooms include laboratories and other instructional rooms."
+                "description": "All levels \u00b7 rooms include labs"
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7386,10 +7447,6 @@
                     {
                       "name": "teacher_ratio",
                       "expression": "`teacher_ratio`"
-                    },
-                    {
-                      "name": "level_txt",
-                      "expression": "`level_txt`"
                     }
                   ],
                   "disaggregated": true
@@ -7409,21 +7466,20 @@
                       "type": "max",
                       "places": 1
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} at {{level_txt}}"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Learners per teacher",
                 "showDescription": true,
-                "description": "At the education level chosen above."
+                "description": "At the education level chosen above"
               }
             }
           },
           "position": {
             "x": 3,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7459,21 +7515,20 @@
                       "type": "max",
                       "places": 1
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} SY 2020-21 to 2025-26"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Enrollment change",
                 "showDescription": true,
-                "description": "Shown only when both years have complete counts."
+                "description": "SY 2020-21 to 2025-26, if complete"
               }
             }
           },
           "position": {
             "x": 6,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7509,21 +7564,20 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} rooms"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Temporary and makeshift rooms",
                 "showDescription": true,
-                "description": "Temporary learning spaces plus makeshift rooms, SY 2023-24."
+                "description": "SY 2023-24"
               }
             }
           },
           "position": {
             "x": 9,
-            "y": 4,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7633,7 +7687,7 @@
           },
           "position": {
             "x": 0,
-            "y": 7,
+            "y": 8,
             "width": 7,
             "height": 8
           }
@@ -7693,7 +7747,7 @@
           },
           "position": {
             "x": 7,
-            "y": 7,
+            "y": 8,
             "width": 5,
             "height": 8
           }
@@ -7773,7 +7827,7 @@
           },
           "position": {
             "x": 0,
-            "y": 15,
+            "y": 16,
             "width": 6,
             "height": 7
           }
@@ -7907,7 +7961,7 @@
           },
           "position": {
             "x": 6,
-            "y": 15,
+            "y": 16,
             "width": 6,
             "height": 7
           }
@@ -8051,7 +8105,7 @@
           },
           "position": {
             "x": 0,
-            "y": 22,
+            "y": 23,
             "width": 12,
             "height": 10
           }
@@ -8067,7 +8121,7 @@
           },
           "position": {
             "x": 0,
-            "y": 32,
+            "y": 33,
             "width": 12,
             "height": 1
           }
@@ -8301,7 +8355,7 @@
                 "showTitle": true,
                 "title": "Assessed LGUs",
                 "showDescription": true,
-                "description": "Every measure at 90% coverage or more, so a tier is assigned."
+                "description": "Every measure at 90% coverage or more"
               }
             }
           },
@@ -8343,15 +8397,14 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} places"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "LGUs requiring data review",
                 "showDescription": true,
-                "description": "At least one measure below the coverage gate."
+                "description": "A measure below the coverage gate"
               }
             }
           },
@@ -8390,7 +8443,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "stable",
-                  "displayName": "Stable priority results",
+                  "displayName": "Stable Critical results",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -8398,14 +8451,14 @@
                       "places": 0
                     }
                   },
-                  "formatTemplate": "{{ @formatted }} of {{critical}} Critical"
+                  "formatTemplate": "{{ @formatted }} of {{critical}}"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Stable priority results",
+                "title": "Stable Critical results",
                 "showDescription": true,
-                "description": "Critical within type and also when every place is ranked together."
+                "description": "Critical within type and nationally"
               }
             }
           },
@@ -8447,15 +8500,14 @@
                       "type": "max",
                       "places": 0
                     }
-                  },
-                  "formatTemplate": "{{ @formatted }} places"
+                  }
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Tier changes without flagged schools",
                 "showDescription": true,
-                "description": "Places whose tier would differ if schools above an outlier fence were left out. The published tier keeps them."
+                "description": "Published tiers keep the flagged schools"
               }
             }
           },
