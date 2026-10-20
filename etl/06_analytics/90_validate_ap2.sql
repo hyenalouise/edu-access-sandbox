@@ -3,7 +3,8 @@
 -- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
 -- FAIL: rows, keys or LGUs that differ from dim_city_municipality, school counts, learners, rooms or outlier counts
 -- that differ from a recount from Gold, wrong ratio or coverage arithmetic, an assessment that does not follow the
--- 90% learner-coverage gate, a percentile that differs from PERCENT_RANK over the assessed LGUs, or a wrong high flag.
+-- 90% learner-coverage gate, a percentile that differs from PERCENT_RANK over the assessed LGUs, a wrong high flag,
+-- or a wrong EDCOM 2-PIDS congestion benchmark or status.
 -- WARN: active public schools and learners not placed in a city or municipality.
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
@@ -90,6 +91,9 @@ SELECT
        OR ABS(c.national_percentile - r.national_pct) > 1e-9) AS percentile_mismatch,
   (SELECT COALESCE(COUNT_IF(is_high IS DISTINCT FROM COALESCE(within_type_percentile >= 0.9, FALSE)
     OR is_high_nationally IS DISTINCT FROM COALESCE(national_percentile >= 0.9, FALSE)), 0) FROM c) AS high_mismatch,
+  (SELECT COALESCE(COUNT_IF(congestion_benchmark IS DISTINCT FROM 50.0
+    OR benchmark_status IS DISTINCT FROM CASE WHEN NOT is_assessed THEN 'not assessed'
+      WHEN learners_per_classroom >= 50 THEN 'congested' ELSE 'not congested' END), 0) FROM c) AS benchmark_mismatch,
   (SELECT COUNT(*) FROM enrollment WHERE active = 1 AND psgc_match_status <> 'matched') AS unplaced_active_schools,
   (SELECT COALESCE(SUM(learners), 0) FROM enrollment WHERE active = 1 AND psgc_match_status <> 'matched')
     AS unplaced_public_learners,
@@ -112,6 +116,7 @@ FROM (
   UNION ALL SELECT 'coverage_gate_valid', CASE WHEN assessment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(assessment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'percentile_is_percent_rank', CASE WHEN percentile_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(percentile_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'high_at_90th_percentile', CASE WHEN high_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(high_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'congestion_benchmark_valid', CASE WHEN benchmark_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(benchmark_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_active_public_schools', CASE WHEN unplaced_active_schools = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_active_schools AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_public_learners', CASE WHEN unplaced_public_learners = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_public_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgus_high', 'PASS', CAST(NULL AS STRING), CAST(high_lgus AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
@@ -128,5 +133,5 @@ WHERE run_id = :run_id AND source_id = 'ap2_classroom_pressure' AND layer = 'ana
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap2_classroom_pressure USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.ap2_classroom_pressure_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.ap2_classroom_pressure IS 'AP2 learners per reported instructional room by regular LGU, SY 2023-24, ranked within LGU type (D-057).';
+COMMENT ON TABLE edu_access.`06-analytics`.ap2_classroom_pressure IS 'AP2 learners per reported instructional room by regular LGU, SY 2023-24, with the adopted >=50 congestion benchmark and D-057 percentile context.';
 ALTER TABLE edu_access.`06-analytics`.ap2_classroom_pressure OWNER TO `reached-hq`;

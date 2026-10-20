@@ -13,11 +13,11 @@ The metric contracts are complete enough to build and test the Gold facts. Publi
 | Area | What is supported now | What prevents final approval |
 |---|---|---|
 | **AP1 · Schools** | Public-school and enrollment counts can be aggregated by LGU and school year; multi-level, active-school, annex, and unmatched-barangay rules are set | Publication must show geography-match coverage and preserve the screen's distance, demand, and feasibility caveats |
-| **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
-| **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions and null rules are set | The source cannot show whether one person is counted in two columns, outliers remain under review, and without a mother-school ID the ratio is project-defined, not DepEd's indicator |
+| **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero; EDCOM 2/PIDS supplies the adopted >=50 congestion screen | The facilities field uses the broader NSBI “instructional classroom” definition. The result is a congestion screen, not DepEd's published classroom–learner ratio or an RA No. 7880 shortage calculation |
+| **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level; the World Bank study supplies an aggregate ES reference and RM 379 supplies deployment-equivalent references for JHS and SHS | The source cannot show whether one person is counted in two columns, and without a mother-school ID the ratio remains project-defined. The ES reference is based on older DepEd service standards |
 | **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found, profiled, and loaded in Bronze for 2020 and 2024; SY 2020-21 and SY 2024-25 enrollment are acquired, validated in Bronze, and published in Silver | Built in `ap4_enrollment_trend` (#208) from `fact_city_school_age_population` (2020 and 2024) and `fact_school_enrollment`. The gap is not an out-of-school count, and the change is NULL where the geography is not comparable |
 | **Poverty 2023 · Context** | PSA's 2023 estimate, 90% interval, and CV for 1,597 of the 1,642 cities and municipalities; the status of the other 45 is defined (D-046) | `dim_city_poverty` is not built yet (#174), and the model stays provisional until the team mentor approves the ERD; it is context only and never an analytical result |
-| **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
+| **Resource-gap estimates** | AP2 and AP3 now carry benchmark statuses that describe pressure | Neither benchmark authorizes a room or teacher shortage estimate. The current NSBI room field remains incompatible with RA No. 7880, and RM 379 deployment factors are not staffing entitlements for this aggregated dataset |
 
 The DepEd evidence for these limitations is recorded in the source cards for [enrollment](../data/source-inventory/deped_enrollment/README.md#limitations-for-analysis), [facilities](../data/source-inventory/deped_facilities/README.md#limitations-for-analysis), and [personnel](../data/source-inventory/deped_personnel/README.md#limitations-for-analysis), with observed tests in their linked profiles.
 
@@ -146,15 +146,20 @@ school_coverage_pct =
 
 learner_coverage_pct =
     enrollment_in_schools_with_usable_room_count / public_school_enrollment * 100
+
+benchmark_status =
+    "not assessed" when the ratio does not pass the coverage gate
+    "congested" when learners_per_reported_instructional_room >= 50
+    "not congested" otherwise
 ```
 
 The ratio uses each active public school's total learners and total instructional rooms across all levels, per school year, and then sums to the city or municipality (D-047). Its numerator and denominator use the same set of schools. This follows the form of the Technical Notes classroom–learner formula (p. 8), total learners over total classrooms; the room definition still differs, as explained below. A school is denominator-usable when its total rooms are above 0. When all three room counts are blank the total is missing, not zero (608 public schools in SY 2023-24), and its school and learner counts are reported separately. A reported total of 0 is also excluded from both ratio sums and gets a separate zero-denominator school and learner count. If an LGU has no denominator-usable school, its ratio is NULL, never 0.
 
 Levels are combined because rooms are shared across levels: 768 public schools have JHS learners and ES rooms but no JHS rooms. Learner coverage is 99.3% with totals, compared with 98.8% when learners and rooms are matched level by level.
 
-The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
+The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator. The adopted EDCOM 2 summary of PIDS Discussion Paper 2025-10 identifies at least 50 learners per classroom as congested. This project applies that line as a transparent screen to its reported-room ratio, not as an official shortage count.
 
-**Validation status:** built for SY 2023-24 in `ap2_classroom_pressure` (#208), gated on learner coverage (D-057) and ranked within type. Outlier schools are counted and never change a result. School coverage is published beside it, counting a school as covered only with both a complete enrollment total and a usable room count, over active plus blank-enrollment schools. A project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap2_classroom_pressure` (#208), gated on learner coverage (D-057) and ranked within type. The output includes `congestion_benchmark = 50` and a validated `benchmark_status`. Outlier schools are counted and never change a result. School coverage is published beside it, counting a school as covered only with both a complete enrollment total and a usable room count, over active plus blank-enrollment schools. A project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
 
 ### AP3 · Teacher pressure
 
@@ -165,6 +170,16 @@ learners_per_teacher =
     sum(level enrollment for denominator-usable schools
         plus level enrollment for annexes that report 0 teachers)
     / sum(teacher_count for denominator-usable schools)
+
+es_benchmark_max_learners_per_teacher = 35
+jhs_benchmark_max_learners_per_teacher = 45 * 4 / 5 = 36
+shs_benchmark_max_learners_per_teacher = 40 * 6 / 9 = 80 / 3
+
+level_benchmark_status =
+    "not applicable" when the LGU does not offer the level
+    "not assessed" when the level does not pass the coverage gate
+    "above study reference" or "above deployment reference" when its ratio is above the applicable value
+    "at or below study reference" or "at or below deployment reference" otherwise
 
 school_coverage_pct =
     active_public_schools_with_usable_teacher_count / active_public_schools_in_scope_at_level * 100
@@ -187,11 +202,15 @@ A non-annex school is denominator-usable at a level only when `teacher_count > 0
 
 Known limit: the source cannot show whether one person is counted in two columns.
 
+The [World Bank Philippines Education Note](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), pages 3 and 15, gives an average elementary reference of 35 learners per teacher derived from DepEd service standards. A value above 35 is `above study reference`; equality or below is `at or below study reference`. Page 5 of [DepEd CALABARZON RM 379, s. 2025](https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf) gives maximum class sizes and deployment factors. JHS has a maximum of 45 learners per class and 5 teachers for every 4 classes, giving 36 learners per teacher. SHS has a maximum of 40 learners per class and 9 teachers for every 6 classes, giving 80/3, or about 26.67, learners per teacher. Values above those references are `above deployment reference`; equality or below is `at or below deployment reference`. The overall status is `not assessed` if any offered level fails its coverage gate.
+
+The published 45 for JHS and 40 for SHS are **learners per class**, not learners per teacher. AP3 cannot compare its learner-to-teacher ratio directly with either number because a secondary class is served by several subject teachers. RM 379's staffing factors make the units compatible: four JHS classes at the maximum hold `4 * 45 = 180` learners and are assigned five teachers, so `180 / 5 = 36` learners per teacher; six SHS classes at the maximum hold `6 * 40 = 240` learners and are assigned nine teachers, so `240 / 9 = 80/3`, about 26.67 learners per teacher. Applying 45 or 40 directly to AP3 would treat one class as one teacher and under-flag pressure. For example, a JHS result of 40 learners per teacher is below the class-size maximum of 45 but above the compatible deployment reference of 36. The derived values are therefore transparent unit conversions, not ratios directly printed in the memorandum and not estimates of teachers needed.
+
 The source measures personnel actually working in public schools; they are not authorized plantilla positions, vacancies, or approved new items.
 
 DepEd's documented teacher–learner method adds annex enrollment and teachers to the mother school before division. DepEd publishes no mother-school ID (#134), so AP3 cannot do this school by school. The ratio is labelled **project-defined** and must not claim to reproduce DepEd's indicator (D-047). An annex that reports 0 teachers keeps its learners in the city or municipality total instead of being dropped by the usable-denominator rule: 48 annexes with 21,114 learners in SY 2023-24. Because the ratio is summed to the city or municipality, this matches DepEd's add-to-mother rule whenever the annex and its mother school are in the same city or municipality.
 
-**Validation status:** built for SY 2023-24 in `ap3_teacher_pressure` (#208): ES, JHS and SHS side by side, each with its ratio, coverage and percentile, then D-057's re-ranked AP3 percentile and the level named. A project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, null rules, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap3_teacher_pressure` (#208): ES, JHS and SHS side by side, each with its ratio, coverage and percentile, then D-057's re-ranked AP3 percentile and the level named. The three reference values, level statuses, and overall status are validated independently. A project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, null rules, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
 
 ### AP4 · School-age population and enrollment gap
 
@@ -307,6 +326,8 @@ For each measure, the national same-type median, interquartile range, and the LG
 ### Priority rule
 
 The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
+
+AP2's congestion status and AP3's deployment-reference statuses are displayed beside the ratios. They do not set `is_high`, alter the percentile calculation, or move an LGU between D-057 tiers.
 
 1. **Coverage gate.** (Implementation note: AP1 also counts schools that offer a level but have every offered count blank in the denominator, as missing data; see AP1.) A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
 2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.

@@ -4,8 +4,8 @@
 -- coverage gate (D-057): learner coverage, the share of learners in schools with a usable room count, at least 90%.
 -- school coverage is shown beside it, with incomplete and blank-enrollment schools in its denominator.
 -- outlier schools (above Q3 + 3 x IQR within LGU type) are counted and stay in every total, they never change a result.
--- no 45:1 value is published: RA 7880's statutory line does not apply to this NSBI room count, which includes rooms
--- the law excludes (D-045), so a column beside the ratio would invite a reference line.
+-- benchmark: at least 50 learners per reported instructional room is congested, adopted from the EDCOM 2 summary
+-- of PIDS Discussion Paper 2025-10. this is a congestion screen, not RA 7880's classroom-shortage calculation.
 -- percentiles: PERCENT_RANK within LGU type and nationally, among LGUs that pass the gate.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
@@ -99,7 +99,11 @@ SELECT g.*,
        r.national_percentile,
        COALESCE(r.within_type_percentile >= 0.9, FALSE) AS is_high,
        COALESCE(r.national_percentile >= 0.9, FALSE) AS is_high_nationally,
-       'learners per reported instructional room, source DepEd School Facilities (NSBI), not the DepEd classroom-learner ratio' AS measure_label,
+       CAST(50.0 AS DOUBLE) AS congestion_benchmark,
+       CASE WHEN g.not_assessed_reason IS NOT NULL THEN 'not assessed'
+            WHEN g.learners_per_classroom >= 50 THEN 'congested'
+            ELSE 'not congested' END AS benchmark_status,
+       'learners per reported instructional room, congested at >=50 (EDCOM 2-PIDS, 2025)' AS measure_label,
        :code_revision AS code_revision
 FROM gated AS g
 LEFT JOIN ranked AS r USING (city_mun_psgc_code);

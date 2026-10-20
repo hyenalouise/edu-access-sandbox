@@ -103,13 +103,15 @@ model. `psgc_match_status` preserves whether the source row was `matched`,
 `unmatched`, `ambiguous`, or `excluded`; technical geography members do not
 erase that reason.
 
-Benchmarks remain in the national benchmark register and metric specification,
-not in the Gold model. Analytics may use a reference only after the team approves
-it for a compatible project metric, including the same numerator, denominator,
-education level, geography, period, and intended use. Incompatible and legacy
-references remain documentation only. In particular, the current NSBI classroom
-field cannot use Republic Act No. 7880's 45:1 rule, and the 2009 teacher
-deployment bands are not an active current benchmark.
+Benchmarks remain in reviewed Analytics configuration, the national benchmark
+register, and the metric specification, not in the Gold model. Under D-059, AP2
+publishes an EDCOM 2/PIDS congestion status at >=50 learners per reported
+instructional room. AP3 publishes an ES study-reference status at 35 learners
+per teacher and deployment-reference statuses for JHS at 36 and SHS at 80/3,
+derived from RM 379, s. 2025. These fields do not change D-057's
+percentile flags or tier. The current NSBI classroom field still cannot use
+Republic Act No. 7880's 45:1 shortage rule, and the 2009 teacher deployment bands
+remain historical context only.
 
 ## Columns
 

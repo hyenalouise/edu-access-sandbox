@@ -151,11 +151,17 @@ def test_ap3_publishes_each_level_and_names_the_highest(store):
         ('S1','2023-24','JHS',4), ('S3','2023-24','JHS',4)""")
     run_all(store, STEPS[:3])
     rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, es_learners_per_teacher,
-        jhs_learners_per_teacher, jhs_within_type_percentile, highest_level, within_type_percentile, is_high, is_assessed
+        jhs_learners_per_teacher, jhs_within_type_percentile, highest_level, within_type_percentile, is_high, is_assessed,
+        es_benchmark_max_learners_per_teacher, es_benchmark_status,
+        jhs_benchmark_max_learners_per_teacher, jhs_benchmark_status, benchmark_status
         FROM {ANALYTICS}.ap3_teacher_pressure WHERE lgu_type = 'City'""")}
-    assert rows["C1"] == (26.0, 50.0, 1.0, "JHS", 0.0, False, True)
+    assert rows["C1"] == (26.0, 50.0, 1.0, "JHS", 0.0, False, True,
+                          35.0, "at or below study reference", 36.0,
+                          "above deployment reference", "above reference")
     # City Two: ES 1.0 and JHS 0.0, so ES is named. Both cities' highest level is 1.0: a tie ranks both at 0.0
-    assert rows["C2"] == (33.0, 25.0, 0.0, "ES", 0.0, False, True)
+    assert rows["C2"] == (33.0, 25.0, 0.0, "ES", 0.0, False, True,
+                          35.0, "at or below study reference", 36.0,
+                          "at or below deployment reference", "at or below reference")
 
 
 def test_ap3_is_not_assessed_when_a_level_fails_and_none_is_high(store):
@@ -294,10 +300,38 @@ def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
     assert matrix(store)["C1"][1:3] == ("Data review", "data_review")
 
 
-def test_ap2_publishes_no_45_to_1_line(store):
-    # review on #210: RA 7880's 45:1 does not apply to the NSBI room count (D-045), so no column may invite a target line
+def test_ap2_publishes_the_congestion_screen_but_no_45_to_1_line(store):
+    # D-059 adopts the 50 congestion screen; RA 7880's incompatible 45:1 shortage line remains absent
     run_all(store, STEPS[1:2])
+    rows = store.query(f"""SELECT congestion_benchmark, benchmark_status
+        FROM {ANALYTICS}.ap2_classroom_pressure ORDER BY city_mun_psgc_code""")
+    assert all(row[0] == 50.0 for row in rows)
+    assert all(row[1] == "not congested" for row in rows)
     columns = [c[0] for c in store.query(f"""SELECT column_name FROM information_schema.columns
         WHERE table_name = 'ap2_classroom_pressure'""")]
     assert "learners_per_classroom" in columns
     assert not [c for c in columns if "45" in c]
+
+
+def test_ap2_congestion_starts_at_50(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = 100
+        WHERE school_id IN ('S1', 'S2') AND school_year = '2023-24' AND education_level_code = 'ES'""")
+    store.sql(f"UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 2 WHERE school_id = 'S1'")
+    store.sql(f"UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 2 WHERE school_id = 'S2'")
+    run_all(store, STEPS[1:2])
+    assert store.query(f"""SELECT learners_per_classroom, benchmark_status
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [(50.0, "congested")]
+
+
+def test_benchmark_registry_matches_published_values(store):
+    import json
+
+    registry = json.loads((ROOT / "config/analytics_benchmarks.json").read_text(encoding="utf-8"))
+    run_all(store, STEPS[:3])
+    assert store.query(f"SELECT DISTINCT congestion_benchmark FROM {ANALYTICS}.ap2_classroom_pressure") == [
+        (registry["ap2"]["threshold"],)]
+    assert store.query(f"""SELECT DISTINCT es_benchmark_max_learners_per_teacher,
+        jhs_benchmark_max_learners_per_teacher,
+        shs_benchmark_max_learners_per_teacher FROM {ANALYTICS}.ap3_teacher_pressure""") == [
+        (registry["ap3"]["es_max_learners_per_teacher"], registry["ap3"]["jhs_max_learners_per_teacher"],
+         pytest.approx(registry["ap3"]["shs_max_learners_per_teacher"]))]

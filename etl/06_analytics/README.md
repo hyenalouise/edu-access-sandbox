@@ -7,8 +7,8 @@ AP1 to AP3 and the priority table have one row per regular city or municipality.
 | Build | Output | Measure |
 |---|---|---|
 | `01_answer_ap1.sql` | `ap1_school_provision` | SY 2023-24 learners per public school (ranked), and 2024 school-age population (5–17) per public school (context) |
-| `02_answer_ap2.sql` | `ap2_classroom_pressure` | SY 2023-24 learners per reported instructional room (ranked) |
-| `03_answer_ap3.sql` | `ap3_teacher_pressure` | SY 2023-24 learners per teacher for ES, JHS and SHS, re-ranked into one AP3 percentile (ranked) |
+| `02_answer_ap2.sql` | `ap2_classroom_pressure` | SY 2023-24 learners per reported instructional room (ranked), with the EDCOM 2/PIDS congestion screen at >=50 |
+| `03_answer_ap3.sql` | `ap3_teacher_pressure` | SY 2023-24 learners per teacher for ES, JHS and SHS, re-ranked into one AP3 percentile (ranked), with an ES study reference and RM 379 deployment-equivalent references for JHS and SHS |
 | `04_answer_ap4.sql` | `ap4_enrollment_trend` | One row per city member and school year: all-sector enrollment, its change and `increasing` / `decreasing` / `no change` trend, with school-age population and the gap on SY 2020-21 and 2024-25 (context) |
 | `05_build_priority_matrix.sql` | `lgu_priority_matrix` | D-057 tier from the AP1 to AP3 high measures, order within the tier, Stable flag, and AP4 as context |
 
@@ -17,6 +17,10 @@ AP1 to AP3 and the priority table have one row per regular city or municipality.
 **Tier (D-057).** Critical (3 high), Elevated (2), Targeted (1, naming the measure), Monitor (0), or Data review when a measure is not assessed. The order within a tier is affected learners, then the lowest percentile. The same rule run nationally gives the Stable flag. A count of high measures is not a weighted score, and the result is relative pressure, not a shortage.
 
 **Context, never changing a tier.** AP1's school-age population per school, AP4's gap and enrollment direction, outlier school counts, poverty and Similar LGUs (#96). D-057's checks beside the ranking (the 0.85 and 0.80 lines, the 95% gate, tier changes without outlier schools, and measure overlap) are a follow-up.
+
+**Published benchmark context.** AP2 labels a ratio of at least 50 learners per reported instructional room as `congested`, using the [EDCOM 2 summary of PIDS Discussion Paper 2025-10](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/). AP3 compares ES with the 35:1 aggregate reference on pages 3 and 15 of the [World Bank Philippines Education Note](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), and JHS with 36 and SHS with 80/3 learners per teacher, derived from page 5 of [DepEd CALABARZON RM 379, s. 2025](https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf). These benchmark statuses are interpretation fields and do not replace D-057's percentile flags or change a priority tier. Their reviewed metadata are in `config/analytics_benchmarks.json`.
+
+RM 379 directly states maximum class sizes of 45 for JHS and 40 for SHS. Those cannot be used directly in AP3 because AP3 divides learners by teachers, not classes, and several subject teachers serve each secondary class. The compatible conversions are `(4 classes * 45 learners) / 5 teachers = 36` for JHS and `(6 classes * 40 learners) / 9 teachers = 80/3` for SHS. The output calls these derived deployment references, not directly published teacher-ratio standards or teacher-shortage estimates.
 
 Each gate writes its one-row check summary to a table named for the run (`<output>_gate_summary_r_<sha256(run_id)>`) and drops it once the checks are recorded, as the Gold gates do (#202). Gates also record unplaced schools and learners as `WARN`, and the priority gate records the number of LGUs per tier.
 

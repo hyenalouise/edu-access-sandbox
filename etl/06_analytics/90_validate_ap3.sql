@@ -140,6 +140,27 @@ SELECT
     OR passing_level_count IS DISTINCT FROM CAST(COALESCE(es_passes_gate, FALSE) AS INT)
       + CAST(COALESCE(jhs_passes_gate, FALSE) AS INT) + CAST(COALESCE(shs_passes_gate, FALSE) AS INT)), 0) FROM c)
     AS assessment_mismatch,
+  (SELECT COALESCE(COUNT_IF(es_benchmark_max_learners_per_teacher IS DISTINCT FROM 35.0
+    OR es_benchmark_status IS DISTINCT FROM CASE WHEN es_offered_school_count = 0 THEN 'not applicable'
+      WHEN NOT es_passes_gate THEN 'not assessed' WHEN es_learners_per_teacher > 35 THEN 'above study reference'
+      ELSE 'at or below study reference' END
+    OR jhs_benchmark_max_learners_per_teacher IS DISTINCT FROM 36.0
+    OR shs_benchmark_max_learners_per_teacher IS DISTINCT FROM 80.0 / 3
+    OR jhs_benchmark_status IS DISTINCT FROM CASE WHEN jhs_offered_school_count = 0 THEN 'not applicable'
+      WHEN NOT jhs_passes_gate THEN 'not assessed' WHEN jhs_learners_per_teacher > 36 THEN 'above deployment reference'
+      ELSE 'at or below deployment reference' END
+    OR shs_benchmark_status IS DISTINCT FROM CASE WHEN shs_offered_school_count = 0 THEN 'not applicable'
+      WHEN NOT shs_passes_gate THEN 'not assessed' WHEN shs_learners_per_teacher > 80.0 / 3 THEN 'above deployment reference'
+      ELSE 'at or below deployment reference' END
+    OR benchmark_status IS DISTINCT FROM CASE
+      WHEN es_offered_school_count = 0 AND jhs_offered_school_count = 0 AND shs_offered_school_count = 0 THEN 'not assessed'
+      WHEN (es_offered_school_count > 0 AND NOT es_passes_gate)
+        OR (jhs_offered_school_count > 0 AND NOT jhs_passes_gate)
+        OR (shs_offered_school_count > 0 AND NOT shs_passes_gate) THEN 'not assessed'
+      WHEN (es_offered_school_count > 0 AND es_learners_per_teacher > 35)
+        OR (jhs_offered_school_count > 0 AND jhs_learners_per_teacher > 36)
+        OR (shs_offered_school_count > 0 AND shs_learners_per_teacher > 80.0 / 3) THEN 'above reference'
+      ELSE 'at or below reference' END), 0) FROM c) AS benchmark_mismatch,
   (SELECT COUNT(*) FROM schools WHERE active = 1 AND psgc_match_status <> 'matched') AS unplaced_active_schools,
   (SELECT COALESCE(SUM(learners), 0) FROM schools WHERE active = 1 AND psgc_match_status <> 'matched')
     AS unplaced_public_learners,
@@ -163,6 +184,7 @@ FROM (
   UNION ALL SELECT 'level_percentile_is_percent_rank', CASE WHEN level_percentile_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(level_percentile_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'highest_level_reranked', CASE WHEN rerank_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(rerank_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'assessment_and_high_valid', CASE WHEN assessment_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(assessment_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'deployment_benchmarks_valid', CASE WHEN benchmark_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(benchmark_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_active_public_schools', CASE WHEN unplaced_active_schools = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_active_schools AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unplaced_public_learners', CASE WHEN unplaced_public_learners = 0 THEN 'PASS' ELSE 'WARN' END, '0', CAST(unplaced_public_learners AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'lgus_high', 'PASS', CAST(NULL AS STRING), CAST(high_lgus AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
@@ -179,5 +201,5 @@ WHERE run_id = :run_id AND source_id = 'ap3_teacher_pressure' AND layer = 'analy
 
 CREATE OR REPLACE TABLE edu_access.`06-analytics`.ap3_teacher_pressure USING DELTA AS
 SELECT * FROM edu_access.`06-analytics`.ap3_teacher_pressure_candidate;
-COMMENT ON TABLE edu_access.`06-analytics`.ap3_teacher_pressure IS 'AP3 learners per teacher by level (ES, JHS, SHS) by regular LGU, SY 2023-24, re-ranked within LGU type (D-057).';
+COMMENT ON TABLE edu_access.`06-analytics`.ap3_teacher_pressure IS 'AP3 learners per teacher by level by regular LGU, SY 2023-24, with an ES study reference, JHS and SHS deployment references, and D-057 percentile context.';
 ALTER TABLE edu_access.`06-analytics`.ap3_teacher_pressure OWNER TO `reached-hq`;

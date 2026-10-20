@@ -350,6 +350,8 @@ checks:
     - high_at_90th_percentile
     - percentile_is_percent_rank
     - level_percentile_is_percent_rank
+    - congestion_benchmark_valid
+    - deployment_benchmarks_valid
     - highest_level_reranked
     - ratio_and_coverage_arithmetic
     - arithmetic_holds

@@ -8,6 +8,10 @@
 -- high only when every offered level passes and it is still not high, and otherwise not assessed. the level with the
 -- highest percentile is named (on a tie, the lower level). the same two steps run nationally for the Stable flag.
 -- outlier school levels (above Q3 + 3 x IQR within LGU type and level) are counted and never change a result.
+-- adopted study reference from the World Bank Philippines Education Note: ES averages 35 learners per teacher based
+-- on DepEd service standards. adopted deployment references from DepEd RM 379, s. 2025: JHS has at most 45 learners per class and 5 teachers
+-- per 4 classes, equivalent to at most 36 learners per teacher; SHS has at most 40 learners per class and 9 teachers
+-- per 6 classes, equivalent to at most 80/3 learners per teacher.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -181,7 +185,31 @@ SELECT c.*,
        CASE WHEN c.is_high OR (c.offered_level_count > 0 AND c.passing_level_count = c.offered_level_count) THEN NULL
             WHEN c.offered_level_count = 0 THEN 'no active public school level'
             ELSE 'a level below 90% learner coverage and no level high' END AS not_assessed_reason,
-       'learners per teacher by level, project-defined, not the DepEd teacher-learner ratio (D-047)' AS measure_label,
+       CAST(35.0 AS DOUBLE) AS es_benchmark_max_learners_per_teacher,
+       CASE WHEN c.es_offered_school_count = 0 THEN 'not applicable'
+            WHEN NOT c.es_passes_gate THEN 'not assessed'
+            WHEN c.es_learners_per_teacher > 35 THEN 'above study reference'
+            ELSE 'at or below study reference' END AS es_benchmark_status,
+       CAST(36.0 AS DOUBLE) AS jhs_benchmark_max_learners_per_teacher,
+       CASE WHEN c.jhs_offered_school_count = 0 THEN 'not applicable'
+            WHEN NOT c.jhs_passes_gate THEN 'not assessed'
+            WHEN c.jhs_learners_per_teacher > 36 THEN 'above deployment reference'
+            ELSE 'at or below deployment reference' END AS jhs_benchmark_status,
+       CAST(80.0 / 3 AS DOUBLE) AS shs_benchmark_max_learners_per_teacher,
+       CASE WHEN c.shs_offered_school_count = 0 THEN 'not applicable'
+            WHEN NOT c.shs_passes_gate THEN 'not assessed'
+            WHEN c.shs_learners_per_teacher > 80.0 / 3 THEN 'above deployment reference'
+            ELSE 'at or below deployment reference' END AS shs_benchmark_status,
+       CASE WHEN c.es_offered_school_count = 0 AND c.jhs_offered_school_count = 0
+              AND c.shs_offered_school_count = 0 THEN 'not assessed'
+            WHEN (c.es_offered_school_count > 0 AND NOT c.es_passes_gate)
+              OR (c.jhs_offered_school_count > 0 AND NOT c.jhs_passes_gate)
+              OR (c.shs_offered_school_count > 0 AND NOT c.shs_passes_gate) THEN 'not assessed'
+            WHEN (c.es_offered_school_count > 0 AND c.es_learners_per_teacher > 35)
+              OR (c.jhs_offered_school_count > 0 AND c.jhs_learners_per_teacher > 36)
+              OR (c.shs_offered_school_count > 0 AND c.shs_learners_per_teacher > 80.0 / 3) THEN 'above reference'
+            ELSE 'at or below reference' END AS benchmark_status,
+       'learners per teacher by level, ES study reference and JHS-SHS deployment references' AS measure_label,
        :code_revision AS code_revision
 FROM combined AS c;
 

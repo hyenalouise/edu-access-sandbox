@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "ap2": {
+    "benchmark_id": "edcom2_pids_classroom_congestion_2025",
+    "authority": "EDCOM 2 summary of PIDS Discussion Paper 2025-10",
+    "source_url": "https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/",
+    "published_date": "2025-06-18",
+    "operator": ">=",
+    "threshold": 50.0,
+    "unit": "learners_per_reported_instructional_room",
+    "label": "congested",
+    "caveat": "Screening benchmark only; it is not the RA 7880 classroom-shortage calculation."
+  },
+  "ap3": {
+    "benchmark_id": "deped_calabarzon_rm_2025_379",
+    "authority": "DepEd CALABARZON Regional Memorandum No. 379, s. 2025",
+    "source_url": "https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf",
+    "source_page": 5,
+    "operator": ">",
+    "es_max_learners_per_teacher": 35.0,
+    "es_authority": "World Bank Philippines Education Note based on DepEd service standards",
+    "es_source_url": "https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf",
+    "es_source_pages": [3, 15],
+    "es_label": "study reference",
+    "jhs_max_learners_per_teacher": 36.0,
+    "jhs_derivation": "45 maximum learners per class * 4 classes / 5 teachers",
+    "shs_max_learners_per_teacher": 26.666666666666668,
+    "shs_derivation": "40 maximum learners per class * 6 classes / 9 teachers",
+    "caveat": "ES uses an aggregate study reference based on older DepEd service standards. RM 379 directly publishes JHS 45 and SHS 40 as learners per class, not per teacher. JHS 36 and SHS 80/3 are derived with the same table's teacher-to-class factors. None is a teacher shortage or staffing entitlement."
+  }
+}

@@ -31,8 +31,8 @@ Those questions are not interchangeable. An official formula may have no officia
 | Research area | Best-supported reference | What the project can say now |
 |---|---|---|
 | **AP1 · School provision** | DepEd Order No. 40, s. 2014 gives school-establishment screening criteria | School presence can be screened against the published criteria, but learners per school and Population 2024 per public school have no validated national cutoff in the reviewed sources |
-| **AP2 · Classrooms** | DepEd defines the classroom–learner formula; Republic Act No. 7880 defines classroom shortage using 45 learners per classroom | The 45:1 rule cannot be applied to the current NSBI field because that field includes rooms the law excludes; the PSIP III memorandum configures each new classroom for 45 learners, a design reference for candidate planning only |
-| **AP3 · Teachers** | DepEd defines the teacher–learner formula and annex consolidation | No current, general national teacher threshold was found; 2009 secondary-school deployment bands are legacy evidence only |
+| **AP2 · Classrooms** | EDCOM 2's summary of PIDS Discussion Paper 2025-10 defines severe congestion as at least 50 learners per classroom | Apply >=50 as a congestion screen to learners per reported instructional room; do not call it an RA No. 7880 shortage calculation |
+| **AP3 · Teachers** | The World Bank Philippines Education Note gives an aggregate elementary reference; DepEd CALABARZON RM 379, s. 2025 gives JHS and SHS class-size and deployment factors | Use ES 35, derive JHS 36 and SHS 80/3 learners per teacher, and retain source-specific labels |
 | **AP4 · Enrollment need** | DepEd defines GER and NER by official school age; BEDP 2030 sets national NER targets | NER is a validated participation indicator, but the current project data cannot reproduce it at LGU level; the AP4 gap (population aged 5–17 minus enrollment in all sectors) is a project-defined difference, not NER or an out-of-school count |
 | **Peer context** | PSA and DOF provide official LGU type, income class, population, land area, density, and poverty data | These variables can describe comparable contexts, but the resulting peer group and its median are project-defined—not national standards |
 
@@ -56,6 +56,12 @@ Those questions are not interchangeable. An official formula may have no officia
 `learners per public school` and `Population 2024 per public school` remain useful descriptive measures, but no official national cutoff for either was found in the reviewed DepEd, PSA, or statutory sources. They must therefore be labelled **project-defined** and interpreted through the city/municipality distribution or an approved peer distribution.
 
 ## AP2 · Classroom references
+
+### Adopted congestion screen
+
+[EDCOM 2's summary of PIDS Discussion Paper 2025-10](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/) describes a congested school as having at least a 1:50 classroom-student ratio. AP2 therefore publishes `congested` when `learners_per_reported_instructional_room >= 50`, `not congested` below 50, and `not assessed` when the coverage gate does not pass.
+
+This is an adopted screening benchmark, not a claim that the project reproduces DepEd's published classroom-learner indicator. The denominator is still the broader NSBI reported-instructional-room field, and the status does not estimate a classroom shortage or change the D-057 priority tier.
 
 ### Official computation
 
@@ -88,7 +94,8 @@ Therefore:
 
 - if the candidate metric is approved after data validation, the dashboard may publish the clearly labelled **learners per reported instructional room** descriptive measure, with its source shown as **DepEd School Facilities (NSBI)**;
 - it must not call that result the official DepEd classroom–learner ratio; and
-- it must not apply the 45:1 shortage threshold until a compatible count of K–12 classrooms excluding the legally excluded spaces is available.
+- it must not apply the 45:1 shortage threshold until a compatible count of K–12 classrooms excluding the legally excluded spaces is available; and
+- it may apply the separately sourced >=50 EDCOM 2/PIDS congestion screen, with the denominator caveat visible.
 
 ### PSIP III classroom configuration
 
@@ -107,6 +114,27 @@ It may set the 45 in the candidate classroom planning calculation in the [metric
 DepEd's [FY 2024 Q4 Budget Accountability Report](https://www.deped.gov.ph/wp-content/uploads/FY-2024-Q4-BAR-1_As-of-Dec-31-2024_Signed.pdf) reported that, for SY 2023–24, 22,981 of 47,555 Grades 1–10 public schools, or **48%**, met DepEd's classroom-ratio standard; 3,813 of 7,687 senior high schools, or **50%**, met it. These are national performance results, not the threshold definition itself, and should be used only as a reconciliation target if the project later reproduces DepEd's exact metric.
 
 ## AP3 · Teacher references
+
+### Adopted current deployment references
+
+The [World Bank Philippines Education Note](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), pages 3 and 15, reports an average elementary reference of **35 learners per teacher**, calculated from ideal class size and teachers per class in DepEd service standards. AP3 uses it because both the study and the project aggregate elementary learners and teachers.
+
+[DepEd CALABARZON Regional Memorandum No. 379, s. 2025](https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf), page 5, gives maximum learners per class and teacher-to-class deployment factors. Two rows are compatible with AP3's level aggregates:
+
+| AP3 level | Published parameters | Derived maximum learners per teacher | Project status rule |
+|---|---|---:|---|
+| ES aggregate | World Bank study reference based on DepEd service standards | `35` | Above 35 is `above study reference`; 35 or below is `at or below study reference` |
+| JHS, Grades 7–10 | Maximum 45 learners per class; 5 teachers for every 4 classes | `45 * 4 / 5 = 36` | Above 36 is `above deployment reference`; 36 or below is `at or below deployment reference` |
+| SHS, Grades 11–12 | Maximum 40 learners per class; 9 teachers for every 6 classes | `40 * 6 / 9 = 80/3`, about 26.67 | Above 80/3 is `above deployment reference`; 80/3 or below is `at or below deployment reference` |
+
+The derivation converts the published class-size maxima and deployment factors into a common learner-per-teacher unit. It is a comparison reference for the project-defined LGU ratio, not an official teacher shortage, staffing entitlement, or claim that every teacher and class in an LGU is organized exactly this way. A supported level that fails the coverage gate is `not assessed`.
+
+The distinction is necessary because **learners per class** and **learners per teacher** answer different questions. A secondary class has multiple subject teachers, so the memorandum's 45-learner JHS class and 40-learner SHS class do not imply 45 or 40 learners for each teacher. At the published deployment factors:
+
+- JHS: `4 classes * 45 learners = 180 learners`; `180 / 5 teachers = 36 learners per teacher`.
+- SHS: `6 classes * 40 learners = 240 learners`; `240 / 9 teachers = 26.67 learners per teacher`.
+
+Using 45 or 40 directly as an AP3 cutoff would change the denominator without saying so and would systematically allow more learners per teacher than the same table's staffing pattern. The dashboard must therefore show 36 and 26.67 as **derived deployment references**, show the arithmetic in its methodology note, and link to RM 379. It must not describe either value as a directly published DepEd learner-to-teacher standard.
 
 ### Official computation
 
@@ -141,7 +169,7 @@ DepEd's FY 2024 program report estimated learner beneficiaries at **45 learners 
 
 ### Compatibility decision for this project
 
-AP3 remains blocked as a DepEd-aligned metric until the team approves the included teacher positions, resolves possible person duplication and outliers, and consolidates annexes with mother schools. A current threshold should be requested from DepEd's Planning Service or Bureau of Human Resource and Organizational Development rather than inferred from the 2009 bands.
+AP3 remains project-defined because the included personnel columns may contain person duplication and annexes cannot be consolidated to mother schools. The World Bank figure is labelled a study reference because it is based on older service standards. The RM 379 parameters are labelled deployment-equivalent references for JHS and SHS. The older 2009 bands remain historical context and are not used.
 
 ## AP4 · Enrollment and school-age-population references
 
@@ -215,7 +243,9 @@ Poverty, income class, and density help explain context and support fair peer co
 |---|---|
 | Official TLR and CLR formula text | **Reference-ready**, subject to compatible project columns |
 | Learners per reported instructional room | **Descriptive candidate only**, with the source shown as DepEd School Facilities (NSBI) and with coverage flags |
+| EDCOM 2/PIDS >=50 classroom congestion screen | **Approved for AP2**, with the reported-instructional-room denominator caveat and no shortage claim |
 | RA No. 7880 45:1 classroom flag or gap | **Blocked** until a compatible eligible-classroom count and intended geographic use are approved |
+| World Bank ES study reference and RM 379 JHS/SHS deployment references | **Approved for AP3 comparison status**; no teacher shortage is calculated |
 | DepEd Order No. 40 school-presence screen | **Conditional**, as an AP1 count per city or municipality with barangay drill-down, carrying level, match-coverage, distance, demand, and feasibility caveats |
 | 2009 teacher deployment bands | **Legacy reference only**, not an active benchmark |
 | NER and BEDP targets | **Reference-ready**, but local calculation is blocked until compatible age-specific enrollment and population data exist |
@@ -239,8 +269,8 @@ This permits more than one reference to coexist without treating a statutory cap
 
 ## Research conclusions and next actions
 
-1. **Adopt the DepEd formulas, not unsupported labels.** AP2 and AP3 can follow the official ratio structure only after their denominators and annex treatment match the technical notes.
-2. **Request a compatible classroom count.** The current NSBI field cannot support the 45:1 statutory shortage calculation.
+1. **Publish the adopted screens with their limits.** AP2 may label >=50 as congested; AP3 may compare ES with 35 and JHS and SHS with the derived RM 379 references. None is a shortage estimate.
+2. **Request a compatible classroom count.** The current NSBI field still cannot support the 45:1 statutory shortage calculation.
 3. **Ask DepEd to confirm the current teacher deployment norm.** Do not promote the 2009 secondary bands or the FY 2024 45-learner beneficiary assumption into a current standard.
 4. **Profile and ingest the PSA 2020 and 2024 single-year-age workbooks, and acquire SY 2020-21 enrollment.** Keep AP4 unavailable until both are done; version 1 uses no modelled values.
 5. **Use HDX `area_sqkm` as the current land-area source.** PSA OpenSTAT table 1A6DLPD0 is an official alternative that can be acquired and profiled later as a cross-check or replacement.
@@ -252,6 +282,9 @@ This permits more than one reference to coexist without treating a statutory cap
 |---|---|
 | [DepEd School Characteristics Technical Notes](https://www.deped.gov.ph/wp-content/uploads/School-Characteristics-Technical-Notes.pdf), effective 2024-09-10 | GER, NER, teacher–learner ratio, classroom–learner ratio, age mappings, annex treatment, source systems, and interpretation cautions |
 | [Republic Act No. 7880](https://lawphil.net/statutes/repacts/ra1995/ra_7880_1995.html), 1995 | 45:1 classroom-shortage definition, eligible-room exclusions, and legislative-district capital-outlay mechanism |
+| [EDCOM 2 summary of PIDS Discussion Paper 2025-10](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/), 2025 | Adopted AP2 congestion screen at at least 1:50 |
+| [DepEd CALABARZON RM 379, s. 2025](https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf), p. 5 | Adopted AP3 class-size maxima and teacher-to-class deployment factors for JHS and SHS |
+| [World Bank, *Assessing Systems for Hiring and Deploying Teachers in the Philippines*](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), pp. 3 and 15 | Adopted AP3 aggregate ES study reference of 35 learners per teacher |
 | [DepEd PSIP III Project Information Memorandum](https://www.deped.gov.ph/wp-content/uploads/PSIP-III_Project-Information-Memorandum.pdf), 2026 | 45 individual learners' tables and chairs per new PSIP III classroom (p. 12); project scope and expected class sizes (p. 4) |
 | [DepEd Order No. 40, s. 2014](https://www.deped.gov.ph/wp-content/uploads/2014/08/DO_s2014_040.pdf) | School-establishment need, coverage, prospective-enrollment, and distance criteria |
 | [DepEd Order No. 88, s. 2009](https://www.deped.gov.ph/2009/08/20/do-88-s-2009-revised-color-coding-scheme-for-the-deployment-of-teachers-in-public-secondary-schools/) | Legacy public-secondary teacher deployment bands |
