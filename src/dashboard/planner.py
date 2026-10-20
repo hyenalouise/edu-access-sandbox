@@ -183,6 +183,12 @@ SELECT p.lgu_label, p.city_mun_name, p.lgu_type_label, p.province_label, p.regio
        CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name
             ELSE p.province_label || ', ' || p.region_name END AS province_region,
        p.national_rank, (SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS places_ranked,
+       p.lgu_type_label || ' · '
+         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END
+         || ' · ' || p.tier || ' · rank ' || CAST(p.national_rank AS STRING) || ' of '
+         || CAST((SELECT COUNT(*) FROM {A}.lgu_priority_matrix) AS STRING)
+         || CASE WHEN p.is_stable THEN ' · Stable' ELSE '' END
+         || CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu THEN ' · top place in the filters' ELSE '' END AS details,
        p.high_count_label, p.high_areas, p.affected_learners, p.stability,
        CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu
             THEN '(Your selection is outside the filters, so this shows the top LGU in them.)' ELSE '' END AS notice
@@ -523,6 +529,11 @@ SELECT s.school_name, s.school_id, s.barangay_name, s.school_kind, s.levels_offe
        CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN 'all levels' ELSE {LEVEL_LABEL.format(c='(SELECT level_code FROM lvl)')} END AS level_txt,
        s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,
        CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,
+       'ID ' || s.school_id || ' · ' || s.barangay_name || ' · ' || s.school_kind || ' · ' || s.levels_offered
+         || ' · ' || COALESCE(CAST(s.learners AS STRING), 'n/a') || ' learners · '
+         || CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END
+         || CASE WHEN :school <> '{FIRST_SCHOOL}' AND s.school_name || ' · ' || s.school_id <> :school
+                 THEN ' · first school to check' ELSE '' END AS details,
        CASE WHEN :school <> '{FIRST_SCHOOL}' AND s.school_name || ' · ' || s.school_id <> :school
             THEN '(Your school is outside the filters, so this shows the first school to check.)' ELSE '' END AS notice
 FROM schools AS s JOIN pick USING (school_id)"""
@@ -853,10 +864,8 @@ def lgu_profile(b):
                  "the top. Figures are SY 2023-24 unless a title says otherwise."), 12)], 2)
     p.row([(kpi(b, "pr_card", "Selected city or municipality", "city_mun_name", None,
                 desc="Change it in City or municipality at the top"), 12)], 2)
-    p.row([(table(b, "pr_card", "Place details", [
-        ("lgu_type_label", "Type", None), ("province_region", "Province and region", None), ("tier", "Tier", None),
-        ("national_rank", "Rank", num()), ("places_ranked", "Of places ranked", num()), ("stability", "Stability", None),
-        ("notice", "Note", None)]), 12)], 2)
+    p.row([(kpi(b, "pr_card", "Place details", "details", None,
+                desc="Type · province (or region) · tier · national rank · Stable if Critical both ways"), 12)], 2)
     p.row([(kpi(b, "pr_card", "High-pressure measures", "high_count_label", None,
                 desc="At or above the 90th percentile of its type"), 3),
            (kpi(b, "pr_card", "Public learners", "affected_learners", num(), desc="SY 2023-24, complete school counts"), 3),
@@ -923,10 +932,8 @@ def school_action(b):
            (param_filter(b, "school", "School", targets, "Defaults to the first school to check."), 2)], 2)
     p.row([(kpi(b, "sa_school", "Selected school", "school_name", None,
                 desc="Change it in School above"), 12)], 2)
-    p.row([(table(b, "sa_school", "School details", [
-        ("school_id", "School ID", None), ("barangay_name", "Barangay", None), ("school_kind", "Main or annex", None),
-        ("levels_offered", "Levels", None), ("learners", "Learners, SY 2023-24", num()), ("check_label", "Figures", None),
-        ("notice", "Note", None)]), 12)], 2)
+    p.row([(kpi(b, "sa_school", "School details", "details", None,
+                desc="School ID · barangay · main or annex · levels · learners, SY 2023-24 · figures to check"), 12)], 2)
     p.row([(kpi(b, "sa_school", "Learners per reported room", "learners_per_room", num(1),
                 desc="All levels · rooms include labs"), 3),
            (kpi(b, "sa_school", "Learners per teacher", "teacher_ratio", num(1), desc="At the education level chosen above"), 3),

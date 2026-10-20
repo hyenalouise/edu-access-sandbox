@@ -551,6 +551,12 @@
         "       CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name\n",
         "            ELSE p.province_label || ', ' || p.region_name END AS province_region,\n",
         "       p.national_rank, (SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix) AS places_ranked,\n",
+        "       p.lgu_type_label || ' \u00b7 '\n",
+        "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
+        "         || ' \u00b7 ' || p.tier || ' \u00b7 rank ' || CAST(p.national_rank AS STRING) || ' of '\n",
+        "         || CAST((SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix) AS STRING)\n",
+        "         || CASE WHEN p.is_stable THEN ' \u00b7 Stable' ELSE '' END\n",
+        "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 top place in the filters' ELSE '' END AS details,\n",
         "       p.high_count_label, p.high_areas, p.affected_learners, p.stability,\n",
         "       CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu\n",
         "            THEN '(Your selection is outside the filters, so this shows the top LGU in them.)' ELSE '' END AS notice\n",
@@ -2320,6 +2326,11 @@
         "       CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN 'all levels' ELSE CASE (SELECT level_code FROM lvl) WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END END AS level_txt,\n",
         "       s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,\n",
         "       CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,\n",
+        "       'ID ' || s.school_id || ' \u00b7 ' || s.barangay_name || ' \u00b7 ' || s.school_kind || ' \u00b7 ' || s.levels_offered\n",
+        "         || ' \u00b7 ' || COALESCE(CAST(s.learners AS STRING), 'n/a') || ' learners \u00b7 '\n",
+        "         || CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END\n",
+        "         || CASE WHEN :school <> '(First school to check)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
+        "                 THEN ' \u00b7 first school to check' ELSE '' END AS details,\n",
         "       CASE WHEN :school <> '(First school to check)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
         "            THEN '(Your school is outside the filters, so this shows the first school to check.)' ELSE '' END AS notice\n",
         "FROM schools AS s JOIN pick USING (school_id)"
@@ -5906,7 +5917,7 @@
         },
         {
           "widget": {
-            "name": "table_015",
+            "name": "kpi_015",
             "queries": [
               {
                 "name": "main_query",
@@ -5914,32 +5925,8 @@
                   "datasetName": "pr_card",
                   "fields": [
                     {
-                      "name": "lgu_type_label",
-                      "expression": "`lgu_type_label`"
-                    },
-                    {
-                      "name": "province_region",
-                      "expression": "`province_region`"
-                    },
-                    {
-                      "name": "tier",
-                      "expression": "`tier`"
-                    },
-                    {
-                      "name": "national_rank",
-                      "expression": "`national_rank`"
-                    },
-                    {
-                      "name": "places_ranked",
-                      "expression": "`places_ranked`"
-                    },
-                    {
-                      "name": "stability",
-                      "expression": "`stability`"
-                    },
-                    {
-                      "name": "notice",
-                      "expression": "`notice`"
+                      "name": "details",
+                      "expression": "`details`"
                     }
                   ],
                   "disaggregated": true
@@ -5948,56 +5935,18 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "table",
+              "widgetType": "counter",
               "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "lgu_type_label",
-                    "displayName": "Type"
-                  },
-                  {
-                    "fieldName": "province_region",
-                    "displayName": "Province and region"
-                  },
-                  {
-                    "fieldName": "tier",
-                    "displayName": "Tier"
-                  },
-                  {
-                    "fieldName": "national_rank",
-                    "displayName": "Rank",
-                    "format": {
-                      "type": "number-plain",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 0
-                      }
-                    }
-                  },
-                  {
-                    "fieldName": "places_ranked",
-                    "displayName": "Of places ranked",
-                    "format": {
-                      "type": "number-plain",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 0
-                      }
-                    }
-                  },
-                  {
-                    "fieldName": "stability",
-                    "displayName": "Stability"
-                  },
-                  {
-                    "fieldName": "notice",
-                    "displayName": "Note"
-                  }
-                ]
+                "value": {
+                  "fieldName": "details",
+                  "displayName": "Place details"
+                }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Place details"
+                "title": "Place details",
+                "showDescription": true,
+                "description": "Type \u00b7 province (or region) \u00b7 tier \u00b7 national rank \u00b7 Stable if Critical both ways"
               }
             }
           },
@@ -7375,7 +7324,7 @@
         },
         {
           "widget": {
-            "name": "table_033",
+            "name": "kpi_033",
             "queries": [
               {
                 "name": "main_query",
@@ -7383,32 +7332,8 @@
                   "datasetName": "sa_school",
                   "fields": [
                     {
-                      "name": "school_id",
-                      "expression": "`school_id`"
-                    },
-                    {
-                      "name": "barangay_name",
-                      "expression": "`barangay_name`"
-                    },
-                    {
-                      "name": "school_kind",
-                      "expression": "`school_kind`"
-                    },
-                    {
-                      "name": "levels_offered",
-                      "expression": "`levels_offered`"
-                    },
-                    {
-                      "name": "learners",
-                      "expression": "`learners`"
-                    },
-                    {
-                      "name": "check_label",
-                      "expression": "`check_label`"
-                    },
-                    {
-                      "name": "notice",
-                      "expression": "`notice`"
+                      "name": "details",
+                      "expression": "`details`"
                     }
                   ],
                   "disaggregated": true
@@ -7417,49 +7342,18 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "table",
+              "widgetType": "counter",
               "encodings": {
-                "columns": [
-                  {
-                    "fieldName": "school_id",
-                    "displayName": "School ID"
-                  },
-                  {
-                    "fieldName": "barangay_name",
-                    "displayName": "Barangay"
-                  },
-                  {
-                    "fieldName": "school_kind",
-                    "displayName": "Main or annex"
-                  },
-                  {
-                    "fieldName": "levels_offered",
-                    "displayName": "Levels"
-                  },
-                  {
-                    "fieldName": "learners",
-                    "displayName": "Learners, SY 2023-24",
-                    "format": {
-                      "type": "number-plain",
-                      "decimalPlaces": {
-                        "type": "max",
-                        "places": 0
-                      }
-                    }
-                  },
-                  {
-                    "fieldName": "check_label",
-                    "displayName": "Figures"
-                  },
-                  {
-                    "fieldName": "notice",
-                    "displayName": "Note"
-                  }
-                ]
+                "value": {
+                  "fieldName": "details",
+                  "displayName": "School details"
+                }
               },
               "frame": {
                 "showTitle": true,
-                "title": "School details"
+                "title": "School details",
+                "showDescription": true,
+                "description": "School ID \u00b7 barangay \u00b7 main or annex \u00b7 levels \u00b7 learners, SY 2023-24 \u00b7 figures to check"
               }
             }
           },
