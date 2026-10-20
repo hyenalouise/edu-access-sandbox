@@ -5559,74 +5559,35 @@
           "position": {
             "x": 0,
             "y": 0,
-            "width": 4,
-            "height": 2
+            "width": 8,
+            "height": 4
           }
         },
         {
           "widget": {
-            "name": "filter_002",
+            "name": "filter_004",
             "queries": [
               {
-                "name": "opt_opt_tier",
+                "name": "opt_opt_list_order",
                 "query": {
-                  "datasetName": "opt_tier",
+                  "datasetName": "opt_list_order",
                   "fields": [
                     {
-                      "name": "tier_option",
-                      "expression": "`tier_option`"
+                      "name": "list_order_option",
+                      "expression": "`list_order_option`"
                     }
                   ],
                   "disaggregated": false
                 }
               },
               {
-                "name": "param_ov_lgu_tier",
+                "name": "param_ov_lgu_list_order",
                 "query": {
                   "datasetName": "ov_lgu",
                   "parameters": [
                     {
-                      "name": "tier",
-                      "keyword": "tier"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "param_ov_kpi_tier",
-                "query": {
-                  "datasetName": "ov_kpi",
-                  "parameters": [
-                    {
-                      "name": "tier",
-                      "keyword": "tier"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "param_ov_drivers_tier",
-                "query": {
-                  "datasetName": "ov_drivers",
-                  "parameters": [
-                    {
-                      "name": "tier",
-                      "keyword": "tier"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "param_ov_demand_tier",
-                "query": {
-                  "datasetName": "ov_demand",
-                  "parameters": [
-                    {
-                      "name": "tier",
-                      "keyword": "tier"
+                      "name": "list_order",
+                      "keyword": "list_order"
                     }
                   ],
                   "disaggregated": false
@@ -5639,31 +5600,21 @@
               "encodings": {
                 "fields": [
                   {
-                    "fieldName": "tier_option",
-                    "displayName": "Priority tier",
-                    "queryName": "opt_opt_tier"
+                    "fieldName": "list_order_option",
+                    "displayName": "Order list by",
+                    "queryName": "opt_opt_list_order"
                   },
                   {
-                    "parameterName": "tier",
-                    "queryName": "param_ov_lgu_tier"
-                  },
-                  {
-                    "parameterName": "tier",
-                    "queryName": "param_ov_kpi_tier"
-                  },
-                  {
-                    "parameterName": "tier",
-                    "queryName": "param_ov_drivers_tier"
-                  },
-                  {
-                    "parameterName": "tier",
-                    "queryName": "param_ov_demand_tier"
+                    "parameterName": "list_order",
+                    "queryName": "param_ov_lgu_list_order"
                   }
                 ]
               },
               "frame": {
                 "showTitle": true,
-                "title": "Priority tier"
+                "title": "Order list by",
+                "showDescription": false,
+                "description": "The priority rule keeps D-057's order; the other sorts by the largest relative pressure. Tiers never change."
               },
               "selection": {
                 "defaultSelection": {
@@ -5671,7 +5622,7 @@
                     "dataType": "STRING",
                     "values": [
                       {
-                        "value": "All tiers"
+                        "value": "Priority rule (D-057)"
                       }
                     ]
                   }
@@ -5680,10 +5631,10 @@
             }
           },
           "position": {
-            "x": 4,
+            "x": 8,
             "y": 0,
-            "width": 2,
-            "height": 2
+            "width": 4,
+            "height": 1
           }
         },
         {
@@ -5805,84 +5756,10 @@
             }
           },
           "position": {
-            "x": 6,
-            "y": 0,
-            "width": 2,
-            "height": 2
-          }
-        },
-        {
-          "widget": {
-            "name": "filter_004",
-            "queries": [
-              {
-                "name": "opt_opt_list_order",
-                "query": {
-                  "datasetName": "opt_list_order",
-                  "fields": [
-                    {
-                      "name": "list_order_option",
-                      "expression": "`list_order_option`"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              },
-              {
-                "name": "param_ov_lgu_list_order",
-                "query": {
-                  "datasetName": "ov_lgu",
-                  "parameters": [
-                    {
-                      "name": "list_order",
-                      "keyword": "list_order"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "filter-single-select",
-              "encodings": {
-                "fields": [
-                  {
-                    "fieldName": "list_order_option",
-                    "displayName": "Order list by",
-                    "queryName": "opt_opt_list_order"
-                  },
-                  {
-                    "parameterName": "list_order",
-                    "queryName": "param_ov_lgu_list_order"
-                  }
-                ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Order list by",
-                "showDescription": true,
-                "description": "The priority rule keeps D-057's order; the other sorts by the largest relative pressure. Tiers never change."
-              },
-              "selection": {
-                "defaultSelection": {
-                  "values": {
-                    "dataType": "STRING",
-                    "values": [
-                      {
-                        "value": "Priority rule (D-057)"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "position": {
             "x": 8,
-            "y": 0,
-            "width": 2,
-            "height": 2
+            "y": 1,
+            "width": 4,
+            "height": 1
           }
         },
         {
@@ -5951,57 +5828,138 @@
             }
           },
           "position": {
-            "x": 10,
-            "y": 0,
-            "width": 2,
-            "height": 2
+            "x": 8,
+            "y": 2,
+            "width": 4,
+            "height": 1
           }
         },
         {
           "widget": {
-            "name": "kpi_006",
+            "name": "filter_002",
             "queries": [
               {
-                "name": "main_query",
+                "name": "opt_opt_tier",
                 "query": {
-                  "datasetName": "freshness",
+                  "datasetName": "opt_tier",
                   "fields": [
                     {
-                      "name": "freshness",
-                      "expression": "`freshness`"
+                      "name": "tier_option",
+                      "expression": "`tier_option`"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_ov_lgu_tier",
+                "query": {
+                  "datasetName": "ov_lgu",
+                  "parameters": [
+                    {
+                      "name": "tier",
+                      "keyword": "tier"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_ov_kpi_tier",
+                "query": {
+                  "datasetName": "ov_kpi",
+                  "parameters": [
+                    {
+                      "name": "tier",
+                      "keyword": "tier"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_ov_drivers_tier",
+                "query": {
+                  "datasetName": "ov_drivers",
+                  "parameters": [
+                    {
+                      "name": "tier",
+                      "keyword": "tier"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_ov_demand_tier",
+                "query": {
+                  "datasetName": "ov_demand",
+                  "parameters": [
+                    {
+                      "name": "tier",
+                      "keyword": "tier"
+                    }
+                  ],
+                  "disaggregated": false
                 }
               }
             ],
             "spec": {
               "version": 2,
-              "widgetType": "counter",
+              "widgetType": "filter-single-select",
               "encodings": {
-                "value": {
-                  "fieldName": "freshness",
-                  "displayName": "Data freshness"
-                }
+                "fields": [
+                  {
+                    "fieldName": "tier_option",
+                    "displayName": "Priority tier",
+                    "queryName": "opt_opt_tier"
+                  },
+                  {
+                    "parameterName": "tier",
+                    "queryName": "param_ov_lgu_tier"
+                  },
+                  {
+                    "parameterName": "tier",
+                    "queryName": "param_ov_kpi_tier"
+                  },
+                  {
+                    "parameterName": "tier",
+                    "queryName": "param_ov_drivers_tier"
+                  },
+                  {
+                    "parameterName": "tier",
+                    "queryName": "param_ov_demand_tier"
+                  }
+                ]
               },
               "frame": {
                 "showTitle": true,
-                "title": "Data freshness",
-                "showDescription": true,
-                "description": "Latest successful pipeline run and the school years it covers"
+                "title": "Priority tier"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "All tiers"
+                      }
+                    ]
+                  }
+                }
               }
             }
           },
           "position": {
-            "x": 0,
-            "y": 2,
-            "width": 12,
-            "height": 2
+            "x": 8,
+            "y": 3,
+            "width": 4,
+            "height": 1
           }
         },
         {
           "widget": {
-            "name": "kpi_007",
+            "name": "kpi_006",
             "queries": [
               {
                 "name": "main_query",
@@ -6030,6 +5988,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 700
                   }
                 }
               },
@@ -6050,7 +6012,7 @@
         },
         {
           "widget": {
-            "name": "kpi_008",
+            "name": "kpi_007",
             "queries": [
               {
                 "name": "main_query",
@@ -6085,7 +6047,11 @@
                     },
                     "abbreviation": "compact"
                   },
-                  "formatTemplate": "{{ @formatted }} ({{share_txt}})"
+                  "formatTemplate": "{{ @formatted }} ({{share_txt}})",
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 700
+                  }
                 }
               },
               "frame": {
@@ -6105,7 +6071,7 @@
         },
         {
           "widget": {
-            "name": "kpi_009",
+            "name": "kpi_008",
             "queries": [
               {
                 "name": "main_query",
@@ -6134,6 +6100,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 700
                   }
                 }
               },
@@ -6154,7 +6124,7 @@
         },
         {
           "widget": {
-            "name": "kpi_010",
+            "name": "kpi_009",
             "queries": [
               {
                 "name": "main_query",
@@ -6183,6 +6153,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 700
                   }
                 }
               },
@@ -6203,7 +6177,7 @@
         },
         {
           "widget": {
-            "name": "choropleth_map_011",
+            "name": "choropleth_map_010",
             "queries": [
               {
                 "name": "main_query",
@@ -6211,27 +6185,23 @@
                   "datasetName": "ov_lgu",
                   "fields": [
                     {
-                      "name": "boundary_geojson",
-                      "expression": "ST_ASGEOJSON(`boundary`)"
-                    },
-                    {
-                      "name": "tier_level",
-                      "expression": "`tier_level`"
+                      "name": "tier",
+                      "expression": "`tier`"
                     },
                     {
                       "name": "lgu_label",
                       "expression": "`lgu_label`"
                     },
                     {
-                      "name": "tier",
-                      "expression": "`tier`"
-                    },
-                    {
                       "name": "high_areas",
                       "expression": "`high_areas`"
+                    },
+                    {
+                      "name": "geo_first(boundary)",
+                      "expression": "ST_ASGEOJSON(FIRST(`boundary`))"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -6240,24 +6210,47 @@
               "widgetType": "choropleth-map",
               "encodings": {
                 "region": {
-                  "regionType": "geometry",
-                  "geometry": {
-                    "fieldName": "boundary_geojson"
-                  }
+                  "regionType": "custom",
+                  "fieldName": "geo_first(boundary)"
                 },
                 "color": {
-                  "fieldName": "tier_level",
-                  "displayName": "Tier",
+                  "fieldName": "tier",
                   "scale": {
-                    "type": "quantitative",
-                    "colorRamp": {
-                      "mode": "custom-sequential",
-                      "colors": {
-                        "start": "#B4B2A9",
-                        "end": "#712B13"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Critical",
+                        "Elevated",
+                        "Targeted",
+                        "Monitor",
+                        "Data review"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Critical",
+                        "color": "#712B13"
+                      },
+                      {
+                        "value": "Elevated",
+                        "color": "#D85A30"
+                      },
+                      {
+                        "value": "Targeted",
+                        "color": "#F0997B"
+                      },
+                      {
+                        "value": "Monitor",
+                        "color": "#D9DEE3"
+                      },
+                      {
+                        "value": "Data review",
+                        "color": "#8A96A3"
                       }
-                    }
-                  }
+                    ]
+                  },
+                  "displayName": "Tier"
                 },
                 "extra": [
                   {
@@ -6278,7 +6271,7 @@
                 "showTitle": true,
                 "title": "Where the priority places are",
                 "showDescription": true,
-                "description": "Tier scale: 4 Critical, 3 Elevated, 2 Targeted, 1 Monitor, 0 data review (grey). The 8 Special Geographic Area municipalities have no boundary and are not drawn; a missing area is not a low priority."
+                "description": "Same tier colors as every other chart: dark brown Critical, orange Elevated, light orange Targeted, grey Monitor, slate data review. The 8 Special Geographic Area municipalities have no boundary and are not drawn; a missing area is not a low priority."
               }
             }
           },
@@ -6291,7 +6284,7 @@
         },
         {
           "widget": {
-            "name": "bar_012",
+            "name": "bar_011",
             "queries": [
               {
                 "name": "main_query",
@@ -6395,7 +6388,113 @@
             "x": 7,
             "y": 7,
             "width": 5,
-            "height": 9
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_012",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ov_lgu",
+                  "fields": [
+                    {
+                      "name": "region_name",
+                      "expression": "`region_name`"
+                    },
+                    {
+                      "name": "count(city_mun_psgc_code)",
+                      "expression": "COUNT(`city_mun_psgc_code`)"
+                    },
+                    {
+                      "name": "tier",
+                      "expression": "`tier`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(city_mun_psgc_code)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Cities and municipalities"
+                },
+                "y": {
+                  "fieldName": "region_name",
+                  "scale": {
+                    "type": "categorical",
+                    "categorySize": {
+                      "type": "number-of-categories",
+                      "number": 8
+                    }
+                  },
+                  "displayName": "Region"
+                },
+                "color": {
+                  "fieldName": "tier",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Critical",
+                        "Elevated",
+                        "Targeted",
+                        "Monitor",
+                        "Data review"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Critical",
+                        "color": "#712B13"
+                      },
+                      {
+                        "value": "Elevated",
+                        "color": "#D85A30"
+                      },
+                      {
+                        "value": "Targeted",
+                        "color": "#F0997B"
+                      },
+                      {
+                        "value": "Monitor",
+                        "color": "#D9DEE3"
+                      },
+                      {
+                        "value": "Data review",
+                        "color": "#8A96A3"
+                      }
+                    ]
+                  },
+                  "displayName": "Tier"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Places by region and tier",
+                "showDescription": true,
+                "description": "Every region in view, stacked by tier with the same colors as the map. Follows Region, Province, LGU type and the tier filters."
+              },
+              "mark": {
+                "layout": "stack"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 12,
+            "width": 5,
+            "height": 4
           }
         },
         {
@@ -6519,7 +6618,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_014",
+            "name": "bar_014",
             "queries": [
               {
                 "name": "main_query",
@@ -6527,16 +6626,16 @@
                   "datasetName": "ov_demand",
                   "fields": [
                     {
-                      "name": "enrollment_direction",
-                      "expression": "`enrollment_direction`"
-                    },
-                    {
                       "name": "tier",
                       "expression": "`tier`"
                     },
                     {
                       "name": "count(city_mun_psgc_code)",
                       "expression": "COUNT(`city_mun_psgc_code`)"
+                    },
+                    {
+                      "name": "enrollment_direction",
+                      "expression": "`enrollment_direction`"
                     }
                   ],
                   "disaggregated": false
@@ -6545,23 +6644,14 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "heatmap",
+              "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "enrollment_direction",
+                  "fieldName": "count(city_mun_psgc_code)",
                   "scale": {
-                    "type": "categorical",
-                    "sort": {
-                      "by": "custom-order",
-                      "orderedValues": [
-                        "Went up",
-                        "No change",
-                        "Went down",
-                        "An incomplete year"
-                      ]
-                    }
+                    "type": "quantitative"
                   },
-                  "displayName": "Enrollment, SY 2020-21 to 2025-26"
+                  "displayName": "Cities and municipalities"
                 },
                 "y": {
                   "fieldName": "tier",
@@ -6581,25 +6671,48 @@
                   "displayName": "Tier"
                 },
                 "color": {
-                  "fieldName": "count(city_mun_psgc_code)",
-                  "displayName": "Places",
+                  "fieldName": "enrollment_direction",
                   "scale": {
-                    "type": "quantitative",
-                    "colorRamp": {
-                      "mode": "custom-sequential",
-                      "colors": {
-                        "start": "#F3EEE9",
-                        "end": "#712B13"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Went up",
+                        "No change",
+                        "Went down",
+                        "An incomplete year"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Went up",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "No change",
+                        "color": "#D9DEE3"
+                      },
+                      {
+                        "value": "Went down",
+                        "color": "#A32D2D"
+                      },
+                      {
+                        "value": "An incomplete year",
+                        "color": "#C9A227"
                       }
-                    }
-                  }
+                    ]
+                  },
+                  "displayName": "Enrollment, SY 2020-21 to 2025-26"
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Pressure and enrollment together \u00b7 enrollment is context only",
                 "showDescription": true,
-                "description": "Cities and municipalities by tier and by whether all-sector enrollment went up. Pressure with rising enrollment may need attention sooner; enrollment never changes the tier."
+                "description": "Places in each tier by whether all-sector enrollment went up, SY 2020-21 to SY 2025-26. Pressure with rising enrollment may need attention sooner; enrollment never changes the tier."
+              },
+              "mark": {
+                "layout": "stack"
               }
             }
           },
@@ -7217,14 +7330,20 @@
               "encodings": {
                 "value": {
                   "fieldName": "city_mun_name",
-                  "displayName": "Selected city or municipality"
+                  "displayName": "Selected city or municipality",
+                  "style": {
+                    "fontSize": 60,
+                    "fontStyle": "normal",
+                    "fontWeight": 800
+                  }
                 }
               },
               "frame": {
-                "showTitle": true,
+                "showTitle": false,
                 "title": "Selected city or municipality",
-                "showDescription": true,
-                "description": "Change it with City or municipality above"
+                "showDescription": false,
+                "description": "Change it with City or municipality above",
+                "contentAlignment": "left"
               }
             }
           },
@@ -7259,14 +7378,20 @@
               "encodings": {
                 "value": {
                   "fieldName": "details",
-                  "displayName": "Place details"
+                  "displayName": "Place details",
+                  "style": {
+                    "fontSize": 16,
+                    "fontStyle": "normal",
+                    "fontWeight": 400
+                  }
                 }
               },
               "frame": {
-                "showTitle": true,
+                "showTitle": false,
                 "title": "Place details",
-                "showDescription": true,
-                "description": "Type \u00b7 province (or region) \u00b7 tier and the measures that are high \u00b7 national rank"
+                "showDescription": false,
+                "description": "Type \u00b7 province (or region) \u00b7 tier and the measures that are high \u00b7 national rank",
+                "contentAlignment": "left"
               }
             }
           },
@@ -7274,7 +7399,7 @@
             "x": 0,
             "y": 4,
             "width": 12,
-            "height": 2
+            "height": 1
           }
         },
         {
@@ -7308,6 +7433,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 800
                   }
                 }
               },
@@ -7321,7 +7450,7 @@
           },
           "position": {
             "x": 0,
-            "y": 6,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7357,6 +7486,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 800
                   }
                 }
               },
@@ -7370,7 +7503,7 @@
           },
           "position": {
             "x": 3,
-            "y": 6,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7406,6 +7539,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 800
                   }
                 }
               },
@@ -7419,7 +7556,7 @@
           },
           "position": {
             "x": 6,
-            "y": 6,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7455,6 +7592,10 @@
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 800
                   }
                 }
               },
@@ -7468,7 +7609,7 @@
           },
           "position": {
             "x": 9,
-            "y": 6,
+            "y": 5,
             "width": 3,
             "height": 3
           }
@@ -7512,7 +7653,7 @@
           },
           "position": {
             "x": 0,
-            "y": 9,
+            "y": 8,
             "width": 12,
             "height": 4
           }
@@ -7611,7 +7752,7 @@
           },
           "position": {
             "x": 0,
-            "y": 13,
+            "y": 12,
             "width": 12,
             "height": 6
           }
@@ -7732,7 +7873,7 @@
           },
           "position": {
             "x": 0,
-            "y": 19,
+            "y": 18,
             "width": 6,
             "height": 7
           }
@@ -7829,7 +7970,7 @@
           },
           "position": {
             "x": 6,
-            "y": 19,
+            "y": 18,
             "width": 6,
             "height": 7
           }
@@ -7897,7 +8038,7 @@
           },
           "position": {
             "x": 0,
-            "y": 26,
+            "y": 25,
             "width": 12,
             "height": 4
           }
@@ -7914,7 +8055,7 @@
           },
           "position": {
             "x": 0,
-            "y": 30,
+            "y": 29,
             "width": 12,
             "height": 1
           }
@@ -8010,7 +8151,7 @@
           },
           "position": {
             "x": 0,
-            "y": 31,
+            "y": 30,
             "width": 6,
             "height": 7
           }
@@ -8123,7 +8264,7 @@
           },
           "position": {
             "x": 6,
-            "y": 31,
+            "y": 30,
             "width": 6,
             "height": 7
           }
@@ -8195,7 +8336,7 @@
           },
           "position": {
             "x": 0,
-            "y": 38,
+            "y": 37,
             "width": 6,
             "height": 7
           }
@@ -8295,7 +8436,7 @@
           },
           "position": {
             "x": 6,
-            "y": 38,
+            "y": 37,
             "width": 6,
             "height": 7
           }
@@ -8385,7 +8526,7 @@
           },
           "position": {
             "x": 0,
-            "y": 45,
+            "y": 44,
             "width": 12,
             "height": 8
           }
@@ -8468,7 +8609,7 @@
           },
           "position": {
             "x": 0,
-            "y": 53,
+            "y": 52,
             "width": 12,
             "height": 5
           }
@@ -9277,13 +9418,18 @@
               "encodings": {
                 "value": {
                   "fieldName": "school_name",
-                  "displayName": "Selected school"
+                  "displayName": "Selected school",
+                  "style": {
+                    "fontSize": 60,
+                    "fontStyle": "normal",
+                    "fontWeight": 800
+                  }
                 }
               },
               "frame": {
-                "showTitle": true,
+                "showTitle": false,
                 "title": "Selected school",
-                "showDescription": true,
+                "showDescription": false,
                 "description": "Change it in School above"
               }
             }
@@ -9319,14 +9465,18 @@
               "encodings": {
                 "value": {
                   "fieldName": "details",
-                  "displayName": "School details"
+                  "displayName": "School details",
+                  "style": {
+                    "fontSize": 16
+                  }
                 }
               },
               "frame": {
-                "showTitle": true,
+                "showTitle": false,
                 "title": "School details",
-                "showDescription": true,
-                "description": "School ID \u00b7 barangay \u00b7 main or annex \u00b7 levels \u00b7 learners, SY 2023-24 \u00b7 figures to check"
+                "showDescription": false,
+                "description": "School ID \u00b7 barangay \u00b7 main or annex \u00b7 levels \u00b7 learners, SY 2023-24 \u00b7 figures to check",
+                "contentAlignment": "left"
               }
             }
           },
@@ -9334,7 +9484,7 @@
             "x": 0,
             "y": 6,
             "width": 12,
-            "height": 2
+            "height": 1
           }
         },
         {
@@ -9381,7 +9531,7 @@
           },
           "position": {
             "x": 0,
-            "y": 8,
+            "y": 7,
             "width": 3,
             "height": 3
           }
@@ -9417,6 +9567,10 @@
                       "type": "max",
                       "places": 1
                     }
+                  },
+                  "style": {
+                    "fontStyle": "normal",
+                    "fontWeight": 800
                   }
                 }
               },
@@ -9430,7 +9584,7 @@
           },
           "position": {
             "x": 3,
-            "y": 8,
+            "y": 7,
             "width": 3,
             "height": 3
           }
@@ -9479,7 +9633,7 @@
           },
           "position": {
             "x": 6,
-            "y": 8,
+            "y": 7,
             "width": 3,
             "height": 3
           }
@@ -9528,7 +9682,7 @@
           },
           "position": {
             "x": 9,
-            "y": 8,
+            "y": 7,
             "width": 3,
             "height": 3
           }
@@ -9638,7 +9792,7 @@
           },
           "position": {
             "x": 0,
-            "y": 11,
+            "y": 10,
             "width": 7,
             "height": 8
           }
@@ -9698,7 +9852,7 @@
           },
           "position": {
             "x": 7,
-            "y": 11,
+            "y": 10,
             "width": 5,
             "height": 8
           }
@@ -9810,7 +9964,7 @@
           },
           "position": {
             "x": 0,
-            "y": 19,
+            "y": 18,
             "width": 6,
             "height": 7
           }
@@ -9944,7 +10098,7 @@
           },
           "position": {
             "x": 6,
-            "y": 19,
+            "y": 18,
             "width": 6,
             "height": 7
           }
@@ -10088,7 +10242,7 @@
           },
           "position": {
             "x": 0,
-            "y": 26,
+            "y": 25,
             "width": 12,
             "height": 10
           }
@@ -10104,7 +10258,7 @@
           },
           "position": {
             "x": 0,
-            "y": 36,
+            "y": 35,
             "width": 12,
             "height": 1
           }
@@ -13186,7 +13340,7 @@
   "uiSettings": {
     "theme": {
       "canvasBackgroundColor": {
-        "light": "#F6F7F8",
+        "light": "#FFFFFF",
         "dark": "#151B20"
       },
       "widgetBackgroundColor": {
@@ -13214,8 +13368,18 @@
         "#8A96A3",
         "#2F6F8F"
       ],
+      "fontFamily": "Inter",
+      "fontSettings": {
+        "base": {
+          "fontFamily": "Inter"
+        },
+        "widgetTitle": {
+          "fontSize": 16
+        }
+      },
       "widgetHeaderAlignment": "LEFT",
-      "widgetCornerRadius": 10
-    }
+      "widgetCornerRadius": 8
+    },
+    "applyModeEnabled": false
   }
 }

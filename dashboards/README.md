@@ -19,7 +19,7 @@ A planner moves from many places, to one place, to its schools, then checks how 
 
 | View | Question | Main content |
 |---|---|---|
-| **Overview** | Which cities and municipalities should be reviewed first? | Priority map, what drives each tier, how far high places are above the typical place, pressure and enrollment together (tier × enrollment direction, context only), the ranked priority list |
+| **Overview** | Which cities and municipalities should be reviewed first? | Priority map in tier colors, what drives each tier, places by region and tier, how far high places are above the typical place, pressure and enrollment together (each tier stacked by enrollment direction, context only), the ranked priority list |
 | **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier; counts of schools, classrooms, teachers and learners; what stands out; the four questions answered for this place (counts, ratio, typical place, × typical, result); how far above the typical place by question; learners per teacher by level against the typical place; how solid the result is; demand (context only); barangay access; the first schools to follow up |
 | **School Action** | Which schools should we check, and why? | The selected school, its place among schools in the same LGU, its enrollment, rooms and teachers, the exact figures to verify, the school action list |
 | **Data and Method** | Can we rely on these results, and how were they produced? | How the priority is determined, the typical place of each type, coverage and reasons for data review, how complete the enrollment trend is, whether the Critical list holds under D-057's checks, overlap of measures, source years and data quality checks, limits |
@@ -71,3 +71,7 @@ The LGU Profile's insights are fixed SQL rules over the same tables as its chart
 ## Limits
 
 The dashboard cannot tell how many schools, classrooms or teachers to add, why a place is under pressure, how far learners travel, or whether a reported value is correct. Classroom and teacher figures exist only for SY 2023-24. School-level ratios and flags in School Action are a screening view for follow-up, not the LGU priority rule.
+
+## Design
+
+Theme, fonts, colors and counter styles live in the generator: `TIER_COLORS`, `DIRECTION_COLORS`, the `*_STYLE` constants and `uiSettings` in [`planner.py`](../src/dashboard/planner.py). A design change made in the Databricks editor is overwritten by the next deploy, so export the dashboard and carry the change into the generator before deploying.
