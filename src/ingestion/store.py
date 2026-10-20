@@ -94,6 +94,10 @@ class DuckDBStore:
         self.con.execute(f"ATTACH '{target}' AS {CATALOG}")
         self.con.execute(f"USE {CATALOG}")
         self.con.execute("CREATE TEMP MACRO regexp_replace_all(s, p, r) AS regexp_replace(s, p, r, 'g')")
+        # Databricks format_number(x, d): thousands separators and d decimals (the dashboard writes counts in sentences).
+        self.con.execute("CREATE TEMP MACRO format_number(x, d) AS CASE WHEN x IS NULL THEN NULL "
+                         "WHEN d = 0 THEN format('{:,}', CAST(ROUND(x) AS BIGINT)) "
+                         "ELSE format('{:,.' || CAST(d AS VARCHAR) || 'f}', CAST(x AS DOUBLE)) END")
         self._tmp = tempfile.TemporaryDirectory()
         self._spatial = False
 
