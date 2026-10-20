@@ -26,6 +26,17 @@ Every generated file has a test that fails when the committed file differs from 
 | `naming.yml` | Machine-readable naming patterns | `tests/test_naming.py` |
 | `project.json` | Workspace, catalog, schema, and storage settings | `tests/test_bundle.py` |
 
+## Which sources are loaded
+
+```mermaid
+flowchart LR
+    registry[sources.json<br/>23 registered sources] -->|8 with a contract| contracts[ingestion/<br/>loaded into Bronze]
+    contracts -->|8 with a mapping| mappings[mappings/<br/>cleaned into Silver]
+    registry -->|15 without| profiled[Profiled only:<br/>source cards and analysis]
+```
+
+Every registered source has a card in [`docs/data/source-inventory/`](../docs/data/source-inventory/README.md). Only a source with a contract here is ever loaded.
+
 ## Changing configuration
 
 1. Edit the file in a pull request; the source or table owner named in it approves.
