@@ -20,7 +20,7 @@ A planner moves from many places, to one place, to its schools, then checks how 
 | View | Question | Main content |
 |---|---|---|
 | **Overview** | Which cities and municipalities should be reviewed first? | Priority map in tier colors, what drives each tier, places by region and tier, how far high places are above the typical place, pressure and enrollment together (each tier stacked by enrollment direction, context only), the ranked priority list |
-| **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier; counts of schools, classrooms, teachers and learners; what stands out; the four questions answered for this place (counts, ratio, typical place, × typical, result); how far above the typical place by question; learners per teacher by level against the typical place; how solid the result is; demand (context only); barangay access; the first schools to follow up |
+| **LGU Profile** | Why is this place a priority, and where should the board look? | The place and its tier; counts of schools, classrooms, teachers and learners; four findings (strongest pressure, reliability, enrollment context, barangay follow-up); the four questions answered for this place, one counter each; pressure against the typical place by measure; learners per teacher by level against the typical place; enrollment, school-age population and resident children against enrollment (context only); barangay access; the first schools to follow up; data coverage and verification checks |
 | **School Action** | Which schools should we check, and why? | The selected school, its place among schools in the same LGU, its enrollment, rooms and teachers, the exact figures to verify, the school action list |
 | **Data and Method** | Can we rely on these results, and how were they produced? | How the priority is determined, the typical place of each type, coverage and reasons for data review, how complete the enrollment trend is, whether the Critical list holds under D-057's checks, overlap of measures, source years and data quality checks, limits |
 
@@ -64,9 +64,9 @@ Every filter is a query parameter applied after the stored percentiles and tiers
 
 Databricks dashboards cannot open another page from a click or share a page filter between pages, so a planner picks the place on LGU Profile and again on School Action. Both start on the same top place.
 
-## What stands out
+## Findings
 
-The LGU Profile's insights are fixed SQL rules over the same tables as its charts, at most four, each left out when its data is incomplete: the strongest measure with its percentile and relative pressure, the data review reason or the outlier check, the enrollment trend when every year is complete (context only), barangays without a matched public elementary school, and locally funded teachers. No generative AI is used, and no sentence states a cause.
+The LGU Profile's four findings are fixed SQL rules over the same tables as its charts, one counter each, left empty when the data is incomplete: the strongest measure with its relative pressure, the data review reason or the outlier check, the enrollment trend when every year is complete (context only), and barangays without a matched public elementary school. No generative AI is used, and no sentence states a cause.
 
 ## Limits
 
