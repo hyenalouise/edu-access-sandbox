@@ -1,5 +1,5 @@
-"""The LGU planner dashboard: its JSON matches the generator, its pages, filters and layout follow the plan, and it
-shows D-061's planning priorities as the Analytics tables publish them."""
+"""The Education Access Review Dashboard: its JSON matches the generator, its pages, filters and layout follow the plan,
+its wording stays in plain language, and it shows the planning priorities as the Analytics tables publish them."""
 
 import json
 import re
@@ -13,8 +13,7 @@ from test_analytics_priority import GOLD, add_public_school, run_all, store  # n
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
 PAGES = ["overview", "lgu_profile", "school_action", "data_and_method"]
-HEADINGS = ("Selected city or municipality", "Place details", "Selected school", "School details", "Data freshness")  # not KPIs
-SENTENCES = tuple(planner.FINDINGS) + tuple(title for title, _, _ in planner.ANSWERS)  # LGU Profile findings and answers
+INTERNAL_CODE = re.compile(r"\bD-0\d\d\b|\bAP ?[1-4]\b")
 
 
 def load():
@@ -36,10 +35,15 @@ def test_four_views_in_order_then_the_global_filters():
     assert [p["pageType"] for p in pages] == ["PAGE_TYPE_CANVAS"] * 4 + ["PAGE_TYPE_GLOBAL_FILTERS"]
 
 
-def test_no_page_has_more_than_four_kpis():
+def kpis(page):
+    """Counters that show their title: headings (the selected place or school) and notes (scope, facts) hide it."""
+    return [w for w in widgets(page) if w.get("spec", {}).get("widgetType") == "counter"
+            and w["name"].startswith("kpi_") and w["spec"]["frame"]["showTitle"]]
+
+
+def test_every_page_has_exactly_four_kpis():
     for page in load()["pages"][:4]:
-        counters = [w for w in widgets(page) if w.get("spec", {}).get("widgetType") == "counter"
-                    and w["spec"]["frame"]["title"] not in HEADINGS + SENTENCES]
+        counters = kpis(page)
         assert len(counters) == 4, page["name"]
         for counter in counters:  # a counter shows its value large: no sentences in the template
             template = counter["spec"]["encodings"]["value"].get("formatTemplate", "")
@@ -105,6 +109,78 @@ def test_wording_never_states_a_need_or_shortage_as_a_finding():
     assert "out-of-school count" not in text
 
 
+def test_no_title_renders_markdown():
+    # review of the 2026-10-21 export: asterisks in chart titles rendered literally
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            title = widget.get("spec", {}).get("frame", {}).get("title", "")
+            assert not re.search(r"[*#_`]", title), (page["name"], title)
+
+
+def test_no_internal_rule_or_measure_code_outside_the_technical_metadata():
+    dashboard = load()
+    for page in dashboard["pages"]:
+        for widget in widgets(page):
+            shown = json.dumps({k: v for k, v in widget.items() if k != "queries"})
+            if page["name"] == "data_and_method" and "Technical metadata" in shown:
+                continue
+            assert not INTERNAL_CODE.search(shown), (page["name"], widget["name"], INTERNAL_CODE.search(shown).group())
+    for dataset in dashboard["datasets"]:  # text the SQL writes into a cell: its string literals, comments aside,
+        sql = re.sub(r"--[^\n]*", "", "".join(dataset["queryLines"]))  # and a published value it maps to plain words
+        sql = re.sub(r"WHEN\s+'(?:''|[^'])*'\s+THEN", "WHEN THEN", sql)
+        for literal in re.findall(r"'((?:''|[^'])*)'", sql):
+            assert not INTERNAL_CODE.search(literal), (dataset["name"], literal)
+
+
+def test_missing_values_are_never_written_as_null_or_na():
+    for dataset in load()["datasets"]:
+        sql = "".join(dataset["queryLines"])
+        assert "'n/a'" not in sql and "'null'" not in sql.lower(), dataset["name"]
+
+
+def test_every_planning_status_has_a_plain_label_and_basis():
+    assert len(planner.QUEUE) == len(planner.STATUS_LABELS) == len(planner.STATUS_BASIS)
+    text = DASHBOARD.read_text(encoding="utf-8")
+    for label, basis in zip(planner.STATUS_LABELS, planner.STATUS_BASIS):
+        assert label in text and basis in text
+
+
+def test_the_map_draws_geometry_not_a_named_built_in_map():
+    # review of the 2026-10-21 export: a `custom` region exported as a map of Japan
+    maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
+    assert maps
+    for widget in maps:
+        region = widget["spec"]["encodings"]["region"]
+        assert region["regionType"] == "geometry", region
+        fields = {f["name"]: f["expression"] for f in widget["queries"][0]["query"]["fields"]}
+        assert fields[region["geometry"]["fieldName"]] == "ST_ASGEOJSON(`boundary`)"
+
+
+def test_every_view_shows_the_scope_line():
+    for page in load()["pages"][:4]:
+        assert any(q["query"]["datasetName"] == "scope" for w in widgets(page) for q in w.get("queries", [])
+                   if "fields" in q["query"]), page["name"]
+
+
+def test_barangay_and_measure_filters_sit_with_what_they_change():
+    pages = {p["name"]: p for p in load()["pages"]}
+
+    def targets(page, title):
+        widget = next(w for w in widgets(pages[page]) if w.get("spec", {}).get("widgetType") == "filter-single-select"
+                      and w["spec"]["frame"]["title"] == title)
+        return {q["query"]["datasetName"] for q in widget["queries"] if "parameters" in q["query"]}
+
+    assert targets("lgu_profile", "Barangay") == {"pr_barangays", "pr_map", "pr_map_note"}
+    assert targets("school_action", "Barangay") == {"sa_list"}
+    assert targets("school_action", "School status") == {"sa_list"}
+    assert targets("data_and_method", "Measure") == {"dm_coverage", "dm_reasons"}
+
+
+def test_the_school_map_plots_only_locations_inside_the_lgu_boundary():
+    sql = "".join(next(d for d in load()["datasets"] if d["name"] == "pr_map")["queryLines"])
+    assert "boundary_status = 'inside'" in sql
+
+
 def test_the_bundle_deploys_this_dashboard():
     bundle = yaml.safe_load((ROOT / "databricks.yml").read_text(encoding="utf-8"))
     dashboard = bundle["resources"]["dashboards"]["reached_planner"]
@@ -138,33 +214,42 @@ def _rows(store, name, **chosen):
     return store.records(sql, {k: v for k, v in params.items() if re.search(rf":{k}\b", sql)})
 
 
-def test_the_planner_shows_the_d061_priority_as_published(store):
+def test_the_planner_shows_the_priority_as_published(store):
     # Town One gains a school with 300 learners in 4 reported rooms (75 per room), above the screen of 50
     add_public_school(store, "X1", "M1", 300, 4, 10)
     run_all(store)
     kpi = _rows(store, "ov_kpi")[0]
-    assert (kpi["queue_lgus"], kpi["screened_schools"], kpi["screened_learners"], kpi["data_review_lgus"]) == (1, 1, 300, 0)
-    assert _rows(store, "dm_kpi")[0]["queue_lgus"] == 1
-    # Town One has classroom pressure and growing enrollment, so D-061 publishes Priority 2
+    assert (kpi["any_pressure"], kpi["schools_above"], kpi["learners_above"], kpi["data_review"]) == (1, 1, 300, 0)
+    # Town One has classroom pressure and growing enrollment, so the matrix publishes Priority 2: high-priority review
     card = _rows(store, "pr_card", lgu="Town One, Province")[0]
     assert card["city_mun_name"] == "Town One" and card["queue_status"] == planner.QUEUE[1]
-    assert "order 1" in card["details"]
+    assert card["status_label"] == planner.STATUS_LABELS[1]
+    assert "National review order: 1 of " in card["details"] and card["classroom_kpi"] == "1 of 2 schools"
     screen = _rows(store, "pr_evidence", lgu="Town One, Province")[0]
-    assert screen["this_place"] == "1 of 2 schools, 300 learners" and screen["status"] == planner.QUEUE[1]
+    assert screen["this_lgu"] == "1 of 2 schools, 300 learners" and screen["status"] == "Signal present"
+    decision = _rows(store, "pr_decision", lgu="Town One, Province")
+    assert [(r["signal"], r["result"]) for r in decision] == [
+        ("Classroom pressure", "Yes"), ("Teacher pressure", "No"), ("Enrollment growing", "Yes"),
+        ("Planning status", planner.STATUS_LABELS[1])]
+    queue = {r["lgu_label"]: r for r in _rows(store, "ov_lgu")}
+    assert queue["Town One, Province"]["pressure_signals"] == "Classroom"
+    assert queue["Town One, Province"]["status_basis"] == planner.STATUS_BASIS[1]
     assert {r["share_band"] for r in _rows(store, "dm_share")} <= set(planner.SHARE_BANDS)
+    # a planning-status filter takes the label a user sees, not the database value
+    assert [r["lgu_label"] for r in _rows(store, "ov_lgu", queue=planner.STATUS_LABELS[1])] == ["Town One, Province"]
 
 
 def test_a_level_above_its_reference_shows_even_when_another_level_is_not_fully_assessed(store):
     # review on #224: City One's JHS is above its reference while its SHS has no teacher count. AP3 publishes
-    # "pressure signal identified", so the planner says "Above a reference", not "Not fully assessed"
+    # "pressure signal identified", so the planner says the teacher signal is present, not "Not assessed"
     store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 200
         WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
     store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S1','2023-24','JHS',4)")
     store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 50
         WHERE school_id = 'S2' AND school_year = '2023-24' AND education_level_code = 'SHS'""")
     run_all(store)
-    status = {r["city_mun_psgc_code"]: r["teacher_status"] for r in _rows(store, "ov_teachers")}
-    assert status["C1"] == planner.TEACHER_STATUS[0]
+    signal = {r["city_mun_psgc_code"]: r["teacher_signal"] for r in _rows(store, "ov_lgu")}
+    assert signal["C1"] == planner.SIGNALS[0]
 
 
 def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
@@ -175,12 +260,29 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
     run_all(store)
     add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
     ratio = {level: {r["school_id"]: r["teacher_ratio"] for r in _rows(store, "sa_list", level=level, lgu="Town One, Province")}
-             for level in (planner.ALL_LEVELS, "ES", "JHS")}
-    assert ratio[planner.ALL_LEVELS]["X1"] == ratio["ES"]["X1"] == 30  # 300 ES learners over 10 ES teachers
-    assert ratio["JHS"]["X1"] is None
+             for level in (planner.ALL_LEVELS, "Elementary", "Junior high")}
+    assert ratio[planner.ALL_LEVELS]["X1"] == ratio["Elementary"]["X1"] == 30  # 300 ES learners over 10 ES teachers
+    assert ratio["Junior high"]["X1"] is None
+    shown = {r["school_id"]: r for r in _rows(store, "sa_list", level="Junior high", lgu="Town One, Province")}
+    assert shown["X1"]["per_teacher_txt"] == "Not assessable"  # a word, never null
     # the comparison chart leaves it out at JHS rather than plotting the all-level ratio
     assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS, lgu="Town One, Province")}
-    assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="JHS", lgu="Town One, Province")}
+    assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="Junior high", lgu="Town One, Province")}
+
+
+def test_every_listed_school_says_why_and_what_to_verify(store):
+    # X1 is above the classroom screen; S4 has no flag. Both get a reason, and X1's verify panel names its figure
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    run_all(store)
+    add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
+    rows = {r["school_id"]: r for r in _rows(store, "sa_list", lgu="Town One, Province")}
+    assert all(r["why_listed"] and r["next_step"] for r in rows.values())
+    assert rows["X1"]["why_listed"] == "Above classroom screen" and rows["X1"]["verification_status"] == planner.VERIFY[0]
+    assert rows["S4"]["why_listed"] == "Included by classroom-pressure order"
+    school = _rows(store, "sa_school", lgu="Town One, Province")[0]
+    assert school["school_id"] == "X1" and school["verify_kpi"] == "Verification needed · 1 check"
+    assert school["verify_header"] == "Verify reported room count and enrollment"
+    assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town One, Province")] == ["Classroom pressure"]
 
 
 def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(store):
@@ -197,7 +299,7 @@ def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(
         ("Poblacion", 0, "No"), ("Poblacion", 1, "Yes"), ("San Roque", 1, "Yes")]
 
 
-def test_no_d057_tier_or_check_table_is_read():
+def test_no_retired_tier_or_check_table_is_read():
     text = DASHBOARD.read_text(encoding="utf-8")
     for retired in ("lgu_priority_checks", "lgu_priority_outlier_schools", "order_in_tier", "is_stable", "_percentile"):
         assert retired not in text, retired
