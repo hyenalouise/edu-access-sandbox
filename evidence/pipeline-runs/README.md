@@ -18,6 +18,7 @@ Start here: the latest record shows the whole job passing on Databricks.
 | Date | Source | Claim |
 |---|---|---|
 | 2026-10-20 | All | [The whole job runs on Databricks `dev`, source to Gold, twice, with every gate passing and identical results](2026-10-20-gold-databricks-dev.md) |
+| 2026-10-20 | All | [Failure recovery, local: a failed gate keeps the last good tables published, and a new run of the fixed code rebuilds every published table exactly as before](2026-10-20-failure-recovery-local.md) |
 | 2026-10-18 | All | [Downstream tasks start from the gates they read, and the fan-in is an audit](2026-10-18-per-lane-job.md) |
 | 2026-10-11 | All | [The source-lane fan-in checks every Silver lane on Databricks, and Integration starts only from it](2026-10-11-source-lane-fan-in.md) |
 | 2026-10-08 | All Bronze lanes | [The edu_access_pipeline DAG runs every Bronze lane and gate on Databricks, a second run inserts nothing, and each load joins to its gate](2026-10-08-pipeline-dag-databricks-idempotency.md) |
