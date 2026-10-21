@@ -107,9 +107,10 @@ PRI_CTE = f"""pri AS (
                                      m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,
          CASE WHEN m.classroom_priority_group = 'data_review'
               THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,
-         CASE WHEN NOT a3.is_assessed THEN '{TEACHER_STATUS[2]}'
-              WHEN a3.benchmark_status = 'pressure signal identified' THEN '{TEACHER_STATUS[0]}'
-              ELSE '{TEACHER_STATUS[1]}' END AS teacher_status,
+         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage
+         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN '{TEACHER_STATUS[0]}'
+              WHEN 'no pressure signal identified' THEN '{TEACHER_STATUS[1]}'
+              ELSE '{TEACHER_STATUS[2]}' END AS teacher_status,
          concat_ws(', ', CASE WHEN a3.es_benchmark_status LIKE 'above%' THEN 'ES' END,
                          CASE WHEN a3.jhs_benchmark_status LIKE 'above%' THEN 'JHS' END,
                          CASE WHEN a3.shs_benchmark_status LIKE 'above%' THEN 'SHS' END) AS teacher_levels_above,

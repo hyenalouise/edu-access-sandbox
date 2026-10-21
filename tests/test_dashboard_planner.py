@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 from src.dashboard import planner
-from test_analytics_priority import add_public_school, run_all, store  # noqa: F401  (store is that file's made-up Gold fixture)
+from test_analytics_priority import GOLD, add_public_school, run_all, store  # noqa: F401  (store is that file's made-up Gold fixture)
 
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
@@ -134,6 +134,19 @@ def test_the_planner_shows_the_d060_review_queue_as_published(store):
     screen = _rows(store, "pr_evidence")[0]
     assert screen["this_place"] == "1 of 2 schools, 300 learners" and screen["status"] == planner.QUEUE[0]
     assert {r["share_band"] for r in _rows(store, "dm_share")} <= set(planner.SHARE_BANDS)
+
+
+def test_a_level_above_its_reference_shows_even_when_another_level_is_not_fully_assessed(store):
+    # review on #224: City One's JHS is above its reference while its SHS has no teacher count. AP3 publishes
+    # "pressure signal identified", so the planner says "Above a reference", not "Not fully assessed"
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 200
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S1','2023-24','JHS',4)")
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 50
+        WHERE school_id = 'S2' AND school_year = '2023-24' AND education_level_code = 'SHS'""")
+    run_all(store)
+    status = {r["city_mun_psgc_code"]: r["teacher_status"] for r in _rows(store, "ov_teachers")}
+    assert status["C1"] == planner.TEACHER_STATUS[0]
 
 
 def test_no_d057_tier_or_check_table_is_read():
