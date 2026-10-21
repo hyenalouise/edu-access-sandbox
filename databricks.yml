@@ -1152,6 +1152,7 @@ resources:
         - task_key: 04_answer_ap4
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_city_school_age_population
           run_if: ALL_SUCCESS
           sql_task:
             file:
