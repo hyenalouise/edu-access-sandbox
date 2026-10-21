@@ -82,7 +82,7 @@ If `prod` needs the fix too, redeploy it from the same `main` with `python -m sr
 
 ### Deploying to prod
 
-`prod` is its own workspace, `dbc-76bcfddb-1669` (D-063). Deploy it only from a clean `main` that equals `origin/main`, after the change has run on `dev`:
+`prod` is its own workspace, `dbc-76bcfddb-1669` (D-063). A merge to `main` that changes what the job runs deploys it automatically: [`deploy.yml`](../../.github/workflows/deploy.yml) runs the script below in GitHub Actions, and **Actions → CD - Deploy to Databricks prod → Run workflow** redeploys the newest `main` by hand ([workflows](../../.github/workflows/README.md#databricks-environments)). It never starts a run. To deploy from a laptop instead, use a clean `main` that equals `origin/main`, after the change has run on `dev`:
 
 ```bash
 git switch main
