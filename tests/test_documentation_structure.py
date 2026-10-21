@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from urllib.parse import unquote
@@ -140,3 +141,44 @@ def test_stale_status_phrases_do_not_return(repo_root):
         text = path.read_text(encoding="utf-8")
         found += [f"{relative}: {phrase}" for phrase in STALE_STATUS_PHRASES if phrase in text]
     assert not found, "describe the current state instead:\n" + "\n".join(found)
+
+
+def approved_deliveries(repo_root: Path) -> dict[str, list[tuple[str, str]]]:
+    """(file name, SHA-256) of every approved delivery, by source_id."""
+    deliveries = {}
+    for contract_path in sorted((repo_root / "config" / "ingestion").glob("*.json")):
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        deliveries[contract["source_id"]] = [
+            (d.get("archive") or d["workbook"], d.get("archive_sha256") or d["workbook_sha256"])
+            for d in contract["deliveries"]
+        ]
+    return deliveries
+
+
+def test_raw_file_list_matches_the_approved_deliveries(repo_root):
+    rows = re.findall(
+        r"^\| `([a-z_0-9]+)` \| `([^`]+)` \| `[a-z_]+/` \| [^|]+ \| `([0-9a-f]{64})` \|$",
+        (repo_root / "docs" / "getting-started" / "raw-data.md").read_text(encoding="utf-8"),
+        flags=re.MULTILINE,
+    )
+    listed = sorted(rows)
+    expected = sorted(
+        (source_id, name, sha)
+        for source_id, files in approved_deliveries(repo_root).items()
+        for name, sha in files
+    )
+    assert listed == expected, "docs/getting-started/raw-data.md must list exactly the approved deliveries in config/ingestion/"
+
+
+def test_source_inventory_marks_the_sources_the_pipeline_loads(repo_root):
+    rows = re.findall(
+        r"^\| \[([a-z_0-9]+)\]\([^)]*\) \|.*\| (yes|no) \|$",
+        (repo_root / "docs" / "data" / "source-inventory" / "README.md").read_text(encoding="utf-8"),
+        flags=re.MULTILINE,
+    )
+    marked = {source_id for source_id, loaded in rows if loaded == "yes"}
+    registry = json.loads((repo_root / "config" / "sources.json").read_text(encoding="utf-8"))
+    listed = sorted(source_id for source_id, _ in rows)
+    assert listed == sorted(s["source_id"] for s in registry["sources"]), (
+        "list every source in config/sources.json exactly once in the source inventory")
+    assert marked == set(approved_deliveries(repo_root)), "mark 'In pipeline' yes exactly for the sources with a contract in config/ingestion/"

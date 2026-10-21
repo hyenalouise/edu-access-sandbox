@@ -10,6 +10,8 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 [Evidence](evidence/README.md) ·
 [Contributing](CONTRIBUTING.md)
 
+**New here?** Read in this order: this page → [architecture overview](docs/architecture/overview.md) → [Gold data model](docs/architecture/data-model.md) → [raw files the job needs](docs/getting-started/raw-data.md) → [failure-recovery runbook](docs/operations/runbook.md). Everything else is in the [docs index](docs/README.md).
+
 ## About the project
 
 National education totals show how many learners the Philippines enrolls, but not **where** public-school enrollment puts the most pressure on classrooms and teachers. Education Access Intelligence answers that at the level where local planning happens: every city and municipality.
@@ -37,7 +39,7 @@ It brings together official DepEd, PSA, and HDX files, matches every school to t
 ### What it produces
 
 - **A classroom review queue.** Every city or municipality whose reported data cover at least 90% of its learners, and that has at least one public school at or above the classroom screen, is ranked by the learners in those schools, then the number of those schools. The queue orders review effort; it is not a shortage count or a funding allocation.
-- **One table per analytical question**, with its coverage and the reason when a place cannot be assessed.
+- **One table per analytical question**, with its coverage and the reason when a place cannot be assessed. Every column is in [analytics outputs](docs/data/analytics-outputs.md).
 - **Trusted Gold tables** of schools, places, enrollment, classrooms, teachers, population, and poverty, reusable for other questions.
 - **A data-quality dashboard** that shows every check the pipeline ran, by layer and source, with job runs and source freshness.
 
@@ -69,13 +71,65 @@ flowchart LR
     control -.-> dq[Data-quality dashboard]
 ```
 
+<details>
+<summary>End to end, with every source and table</summary>
+
+```mermaid
+flowchart LR
+    subgraph sources["00 Source: 15 files, 9 sources"]
+        direction TB
+        s1[deped_enrollment<br/>SY 2020-21 to 2025-26]
+        s2[deped_facilities]
+        s3[deped_personnel]
+        s4[deped_enrollment_psgc]
+        s5[deped_psgc_coordinates]
+        s6[psa_psgc]
+        s7[psa_poverty_stat]
+        s8[psa_school_age_population]
+        s9[hdx_boundaries]
+    end
+    subgraph lanes["02 Bronze and 03 Silver: one lane per source"]
+        direction TB
+        raw["9 _raw tables<br/>+ Bronze gates"] --> clean["9 _clean + _quarantine tables<br/>+ Silver gates"]
+    end
+    subgraph integration["04 Integration"]
+        direction TB
+        m1[deped_school_psgc_map]
+        m2[psa_poverty_psgc_map]
+        m3[hdx_adm3_psgc_map]
+        m4[psa_school_age_population_psgc_map]
+        m5[deped_annex_mother_map]
+        m6[deped_school_boundary_map]
+    end
+    subgraph gold["05 Gold"]
+        direction TB
+        dims["dim_school · dim_school_year · dim_education_level<br/>dim_city_municipality · dim_barangay · dim_city_poverty<br/>dim_school_location"]
+        facts["fact_school_enrollment · fact_school_classroom_capacity<br/>fact_school_teacher_capacity · fact_city_population<br/>fact_city_school_age_population · fact_school_year_source_availability"]
+        dims --> facts
+    end
+    subgraph analytics["06 Analytics"]
+        direction TB
+        ap["ap1_school_provision · ap2_classroom_pressure<br/>ap3_teacher_pressure · ap4_enrollment_trend"] --> matrix[lgu_priority_matrix<br/>D-060 classroom review queue]
+    end
+    sources --> lanes --> integration --> gold
+    lanes --> gold
+    gold --> analytics
+    lanes & integration & gold & analytics -.->|every gate's results| control[(01 Control<br/>data_quality_results)]
+    control -.-> dq[Data-quality dashboard]
+    matrix -.->|in review, #224| planner[LGU planner dashboard]
+```
+
+Column-level detail: [Silver tables](docs/data/silver/README.md), [Gold data model](docs/architecture/data-model.md), [analytics outputs](docs/data/analytics-outputs.md).
+
+</details>
+
 Each source moves through Bronze and Silver in its own lane. From Silver on, every table is built as a candidate and replaces the published table only when its validation gate passes, so a failed check never overwrites the last good result. Details: [architecture overview](docs/architecture/overview.md).
 
 | Layer | Holds |
 |---|---|
 | Bronze | 9 source tables, every value kept as received |
 | Silver | 9 cleaned tables, each with a quarantine table for rows that cannot be trusted |
-| Integration | 5 matching tables: schools, poverty estimates, boundaries, and census places to PSGC, and annex schools to their mother schools |
+| Integration | 6 matching tables: schools, poverty estimates, boundaries, and census places to PSGC, annex schools to their mother schools, and school points to boundaries |
 | Gold | 13 dimensions and facts at their natural grain |
 | Analytics | AP1 to AP4 and the classroom review queue |
 
@@ -115,7 +169,7 @@ py -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-Raw files are never committed. Locally they sit in `raw-data/` beside the repository ([terminal setup, Part 8](docs/getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)); on Databricks they are in `` edu_access.`00-source`.raw ``. Each source contract in `config/ingestion/` names the approved files by SHA-256, and each [source card](docs/data/source-inventory/README.md) records where to download them.
+Raw files are never committed. Locally they sit in `raw-data/` beside the repository ([terminal setup, Part 8](docs/getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)); on Databricks they are in `` edu_access.`00-source`.raw ``. The job loads 15 files from 9 sources: [raw files the job needs](docs/getting-started/raw-data.md) lists each one with its SHA-256 and where to get it, including the 4 that were sent by email and are not published.
 
 ## Run it
 

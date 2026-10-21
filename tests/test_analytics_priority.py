@@ -1,5 +1,6 @@
 """AP1 to AP4 evidence and the separate classroom-screening queue under D-060."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -274,3 +275,27 @@ def test_benchmark_registry_matches_published_values(store):
         FROM {ANALYTICS}.ap3_teacher_pressure""") == [
         (registry["ap3"]["es_max_learners_per_teacher"], registry["ap3"]["jhs_max_learners_per_teacher"],
          pytest.approx(registry["ap3"]["shs_max_learners_per_teacher"]))]
+
+
+def documented_columns(table):
+    """Columns listed for a table in docs/data/analytics-outputs.md, <level>_ expanded to es_, jhs_ and shs_."""
+    text = (ROOT / "docs/data/analytics-outputs.md").read_text(encoding="utf-8")
+    sections = dict(re.findall(r"^## `?([a-z_0-9]+|LGU columns)`?\n(.*?)(?=^## |\Z)", text, flags=re.M | re.S))
+    def listed(section):
+        names = []
+        for name in re.findall(r"^\| `([a-z_0-9<>]+)` \|", section, flags=re.M):
+            names += [name.replace("<level>", level) for level in ("es", "jhs", "shs")] if "<level>" in name else [name]
+        return names
+    body = sections[table]
+    return (listed(sections["LGU columns"]) if "[LGU columns]" in body else []) + listed(body)
+
+
+@pytest.mark.parametrize("table", ["ap1_school_provision", "ap2_classroom_pressure", "ap3_teacher_pressure",
+                                   "ap4_enrollment_trend", "lgu_priority_matrix"])
+def test_the_analytics_dictionary_lists_every_column(store, table):
+    run_all(store)
+    columns = {c[0] for c in store.query(
+        f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table}'")}
+    documented = documented_columns(table)
+    assert len(documented) == len(set(documented)), f"a column of {table} is listed twice"
+    assert set(documented) == columns, f"update docs/data/analytics-outputs.md for {table}"
