@@ -429,7 +429,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 | Are per-publisher raw folders enough, given #10 asked for one folder per source? | First downloads flat in `raw/deped/`, later ones in dated subfolders | D-016 |
 | When is a `prod` target added, and how is its data kept apart from `dev`? | Answered by D-063: `prod` is its own workspace with the same catalog and names, so the hardcoded `edu_access` needs no change | D-063 |
 | How long are superseded versions kept in Bronze and Source? | Forever | Not yet logged |
-| Who can approve a delivery, and who moves a source to `accepted` so it can load into `prod`? | Any reviewer; every source stays `profiled`, so a `prod` run loads nothing yet | Team, before the first `prod` run (D-063) |
+| Who can approve a delivery, and who moves a source to `accepted` so it can load into `prod`? | Any reviewer approves a delivery. The nine sources the job loads were moved to `accepted` on 2026-10-21; a new source moves in its own pull request, approved by its owner | D-063 |
 | Should a blank `school_id` fail the whole year, or be quarantined in Silver? | Fail the batch (none observed) | Profile O-1 |
 | Does DepEd publish the promised school ID mapping file, and should it be a delivery member? | Unexpected members fail the batch | Source card |
 
@@ -437,7 +437,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 
 `psa_poverty_stat` loads through the same pipeline as DepEd, from its own contract, `config/ingestion/psa_poverty_stat.json` (`format: xlsx_sheet`). What differs is in `src/ingestion/workbook.py` (reading and checking the workbook) and `src/ingestion/formats.py` (period, versions, load type). Decision: D-018.
 
-**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence: those skip runs show the lane and the Bronze gate on Databricks, not its first-load path. The source stays `profiled`. Its Silver build and gate now continue the lane ([Silver, PSA Poverty Stat](silver.md#psa-poverty-stat), D-034); they are tested locally and ran twice on Databricks `dev` on 2026-10-09 ([Silver evidence](../../evidence/reconciliation/2026-10-09-psa-poverty-stat-bronze-to-silver.md)).
+**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence: those skip runs show the lane and the Bronze gate on Databricks, not its first-load path. The source is `accepted` since 2026-10-21 (D-063). Its Silver build and gate now continue the lane ([Silver, PSA Poverty Stat](silver.md#psa-poverty-stat), D-034); they are tested locally and ran twice on Databricks `dev` on 2026-10-09 ([Silver evidence](../../evidence/reconciliation/2026-10-09-psa-poverty-stat-bronze-to-silver.md)).
 
 ### The flow
 
@@ -699,7 +699,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 |---|---|---|
 | Is a later release that adds a year (and may revise old ones) a revision of the current dataset, or a new dataset? | The contract refuses overlap across datasets, and a revision must keep every year of the version it supersedes. So a release covering all earlier years plus a new one loads as a revision; one that overlaps but drops a year (e.g. 2023, 2025 after 2018, 2021, 2023) cannot be approved either way until the team decides | D-018 |
 | Should the latest version always be current after a revision? | Latest succeeded version | D-015 |
-| Does `psa_poverty_stat` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
+| Does `psa_poverty_stat` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @maeveylain) |
 | How long are superseded versions kept? | Forever | Not yet logged |
 | Should Silver clip negative lower limits, or only flag them? | Flag only (`lower_limit_not_positive`); proposed in D-034, not yet reviewed | D-034 |
 
@@ -1076,7 +1076,7 @@ For codes only in the new quarter, look for their `correspondence_code` among th
 | How long are superseded quarters and versions kept? | Forever | Not yet logged |
 | Should the control tables get a generic `period` column instead of the `school_year` convention? | Keep the convention; no shared DDL change | D-019, Ina |
 | When does the master reference move from 2Q 2026? | Never by loading; only by a team decision after the question-8 comparison | D-012 |
-| Does `psa_psgc` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
+| Does `psa_psgc` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @maeveylain) |
 | What is the `Correspondence Code`, and why are 84 codes stored as numbers in the workbook? | Kept as stored; to ask the publisher | Source card |
 
 ## Administrative boundaries (COD-AB ADM3 GeoJSON)
@@ -1313,7 +1313,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 | Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | D-019, D-026|
 | Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-026 |
 | Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
-| Does `hdx_boundaries` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+| Does `hdx_boundaries` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @saraevcldn) |
 
 ## DepEd EMISD workbook (xlsx_report)
 
@@ -1475,5 +1475,5 @@ In `edu_access_pipeline`, the source has its own lane: `08_create_psa_school_age
 
 | Question | Default until decided | Where |
 |---|---|---|
-| Does `psa_school_age_population` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+| Does `psa_school_age_population` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @saraevcldn) |
 | Total or household population for school-age need? | Both loaded; Silver decides | Profile O-5, mentor |

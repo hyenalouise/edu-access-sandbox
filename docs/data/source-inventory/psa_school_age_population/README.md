@@ -1,6 +1,6 @@
 # psa_school_age_population: PSA population aged 5-24 by single-year age, sex and city/municipality
 
-**Status:** profiled
+**Status:** accepted
 
 Issue: #154. The team's school-age population reference: the only source found with population by single year of age at city and municipality level, for the 2020 and 2024 censuses. It is the population side of AP4 (D-042): population aged 5-17, total population, both sexes, at the 2020 and 2024 censuses. It complements [psa_population_per_age_group](../psa_population_per_age_group/README.md), which stops at province or highly urbanized city and uses five-year bands.
 
