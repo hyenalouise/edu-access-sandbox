@@ -1,0 +1,76 @@
+name: CD - Deploy to Databricks prod
+
+# Deploys the bundle to prod whenever a merge to main changes what the job runs,
+# or by hand from Actions -> CD - Deploy to Databricks prod -> Run workflow.
+#
+# It runs python -m src.job.deploy_prod, the same script a teammate runs by hand,
+# so the same checks apply: clean main, equal to origin/main, team notification
+# destination set (D-063). Deploying updates the job definition only; it never
+# starts a run. Starting one is still agreed with the team (workflow, Part 5).
+#
+# Needs the GitHub environment "production" (deployment branches: main only):
+#   variable DATABRICKS_HOST   prod workspace URL
+#   secret   DATABRICKS_TOKEN  access token from the prod workspace
+on:
+  push:
+    branches: [main]
+    paths:
+      - databricks.yml
+      - config/**
+      - dashboards/**
+      - etl/**
+      - src/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, and never cancel one halfway.
+concurrency:
+  group: databricks-prod-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy bundle to prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.DATABRICKS_HOST }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deploy dependencies
+        run: python -m pip install PyYAML==6.0.3
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
+        with:
+          version: 1.17.0
+
+      # deploy_prod always passes --profile reached-hq-prod, so write that profile
+      # outside the repository (a file inside it would fail the clean-tree check).
+      - name: Write the reached-hq-prod CLI profile
+        env:
+          HOST: ${{ vars.DATABRICKS_HOST }}
+          TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "::error::Missing environment variable DATABRICKS_HOST (Settings -> Environments -> production)."
+            exit 1
+          fi
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Missing environment secret DATABRICKS_TOKEN (Settings -> Environments -> production)."
+            exit 1
+          fi
+          umask 077
+          printf '[reached-hq-prod]\nhost = %s\ntoken = %s\n' "$HOST" "$TOKEN" > "$HOME/.databrickscfg"
+
+      - name: Deploy (validate, deploy, summary)
+        run: python -m src.job.deploy_prod
