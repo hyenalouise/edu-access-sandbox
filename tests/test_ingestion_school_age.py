@@ -46,7 +46,7 @@ def test_real_contract_loads_and_does_not_promote_the_source(repo_root):
     assert [[(s["sheet"], s["place_rows"]) for s in d["sheets"]] for d in config["deliveries"]] == [
         [("2020 Total Pop", 1742), ("2020 Household Pop", 1742)],
         [("2024 Total Pop", 1744), ("2024 Household Pop", 1744)]]
-    assert entry["status"] == "profiled", "ingestion must not promote the source; that is a team decision"
+    assert entry["status"] == "accepted", "accepted by the team on 2026-10-21 (D-063); a status change is a team decision"
 
 
 def test_layouts_have_60_and_20_count_columns():
