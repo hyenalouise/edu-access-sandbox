@@ -150,7 +150,7 @@ Every filter is a query parameter applied after the published values are read, s
 
 | Filter | Where it applies |
 |---|---|
-| Region, Province, LGU type (global) | Every view. Province options follow Region. A scope line on every view states the current scope and LGU count |
+| Region, Province, LGU type (global) | Every view. Province options follow Region. A scope line on Data & Method states the current scope and LGU count |
 | Review status, Data readiness (National Overview) | Every National Overview widget |
 | City or municipality (LGU Profile; School Action) | A page filter on each of the two views. Both default to the top of the queue in the scope; a choice outside the scope falls back to that LGU and says so |
 | Barangay (LGU Profile) | The school map, its coverage line and the barangay table only |
@@ -162,7 +162,7 @@ Databricks dashboards cannot open another page from a click or share a page filt
 
 ### Maps
 
-The National Overview map draws each LGU's HDX boundary as GeoJSON (`regionType: geometry`), coloured from 5 (Priority 1) to 1 (No current pressure identified); Data review LGUs have no status colour. A line under the map states how many LGUs in view were drawn. LGUs without a published boundary stay in the review queue and are never read as no pressure.
+The National Overview map draws each LGU's HDX boundary as GeoJSON in an unaggregated field named `geo(boundary)`, with a `custom` region pointing at it; an aggregated shape or another field name draws a built-in map instead (the 2026-10-21 export showed Japan). It is coloured from 5 (Priority 1) to 1 (No current pressure identified); Data review LGUs have no status colour. A line under the map states how many LGUs in view were drawn. LGUs without a published boundary stay in the review queue and are never read as no pressure.
 
 The LGU Profile's **School locations and barangay access** map plots public schools from Gold `dim_school_location` with `boundary_status = 'inside'` only (SY 2023-24 published NSBI coordinates, tested against the city or municipality boundary). The line under it states `Mapped N of M public schools in view` and counts schools outside the boundary, with no usable coordinates, or with a boundary not validated. Points are grey, with schools needing verification in one accent colour. The map locates schools and supports discussion with the Schools Division Office; it does not show catchment areas, travel time, road access or nearest-school assignment. No barangay polygon is drawn: the repository has no reviewed barangay-boundary source yet, so barangays are filters and tooltip attributes.
 
