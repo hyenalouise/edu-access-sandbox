@@ -150,6 +150,7 @@ checks:
     - one_unknown_barangay_per_city_mun
     - land_area_one_feature
   Validity:
+    - boundary_status_allowed
     - profiled_quarantine_school_year_out_of_scope
     - profiled_quarantine_sector_not_public
     - rows_in_scope
@@ -294,6 +295,7 @@ checks:
     - income_class_null_reason_matches_bronze
     - income_class_retained_after_downgrade_matches_bronze
     - is_master_reference_matches_bronze
+    - locations_unchanged
     - name_matches_bronze
     - old_names_matches_bronze
     - population_footnote_matches_bronze
@@ -302,6 +304,7 @@ checks:
     - psgc_code_matches_bronze
     - publication_date_matches_bronze
     - publication_period_matches_bronze
+    - schools_outside_boundary
     - status_matches_bronze
     - urban_rural_matches_bronze
     - urban_rural_null_reason_matches_bronze
@@ -358,7 +361,11 @@ checks:
     - census_context_only_on_aligned_years
     - comparable_only_with_both_years
   Consistency:
+    - boundary_feature_in_city
+    - boundary_status_follows_inputs
+    - city_matches_school_map
     - flags_consistent
+    - hdx_release_is_latest
     - hierarchy_consistent
     - levels_null_together
     - concepts_pair_up
@@ -437,6 +444,7 @@ checks:
     - hierarchy_barangays_without_city_or_municipality
     - hierarchy_no_province_region_has_no_provinces
     - matched_has_psgc_unit
+    - school_in_dim_school
     - unmatched
     - ambiguous
     - review_pending
@@ -579,9 +587,14 @@ recorded_counts:
     - flag_level_blank
     - flag_population_is_zero
     - flag_public_without_facility_data
+    - inside_rate_percent
     - match_rate_percent
     - principal_total_discrepancies
     - places_with_equal_concepts
+    - schools_inside_boundary
+    - schools_no_boundary
+    - schools_no_matched_city
+    - schools_no_usable_point
     # Gold, Analytics, and the PSGC maps (#193-#210): counts a gate records with no expected value
     - cities
     - municipalities

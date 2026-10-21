@@ -65,11 +65,12 @@ def repo(tmp_path):
     report_workbooks.approve(emisd, workbook, row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
     write_config(root, emisd)
     # The public-only workbook (lane 09) is a separate file: its own name and its row-6 sector note. It runs
-    # through Silver too (#217): two ordinary public schools, nothing quarantined.
+    # through Silver and Gold too (#217): two of the made-up enrollment schools, so dim_school_location's gate
+    # finds both in dim_school; nothing quarantined.
     coordinates = report_workbooks.coordinates_config()
     workbook = report_workbooks.make_workbook(tmp_path / "landing" / "deped" / "original", name=report_workbooks.PUBLIC_ONLY,
                                               title=report_workbooks.PUBLIC_ONLY_TITLE,
-                                              rows={9: report_workbooks.school(100001), 10: report_workbooks.school(100002)})
+                                              rows={9: report_workbooks.school(900001), 10: report_workbooks.school(900002)})
     report_workbooks.approve(coordinates, workbook, title=report_workbooks.PUBLIC_ONLY_TITLE,
                              row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
     write_config(root, coordinates)
@@ -249,7 +250,7 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     assert set(results.values()) == {"succeeded"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 9), ("integration_build", 4), ("silver_build", 9)]   # one filter, both layers; the DepEd school, HDX, poverty and school-age maps write their own runs
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 9), ("integration_build", 5), ("silver_build", 9)]   # one filter, both layers; the DepEd school, HDX, poverty, school-age and school-boundary maps write their own runs
     store.close()
 
 
