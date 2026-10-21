@@ -1344,7 +1344,7 @@ targets:
   # The old team workspace, kept for prod since 2026-10-21 (D-063). Being a
   # separate workspace is what keeps prod apart from dev: the catalog and
   # schema names are the same in both. Deploy it only with
-  # scripts/deploy_prod.sh, which refuses anything but a clean, pushed main.
+  # python -m src.job.deploy_prod, which refuses anything but a clean, pushed main.
   prod:
     mode: production
     git:
