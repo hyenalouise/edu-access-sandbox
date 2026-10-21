@@ -17,6 +17,7 @@ Start here: the latest record shows the whole job passing on Databricks.
 
 | Date | Source | Claim |
 |---|---|---|
+| 2026-10-21 | All, with DepEd PSGC coordinates | [The whole job, with the school boundary map and dim_school_location, succeeds on Databricks `dev`](2026-10-21-dim-school-location-databricks.md) |
 | 2026-10-20 | All | [The whole job runs on Databricks `dev`, source to Gold, twice, with every gate passing and identical results](2026-10-20-gold-databricks-dev.md) |
 | 2026-10-20 | All | [Failure recovery, local: a failed gate keeps the last good tables published, and a new run of the fixed code rebuilds every published table exactly as before](2026-10-20-failure-recovery-local.md) |
 | 2026-10-18 | All | [Downstream tasks start from the gates they read, and the fan-in is an audit](2026-10-18-per-lane-job.md) |

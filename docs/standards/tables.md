@@ -71,6 +71,9 @@ to PSGC and the estimate carried unchanged (D-054).
 Implemented: `psa_school_age_population_psgc_map` (`05_map_psa_school_age_population_psgc.sql`),
 one row per census year and city or municipality of the PSA school-age population, with its
 reviewed PSGC match, the PSGC parent it was searched in, review status, and reason (D-055).
+Implemented: `deped_school_boundary_map` (`06_map_deped_school_boundary.sql`), one row per public
+school of `deped_psgc_coordinates_clean`, with its point, the city the school map assigns it, and the
+boundary test S-1 against that city's HDX boundaries (#217).
 Implemented: `deped_school_psgc_map` (`01_map_deped_school_psgc.sql`), one row per enrollment
 school, school year, and geographic level (`city_mun`, `bgy`), with its EMISD-code or reviewed
 name match, including explicit unmatched, ambiguous, and excluded rows (#91, D-049).
@@ -88,6 +91,7 @@ No Integration working names remain. A new map follows the shape of `hdx_adm3_ps
 | `dim_school_year` | One school year |
 | `dim_education_level` | One education reporting level: ES, JHS, or SHS |
 | `dim_city_poverty` | One regular city or municipality with its selected 2023 poverty context; none for technical members |
+| `dim_school_location` | One public school with a published location (SY 2023-24); joins `dim_school` on `school_id` |
 | `fact_school_enrollment` | School x school year x education level |
 | `fact_school_classroom_capacity` | School x school year |
 | `fact_school_teacher_capacity` | School x school year x education level |

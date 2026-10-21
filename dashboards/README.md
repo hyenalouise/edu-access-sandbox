@@ -58,7 +58,7 @@ PASS: as expected. WARN: worth knowing, not necessarily wrong; the batch or buil
 
 ### Gold and Analytics
 
-The Gold tables follow [the data model](../docs/architecture/data-model.md): six dimensions and six facts, each published only after its `90_validate_*` gate passes, then five Analytics outputs. The dashboard shows them through those gates: current results by layer, WARN and FAIL by source (each Gold table and Analytics output is its own source), the fact-to-dimension key checks under Referential integrity (`*_in_dimension`, `*_fk_resolves`, `keys_in_dimension`), and *Gold lineage*, one `upstream_run_<table>` result per Silver or Integration table a Gold gate reads (PASS when that build succeeded in the same job run). It never reads a Gold table itself.
+The Gold tables follow [the data model](../docs/architecture/data-model.md): seven dimensions and six facts, each published only after its `90_validate_*` gate passes, then five Analytics outputs. The dashboard shows them through those gates: current results by layer, WARN and FAIL by source (each Gold table and Analytics output is its own source), the fact-to-dimension key checks under Referential integrity (`*_in_dimension`, `*_fk_resolves`, `keys_in_dimension`), and *Gold lineage*, one `upstream_run_<table>` result per Silver or Integration table a Gold gate reads (PASS when that build succeeded in the same job run). It never reads a Gold table itself.
 
 ### Cost
 
