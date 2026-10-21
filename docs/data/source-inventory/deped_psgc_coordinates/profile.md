@@ -26,7 +26,7 @@ Two runs on the same files give identical output.
 | O-2 | School ID is clean | 47,818 distinct, all 6 digits, 0 duplicate rows | None |
 | O-3 | PSGC codes lost their leading zero | Stored as numbers: 28,811 lost their leading zero (region, province, city, barangay alike). `#N/A` on 204 schools (city and barangay). 0 blank | Pad to 10 digits and treat `#N/A` as missing, with counts, in Silver |
 | O-4 | Coordinates: few missing | 47,139 numeric pairs; 47,080 inside lon 116-127, lat 4-21.5; 5 at (0, 0); 54 others outside the box. `#N/A` on 679 | Keep and flag in Silver, never correct |
-| O-5 | Text and labels kept as published | Mojibake in 239 cells; `barangay` blank 14; income class `1St` 72; urban/rural `-` 29; 3,602 error cells (`#N/A`) | Bronze keeps them; Silver repairs, keeping the raw value |
+| O-5 | Text and labels kept as published | Mojibake in 239 cells; `barangay` blank 14; income class `1St` 72; urban/rural `-` 29; 3,602 error cells (`#N/A`) | Bronze keeps them as received. Silver does not carry these columns (`deped_psgc_coordinates_clean` keeps codes and coordinates only), so nothing is left to repair there; `deped_enrollment_clean` repairs the same names for these schools |
 | O-6 | Most coordinates sit near their own city or municipality | Distance from each school to the median point of the schools with in-box coordinates and the same PSGC city or municipality code, 47,080 schools: < 10 km 40,046; 10-25 km 5,937; 25-50 km 675; 50-100 km 162; > 100 km 260 | Read over 100 km as a flag, not a verdict: the median is a rough centre for large or island municipalities. Test against boundaries before distance measures (S-1) |
 
 ## Suspected findings

@@ -65,6 +65,7 @@ A finding ID such as `A-5` or `Y-6` is printed by a script in front of the numbe
 | `CM-n` | `cross_source_dti_cmci.py` | CMCI LGUs against PSGC |
 | `HB-n` | `cross_source_hdx_boundaries.py` | COD-AB (HDX) boundaries against PSGC |
 | `EP-n` | `cross_source_deped_enrollment_psgc.py` | The EMISD workbook's PSGC codes (deped_enrollment_psgc) against the DepEd name match, school by school, and the proposed #91 match rule (`cross_source_deped_school_psgc_rule.py`, described in `config/mappings/integration/deped_school_psgc.json`) |
+| `PC-n` | `cross_source_deped_psgc_coordinates.py` | The two DepEd workbooks with PSGC and coordinates (deped_enrollment_psgc, deped_psgc_coordinates) compared by `school_id` for the public schools in both, from their published Silver tables: PSGC codes (PC-1), coordinates (PC-2), and whether each all-sector point appears at another school in the public-only file (PC-3) |
 | `O-n`, `X-n`, `S-n` | each source's own profiling script | That source's `profile.md`: observed findings, cross-checks, and suspected findings |
 
 Example: the coverage matrix says enrollment matches PSGC at 98.0% in SY 2024-25, with evidence "Re-run (Y-6)". Run `cross_source_deped_years.py` and read the line that starts `[Y-6] SY 2024-25`.
@@ -111,6 +112,7 @@ python analysis/cross_source/cross_source_deped.py
 | `cross_source_dti_cmci.py` | Same as `cross_source_deped.py`, plus `dti/original/cmci_lgu_list.csv` |
 | `cross_source_hdx_boundaries.py` | Same as `cross_source_deped.py`, plus `admin_boundaries/original/phl_admin3.geojson` and `phl_admin4.geojson` (1.27 GB together) |
 | `cross_source_deped_enrollment_psgc.py` | Same as `cross_source_deped.py`, plus `deped/original/SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx` (from DepEd EMISD, #135). Imports the match rule from `cross_source_deped_school_psgc_rule.py`, which needs no raw files and is unit-tested. Writes two school-level CSVs to `work/` (git-ignored), never to the repository |
+| `cross_source_deped_psgc_coordinates.py` | `deped/original/`: both workbooks with PSGC, longitude and latitude, the all-sector one and the `(Public only)` one (#217). It loads them through the Bronze pipeline and Silver SQL into `local_state/cross_source_deped_psgc_coordinates.duckdb` |
 
 The raw files are on the team volume, `/Volumes/edu_access/00-source/raw/`, in folders named like the ones above (`deped`, `psa`, `cmci`, `admin_boundaries`). Copy them with the Databricks CLI and the `reached-hq` profile, for example:
 

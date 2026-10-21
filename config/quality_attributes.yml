@@ -150,6 +150,9 @@ checks:
     - one_unknown_barangay_per_city_mun
     - land_area_one_feature
   Validity:
+    - profiled_quarantine_school_year_out_of_scope
+    - profiled_quarantine_sector_not_public
+    - rows_in_scope
     - school_id_format
     - school_id_valid
     - adm3_pcode_format
@@ -363,6 +366,7 @@ checks:
     - null_reason_matches_code
     - facility_values_within_offered_levels
     - facility_data_public_only
+    - null_reasons_agree
     - sheets_are_concepts
     - status_combination_valid
     - one_psgc_version

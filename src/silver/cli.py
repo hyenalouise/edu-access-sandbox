@@ -15,6 +15,9 @@
     python -m src.silver.cli sql        --source deped_enrollment_psgc > etl/03_silver/07_clean_deped_enrollment_psgc.sql
     python -m src.silver.cli gate       --source deped_enrollment_psgc > etl/03_silver/90_validate_deped_enrollment_psgc_clean.sql
     python -m src.silver.cli dictionary --source deped_enrollment_psgc > docs/data/silver/deped-enrollment-psgc-clean.md
+    python -m src.silver.cli sql        --source deped_psgc_coordinates > etl/03_silver/09_clean_deped_psgc_coordinates.sql
+    python -m src.silver.cli gate       --source deped_psgc_coordinates > etl/03_silver/90_validate_deped_psgc_coordinates_clean.sql
+    python -m src.silver.cli dictionary --source deped_psgc_coordinates > docs/data/silver/deped-psgc-coordinates-clean.md
 
 The build and the gate are SQL tasks of the job (databricks.yml); run the job
 locally with python -m src.job.local_run. Exit codes: 0 printed; 2 the
