@@ -182,8 +182,8 @@ A job that succeeds has only run; it has not shown the data is right. So the job
 
 ## Environments and deployment
 
-<!-- TODO(Phase 6): prod target, CD workflow, secrets handling. -->
-
+- **Not built yet:** a `prod` target and a workflow that deploys it from `main` (#99).
+- **Secrets:** none are committed. The CLI signs in through the `reached-hq` profile ([terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)), and alert recipients are resolved at deploy time ([Monitoring](#monitoring)).
 - `dev` is the only bundle target so far (`mode: development`); `prod` is not defined yet. `dev` and `prod` are deploy targets, not branches (D-005).
 - The job runs the commit it was deployed from (`git_source.git_commit: ${bundle.git.commit}`), and records the same value as `code_revision` on every row it writes. New code needs a deploy from a clean, pushed `main`.
 - Only `accepted` sources may load into `prod`; `profiled` sources load into `local` and `dev` only.

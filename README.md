@@ -10,6 +10,8 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 [Evidence](evidence/README.md) ·
 [Contributing](CONTRIBUTING.md)
 
+**New here?** Read in this order: this page → [architecture overview](docs/architecture/overview.md) → [Gold data model](docs/architecture/data-model.md) → [raw files the job needs](docs/getting-started/raw-data.md) → [failure-recovery runbook](docs/operations/runbook.md). Everything else is in the [docs index](docs/README.md).
+
 ## What it does
 
 The pipeline turns official DepEd, PSA, and HDX files into city- and municipality-level measures of classroom and teacher pressure, and puts the LGUs whose schools pass a classroom congestion screen into a review queue.
@@ -31,6 +33,57 @@ flowchart LR
     bronze & silver & integration & gold & analytics -.->|check results| control[(01 Control)]
     control -.-> dq[Data-quality dashboard]
 ```
+
+<details>
+<summary>End to end, with every source and table</summary>
+
+```mermaid
+flowchart LR
+    subgraph sources["00 Source: 15 files, 9 sources"]
+        direction TB
+        s1[deped_enrollment<br/>SY 2020-21 to 2025-26]
+        s2[deped_facilities]
+        s3[deped_personnel]
+        s4[deped_enrollment_psgc]
+        s5[deped_psgc_coordinates]
+        s6[psa_psgc]
+        s7[psa_poverty_stat]
+        s8[psa_school_age_population]
+        s9[hdx_boundaries]
+    end
+    subgraph lanes["02 Bronze and 03 Silver: one lane per source"]
+        direction TB
+        raw["9 _raw tables<br/>+ Bronze gates"] --> clean["9 _clean + _quarantine tables<br/>+ Silver gates"]
+    end
+    subgraph integration["04 Integration"]
+        direction TB
+        m1[deped_school_psgc_map]
+        m2[psa_poverty_psgc_map]
+        m3[hdx_adm3_psgc_map]
+        m4[psa_school_age_population_psgc_map]
+        m5[deped_annex_mother_map]
+    end
+    subgraph gold["05 Gold"]
+        direction TB
+        dims["dim_school · dim_school_year · dim_education_level<br/>dim_city_municipality · dim_barangay · dim_city_poverty"]
+        facts["fact_school_enrollment · fact_school_classroom_capacity<br/>fact_school_teacher_capacity · fact_city_population<br/>fact_city_school_age_population · fact_school_year_source_availability"]
+        dims --> facts
+    end
+    subgraph analytics["06 Analytics"]
+        direction TB
+        ap["ap1_school_provision · ap2_classroom_pressure<br/>ap3_teacher_pressure · ap4_enrollment_trend"] --> matrix[lgu_priority_matrix<br/>D-060 classroom review queue]
+    end
+    sources --> lanes --> integration --> gold
+    lanes --> gold
+    gold --> analytics
+    lanes & integration & gold & analytics -.->|every gate's results| control[(01 Control<br/>data_quality_results)]
+    control -.-> dq[Data-quality dashboard]
+    matrix -.->|in review, #224| planner[LGU planner dashboard]
+```
+
+Column-level detail: [Silver tables](docs/data/silver/README.md), [Gold data model](docs/architecture/data-model.md), [analytics outputs](docs/data/analytics-outputs.md).
+
+</details>
 
 Each source moves through Bronze and Silver in its own lane. From Silver on, every table is built as a candidate and replaces the published table only when its validation gate passes, so a failed check never overwrites the last good result. Details: [architecture overview](docs/architecture/overview.md).
 
