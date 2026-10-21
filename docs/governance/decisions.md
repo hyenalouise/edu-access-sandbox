@@ -62,6 +62,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-058 | 2026-10-20 | LGU priority rule v2 (pooled same-type ratios, AP4 enrollment growth in the tier), proposed in #203 | Withdrawn, not adopted | Superseded by D-057 as applied in #210; nothing in the pipeline uses it |
 | D-059 | 2026-10-21 | Adopt literature-based AP2 and AP3 reference interpretations | Revised by D-060 | The values remain, but AP2 is an illustrative school-level screen and AP3 is context only |
 | D-060 | 2026-10-21 | Replace percentile tiers with a source-bounded classroom review queue | Provisional | Rank affected LGUs by learners in passing schools, passing-school count, then pooled reported-room ratio; AP1/AP3/AP4 remain context |
+| D-063 | 2026-10-21 | `prod` is the first workspace (`dbc-76bcfddb-1669`), deployed by hand from a clean, pushed `main`; CLI profiles become `reached-hq-dev` and `reached-hq-prod` | Proposed | Same catalog and table names in both targets; the first `prod` run needs accepted sources and a team alert recipient |
 
 ---
 
@@ -129,6 +130,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 - **Reason:** Group ownership means nobody is blocked when one teammate is unavailable. A managed volume needs no credentials, and the data is small (the DepEd downloads are about 3 MB each). Making everyone an admin keeps setup fast for a student team.
 - **Consequence:** Every teammate can change or delete anything in the workspace and the catalog, which is the opposite of least privilege (Day 9); the team accepts that for the capstone. **Accepted** on 2026-10-21 at the close of the capstone. The course R2 bucket was not adopted, so raw files stayed in the managed volume.
 - **Updated 2026-10-19:** the workspace is now `dbc-2b6bf1c5-7bc3` (D-056); the rest of this entry still holds there.
+- **Updated 2026-10-21:** `dbc-76bcfddb-1669` is now the `prod` workspace, and the profiles are `reached-hq-dev` and `reached-hq-prod` (D-063).
 
 ## D-010: Using AI
 
@@ -707,3 +709,21 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - The reference values (AP2 50; AP3 ES 35, JHS 36, SHS 80/3) and their sources are kept in `config/analytics_benchmarks.json`. The Analytics SQL writes the same values directly, and `test_benchmark_registry_matches_published_values` fails if the two differ, so a change to a value is made in both in the same pull request.
 - **Basis:** The primary PIDS paper is the authority for the illustrative 1:50 line and its stated limits; EDCOM 2 is supporting interpretation. DepEd's technical notes define the official classroom–learner formula but no ideal numeric cutoff, and the project's NSBI room field is broader. DepEd's teacher staffing process is grade- and specialization-specific, while the current dataset measures personnel working in schools rather than authorized requirements or vacancies. `DENSE_RANK()` is an implementation rule for deterministic triage, not a claim of policy authority. A school with learners but 0 reported instructional rooms cannot enter the screen, because its ratio is undefined; it lowers learner coverage and is counted in AP2's `zero_room_school_count`, which a reviewer should read beside the queue.
 - **Consequence:** The dashboard can answer “which LGUs should we inspect first for reported classroom congestion?” with transparent evidence. It cannot yet answer an official classroom shortage, teacher allocation priority, or new-school requirement. Users must validate room type and condition, shifts/utilization, accessibility, enrolment projections, planned projects, and DepEd requirements before action.
+
+## D-063: A prod target in the first workspace
+
+- **Problem:** #99 needs a `prod` target separate from `dev`. The issue asked for a separate schema or catalog prefix, but the catalog and schema names are written into about 1,600 places across 158 SQL and Python files, and changing them all on the last day is a large, risky change. The CLI profile `reached-hq` also did not say which environment it reached.
+- **Decision:**
+  - `prod` deploys to the team's first workspace, `dbc-76bcfddb-1669`, kept unused since D-056. `dev` stays on `dbc-2b6bf1c5-7bc3`. The catalog `edu_access`, its schemas, and its tables have the same names in both; the separate workspace is what isolates them.
+  - `prod` uses `mode: production`, that workspace's Serverless Starter Warehouse (`71d3ccb9cea611c0`), one shared copy under `/Workspace/Shared/.bundle/`, `CAN_MANAGE` for the `reached-hq` group, and `git.branch: main`.
+  - Deploys go through `python -m src.job.deploy_prod`, which refuses unless the checkout is `main`, clean, and equal to `origin/main`. There is no CD workflow, so no Databricks token is stored in GitHub (D-004).
+  - The CLI profiles are renamed `reached-hq-dev` and `reached-hq-prod`, and the current docs use them. Evidence files keep the profile name they were run with.
+- **Reason:** A second workspace isolates `prod` without changing any SQL, and the old one already has the catalog, the `reached-hq` group, and the raw files from before D-056. A manual deploy behind a check meets the "only from `main`" rule without adding a secret to a student repository. Profile names that match the target make a wrong-workspace deploy easy to spot, and `databricks.yml` names each host, so a mismatched profile fails.
+- **Consequence:** Before the first `prod` run:
+  - `src/ingestion/pipeline.py` loads only `accepted` sources into `prod`, and every source in `config/sources.json` is still `profiled`. Each source owner has to accept their source first, or every Bronze lane fails on `prod`.
+  - D-043 says `prod` must alert the whole team, but `email_notifications` and the alert subscriptions still go to whoever deployed, and D-043 keeps addresses out of Git. Until a team recipient is chosen, `prod` alerts reach only the deployer. Production mode runs the 08:00 alert schedules, unlike `dev`.
+  - The old workspace's tables were built before 2026-10-19 by older code, and raw files uploaded to `dev` since then (the school coordinates, #217, among them) have to be copied there too. The first run rebuilds everything downstream of Bronze. Its catalog must still be bound to that workspace (D-056).
+  - Every teammate renames their profiles or logs in again ([terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)).
+
+  Proposed by @hyenalouise on 2026-10-21 in #99.
+

@@ -76,7 +76,23 @@ databricks bundle summary --target dev --profile reached-hq-dev
 
 Confirm in the summary that `git_commit` and the `code_revision` parameter both equal `git rev-parse HEAD`, then start a new run.
 
-Use `prod` only after #99 defines and verifies that target. Until then, `dev` is the only deployed target and none of these commands is evidence of a production deployment.
+### Deploying to prod
+
+`prod` is its own workspace, `dbc-76bcfddb-1669` (D-063). Deploy it only from a clean `main` that equals `origin/main`, after the change has run on `dev`:
+
+```bash
+git switch main
+git pull
+python -m src.job.deploy_prod
+```
+
+The script refuses (exit code 2, nothing deployed) on another branch, with uncommitted or untracked changes, or when `HEAD` is not `origin/main`; `--check` runs only these checks. Otherwise it runs `databricks bundle validate`, `deploy`, and `summary` with `--target prod --profile reached-hq-prod`. Confirm in the summary that `git_commit` and `code_revision` both equal `git rev-parse HEAD`, announce the run to the team, then start it:
+
+```bash
+databricks bundle run edu_access_pipeline --target prod --profile reached-hq-prod
+```
+
+Record the deploy and run in [`evidence/pipeline-runs/`](../../evidence/pipeline-runs/), naming `prod` and the workspace. The CLI also refuses `--target prod` from a branch other than `main` (`git.branch` in `databricks.yml`), so skipping the script still cannot deploy a branch.
 
 ## Verify recovery
 
