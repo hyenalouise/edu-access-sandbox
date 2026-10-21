@@ -87,8 +87,8 @@ Raw files are never committed. Locally they sit in `raw-data/` beside the reposi
 |---|---|
 | Tests and policy checks (what CI runs) | `python -m pytest tests -q` |
 | The whole job, locally on DuckDB | macOS or Linux: `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run`. Windows PowerShell: `$env:RAW_DATA_DIR = "$HOME\Projects\reached-hq\raw-data"; python -m src.job.local_run` |
-| Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq` |
-| Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` |
+| Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq-dev` |
+| Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` |
 
 The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 0 only when every task succeeded. Deploy from a clean, pushed `main`; Databricks compute is shared, so agree a run with the team first ([workflow, Part 5](docs/operations/workflow.md#part-5-where-code-runs)).
 

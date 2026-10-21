@@ -53,10 +53,10 @@ These terms are different:
 
 | Action | When | Command | Expected result |
 |---|---|---|---|
-| Retry | A run or batch failed or was interrupted, and the cause is fixed | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` | Failed or `loading` batches are retried automatically. Existing Bronze keys are not duplicated. Downstream candidates rebuild and publish only after their gates pass |
-| Rerun | A succeeded full pipeline must be repeated to verify determinism or apply new downstream code | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` | Succeeded Bronze deliveries skip with zero inserted rows. Enabled downstream tables rebuild from the same current inputs and retain the same keys, row counts, and business totals |
+| Retry | A run or batch failed or was interrupted, and the cause is fixed | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | Failed or `loading` batches are retried automatically. Existing Bronze keys are not duplicated. Downstream candidates rebuild and publish only after their gates pass |
+| Rerun | A succeeded full pipeline must be repeated to verify determinism or apply new downstream code | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | Succeeded Bronze deliveries skip with zero inserted rows. Enabled downstream tables rebuild from the same current inputs and retain the same keys, row counts, and business totals |
 | Forced Bronze rerun | One succeeded batch must be validated and merged again | Local only: `python -m src.ingestion.cli ingest --source <source-id> --rerun <batch-id> --db <database-path>`. The job has no rerun parameter, so there is no `dev` command yet | The attempt is recorded as `rerun`, zero rows are inserted, and reconciliation runs again. Silver and Gold are not rebuilt; run the job for that |
-| Backfill | An approved older period arrives after newer periods | Add the delivery and checksum to its contract, place the original file in a new dated publisher folder, then run `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` | The batch records `load_type = backfill`; existing periods and versions remain present and unchanged |
+| Backfill | An approved older period arrives after newer periods | Add the delivery and checksum to its contract, place the original file in a new dated publisher folder, then run `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | The batch records `load_type = backfill`; existing periods and versions remain present and unchanged |
 
 For a local rehearsal, replace the Databricks command with `python -m src.job.local_run --landing <raw-data-root> --db <database-path>`. Always use a separate database path when the purpose is a destructive failure rehearsal.
 
@@ -69,9 +69,9 @@ Recover with a new run (`databricks bundle run`, or **Run now** in the Jobs UI),
 From a clean checkout of the merged `main`:
 
 ```bash
-databricks bundle validate --target dev --profile reached-hq
-databricks bundle deploy --target dev --profile reached-hq
-databricks bundle summary --target dev --profile reached-hq
+databricks bundle validate --target dev --profile reached-hq-dev
+databricks bundle deploy --target dev --profile reached-hq-dev
+databricks bundle summary --target dev --profile reached-hq-dev
 ```
 
 Confirm in the summary that `git_commit` and the `code_revision` parameter both equal `git rev-parse HEAD`, then start a new run.

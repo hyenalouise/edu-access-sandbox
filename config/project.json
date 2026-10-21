@@ -2,7 +2,7 @@
   "status": "approved_non_secret_configuration",
   "platform": "databricks_free_edition",
   "workspace_host": "https://dbc-2b6bf1c5-7bc3.cloud.databricks.com",
-  "cli_profile": "reached-hq",
+  "cli_profile": "reached-hq-dev",
   "catalog": "edu_access",
   "owner_group": "reached-hq",
   "schemas": {

@@ -381,7 +381,7 @@ It is not in `requirements-dev.txt` because CI does not need it.
 
 ### 10.4 Connect to Databricks
 
-**Status: pending #1.** Use the `reached-hq` profile from Part 12. The Databricks extension may expect a `databricks.yml` bundle file in the repository; #1 checks this.
+**Status: pending #1.** Use the `reached-hq-dev` profile from Part 12. The Databricks extension may expect a `databricks.yml` bundle file in the repository; #1 checks this.
 
 Before connecting, read [workflow.md, Part 5](../operations/workflow.md#part-5-where-code-runs): every run from the extension uses shared Databricks compute.
 
@@ -432,26 +432,35 @@ Local PySpark has no Unity Catalog and no Delta tables without extra packages. U
 
 **Status:** works now (Mac). Not yet tested on Windows.
 
-First accept the workspace invitation in your email, then:
+The team has two workspaces, one per bundle target (D-063), and one CLI profile for each:
+
+| Profile | Target | Host | Use |
+|---|---|---|---|
+| `reached-hq-dev` | `dev` | `https://dbc-2b6bf1c5-7bc3.cloud.databricks.com` | Everyday work: deploy and run your branch |
+| `reached-hq-prod` | `prod` | `https://dbc-76bcfddb-1669.cloud.databricks.com` | Deploys from `main` only ([runbook, Deploying to prod](../operations/runbook.md#deploying-to-prod)) |
+
+First accept the workspace invitations in your email, then log in to each:
 
 ```
-databricks auth login --host https://dbc-2b6bf1c5-7bc3.cloud.databricks.com --profile reached-hq
+databricks auth login --host https://dbc-2b6bf1c5-7bc3.cloud.databricks.com --profile reached-hq-dev
+databricks auth login --host https://dbc-76bcfddb-1669.cloud.databricks.com --profile reached-hq-prod
 ```
 
-A browser opens; sign in and allow access. The terminal prints `Profile reached-hq was successfully saved`.
+A browser opens for each; sign in and allow access. The terminal prints `Profile reached-hq-dev was successfully saved`, then the same for `reached-hq-prod`.
 
-**Already logged in to the old workspace?** The team moved on 2026-10-19 (D-056). Run the same command: it points your `reached-hq` profile at the new host. To keep the old workspace too, first rename its `[reached-hq]` section in `~/.databrickscfg` to `[reached-hq-old]`, then log in to it again with `--profile reached-hq-old`.
+**Already have the old profile names?** Before 2026-10-21 the profile was called `reached-hq` (D-056), and the old workspace was `reached-hq-old` if you kept it. In `~/.databrickscfg`, rename the `[reached-hq]` section to `[reached-hq-dev]` and `[reached-hq-old]` to `[reached-hq-prod]`, or log in again with the commands above. The hosts do not change.
 
-**Always pass `--profile reached-hq`.** Without it, the CLI uses whichever workspace you logged into last, so a deploy can go to a personal workspace, and the error message blames a missing warehouse instead.
+**Always pass `--profile`, and match it to the target:** `--target dev --profile reached-hq-dev`, `--target prod --profile reached-hq-prod`. Without it, the CLI uses whichever workspace you logged into last, so a deploy can go to a personal workspace, and the error message blames a missing warehouse instead. Each target also names its host in `databricks.yml`, so a mismatched profile fails instead of deploying to the wrong workspace.
 
 ### Check
 
 ```
 databricks auth profiles
-databricks catalogs get edu_access --profile reached-hq
+databricks catalogs get edu_access --profile reached-hq-dev
+databricks catalogs get edu_access --profile reached-hq-prod
 ```
 
-The first lists `reached-hq` with the host above and `Valid: YES`. The second shows the catalog with owner `reached-hq`.
+The first lists `reached-hq-dev` and `reached-hq-prod` with the hosts above and `Valid: YES`. The other two each show the catalog with owner `reached-hq` (the group, which keeps its name).
 
 ---
 
@@ -485,4 +494,4 @@ Once per laptop:
 - [ ] `.venv` created and `python -m pytest tests -q` passes (Part 7)
 - [ ] `RAW_DATA_DIR` set and the DepEd profiling script prints `checksum OK` (Part 8)
 - [ ] VS Code runs a `# %%` cell with the `.venv` interpreter (Part 10)
-- [ ] `databricks auth profiles` shows `reached-hq` as valid (Part 12)
+- [ ] `databricks auth profiles` shows `reached-hq-dev` and `reached-hq-prod` as valid (Part 12)

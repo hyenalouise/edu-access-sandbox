@@ -114,10 +114,10 @@ python analysis/cross_source/cross_source_deped.py
 | `cross_source_deped_enrollment_psgc.py` | Same as `cross_source_deped.py`, plus `deped/original/SY 2023-2024 School Level Data on Enrollment with PSGC, Longitude and Latitude.xlsx` (from DepEd EMISD, #135). Imports the match rule from `cross_source_deped_school_psgc_rule.py`, which needs no raw files and is unit-tested. Writes two school-level CSVs to `work/` (git-ignored), never to the repository |
 | `cross_source_deped_psgc_coordinates.py` | `deped/original/`: both workbooks with PSGC, longitude and latitude, the all-sector one and the `(Public only)` one (#217). It loads them through the Bronze pipeline and Silver SQL into `local_state/cross_source_deped_psgc_coordinates.duckdb` |
 
-The raw files are on the team volume, `/Volumes/edu_access/00-source/raw/`, in folders named like the ones above (`deped`, `psa`, `cmci`, `admin_boundaries`). Copy them with the Databricks CLI and the `reached-hq` profile, for example:
+The raw files are on the team volume, `/Volumes/edu_access/00-source/raw/`, in folders named like the ones above (`deped`, `psa`, `cmci`, `admin_boundaries`). Copy them with the Databricks CLI and the `reached-hq-dev` profile, for example:
 
 ```bash
-databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/cmci/cmci_lgu_list.csv "$RAW_DATA_DIR/dti/original/" --profile reached-hq
+databricks fs cp dbfs:/Volumes/edu_access/00-source/raw/cmci/cmci_lgu_list.csv "$RAW_DATA_DIR/dti/original/" --profile reached-hq-dev
 ```
 
 Running a script rewrites its generated list. If the list changes, the raw file or the rules changed: find out which before committing. The scripts that reuse `cross_source_deped.py` also rewrite `generated/deped_psgc_unmatched.md`, which should come out unchanged.
