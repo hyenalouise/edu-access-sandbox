@@ -2,6 +2,47 @@
 
 Code that checks a raw delivery and turns it into rows for Bronze. Raw files in `00-source` are read, never modified, and never extracted to disk. Six delivery formats: `zip_csv` (DepEd: a zip with one CSV), `xlsx_sheet` (PSA Poverty Stat: one workbook sheet with a merged header, banners, and a footer), `xlsx_table` (PSA PSGC: one workbook per publication quarter), `xlsx_report` (DepEd EMISD: one workbook per school year, title rows above the header), `xlsx_census` (PSA school-age population: one workbook per census with two sheets, each loaded), and `geojson_features` (COD-AB boundaries: one GeoJSON file, not zipped).
 
+## One run of one source
+
+```mermaid
+flowchart TB
+    cli[cli.py ingest --source id] --> pipeline[pipeline.py]
+    pipeline --> discover[Find files in the landing folder<br/>formats.py]
+    discover --> sha[SHA-256 of each file<br/>archive.py]
+    sha --> approved{In the contract?<br/>contract.py}
+    approved -->|no| blocked[Attempt recorded: blocked]
+    approved -->|yes| action{batch.py: already loaded?}
+    action -->|same bytes, succeeded| skip[Skip, insert nothing]
+    action -->|new, failed, or rerun| read[Read and check the file<br/>validate, workbook, xlsx_*, geojson_features]
+    read -->|any FAIL| failed[Batch failed, retried next run]
+    read -->|pass| merge[bronze.py: insert-only MERGE,<br/>then reconcile with the file]
+    merge --> done[control.py: batch succeeded]
+    store[(store.py: DuckDB locally,<br/>Spark on Databricks)] -.same SQL.- merge
+```
+
+## Which module reads which format
+
+| Format | Sources | Reader |
+|---|---|---|
+| `zip_csv` | DepEd enrollment, facilities, personnel | `archive.py`, `reader.py`, `validate.py` |
+| `xlsx_sheet` | PSA poverty | `workbook.py` |
+| `xlsx_table` | PSA PSGC | `xlsx_table.py` |
+| `xlsx_report` | DepEd EMISD | `xlsx_report.py` |
+| `xlsx_census` | PSA school-age population | `xlsx_census.py` |
+| `geojson_features` | HDX boundaries | `geojson_features.py` |
+
+## Commands
+
+| Command | Does |
+|---|---|
+| `python -m src.ingestion.cli ingest --source <id>` | Discover, check, and load that source's approved deliveries |
+| `python -m src.ingestion.cli status --source <id>` | Show every batch of the source and its state |
+| `python -m src.ingestion.cli ddl --source <id>` | Print the Bronze `CREATE TABLE` from the contract |
+| `python -m src.ingestion.cli gate --source <id>` | Print the Bronze gate SQL from the contract |
+| `python -m src.ingestion.cli columns` | Add control-table columns older tables lack |
+
+## Modules
+
 | Module | What it does |
 |---|---|
 | `contract.py` | Loads and validates `config/ingestion/<source_id>.json`: schema versions, approved deliveries, school year from the file names; for workbooks, layout, estimate years, and versions per logical dataset (`xlsx_sheet`) or per quarter (`xlsx_table`); for GeoJSON, the reference date and the single-file rule |

@@ -71,6 +71,8 @@ Unstated originating ministries/systems -> BPDA Bangsamoro Ecological Profile Go
 
 ## Known quality problems
 
+Summary only; evidence lives in [profile.md](profile.md).
+
 - **Observed:** 87 of 288 measure cells contain `-`, but the publisher does not define whether it means zero, not applicable, not available, or not reported. The profile treats it as null.
 - **Observed:** one cell is physically blank, distinct from the 87 dash markers.
 - **Observed:** three numeric-looking cells contain leading non-breaking spaces.

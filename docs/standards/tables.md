@@ -1,8 +1,7 @@
 # ETL table registry
 
 The machine-readable registry is [`config/tables.yml`](../../config/tables.yml).
-It fixes source-aligned Bronze and Silver names for the datasets already known,
-without pretending that the business problem or analytical questions are final.
+It fixes the name of every table the job builds, from Bronze to Analytics.
 
 ## Finalized source-aligned names
 
@@ -25,10 +24,9 @@ Each Silver table and Silver quarantine also has a **candidate** copy with the
 suffix `_candidate` (for example `deped_enrollment_clean_candidate`): the build
 writes it, the gate checks it, and only a build that passes is copied to the
 Silver table, so a failed build never replaces the last good one (D-025, #119).
-Candidate tables are not read downstream. This is unrelated to the draft
-Integration names below, which the registry calls candidates too.
+Candidate tables are not read downstream.
 
-The three enrollment school years belong in one table. `school_year` identifies
+The enrollment school years belong in one table. `school_year` identifies
 the delivery year; it should not be encoded in separate table names. Likewise,
 the PSGC workbook and its `PSGC` sheet are one logical input, not separate
 tables. The HDX name includes `adm3` because the current scope is specifically
@@ -50,6 +48,9 @@ because dependency order belongs in `databricks.yml`, not in the gate prefix:
 ```text
 NN_create_<source>_raw.sql
 NN_clean_<source>.sql
+NN_map_<object>.sql
+NN_build_<table>.sql
+NN_answer_ap<N>.sql
 90_validate_<table>.sql
 ```
 
@@ -75,13 +76,7 @@ school, school year, and geographic level (`city_mun`, `bgy`), with its EMISD-co
 name match, including explicit unmatched, ambiguous, and excluded rows (#91, D-049).
 
 No Integration working names remain. A new map follows the shape of `hdx_adm3_psgc_map`
-(D-052) unless its own decision says otherwise. Gold names from #45 are documented
-in [`docs/architecture/data-model.md`](../architecture/data-model.md). Tables with
-reviewed inputs may be implemented independently; geography-dependent tables remain
-disabled until their Integration prerequisites are ready. Analytics names are
-registered in `config/tables.yml` (`analytics_tables`); `ap4_enrollment_trend` has
-one row per city or municipality member and school year, the others one row per
-regular city or municipality.
+(D-052) unless its own decision says otherwise.
 
 ## Gold names
 
@@ -100,10 +95,19 @@ regular city or municipality.
 | `fact_city_school_age_population` | City or municipality x reference year x single year of age x sex |
 | `fact_school_year_source_availability` | School year x DepEd source (enrollment, facilities, personnel); added by D-051 |
 
-Implemented: `dim_school`, `dim_school_year`, `dim_education_level`,
-`dim_city_municipality`, `dim_barangay`, `fact_school_classroom_capacity`,
-`fact_school_teacher_capacity`, `fact_city_school_age_population`, and
-`fact_school_year_source_availability`. Each build writes a candidate and its
-gate publishes only after validation. `dim_city_poverty`,
-`fact_school_enrollment`, and `fact_city_population` remain disabled and are
-assigned to follow-on work; no empty substitutes are published for them.
+All twelve are implemented and enabled in the job. Each build writes a
+candidate and its gate publishes only after validation. Columns, keys, and the
+ERD are in the [data model](../architecture/data-model.md).
+
+## Analytics names
+
+| Table | Grain |
+|---|---|
+| `ap1_school_provision` | One regular city or municipality, SY 2023-24 |
+| `ap2_classroom_pressure` | One regular city or municipality, SY 2023-24 |
+| `ap3_teacher_pressure` | One regular city or municipality, SY 2023-24, with ES, JHS, and SHS side by side |
+| `ap4_enrollment_trend` | One city or municipality member (regular, `UNKNOWN`, or `EXCLUDED`) and school year |
+| `lgu_priority_matrix` | One regular city or municipality, SY 2023-24, with its AP1 to AP4 evidence and its D-060 classroom review queue status |
+
+All five are implemented and enabled in the job. Measures and the priority
+rule are in [`etl/06_analytics/`](../../etl/06_analytics/README.md).

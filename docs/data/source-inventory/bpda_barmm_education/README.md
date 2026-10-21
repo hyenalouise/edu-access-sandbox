@@ -70,6 +70,8 @@ Unstated originating agency/system -> BPDA Bangsamoro Ecological Profile Google 
 
 ## Known quality problems
 
+Summary only; evidence lives in [profile.md](profile.md).
+
 - **Observed:** the workbook contains no definitions, formulas, numerators, denominators, source note, release date, or region totals.
 - **Observed:** 8 of 200 rate cells are blank. They are all Cotabato City completion and cohort-survival values for SY 2019-2020 and 2020-2021.
 - **Observed:** Lamitan City has elementary net enrolment rates above 100% in all three years: 107.02%, 107.86%, and 101.52%. These values are retained, not clipped.

@@ -170,13 +170,15 @@ source_tables:
       validate_file: 90_validate_deped_psgc_coordinates_clean.sql
 
 # Candidates only. Keep them out of executable ETL until their keys, review
-# workflow, and grains are approved.
-draft_integration_tables:
-  - table: hdx_adm3_psgc_map
-    candidate_file: 03_map_hdx_adm3_psgc.sql
-    purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
+# workflow, and grains are approved. Every map is implemented today.
+draft_integration_tables: []
 
 integration_tables:
+  - table: hdx_adm3_psgc_map
+    build_file: 03_map_hdx_adm3_psgc.sql
+    validate_file: 90_validate_hdx_adm3_psgc_map.sql
+    grain: One row per hdx_adm3_clean record (HDX feature and release).
+    purpose: HDX ADM3 features matched to PSGC cities and municipalities in the master quarter, overrides in config (D-052).
   - table: deped_annex_mother_map
     build_file: 04_map_deped_annex_mother.sql
     validate_file: 90_validate_deped_annex_mother_map.sql

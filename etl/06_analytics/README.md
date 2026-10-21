@@ -4,13 +4,26 @@ This layer publishes one dataset per analytical question and an evidence-based L
 
 AP1 to AP3 and the planning table have one row per regular city or municipality. AP4 has one row per city member and school year. Each build writes a candidate table, its paired `90_validate_*` gate independently recomputes the result from Gold, and only a passing candidate replaces the published table.
 
-| Build | Output | Approved use |
-|---|---|---|
-| `01_answer_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure |
-| `02_answer_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
-| `03_answer_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
-| `04_answer_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
-| `05_build_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
+```mermaid
+flowchart LR
+    enroll[(fact_school_enrollment)] --> ap1 & ap2 & ap3 & ap4
+    age[(fact_city_school_age_population)] --> ap1 & ap4
+    rooms[(fact_school_classroom_capacity)] --> ap2
+    teachers[(fact_school_teacher_capacity)] --> ap3
+    city[(dim_city_municipality)] --> ap1 & ap2 & ap3 & matrix
+    ap1[ap1_school_provision] --> matrix
+    ap2[ap2_classroom_pressure] --> matrix
+    ap3[ap3_teacher_pressure] --> matrix
+    ap4[ap4_enrollment_trend] -->|context only| matrix[lgu_priority_matrix]
+```
+
+| Build | Gate | Output | Approved use |
+|---|---|---|---|
+| `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure |
+| `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
+| `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
+| `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
+| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
 
 ## D-060 classroom review queue
 
@@ -29,3 +42,7 @@ AP3 preserves ES 35 as a **historical study reference** and JHS 36 and SHS 80/3 
 The overall AP3 status is `pressure signal identified` when any offered, adequately covered level is above its reference, even if another offered level is incomplete. It is `not fully assessed` only when no passing level is above reference and at least one offered level fails coverage. This preserves the usable evidence without treating missing data as absence of pressure.
 
 All outputs retain coverage and missingness fields. A recorded zero remains zero; an all-NULL component total remains NULL. Every gate writes a one-row run-specific summary, records its checks, and removes the temporary summary after validation.
+
+Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).
+
+**Known dependency gap.** `04_answer_ap4.sql` reads `fact_city_school_age_population`, but its task in `databricks.yml` waits only for `90_validate_fact_school_enrollment`. If the school-age gate fails, AP4 still builds, from the last published school-age table.

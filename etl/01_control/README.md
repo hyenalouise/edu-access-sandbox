@@ -2,6 +2,26 @@
 
 Tables that record pipeline runs, ingestion batches, and data-quality results. They answer "was this file already loaded?", "what happened in that run?", and "which Bronze rows may downstream read?".
 
+```mermaid
+flowchart LR
+    loader[bronze_source loads<br/>src/ingestion] --> runs[(pipeline_runs)]
+    loader --> batches[(ingestion_batches)]
+    loader --> attempts[(ingestion_batch_attempts)]
+    gates[Every 90_validate gate] --> dq[(data_quality_results)]
+    silver_build[Silver builds and gates] --> runs
+    batches --> current[[current_batches view]]
+    current --> silver[03 Silver reads only these batches]
+    runs --> fan_in[90_validate_control<br/>fan-in]
+    current --> freshness[90_validate_freshness]
+    fan_in & freshness --> dq
+    dq --> alerts[quality_failures and<br/>stale_sources alerts]
+    dq --> dashboard[Data-quality dashboard]
+```
+
+| Writes here | Reads from here |
+|---|---|
+| The Bronze loader (runs, batches, attempts, its own checks), every gate (check results), Silver (its run record) | Silver (`current_batches`), the fan-in and freshness checks, the alerts, the data-quality dashboard |
+
 | File | Object | Holds |
 |---|---|---|
 | `01_create_pipeline_runs.sql` | `pipeline_runs` | One row per run: source, environment, status, timings, batch counts, failure, `code_revision`, and `job_run_id` (the Databricks job run whose gate task checked it; D-020) |

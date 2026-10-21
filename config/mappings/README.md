@@ -1,23 +1,45 @@
 # Reviewed mappings
 
-Store reviewed category mappings and manual cross-source overrides here when
-Silver or Integration needs them. Every override must name its source value,
-target value, evidence, rationale, and reviewer. Do not hide matching rules in
-SQL case expressions or silently force ambiguous records to a target.
+One file per source that decides how its Bronze text becomes typed, standardized Silver: which column is what, every accepted label, every flag, and when a row is quarantined. Nothing in Silver is decided in hand-written SQL; it is generated from these files.
 
-| File | Used by | What it maps |
-|---|---|---|
-| `deped_enrollment.json` | Silver (`src/silver/`) | Column classification and renames, every accepted label of the category and boolean columns with its standard value and evidence, character repairs, placeholders, and the overseas markers (D-022, D-023) |
-| `deped_personnel.json` | Silver (`src/silver/deped_personnel.py`, named by its `generator` key) | Nullable integer measures, standard category labels, public-school scope, principal-total comparison, and the all-blank field (D-041) |
-| `psa_psgc.json` | Silver (`src/silver/psa_psgc.py`, named by its `generator` key) | Identifier and correspondence code, text columns and the column J rename, population and its `#N/A` marker, the income class split, every accepted label of the four category columns, the derived parent codes, the quarantine threshold, evidence for each, and the open decisions (D-035) |
-| `deped_facilities.json` | Silver (`src/silver/deped_facilities.py`, named by its `generator` key) | Column classification: count groups with a plausible maximum each, the facility yes/no column pattern, every accepted label of `sector` and `school_management` (enrollment's standard sets), overseas markers, public scope, the missing-classroom flag, level prefixes, and where location comes from (D-038) |
-| `deped_enrollment_psgc.json` | Silver (`src/silver/deped_enrollment_psgc.py`, named by its `generator` key) | The school-to-PSGC crosswalk: which Bronze row kind is read, the code columns and their padding, the null markers and their reasons, the Sulu recode, the coordinate pattern and box, the published text kept, the quarantine threshold, and the profiled counts the gate records (D-049) |
-| `psa_school_age_population.json` | Silver (`src/silver/psa_school_age_population.py`, named by its `generator` key) | Grain, the sex of each wide band and long row, structural row kinds, the place-label rules (footnote marker, `(Capital)`, old names), how levels and parents come from the sums, the level counts pinned for each approved workbook, and the count pattern (D-053) |
-| `psa_poverty_stat.json` | Silver (`src/silver/psa_poverty_stat.py`, named by its `generator` key) | Grain and unpivot, identifier padding and Correspondence Code, text columns, region banner context, the five measures and their numeric pattern, bounds, statistical flag thresholds, and the quarantine threshold (D-034) |
-| `integration/deped_school_psgc.json` | Integration (`etl/04_integration/01_map_deped_school_psgc.sql`, reading `deped_enrollment_psgc_clean` (#169), not written yet); written now in `analysis/cross_source/cross_source_deped_school_psgc_rule.py` and applied by `cross_source_deped_enrollment_psgc.py`; the file's `rule_order` describes that code and changes with it | The order in which a DepEd school's EMISD PSGC code and its name match are accepted, how name tiers map to D-029 `match_method` values, and reviewed place overrides with their evidence (#91, #137 Option B). Approved in PR #153; the Integration SQL is not written yet |
+```mermaid
+flowchart LR
+    contract[config/ingestion/<br/>source.json] --> spec[src/silver/spec.py<br/>classifies every column]
+    mapping[config/mappings/<br/>source.json] --> spec
+    spec --> build[etl/03_silver/<br/>NN_clean_source.sql]
+    spec --> gate[etl/03_silver/<br/>90_validate_table.sql]
+    spec --> dict[docs/data/silver/<br/>data dictionary]
+```
 
-The source owner named in the file approves a change in a pull request; the
-Silver SQL is then regenerated ([Silver, Changing a rule](../../docs/operations/silver.md#changing-a-rule-or-approving-a-label)).
-A label that is not listed fails the Silver gate.
+A column or label that a file does not place stops the generator, and a label in the data that is not listed fails the Silver gate, so new publisher values are never cleaned silently.
 
-Integration rules and overrides live in `integration/`, so the Silver tests, which treat every top-level file here as a Silver mapping, do not read them.
+## Files
+
+| File | Owner | Generator | Decides | Decision |
+|---|---|---|---|---|
+| `deped_enrollment.json` | @hyenalouise | default (`spec.py`, `sql.py`) | Column classes and renames, every category and boolean label, character repairs, placeholders, overseas markers | D-022, D-023 |
+| `deped_facilities.json` | @hyenalouise | `deped_facilities` | Count groups with their own maximums, the 60 yes/no columns, public scope, the missing-classroom flag | D-038 |
+| `deped_personnel.json` | @mafelisilda | `deped_personnel` | Nullable integer measures, category labels, public scope, the principal-total comparison | D-041 |
+| `deped_enrollment_psgc.json` | @maeveylain | `deped_enrollment_psgc` | The school-to-PSGC crosswalk: code padding, null reasons, the Sulu recode, coordinate checks | D-049 |
+| `psa_psgc.json` | @maeveylain | `psa_psgc` | Codes, the income-class split, category labels, derived parent codes | D-035 |
+| `psa_poverty_stat.json` | @maeveylain | `psa_poverty_stat` | The unpivot to one row per unit and year, the five measures, bounds, statistical flags | D-034 |
+| `psa_school_age_population.json` | @saraevcldn | `psa_school_age_population` | The unpivot to place, sex, and age, place-label rules, levels and parents from the sums | D-053 |
+| `hdx_boundaries.json` | @saraevcldn | `hdx_boundaries` | Code and date columns, exact decimals, geometry kept as published | D-040 |
+| [`integration/`](integration/README.md) | | `src/integration/` | The DepEd school-to-PSGC matching rule; not a Silver mapping | D-049 |
+
+Every file also sets its quarantine threshold, and many carry the profiled counts their gate records, with evidence for each rule.
+
+## Changing a rule or a label
+
+1. Edit the file in a pull request; the owner named in it approves.
+2. Regenerate the Silver files:
+
+   ```bash
+   python -m src.silver.cli sql --source <source_id> > etl/03_silver/NN_clean_<source>.sql
+   python -m src.silver.cli gate --source <source_id> > etl/03_silver/90_validate_<table>.sql
+   python -m src.silver.cli dictionary --source <source_id> > docs/data/silver/<table-with-hyphens>.md
+   ```
+
+3. Run `python -m pytest tests -q`; the Silver tests fail until the committed files match.
+
+Details: [Silver, Changing a rule](../../docs/operations/silver.md#changing-a-rule-or-approving-a-label). The DepEd rule lives in `integration/` because the Silver tests treat every top-level file here as a Silver mapping.

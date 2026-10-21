@@ -2,65 +2,120 @@
 
 A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 
-**Working theme:** Where are the largest gaps in education access and capacity in the Philippines, and which provinces or municipalities should be prioritized for additional schools, classrooms, teachers, or higher-education capacity?
+[Architecture](docs/architecture/overview.md) ·
+[Data model](docs/architecture/data-model.md) ·
+[Setup](docs/getting-started/terminal-setup.md) ·
+[Docs index](docs/README.md) ·
+[Decisions](docs/governance/decisions.md) ·
+[Evidence](evidence/README.md) ·
+[Contributing](CONTRIBUTING.md)
 
-**Stakeholders:** education planners (DepEd for basic education, CHED for higher education).
+## What it does
 
-> **Status: milestone 01 (Discover), moving into 02 (Land).**
-> DepEd enrollment and facilities are profiled; PSGC, CHED, and PSA poverty are in review.
-> There is no approved business question yet, so nothing in this repository should be read as a finding.
+The pipeline turns official DepEd, PSA, and HDX files into city- and municipality-level measures of classroom and teacher pressure, and puts the LGUs whose schools pass a classroom congestion screen into a review queue.
 
-## How this project works
+> **Business question:** How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?
 
-The business question comes from two kinds of evidence, collected before any modeling:
+- **Users:** LGU Local School Boards, which decide how the Special Education Fund is spent (D-057).
+- **Scope:** public basic education, Kinder to Grade 12, in every Philippine city and municipality (D-003).
+- **Outputs:** one table per analytical question (AP1 to AP4) and `lgu_priority_matrix`, which shows AP1 to AP4 side by side and ranks the LGUs with reported classroom congestion into a review queue (D-060).
 
-1. What education planners need to decide (`docs/business/`)
-2. What the available datasets can validly support (`docs/data/source-inventory/`, `docs/data/cross-source/`)
+The wording, the four analytical questions, and their limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
 
-Data then moves through the course's layered architecture:
+## Pipeline at a glance
 
+```mermaid
+flowchart LR
+    files[Official files: DepEd, PSA, HDX] --> raw[(00-source volume)]
+    raw --> bronze[02 Bronze] --> silver[03 Silver] --> integration[04 Integration] --> gold[05 Gold] --> analytics[06 Analytics]
+    bronze & silver & integration & gold & analytics -.->|check results| control[(01 Control)]
+    control -.-> dq[Data-quality dashboard]
 ```
-SOURCE → BRONZE → SILVER → INTEGRATION → GOLD → ANALYTICS → DASHBOARD
-```
 
-See [docs/architecture/overview.md](docs/architecture/overview.md) and [docs/governance/decisions.md](docs/governance/decisions.md).
+Each source moves through Bronze and Silver in its own lane. From Silver on, every table is built as a candidate and replaces the published table only when its validation gate passes, so a failed check never overwrites the last good result. Details: [architecture overview](docs/architecture/overview.md).
 
-## Repository layout
+## Status
 
-Every folder exists from the start (see [File naming and layout](docs/architecture/overview.md#file-naming-and-layout)). Until its phase begins, a folder holds only a short `README.md` saying what will go there.
+| | |
+|---|---|
+| **Implemented** | 8 sources through Bronze and Silver, 5 Integration maps, 12 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
+| **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
+| **Not yet proven on Databricks** | The Analytics outputs and the data-quality dashboard: tested locally, with no Databricks run in `evidence/` yet |
+| **Not built** | A `prod` target (#99); the LGU planner dashboard is in progress (#211) |
 
-| Path | Purpose | Filled in |
-|---|---|---|
-| `config/` | Non-secret configuration, source registry, naming rules, and ETL table registry | Phase 1 |
-| `docs/` | Architecture, decisions, source inventory, and the rest of the engineering docs | Phase 1 |
-| `tests/` | Repository policy and configuration tests, run by CI | Phase 1 |
-| `tests/factories/` | Python builders for deterministic, made-up test deliveries | Phase 2 |
-| `tests/data/` | Small, static, made-up test files; the only place data files may be committed | When a test needs one |
-| `.github/` | PR and issue templates, CI and triage workflows | Phase 1 |
-| `docs/data/source-inventory/`, `docs/data/cross-source/`, `docs/business/` | One folder per source; work that compares sources; planner needs and the business question | Phase 1 |
-| `analysis/profiling/`, `analysis/cross_source/` | Reproducible source profiling, dictionary generation, and cross-source research | Phases 1–3 |
-| `src/ingestion/`, `src/profiling/` | Production ingestion code and reusable profiling helpers | Phases 2–3 |
-| `etl/01_control` … `etl/06_analytics` | SQL per pipeline stage, each with `90_validate_*` checks | Phase 6 onward |
-| `evidence/` | Pipeline runs, source validation, and reconciliation evidence | As stages are verified |
-| `dashboards/` | Exported Databricks dashboards | Phase 9 onward |
-| `databricks.yml` | Databricks Asset Bundle: job and dashboards | Phase 6 |
+A commit on `main` is not what runs in the workspace until it is deployed: the job records the commit it ran as `code_revision` on every row it writes.
+
+## Repository map
+
+| Path | What is there |
+|---|---|
+| [`etl/`](etl/README.md) | The SQL of every stage, `01_control` to `06_analytics`; each build has a `90_validate_*` gate |
+| [`src/`](src/README.md) | Python: ingestion, the generators of the Silver, Integration, and dashboard files, and the local job runner |
+| [`config/`](config/README.md) | Source contracts, reviewed mappings and rules, the table registry, freshness limits |
+| [`databricks.yml`](databricks.yml) | The job, its alerts, and the dashboard (Databricks Asset Bundle) |
+| [`dashboards/`](dashboards/README.md) | Generated AI/BI dashboards |
+| [`tests/`](tests/README.md) | pytest suite run by CI, on made-up data only |
+| [`docs/`](docs/README.md) | Architecture, business framing, source inventory, operations, decisions |
+| [`evidence/`](evidence/README.md) | Recorded runs and reconciliations that back each claim |
+| [`analysis/`](analysis/README.md) | Profiling and cross-source research scripts; not pipeline tasks |
+
+Several files under `etl/`, `docs/data/silver/`, and `dashboards/` are generated from `config/`. Each stage README says which, and a test fails if a committed file differs from what its generator prints.
 
 ## Setup
 
-Follow [docs/getting-started/terminal-setup.md](docs/getting-started/terminal-setup.md) once per laptop, then [docs/operations/workflow.md](docs/operations/workflow.md) for day-to-day work, including where code runs to save Databricks compute.
-
-## Running the checks locally
+Set up a laptop once with [terminal setup](docs/getting-started/terminal-setup.md), then, on macOS or Linux:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-python -m pytest tests -q
 ```
 
-CI runs the same checks on every pull request.
+On Windows, in PowerShell:
 
-## Contributing
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [documentation index](docs/README.md).
-Final Bronze and Silver names are in the [ETL table registry](docs/standards/tables.md).
+Raw files are never committed. Locally they sit in `raw-data/` beside the repository ([terminal setup, Part 8](docs/getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)); on Databricks they are in `` edu_access.`00-source`.raw ``. Each source contract in `config/ingestion/` names the approved files by SHA-256, and each [source card](docs/data/source-inventory/README.md) records where to download them.
+
+## Run it
+
+| What | Command |
+|---|---|
+| Tests and policy checks (what CI runs) | `python -m pytest tests -q` |
+| The whole job, locally on DuckDB | macOS or Linux: `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run`. Windows PowerShell: `$env:RAW_DATA_DIR = "$HOME\Projects\reached-hq\raw-data"; python -m src.job.local_run` |
+| Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq` |
+| Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` |
+
+The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 0 only when every task succeeded. Deploy from a clean, pushed `main`; Databricks compute is shared, so agree a run with the team first ([workflow, Part 5](docs/operations/workflow.md#part-5-where-code-runs)).
+
+## Check that it worked
+
+- **Every task succeeded** and the run's `code_revision` is the commit you deployed.
+- **No gate wrote a FAIL.** The [data-quality dashboard](dashboards/README.md) shows each check's newest result; `` edu_access.`01-control`.data_quality_results `` holds them all.
+- **The totals match the source.** [Validation](docs/operations/validation.md) lists the counts to compare, layer by layer.
+
+## When something fails
+
+The failed task names the gate or step. Its results are in `data_quality_results`, and the batch's state is in `` `01-control`.ingestion_batches ``. Reruns are safe: Bronze adds only missing rows, and every later layer rebuilds and publishes only after its gate passes. Responses per failure type are in [ingestion, Failure and recovery](docs/operations/ingestion.md#failure-and-recovery); a runbook covering every layer is in review ([#212](https://github.com/reached-hq/edu-access-intelligence/pull/212)).
+
+## Changing or extending it
+
+- **New delivery of a known source:** [approving a delivery](config/ingestion/README.md).
+- **New or changed cleaning rule:** [Silver, Changing a rule](docs/operations/silver.md#changing-a-rule-or-approving-a-label), then regenerate the SQL.
+- **New table:** register it in [`config/tables.yml`](config/tables.yml), add the build and its gate to its `etl/` stage and to `databricks.yml`, and list both files in the stage README.
+- **A design choice:** record it in the [decision log](docs/governance/decisions.md).
+
+Process, branches, and reviews: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Known limitations
+
+- Enrollment is observed demand at the school's location, not learner residence, and the classroom queue is a screen for review, not a shortage count ([business framing](docs/business/business-analytics-problem.md)).
+- Classroom and teacher capacity cover SY 2023-24 only; enrollment covers SY 2020-21 to 2025-26.
+- Annex schools publish no mother-school ID, so their counts are not consolidated (D-044).
+- `dev` is the only target, and alerts reach only the person who deployed them (#99).
+
+Every confirmed data limit, with its evidence, is in [limitations](docs/governance/limitations.md).

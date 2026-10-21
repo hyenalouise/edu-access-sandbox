@@ -70,6 +70,8 @@ Unstated originating agency/system -> BPDA Bangsamoro Ecological Profile Google 
 
 ## Known quality problems
 
+Summary only; evidence lives in [profile.md](profile.md).
+
 - **Observed:** the workbook provides no reference date, source note, geographic code, collection method, missing-marker definition, or release history.
 - **Observed:** 48 of 180 measure cells are not numeric: 41 are physically blank and 7 contain `-`. Their meanings are not documented, so neither form is converted to zero.
 - **Observed:** 28 numeric cells contain explicit zeroes. The file does not say whether a zero means measured zero, not applicable, or no reported road length; zeroes remain distinct from blanks and `-`. 24 of the 28 zeroes are `City Roads` columns in province or SGA rows, which suggests not applicable rather than measured zero.

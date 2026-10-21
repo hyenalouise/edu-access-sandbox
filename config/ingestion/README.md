@@ -4,6 +4,41 @@ One file per source that is ingested, `<source_id>.json`. It says what an approv
 
 The source's name, system, and URL stay in the registry (`config/sources.json`); a contract does not repeat them, and does not change the source's `status`.
 
+```mermaid
+flowchart LR
+    file[Delivery in the<br/>00-source volume] --> sha{SHA-256 listed<br/>in the contract?}
+    sha -->|no| blocked[Refused: blocked]
+    sha -->|yes| layout{Header, layout,<br/>row counts match?}
+    layout -->|no| failed[Refused: failed, with the check]
+    layout -->|yes| bronze[(02-bronze table)]
+    pr[Reviewed pull request] -->|adds a delivery| sha
+```
+
+## Contracts
+
+| Contract | Format | Landing folder | Approved deliveries | Schema versions |
+|---|---|---|---|---|
+| `deped_enrollment.json` | `zip_csv` | `deped/` | 6: SY 2020-21 to 2025-26 | 2 |
+| `deped_facilities.json` | `zip_csv` | `deped/` | 1: SY 2023-24 | 1 |
+| `deped_personnel.json` | `zip_csv` | `deped/` | 1: SY 2023-24 | 1 |
+| `deped_enrollment_psgc.json` | `xlsx_report` | `deped/` | 1: SY 2023-24 (EMISD) | 1 |
+| `deped_psgc_coordinates.json` | `xlsx_report` | `deped/` | 1: SY 2023-24, public schools only | 1 |
+| `psa_psgc.json` | `xlsx_table` | `psa/` | 1: 2026-Q2 | 1 |
+| `psa_poverty_stat.json` | `xlsx_sheet` | `psa/` | 1: estimates 2018, 2021, 2023 | 1 |
+| `psa_school_age_population.json` | `xlsx_census` | `psa/` | 2: censuses 2020 and 2024 | 2 |
+| `hdx_boundaries.json` | `geojson_features` | `admin_boundaries/` | 1: COD-AB v03, 2025-02-13 | 1 |
+
+A source with no contract here (CHED, BARMM, CMCI, OSM, and the others in `config/sources.json`) is profiled only and is never loaded.
+
+## Common tasks
+
+| Task | Do |
+|---|---|
+| A new school year or quarter arrives | [Approving a delivery](#approving-a-delivery) |
+| The publisher revised a file already loaded | Approve it as the next `delivery_version`, with `supersedes` set to the earlier checksum |
+| The header changed | Add a schema version with the exact new columns; the loader stops on any header it does not know |
+| Regenerate the Bronze SQL | `python -m src.ingestion.cli ddl --source <source_id>` and `cli gate --source <source_id>` |
+
 ## What a contract holds
 
 | Field | Meaning |
