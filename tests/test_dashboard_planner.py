@@ -112,11 +112,29 @@ def test_the_bundle_deploys_this_dashboard():
     assert dashboard["warehouse_id"] == "${var.warehouse_id}"
 
 
-def _rows(store, name):
-    """Run one planner dataset on DuckDB with its default filter values."""
+def add_school_detail(store, barangays):
+    """The school-level columns School Action and the barangay list read, which the AP fixture leaves out.
+
+    barangays maps a barangay PSGC code to (name, its city or municipality, the school IDs in it)."""
+    store.sql(f"ALTER TABLE {GOLD}.fact_school_enrollment ADD COLUMN barangay_psgc_code STRING")
+    store.sql(f"ALTER TABLE {GOLD}.fact_school_classroom_capacity ADD COLUMN temporary_learning_spaces BIGINT")
+    store.sql(f"ALTER TABLE {GOLD}.fact_school_classroom_capacity ADD COLUMN makeshift_rooms BIGINT")
+    for column in ("sef_provincial", "sef_city_municipal", "lgu_funded", "other_funded"):
+        store.sql(f"ALTER TABLE {GOLD}.fact_school_teacher_capacity ADD COLUMN {column}_teacher_count BIGINT")
+    store.sql(f"CREATE TABLE {GOLD}.dim_school (school_id STRING, school_name STRING)")
+    store.sql(f"""CREATE TABLE {GOLD}.dim_barangay (barangay_psgc_code STRING, barangay_name STRING,
+        city_mun_psgc_code STRING, urban_rural STRING, member_type STRING)""")
+    for code, (name, lgu, school_ids) in barangays.items():
+        store.sql(f"INSERT INTO {GOLD}.dim_barangay VALUES ('{code}','{name}','{lgu}','Rural','regular')")
+        for school_id in school_ids:
+            store.sql(f"UPDATE {GOLD}.fact_school_enrollment SET barangay_psgc_code = '{code}' WHERE school_id = '{school_id}'")
+
+
+def _rows(store, name, **chosen):
+    """Run one planner dataset on DuckDB with its default filter values, or the ones chosen."""
     dataset = next(d for d in planner.build()["datasets"] if d["name"] == name)
     sql = "".join(dataset["queryLines"])
-    params = {p["keyword"]: p["defaultSelection"]["values"]["values"][0]["value"] for p in dataset["parameters"]}
+    params = {p["keyword"]: p["defaultSelection"]["values"]["values"][0]["value"] for p in dataset["parameters"]} | chosen
     return store.records(sql, {k: v for k, v in params.items() if re.search(rf":{k}\b", sql)})
 
 
@@ -147,6 +165,22 @@ def test_a_level_above_its_reference_shows_even_when_another_level_is_not_fully_
     run_all(store)
     status = {r["city_mun_psgc_code"]: r["teacher_status"] for r in _rows(store, "ov_teachers")}
     assert status["C1"] == planner.TEACHER_STATUS[0]
+
+
+def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
+    # review on #224: X1 offers JHS with no JHS teacher count. With JHS chosen it has no ratio, not the all-level one
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 40
+        WHERE school_id = 'X1' AND education_level_code = 'JHS'""")
+    run_all(store)
+    add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
+    ratio = {level: {r["school_id"]: r["teacher_ratio"] for r in _rows(store, "sa_list", level=level)}
+             for level in (planner.ALL_LEVELS, "ES", "JHS")}
+    assert ratio[planner.ALL_LEVELS]["X1"] == ratio["ES"]["X1"] == 30  # 300 ES learners over 10 ES teachers
+    assert ratio["JHS"]["X1"] is None
+    # the comparison chart leaves it out at JHS rather than plotting the all-level ratio
+    assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS)}
+    assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="JHS")}
 
 
 def test_no_d057_tier_or_check_table_is_read():

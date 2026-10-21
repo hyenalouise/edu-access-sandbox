@@ -446,6 +446,9 @@ x AS (
 ),
 schools AS (
   SELECT x.*, status <> '{STATUS_ORDER[3]}' AS to_check,
+         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one
+         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher
+              ELSE learners_per_teacher_at_level END AS teacher_ratio,
          ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> '{STATUS_ORDER[3]}' THEN 0 ELSE 1 END,
                                      learners_per_room DESC NULLS LAST, school_name) AS list_order
   FROM x
@@ -576,7 +579,7 @@ PICK = f"""pick AS (
 SA_SCHOOL = f"""WITH {school_base()},
 {PICK}
 SELECT s.school_name, s.school_id, s.barangay_name, s.school_kind, s.levels_offered, s.learners,
-       s.learners_per_room, s.learners_per_teacher, COALESCE(s.learners_per_teacher_at_level, s.learners_per_teacher) AS teacher_ratio,
+       s.learners_per_room, s.learners_per_teacher, s.teacher_ratio,
        CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN 'all levels' ELSE {LEVEL_LABEL.format(c='(SELECT level_code FROM lvl)')} END AS level_txt,
        s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,
        CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,
@@ -592,12 +595,12 @@ FROM schools AS s JOIN pick USING (school_id)"""
 SA_PEERS = f"""WITH {school_base()},
 {PICK}
 SELECT s.school_name, s.learners, s.learners_per_room,
-       COALESCE(s.learners_per_teacher_at_level, s.learners_per_teacher) AS teacher_ratio,
+       s.teacher_ratio,
        CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'
             WHEN s.to_check THEN 'Figures to check' ELSE 'Other schools' END AS series
 FROM schools AS s
 WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL
-  AND COALESCE(s.learners_per_teacher_at_level, s.learners_per_teacher) IS NOT NULL"""
+  AND s.teacher_ratio IS NOT NULL"""
 
 SA_TREND = f"""WITH {school_base()},
 {PICK},
@@ -640,7 +643,7 @@ FROM s"""
 
 SA_LIST = f"""WITH {school_base()}
 SELECT list_order, school_name, school_id, barangay_name, levels_offered, learners, learners_per_room,
-       COALESCE(learners_per_teacher_at_level, learners_per_teacher) AS teacher_ratio, enrollment_change,
+       teacher_ratio, enrollment_change,
        temporary_or_makeshift_rooms, locally_funded_teachers, school_kind, status, reasons
 FROM schools
 WHERE {SCHOOL_FILTERS}
