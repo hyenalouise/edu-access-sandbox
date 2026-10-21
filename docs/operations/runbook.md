@@ -58,6 +58,8 @@ These terms are different:
 | Forced Bronze rerun | One succeeded batch must be validated and merged again | Local only: `python -m src.ingestion.cli ingest --source <source-id> --rerun <batch-id> --db <database-path>`. The job has no rerun parameter, so there is no `dev` command yet | The attempt is recorded as `rerun`, zero rows are inserted, and reconciliation runs again. Silver and Gold are not rebuilt; run the job for that |
 | Backfill | An approved older period arrives after newer periods | Add the delivery and checksum to its contract, place the original file in a new dated publisher folder, then run `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | The batch records `load_type = backfill`; existing periods and versions remain present and unchanged |
 
+The commands show `dev`. On `prod`, use `--target prod --profile reached-hq-prod` instead, and announce the run first; a fix in code reaches `prod` only through `main` ([Deploying to prod](#deploying-to-prod)).
+
 For a local rehearsal, replace the Databricks command with `python -m src.job.local_run --landing <raw-data-root> --db <database-path>`. Always use a separate database path when the purpose is a destructive failure rehearsal.
 
 ### New run, not Repair run
@@ -75,6 +77,8 @@ databricks bundle summary --target dev --profile reached-hq-dev
 ```
 
 Confirm in the summary that `git_commit` and the `code_revision` parameter both equal `git rev-parse HEAD`, then start a new run.
+
+If `prod` needs the fix too, redeploy it from the same `main` with `python -m src.job.deploy_prod` ([Deploying to prod](#deploying-to-prod)), then start a new run there.
 
 ### Deploying to prod
 
@@ -149,7 +153,7 @@ WHERE f.school_id = '<school-id>'
   AND f.education_level_code = '<ES-JHS-or-SHS>';
 ```
 
-`archive_path` is relative to the landing root, `/Volumes/edu_access/00-source/raw` on `dev`.
+`archive_path` is relative to the landing root, `/Volumes/edu_access/00-source/raw` on `dev` and on `prod` alike.
 
 Then inspect the exact Bronze row without copying its values into `data_quality_results`:
 

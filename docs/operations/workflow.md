@@ -13,7 +13,7 @@ How work moves from an issue to `main`, and where each kind of work runs. For th
 | Profile a source | Laptop (DuckDB) | Yes |
 | Develop SQL or PySpark logic on a sample | Laptop (DuckDB or local PySpark) | Yes |
 | Rebase a stacked pull request | Laptop | Yes |
-| Deploy the pipeline | Laptop (Phase 6) | Yes |
+| Deploy the pipeline | Laptop: `dev` from any branch, `prod` only from `main` (D-063) | Yes |
 
 ---
 
@@ -235,7 +235,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 1. **Local first.** Logic works on a local sample before it runs on Databricks.
 2. **Announce full runs.** Before a full pipeline run, post in the team's Notion or chat and move the card, so only one full run happens at a time.
-3. **No schedules during development.** Jobs deploy to the `dev` target with schedules paused. Dashboards get no scheduled refresh until milestones 04 and 05.
+3. **No schedules during development.** Jobs deploy to the `dev` target with schedules paused. Dashboards get no scheduled refresh until milestones 04 and 05. On `prod` the job still has no schedule, but the two SQL alerts evaluate daily at 08:00, which starts the `prod` warehouse once a day.
 4. **Stop what you start.** Detach notebooks and stop the SQL warehouse when done. Set the warehouse auto-stop to the shortest allowed (#1).
 5. **Keep exploration small.** Use `LIMIT`; never `collect()` or `toPandas()` a whole table.
 6. **Build once, reuse.** Loads are safe to rerun without duplicating rows, so there is no need to rebuild everything to test one step.
@@ -246,7 +246,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 ## Part 6: Databricks
 
-**Status:** workspace, catalog, and CLI profile ready. Git folders and deploying still pending.
+**Status:** both workspaces, catalogs, and CLI profiles ready; deploying to `dev` and `prod` documented. Git folders still pending.
 
 | What | Where |
 |---|---|
@@ -258,7 +258,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 - Write every table reference in full, with backticks around the schema: ``edu_access.`02-bronze`.deped_enrollment_raw``.
 - Your own Databricks Git folder, linked to this repository: never share a folder, or you will overwrite each other. **Pending #1:** link your GitHub account in Databricks (User Settings → Linked accounts) first.
 - Notebooks are saved in `.py` source format.
-- Deploying and running the job: the pipeline job (`edu_access_pipeline`) is defined in `databricks.yml`; how to deploy and run it is in [ingestion.md, Running on Databricks](ingestion.md#running-on-databricks). Run it locally first with `python -m src.job.local_run`.
+- Deploying and running the job: the pipeline job (`edu_access_pipeline`) is defined in `databricks.yml`; how to deploy and run it on `dev` is in [ingestion.md, Running on Databricks](ingestion.md#running-on-databricks), and on `prod` in [runbook.md, Deploying to prod](runbook.md#deploying-to-prod). Run it locally first with `python -m src.job.local_run`.
 
 ---
 
