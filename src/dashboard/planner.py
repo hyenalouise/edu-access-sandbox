@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from src.dashboard.widgets import (Builder, Page, bar, chart, choropleth, heatmap, kpi, line, note, num, param_filter,
-                                   pct, quant, ref_line, scatter, table, text)
+                                   pct, point_map, quant, ref_line, scatter, table, text)
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT = ROOT / "dashboards" / "reached_planner.lvdash.json"
@@ -34,11 +34,11 @@ QUEUE_COLORS = [{"value": QUEUE[0], "color": "#712B13"}, {"value": QUEUE[1], "co
                 {"value": QUEUE[2], "color": "#C9A227"}, {"value": QUEUE[3], "color": "#5B6B7A"},
                 {"value": QUEUE[4], "color": "#D9DEE3"}, {"value": QUEUE[5], "color": "#8A96A3"}]
 SCREEN = 50  # the AP2 illustrative reported-room screen, config/analytics_benchmarks.json
-MEASURES = ["Schools (AP1)", "Classrooms (AP2)", "Teachers (AP3)"]
+MEASURES = ["Public schools", "Classrooms", "Teachers"]
 TEACHER_STATUS = ["Above a reference", "At or below the references", "Not fully assessed"]
 TEACHER_COLORS = [{"value": TEACHER_STATUS[0], "color": "#C9A227"}, {"value": TEACHER_STATUS[1], "color": "#A9B4BF"},
                   {"value": TEACHER_STATUS[2], "color": "#8A96A3"}]
-STATUS_ORDER = [f"At or above {SCREEN} per reported room", "Missing report", "Zero rooms or teachers", "No figures to check"]
+STATUS_ORDER = [f"At or above {SCREEN} per reported room", "Missing report", "Zero rooms or teachers", "No verification flag"]
 KPI_STYLE = {"fontStyle": "normal", "fontWeight": 800}  # the view's four KPIs; Overview's are 700
 TITLE_STYLE = {"fontSize": 60, "fontStyle": "normal", "fontWeight": 800}  # the selected place or school
 DETAIL_STYLE = {"fontSize": 16, "fontStyle": "normal", "fontWeight": 400}  # the line of details under it
@@ -46,15 +46,17 @@ SENTENCE_STYLE = {"fontStyle": "normal", "fontSize": 14, "fontWeight": 400}  # f
 KPI_CARD = {"fontColor": {"light": "#FFFFFF"}}  # every view's four KPI cards
 LEGEND_BOTTOM = {"position": "bottom"}
 FINDINGS = ["Classroom screen", "Reliability", "Enrollment context", "Barangay follow-up"]  # pr_insights rules 1 to 4
-ANSWERS = [("Answer: AP1 schools", "AP1 · Enough public schools?", "Learners per public school · context only"),
-           ("Answer: AP2 classrooms", "AP2 · Are classrooms crowded?",
+ANSWERS = [("Answer: Public schools", "What is the scale of the public-school system?", "Learners per public school · context only"),
+           ("Answer: Classrooms", "Which schools show classroom pressure?",
             f"Schools at or above {SCREEN} learners per reported room"),
-           ("Answer: AP3 teachers", "AP3 · Are there enough teachers?",
+           ("Answer: Teachers", "Which levels are above the teacher reference?",
             "Learners per teacher by level · compared with the references, never ranked"),
-           ("Answer: AP4 enrollment", "AP4 · Is enrollment growing?",
+           ("Answer: Enrollment", "Is enrollment changing?",
             "All sectors, SY 2020-21 to 2025-26 · context only")]
-STATUS_COLORS = [{"value": "Selected school", "color": "#712B13"}, {"value": "Figures to check", "color": "#E3A008"},
+STATUS_COLORS = [{"value": "Selected school", "color": "#712B13"}, {"value": "Verification needed", "color": "#E3A008"},
                  {"value": "Other schools", "color": "#A9B4BF"}]
+MAP_STATUS = ["Verification needed", "Other schools"]
+MAP_COLORS = [{"value": MAP_STATUS[0], "color": "#E3A008"}, {"value": MAP_STATUS[1], "color": "#8A96A3"}]
 
 # ------------------------------------------------------------------------------------------ shared SQL
 
@@ -159,7 +161,9 @@ FROM (
          classroom_priority_rank, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name,
          queue_status, congested_school_count, ap2_affected_learners, ap2_affected_learner_share_pct,
          ap2_learners_per_reported_room, teacher_status, teacher_levels_above, ap1_learners_per_public_school,
-         ap4_enrollment_trend, data_review_reason, public_school_enrollment,
+         ap4_enrollment_trend, COALESCE(data_review_reason, '—') AS data_review_reason, public_school_enrollment,
+         format_number(classroom_priority_rank, 0) || ' of ' || format_number((SELECT COUNT(*) FROM pri), 0)
+           AS national_order_display,
          NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)
            AS lowest_coverage_pct
   FROM pri
@@ -221,11 +225,26 @@ SELECT p.lgu_label, p.city_mun_name, p.queue_status,
        p.lgu_type_label || ' · '
          || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END
          || ' · ' || p.queue_status
-         || ' · order ' || format_number(p.priority_order, 0)
+         || ' · national order ' || format_number(p.priority_order, 0) || ' of '
+         || format_number((SELECT COUNT(*) FROM pri), 0)
          || CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu THEN ' · top place in the filters' ELSE '' END AS details,
        p.active_public_school_count AS public_schools, p.reported_instructional_classrooms AS classrooms,
        COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0) + COALESCE(p.shs_teacher_count, 0) AS teachers,
-       p.public_school_enrollment AS public_learners
+       p.public_school_enrollment AS public_learners,
+       p.congested_school_count AS schools_above_room_screen,
+       (CASE WHEN p.ap3_es_learners_per_teacher > p.es_benchmark_max_learners_per_teacher THEN 1 ELSE 0 END
+        + CASE WHEN p.ap3_jhs_learners_per_teacher > p.jhs_benchmark_max_learners_per_teacher THEN 1 ELSE 0 END
+        + CASE WHEN p.ap3_shs_learners_per_teacher > p.shs_benchmark_max_learners_per_teacher THEN 1 ELSE 0 END)
+         AS teacher_levels_above_reference,
+       CASE p.ap4_enrollment_trend WHEN 'increasing' THEN 'Increasing' WHEN 'decreasing' THEN 'Decreasing'
+            WHEN 'no change' THEN 'No change' ELSE 'Not fully assessed' END AS enrollment_direction,
+       LEAST(COALESCE(p.ap1_coverage_pct, 0), COALESCE(p.ap2_learner_coverage_pct, 0),
+             COALESCE(p.ap3_coverage_pct, 0)) / 100.0 AS lowest_coverage,
+       format_number(p.active_public_school_count, 0) || ' public schools · '
+         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported rooms · '
+         || format_number(COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0)
+                          + COALESCE(p.shs_teacher_count, 0), 0) || ' reported teachers · '
+         || format_number(p.public_school_enrollment, 0) || ' public learners (SY 2023-24)' AS facts
 FROM pri AS p
 JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code"""
 
@@ -241,15 +260,15 @@ SELECT 1 AS ord, '{MEASURES[1]} · school screen' AS measure,
 FROM p
 UNION ALL SELECT 2, '{MEASURES[1]} · pooled ratio', {r1('ap2_learners_per_reported_room')} || ' learners per reported room',
        'Context: the school screen decides the queue', CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END FROM p
-UNION ALL SELECT 3, 'Teachers, Elementary (AP3)', {r1('ap3_es_learners_per_teacher')} || ' learners per teacher',
+UNION ALL SELECT 3, 'Teachers, Elementary', {r1('ap3_es_learners_per_teacher')} || ' learners per teacher',
        'Above ' || {r1('es_benchmark_max_learners_per_teacher')} || ' (historical study reference)',
        CASE WHEN es_offered_school_count = 0 THEN 'Not offered' WHEN ap3_es_learners_per_teacher IS NULL THEN 'Not assessed'
             WHEN ap3_es_learners_per_teacher > es_benchmark_max_learners_per_teacher THEN 'Above' ELSE 'At or below' END FROM p
-UNION ALL SELECT 4, 'Teachers, Junior high (AP3)', {r1('ap3_jhs_learners_per_teacher')} || ' learners per teacher',
+UNION ALL SELECT 4, 'Teachers, Junior high', {r1('ap3_jhs_learners_per_teacher')} || ' learners per teacher',
        'Above ' || {r1('jhs_benchmark_max_learners_per_teacher')} || ' (derived deployment comparison)',
        CASE WHEN jhs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_jhs_learners_per_teacher IS NULL THEN 'Not assessed'
             WHEN ap3_jhs_learners_per_teacher > jhs_benchmark_max_learners_per_teacher THEN 'Above' ELSE 'At or below' END FROM p
-UNION ALL SELECT 5, 'Teachers, Senior high (AP3)', {r1('ap3_shs_learners_per_teacher')} || ' learners per teacher',
+UNION ALL SELECT 5, 'Teachers, Senior high', {r1('ap3_shs_learners_per_teacher')} || ' learners per teacher',
        'Above ' || {r1('shs_benchmark_max_learners_per_teacher')} || ' (derived deployment comparison)',
        CASE WHEN shs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_shs_learners_per_teacher IS NULL THEN 'Not assessed'
             WHEN ap3_shs_learners_per_teacher > shs_benchmark_max_learners_per_teacher THEN 'Above' ELSE 'At or below' END FROM p
@@ -298,7 +317,7 @@ me AS (
   WHERE lv.offered > 0
 )
 SELECT level_label, ord, 'This place' AS series, ratio AS learners_per_teacher FROM me
-UNION ALL SELECT level_label, ord, 'Reference (D-061)', reference FROM me"""
+UNION ALL SELECT level_label, ord, 'Published comparison point', reference FROM me"""
 
 PR_ENROLLMENT = f"""WITH {LGU},
 {SEL},
@@ -319,10 +338,12 @@ a AS (
   GROUP BY 1
 )
 SELECT age_band, children_2020, children_2024,
-       (children_2024 - children_2020) / NULLIF(CAST(children_2020 AS DOUBLE), 0) AS change
+       (children_2024 - children_2020) / NULLIF(CAST(children_2020 AS DOUBLE), 0) AS change,
+       CASE WHEN children_2024 > children_2020 THEN 'Increase'
+            WHEN children_2024 < children_2020 THEN 'Decrease' ELSE 'No change' END AS direction
 FROM a"""
 
-CENSUS_SERIES = ["Children aged 5-17", "Enrolled, all sectors", "Difference (children minus enrolled)"]
+CENSUS_SERIES = ["Children aged 5-17", "Enrolled, all sectors"]
 PR_CENSUS = f"""WITH {LGU},
 {SEL},
 c AS (
@@ -332,8 +353,7 @@ c AS (
   WHERE a.census_year IS NOT NULL
 )
 SELECT period, '{CENSUS_SERIES[0]}' AS series, school_age_population AS people FROM c
-UNION ALL SELECT period, '{CENSUS_SERIES[1]}', enrollment_all_sectors FROM c
-UNION ALL SELECT period, '{CENSUS_SERIES[2]}', population_enrollment_gap FROM c"""
+UNION ALL SELECT period, '{CENSUS_SERIES[1]}', enrollment_all_sectors FROM c"""
 
 
 def school_base(level_param=True):
@@ -502,6 +522,25 @@ FROM (SELECT schools.*, ROW_NUMBER() OVER (ORDER BY list_order) AS teaser_order 
 WHERE teaser_order <= 5
 ORDER BY teaser_order"""
 
+PR_MAP = f"""WITH {school_base(level_param=False)}
+SELECT s.school_id, s.school_name, s.barangay_name, s.school_kind, s.levels_offered, s.learners,
+       s.learners_per_room, s.learners_per_teacher, loc.longitude, loc.latitude,
+       CASE WHEN s.to_check THEN '{MAP_STATUS[0]}' ELSE '{MAP_STATUS[1]}' END AS map_status,
+       'Validated inside selected LGU' AS coordinate_status
+FROM schools AS s
+JOIN {G}.dim_school_location AS loc ON loc.school_id = s.school_id
+WHERE loc.boundary_status = 'inside' AND {BARANGAY.replace('barangay_name', 's.barangay_name')}
+ORDER BY CASE WHEN s.to_check THEN 0 ELSE 1 END, s.school_name"""
+
+PR_MAP_SUMMARY = f"""WITH {school_base(level_param=False)}
+SELECT 'Mapped ' || format_number(COUNT_IF(loc.boundary_status = 'inside'), 0) || ' of '
+         || format_number(COUNT(*), 0) || ' active public schools · '
+         || format_number(COUNT_IF(COALESCE(loc.boundary_status, 'no_location') <> 'inside'), 0)
+         || ' locations excluded pending verification' AS map_coverage
+FROM schools AS s
+LEFT JOIN {G}.dim_school_location AS loc ON loc.school_id = s.school_id
+WHERE {BARANGAY.replace('barangay_name', 's.barangay_name')}"""
+
 # Deterministic insights: fixed rules over the same tables as the visuals, at most four, each suppressed when its
 # data is missing. They state facts and never a cause.
 PR_INSIGHTS = f"""WITH {school_base(level_param=False)},
@@ -538,7 +577,7 @@ rules AS (
   UNION ALL
   SELECT 2, CASE WHEN queue_status = '{QUEUE[5]}' THEN 'Data review: ' || data_review_reason || '.'
                  ELSE format_number(COALESCE(missing_room_school_count, 0) + COALESCE(zero_room_school_count, 0), 0)
-                      || ' public schools report no usable room count and are left out of the screen. Check them with '
+                      || ' public schools report no usable room count and are left out of the screen. Verify them with '
                       || 'the Schools Division Office.' END
   FROM p
   WHERE queue_status = '{QUEUE[5]}' OR COALESCE(missing_room_school_count, 0) + COALESCE(zero_room_school_count, 0) > 0
@@ -567,7 +606,7 @@ WHERE insight IS NOT NULL AND ord <= 4"""
 
 # ============================================================ 3 School Action
 SCHOOL_FILTERS = (f"{BARANGAY} AND offers_level = 1"
-                  f" AND (:school_status = '{ALL_SCHOOLS}' OR (:school_status = 'Figures to check' AND to_check)"
+                  f" AND (:school_status = '{ALL_SCHOOLS}' OR (:school_status = 'Verification needed' AND to_check)"
                   f" OR status = :school_status)")
 PICK = f"""pick AS (
   SELECT school_id FROM schools
@@ -582,10 +621,18 @@ SELECT s.school_name, s.school_id, s.barangay_name, s.school_kind, s.levels_offe
        s.learners_per_room, s.learners_per_teacher, s.teacher_ratio,
        CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN 'all levels' ELSE {LEVEL_LABEL.format(c='(SELECT level_code FROM lvl)')} END AS level_txt,
        s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,
-       CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,
+       CASE WHEN s.learners_per_room IS NULL THEN 'Not reported'
+            WHEN s.learners_per_room >= {SCREEN} THEN 'Above screen' ELSE 'Below screen' END AS classroom_pressure,
+       CASE WHEN s.teacher_ratio IS NULL THEN 'Not reported'
+            ELSE format_number(s.teacher_ratio, 1) || ' learners per teacher' END AS teacher_pressure,
+       CASE WHEN s.enrollment_change IS NULL THEN 'Not fully assessed'
+            WHEN s.enrollment_change > 0 THEN 'Increasing'
+            WHEN s.enrollment_change < 0 THEN 'Decreasing' ELSE 'No change' END AS enrollment_direction,
+       CASE WHEN s.learners IS NULL OR s.rooms IS NULL OR s.teacher_ratio IS NULL THEN 'Verification needed'
+            ELSE 'Core figures reported' END AS data_completeness,
+       CASE WHEN s.to_check THEN 'Verification needed' ELSE 'No verification flag' END AS check_label,
        'ID ' || s.school_id || ' · ' || s.barangay_name || ' · ' || s.school_kind || ' · ' || s.levels_offered
-         || ' · ' || COALESCE(format_number(s.learners, 0), 'n/a') || ' learners · '
-         || CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END
+         || ' · ' || COALESCE(format_number(s.learners, 0), 'n/a') || ' learners · ' || s.status
          || CASE WHEN :school <> '{FIRST_SCHOOL}' AND s.school_name || ' · ' || s.school_id <> :school
                  THEN ' · first school to check' ELSE '' END AS details,
        CASE WHEN :school <> '{FIRST_SCHOOL}' AND s.school_name || ' · ' || s.school_id <> :school
@@ -597,7 +644,7 @@ SA_PEERS = f"""WITH {school_base()},
 SELECT s.school_name, s.learners, s.learners_per_room,
        s.teacher_ratio,
        CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'
-            WHEN s.to_check THEN 'Figures to check' ELSE 'Other schools' END AS series
+            WHEN s.to_check THEN 'Verification needed' ELSE 'Other schools' END AS series
 FROM schools AS s
 WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL
   AND s.teacher_ratio IS NOT NULL"""
@@ -636,7 +683,7 @@ ORDER BY ord"""
 SA_VERIFY = f"""WITH {school_base()},
 {PICK},
 s AS (SELECT schools.* FROM schools JOIN pick USING (school_id))
-SELECT CASE WHEN to_check THEN status ELSE 'No figures to check' END AS status,
+SELECT CASE WHEN to_check THEN status ELSE 'No verification flag' END AS status,
        CASE WHEN to_check THEN reasons ELSE 'Every figure is reported, and the school is below the illustrative screen of {SCREEN} learners per reported room.' END AS reason,
        'Confirm with the school and the Schools Division Office before using this figure for planning.' AS next_step
 FROM s"""
@@ -688,15 +735,15 @@ BENCHMARKS = json.loads((ROOT / "config" / "analytics_benchmarks.json").read_tex
 
 
 def references():
-    """The D-061 reference values as published in config/analytics_benchmarks.json, one row each."""
+    """The planning reference values as published in config/analytics_benchmarks.json, one row each."""
     ap2, ap3 = BENCHMARKS["ap2"], BENCHMARKS["ap3"]
     rows = [(MEASURES[1], "School learners per reported room", f"{ap2['operator']} {ap2['threshold']:g}", ap2["label"],
              "Contributes the classroom-pressure flag"),
-            ("Teachers, Elementary (AP3)", "Learners per teacher", f"> {ap3['es_max_learners_per_teacher']:g}",
+            ("Teachers, Elementary", "Learners per teacher", f"> {ap3['es_max_learners_per_teacher']:g}",
              ap3["es_label"], "Context: never ranked"),
-            ("Teachers, Junior high (AP3)", "Learners per teacher", f"> {ap3['jhs_max_learners_per_teacher']:g}",
+            ("Teachers, Junior high", "Learners per teacher", f"> {ap3['jhs_max_learners_per_teacher']:g}",
              "derived deployment comparison (" + ap3["jhs_derivation"] + ")", "Context: never ranked"),
-            ("Teachers, Senior high (AP3)", "Learners per teacher", "> 80/3 (26.7)",
+            ("Teachers, Senior high", "Learners per teacher", "> 80/3 (26.7)",
              "derived deployment comparison (" + ap3["shs_derivation"] + ")", "Context: never ranked"),
             (MEASURES[0], "Learners per public school", "none", "no published reference", "Context only")]
     body = ",\n  ".join("(" + ", ".join("'" + str(v).replace("'", "''") + "'" for v in r) + ")" for r in rows)
@@ -706,8 +753,8 @@ def references():
 DM_REFS = references()
 
 COVERAGE_BANDS = ["95-100% (assessed)", "90-95% (assessed)", "80-90%", "50-80%", "Under 50%", "No value"]
-COVERAGE_MEASURES = ["Schools (AP1)", "Classrooms (AP2)", "Teachers, Elementary (AP3)", "Teachers, Junior high (AP3)",
-                     "Teachers, Senior high (AP3)"]
+COVERAGE_MEASURES = ["Public schools", "Classrooms", "Teachers, Elementary", "Teachers, Junior high",
+                     "Teachers, Senior high"]
 DM_COVERAGE = f"""WITH {PRI},
 c AS (
   SELECT '{COVERAGE_MEASURES[0]}' AS measure, ap1_coverage_pct AS coverage FROM pri WHERE {GEO}
@@ -725,7 +772,7 @@ SELECT measure,
             WHEN coverage < 95 THEN '{COVERAGE_BANDS[1]}' ELSE '{COVERAGE_BANDS[0]}' END AS coverage_band,
        COUNT(*) AS lgus
 FROM c
-WHERE (:measure = '{ALL_MEASURES}' OR measure = :measure OR (measure LIKE 'Teachers%' AND :measure = 'Teachers (AP3)'))
+WHERE (:measure = '{ALL_MEASURES}' OR measure = :measure OR (measure LIKE 'Teachers%' AND :measure = 'Teachers'))
 GROUP BY ALL"""
 
 DM_REASONS = f"""WITH {PRI},
@@ -848,6 +895,8 @@ def datasets(b):
     b.dataset("pr_census", "LGU Profile: school-age population (context)", PR_CENSUS, LGU_P)
     b.dataset("pr_cohorts", "LGU Profile: children coming up", PR_COHORTS, LGU_P)
     b.dataset("pr_barangays", "LGU Profile: barangay access", PR_BARANGAYS, LGU_P + ["barangay"])
+    b.dataset("pr_map", "LGU Profile: validated school locations", PR_MAP, LGU_P + ["barangay"])
+    b.dataset("pr_map_summary", "LGU Profile: school-location coverage", PR_MAP_SUMMARY, LGU_P + ["barangay"])
     b.dataset("pr_teaser", "LGU Profile: schools to follow up", PR_TEASER, LGU_P + ["barangay"])
     b.dataset("sa_school", "School Action: selected school", SA_SCHOOL, SCHOOL_P)
     b.dataset("sa_peers", "School Action: schools in the LGU", SA_PEERS, SCHOOL_P)
@@ -875,7 +924,7 @@ def datasets(b):
     b.dataset("opt_barangay_school", "Filter: barangay (School Action)", OPT_BARANGAY, LGU_P)
     b.dataset("opt_level", "Filter: education level", values("level_option", [ALL_LEVELS, "ES", "JHS", "SHS"]))
     b.dataset("opt_status", "Filter: school status",
-              values("status_option", [ALL_SCHOOLS, "Figures to check"] + STATUS_ORDER))
+              values("status_option", [ALL_SCHOOLS, "Verification needed"] + STATUS_ORDER))
     b.dataset("opt_school", "Filter: school", OPT_SCHOOL, LGU_P + ["barangay", "level"])
     b.dataset("opt_measure", "Filter: measure", values("measure_option", [ALL_MEASURES] + MEASURES))
 
@@ -886,9 +935,9 @@ def datasets(b):
 def overview(b):
     p = Page("overview", "Overview")
     targets = ["ov_lgu", "ov_kpi", "ov_teachers", "ov_demand"]
-    intro = text(b, "# Which cities and municipalities should we inspect first?\n", "\n",
-                 "D-061 combines current classroom and teacher pressure with public-school enrollment growth. "
-                 "The result orders planning review and is not a shortage count.")
+    intro = text(b, "# Where should the Local School Board review first?\n", "\n",
+                 "Planning priority combines current classroom and teacher pressure with public-school enrollment "
+                 "growth. It orders review and is not a shortage or funding-allocation count.")
     queue = param_filter(b, "queue", "Review status", targets, "Show LGUs with the selected review status.")
     coverage = param_filter(b, "coverage", "Coverage status", targets,
                             "Separate assessed LGUs from places that require data review.")
@@ -904,16 +953,16 @@ def overview(b):
            (kpi(b, "ov_kpi", "LGUs needing data review", "data_review_lgus", num(),
                 desc="No known pressure, and coverage or growth could not be checked", style=bold, card_style=KPI_CARD), 3)], 3)
     queue_map = choropleth(
-        b, "ov_lgu", "**Where are the planning priorities?**", "queue_status", "Priority category",
+        b, "ov_lgu", "Where are the planning priorities?", "queue_status", "Priority category",
         [("lgu_label", "City or municipality"), ("queue_status", "Review status"),
          ("ap2_affected_learners", "Learners in screened schools")], QUEUE_COLORS, QUEUE,
         "Shows the review status of every city and municipality in the selected area.\n\nLGUs without available map "
         "boundaries are not drawn. A missing area should not be read as no reported congestion.")
     teachers = bar(b, "ov_teachers", "Teacher references beside the queue", "queue_status", "Review status", "count",
-                   "city_mun_psgc_code", "Cities and municipalities", color="teacher_status", color_label="AP3",
+                   "city_mun_psgc_code", "Cities and municipalities", color="teacher_status", color_label="Teacher evidence",
                    mappings=TEACHER_COLORS, order=QUEUE, color_order=TEACHER_STATUS, layout="stack", legend=LEGEND_BOTTOM,
-                   desc="Whether any offered level's learners per teacher is above its published reference. AP3 "
-                        "contributes the teacher-pressure flag under D-061.")
+                   desc="Whether any offered level's learners per teacher is above its published comparison point. "
+                        "This contributes the teacher-pressure signal.")
     by_region = bar(b, "ov_lgu", "Places by region and review status", "region_short", "Region", "count",
                     "city_mun_psgc_code", "Cities and municipalities", color="queue_status", color_label="Review status",
                     mappings=QUEUE_COLORS, color_order=QUEUE, layout="stack", categories_shown=8, sort_by="x-reversed",
@@ -921,7 +970,7 @@ def overview(b):
                     desc="Every region in view, stacked by review status with the same colors as the map.")
     p.columns([(5, [(queue_map, 14)]), (7, [(teachers, 6), (by_region, 8)])], 14)
     p.row([(table(b, "ov_lgu", "National planning order", [
-        ("classroom_priority_rank", "Order", None), ("lgu_label", "City or municipality", None),
+        ("national_order_display", "National order", None), ("lgu_label", "City or municipality", None),
         ("lgu_type_label", "Type", None), ("queue_status", "Review status", None),
         ("congested_school_count", "Screened schools", num()), ("ap2_affected_learners", "Learners in them", num()),
         ("ap2_affected_learner_share_pct", "Share of learners %", num(1)),
@@ -929,10 +978,10 @@ def overview(b):
         ("teacher_levels_above", "Teacher levels above reference", None),
         ("ap1_learners_per_public_school", "Learners per school", num()),
         ("lowest_coverage_pct", "Lowest coverage %", num()), ("data_review_reason", "Data review reason", None)],
-        "D-061 orders LGUs by priority category, current-pressure count, affected learners, classroom evidence, "
-        "teacher evidence and enrollment growth. It is not an official shortage, construction entitlement or funding "
+        "Orders LGUs by priority category, current-pressure count, affected learners, classroom evidence, "
+        "teacher evidence, and enrollment growth. It is not an official shortage, construction entitlement, or funding "
         "allocation."), 12)], 10)
-    p.row([(bar(b, "ov_demand", "**Which LGUs in the queue have rising enrollment?**", "queue_status", "Review status",
+    p.row([(bar(b, "ov_demand", "Which priority LGUs have rising enrollment?", "queue_status", "Review status",
                 "count", "city_mun_psgc_code", "Cities and municipalities", color="enrollment_direction",
                 color_label="Enrollment, SY 2020-21 to 2025-26", mappings=DIRECTION_COLORS, order=QUEUE,
                 color_order=DIRECTIONS, layout="stack", legend={"hideTitle": False, "title": "Enrollment trend"},
@@ -953,7 +1002,7 @@ def lgu_profile(b):
                  "See which resources are under the most pressure, how reliable the result is and where the board "
                  "should look next.")
     place = param_filter(b, "lgu", "City or municipality", profile, "Choose the LGU you want to review.")
-    barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_teaser"],
+    barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_map", "pr_map_summary", "pr_teaser"],
                             "Narrow the barangay and school sections to one barangay.")
     p.columns([(8, [(intro, 2)]), (4, [(place, 1), (barangay, 1)])], 2)
     p.row([(kpi(b, "pr_card", "Selected city or municipality", "city_mun_name", None,
@@ -961,59 +1010,80 @@ def lgu_profile(b):
     p.row([(kpi(b, "pr_card", "Place details", "details", None,
                 desc="Type · province (or region) · review status · queue rank",
                 style=DETAIL_STYLE, heading=True, align="left"), 12)], 1)
-    p.row([(kpi(b, "pr_card", "Public schools", "public_schools", num(), desc="Active, SY 2023-24", style=KPI_STYLE,
+    p.row([(kpi(b, "pr_card", "Schools above classroom screen", "schools_above_room_screen", num(),
+                desc=f"At least {SCREEN} learners per reported room", style=KPI_STYLE,
                 card_style=KPI_CARD), 3),
-           (kpi(b, "pr_card", "Instructional classrooms", "classrooms", num(), desc="Usable counts, SY 2023-24",
+           (kpi(b, "pr_card", "Teacher levels above reference", "teacher_levels_above_reference", num(),
+                desc="Elementary, junior high, or senior high", style=KPI_STYLE, card_style=KPI_CARD), 3),
+           (kpi(b, "pr_card", "Enrollment direction", "enrollment_direction", None,
+                desc="Public schools, first to latest available year",
                 style=KPI_STYLE, card_style=KPI_CARD), 3),
-           (kpi(b, "pr_card", "Teachers", "teachers", num(), desc="Elementary to senior high, SY 2023-24",
-                style=KPI_STYLE, card_style=KPI_CARD), 3),
-           (kpi(b, "pr_card", "Public learners", "public_learners", num(), desc="Public-school enrollment, SY 2023-24",
+           (kpi(b, "pr_card", "Lowest reporting coverage", "lowest_coverage", pct(0),
+                desc="Lowest learner coverage across the three planning measures",
                 style=KPI_STYLE, card_style=KPI_CARD), 3)], 3)
+    p.row([(kpi(b, "pr_card", "LGU facts", "facts", None, desc="Scale and reported resources",
+                style=DETAIL_STYLE, heading=True, align="left"), 12)], 1)
     for i, heading in enumerate(FINDINGS, 1):
         p.row([(note(b, "pr_insights", heading, f"finding_{i}", style=SENTENCE_STYLE), 12)], 1)
     p.row([(note(b, "pr_answers", title, f"answer_{i}", desc, SENTENCE_STYLE, label=label), 3)
            for i, (title, label, desc) in enumerate(ANSWERS, 1)], 4)
-    p.row([(table(b, "pr_evidence", "**The evidence behind this status**", [
+    p.row([(table(b, "pr_evidence", "Evidence behind this status", [
                 ("measure", "Measure", None), ("this_place", "This place", None), ("reference", "Reference", None),
                 ("status", "Status", None)],
-                "Each measure beside its published reference. AP2 and AP3 contribute separate pressure flags under "
-                "D-061; AP1 remains context."), 6),
+                "Each measure beside its published comparison point. Classroom and teacher pressure contribute to "
+                "the priority category; public schools per LGU remains context."), 6),
            (bar(b, "pr_teachers", "Learners per teacher by level", "level_label", "Level", "max", "learners_per_teacher",
                 "Learners per teacher", color="series", color_label="",
-                mappings=[{"value": "This place", "color": "#712B13"}, {"value": "Reference (D-061)", "color": "#A9B4BF"}],
-                color_order=["This place", "Reference (D-061)"], layout="group", fmt=num(1),
+                mappings=[{"value": "This place", "color": "#712B13"},
+                          {"value": "Published comparison point", "color": "#A9B4BF"}],
+                color_order=["This place", "Published comparison point"], layout="group", fmt=num(1),
                 desc="Each offered level against its reference: ES 35 is a historical study reference, JHS 36 and SHS "
                      "80/3 are derived deployment comparisons. Not a staffing entitlement."), 6)], 7)
-    p.row([(line(b, "pr_enrollment", "**How has enrollment changed?**", "school_year_label", "School year",
-                 "sum", "learners", "Learners", num(1, True), color="scope", color_label="Scope", kind="area",
+    p.row([(line(b, "pr_enrollment", "How has enrollment changed?", "school_year_label", "School year",
+                 "sum", "learners", "Learners", num(1, True), color="scope", color_label="Scope", kind="line",
                  mappings=[{"value": "All sectors", "color": "#5B6B7A"}, {"value": "Public schools", "color": "#C9A227"}],
                  x_order=SCHOOL_YEARS,
                  desc="Shows public-school enrollment and enrollment across all school sectors for each available "
                       "school year."), 6),
-           (bar(b, "pr_cohorts", "**How is the school-age population changing?**", "age_band", "Age group", "max",
-                "change", "Change, 2020 to 2024", order=BANDS, fmt=pct(1),
+           (bar(b, "pr_cohorts", "How is the school-age population changing?", "age_band", "Age group", "max",
+                "change", "Change, 2020 to 2024", order=BANDS, fmt=pct(1), color="direction", color_label="Direction",
+                mappings=[{"value": "Increase", "color": "#2F6F8F"}, {"value": "Decrease", "color": "#A32D2D"},
+                          {"value": "No change", "color": "#8A96A3"}],
+                color_order=["Increase", "Decrease", "No change"],
                 desc="Shows the change in resident children grouped by the school level corresponding to their age. An "
                      "increase in younger age groups may indicate future demand at higher school levels."), 6)], 7)
-    p.row([(bar(b, "pr_census", "**How do resident children and local enrollment compare?**", "period",
+    p.row([(bar(b, "pr_census", "How do resident children and local enrollment compare?", "period",
                 "Census · school year", "sum", "people", "People", horizontal=False, color="series", color_label="Series",
                 layout="group", legend=LEGEND_BOTTOM,
-                mappings=[{"value": CENSUS_SERIES[0], "color": "#5B6B7A"}, {"value": CENSUS_SERIES[1], "color": "#A9B4BF"},
-                          {"value": CENSUS_SERIES[2], "color": "#C9A227"}],
+                mappings=[{"value": CENSUS_SERIES[0], "color": "#5B6B7A"},
+                          {"value": CENSUS_SERIES[1], "color": "#A9B4BF"}],
                 color_order=CENSUS_SERIES, fmt=num(1, True),
                 desc="Compares resident children aged 5–17 with learners enrolled in local schools. Children are counted "
                      "where they live, while learners are counted where they attend school. The difference is not an "
-                     "estimate of children who are out of school."), 6),
-           (table(b, "pr_barangays", "**Barangay access screening**", [
+                     "estimate of children who are out of school."), 12)], 7)
+    p.row([(point_map(b, "pr_map", "School locations and barangay access", "latitude", "longitude",
+                      "map_status", "Status", MAP_COLORS, MAP_STATUS,
+                      [("school_name", "School"), ("school_id", "School ID"), ("barangay_name", "Barangay"),
+                       ("school_kind", "Main or annex"), ("levels_offered", "Levels"), ("learners", "Public learners"),
+                       ("learners_per_room", "Learners per reported room"),
+                       ("learners_per_teacher", "Learners per reported teacher"),
+                       ("coordinate_status", "Coordinate status")],
+                      "Validated public-school coordinates inside the selected city or municipality. Barangay is a "
+                      "filter and tooltip attribute; the map does not infer barangay boundaries, catchments, or travel time."), 7),
+           (table(b, "pr_barangays", "Barangays without a matched public elementary school first", [
                ("barangay_name", "Barangay", None), ("urban_rural", "Urban or rural", None),
                ("public_schools", "Public schools", num()), ("public_es", "Public elementary", None),
                ("learners", "Public learners", num())],
-               "Shows public-school access in each barangay, with barangays that have no matched public elementary "
-               "school listed first."), 6)], 8)
-    p.row([(table(b, "pr_teaser", "**Schools for follow-up**", [
+               "A nearby school may serve across barangay boundaries; zero matched schools is a review prompt, not "
+               "proof that a new school is required."), 5)], 10)
+    p.row([(kpi(b, "pr_map_summary", "School location coverage", "map_coverage", None,
+                desc="Only coordinates validated inside the selected LGU are plotted", style=DETAIL_STYLE,
+                heading=True, align="left"), 12)], 1)
+    p.row([(table(b, "pr_teaser", "Schools for follow-up", [
         ("school_name", "School", None), ("barangay_name", "Barangay", None), ("learners_per_room", "Learners per classroom", num(1)),
         ("status", "Status", None), ("reasons", "Why", None)],
         "School records to verify first, followed by schools with the highest classroom pressure."), 12)], 5)
-    p.row([(table(b, "pr_reliability", "**Data coverage and verification checks**", [
+    p.row([(table(b, "pr_reliability", "Data coverage and verification checks", [
         ("measure", "Measure", None), ("coverage", "Share reported", None), ("assessed", "Status", None),
         ("unusual_schools", "Unusual figures", None)],
         "Shows whether enough data were reported for each measure, and the schools left out because a room or teacher "
@@ -1041,20 +1111,20 @@ def school_action(b):
     p.row([(kpi(b, "sa_school", "School details", "details", None,
                 desc="School ID · barangay · main or annex · levels · learners, SY 2023-24 · figures to check",
                 style={"fontSize": 16}, heading=True, align="left"), 12)], 1)
-    p.row([(kpi(b, "sa_school", "Learners per reported room", "learners_per_room", num(1),
-                desc="All levels · rooms include labs", style=KPI_STYLE, card_style=KPI_CARD), 3),
-           (kpi(b, "sa_school", "Learners per teacher", "teacher_ratio", num(1), desc="At the education level chosen above",
-                style=KPI_STYLE, card_style=KPI_CARD), 3),
-           (kpi(b, "sa_school", "Enrollment change", "enrollment_change", pct(1), desc="SY 2020-21 to 2025-26, if complete",
-                style=KPI_STYLE, card_style=KPI_CARD), 3),
-           (kpi(b, "sa_school", "Temporary and makeshift rooms", "temporary_or_makeshift_rooms", num(),
-                desc="SY 2023-24", style=KPI_STYLE, card_style=KPI_CARD), 3)], 3)
-    p.row([(scatter(b, "sa_peers", "This school among schools in the same place", "learners_per_room",
-                    "Learners per classroom", "teacher_ratio", "Learners per teacher", "series", "School",
+    p.row([(kpi(b, "sa_school", "Classroom pressure", "classroom_pressure", None,
+                desc=f"Compared with the {SCREEN}-learner screen", style=KPI_STYLE, card_style=KPI_CARD), 3),
+           (kpi(b, "sa_school", "Teacher pressure", "teacher_pressure", None,
+                desc="At the education level chosen above", style=KPI_STYLE, card_style=KPI_CARD), 3),
+           (kpi(b, "sa_school", "Enrollment direction", "enrollment_direction", None,
+                desc="SY 2020-21 to 2025-26, when complete", style=KPI_STYLE, card_style=KPI_CARD), 3),
+           (kpi(b, "sa_school", "Data completeness", "data_completeness", None,
+                desc="Learners, rooms, and selected-level teachers", style=KPI_STYLE, card_style=KPI_CARD), 3)], 3)
+    p.row([(scatter(b, "sa_peers", "Classroom and teacher pressure among schools in this LGU", "learners_per_room",
+                    "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series", "School",
                     STATUS_COLORS, [c["value"] for c in STATUS_COLORS], "learners", "Learners", "school_name",
                     "Each dot is a public school offering the chosen level. A school-level screen, not the LGU priority "
                     "rule; schools with no rooms or teachers reported cannot be placed."), 7),
-           (table(b, "sa_verify", "Figures to verify", [("status", "Status", None), ("reason", "Exact reason", None),
+           (table(b, "sa_verify", "What should be verified?", [("status", "Status", None), ("reason", "Exact reason", None),
                                                          ("next_step", "Next step", None)],
                   "A flag means verify, not incorrect. Flagged schools stay in every total."), 5)], 8)
     p.row([(line(b, "sa_trend", "Learners each school year", "school_year_label", "School year", "sum",
@@ -1063,17 +1133,17 @@ def school_action(b):
                            {"value": "Junior high", "color": "#5B6B7A"}, {"value": "Senior high", "color": "#C9A227"}],
                  color_order=["All levels", "Elementary", "Junior high", "Senior high"],
                  desc="The school's total first; each level is added when the school offers more than one."), 6),
-           (table(b, "sa_rooms", "Rooms and teachers", [
+           (table(b, "sa_rooms", "Reported rooms and teachers", [
                ("level", "Level", None), ("learners", "Learners", num()), ("teachers", "Teachers", num()),
                ("learners_per_teacher", "Per teacher", num(1)), ("classrooms", "Classrooms", num()),
                ("temporary_rooms", "Temporary", num()), ("makeshift_rooms", "Makeshift", num())],
                "SY 2023-24. Classrooms are reported for the whole school, not by level."), 6)], 7)
-    p.row([(table(b, "sa_list", "School action list", [
+    p.row([(table(b, "sa_list", "School validation list", [
         ("list_order", "#", None), ("school_name", "School", None), ("barangay_name", "Barangay", None),
         ("levels_offered", "Levels", None), ("learners", "Learners", num()), ("learners_per_room", "Per classroom", num(1)),
         ("teacher_ratio", "Per teacher", num(1)), ("enrollment_change", "Enrollment change", pct(1)),
         ("status", "Status", None), ("reasons", "Reason", None)],
-        "Figures to verify first, then the most crowded. The download adds school ID, main or annex, temporary or "
+        "Verification flags first, then the highest learners per reported room. The download adds school ID, main or annex, temporary or "
         "makeshift rooms and locally funded teachers."), 12)], 10)
     p.row([(text(b, "Confirm flagged figures with the Schools Division Office before using them for planning. The "
                  "dashboard identifies pressure and data requiring review; it does not prescribe how many classrooms, "
@@ -1098,19 +1168,19 @@ def data_and_method(b):
     p.row([(kpi(b, "freshness", "Data freshness", "freshness", None,
                 desc="Latest successful pipeline run and the school years it covers", style={"fontSize": 16},
                 align="left"), 12)], 1)
-    p.row([(text(b, "## How planning priority is built (D-061)\n\n",
+    p.row([(text(b, "## How planning priority is built\n\n",
                  f"1. **School screen, SY 2023-24:** each active public school with complete enrollment and more than "
                  f"zero reported instructional rooms passes when it has at least {SCREEN} learners per reported room. A "
                  "PIDS-style illustrative screen, not an official DepEd ratio.\n",
                  "2. **Coverage gate:** classroom pressure counts only when at least 90% of an LGU's learners are in "
                  "schools with a room count; each teacher level has the same 90% rule. A known pressure always counts.\n",
-                 "3. **Current pressures:** AP2 contributes classroom pressure and AP3 contributes teacher pressure.\n",
-                 "4. **Growth:** AP4 contributes whether public-school enrollment increased from the first to latest "
+                 "3. **Current pressures:** classroom evidence and teacher evidence contribute separate pressure signals.\n",
+                 "4. **Growth:** public-school enrollment contributes whether enrollment increased from the first to latest "
                  "available school year.\n",
                  "5. **Priority:** the two current-pressure flags and growth assign Priority 1–3, Monitor, No current "
                  "pressure identified, or Data review. Where growth cannot be checked, an LGU with a known pressure is "
                  "placed as if it were not growing. **Data review** is for LGUs with no known pressure where coverage "
-                 "or growth could not be checked. The national order uses the published evidence fields. AP1, "
+                 "or growth could not be checked. The national order uses the published evidence fields. Public schools per LGU, "
                  "school-age population and poverty remain context."), 6),
            (table(b, "dm_refs", "Published references", [
                ("measure", "Measure", None), ("unit", "Unit", None), ("reference", "Reference", None),
@@ -1137,7 +1207,7 @@ def data_and_method(b):
                 "Cities and municipalities offering the level", color="status", color_label="Learners per teacher",
                 layout="stack", order=["Elementary", "Junior high", "Senior high"], color_order=LEVEL_STATUS,
                 legend=LEGEND_BOTTOM,
-                desc="AP3 contributes the D-061 teacher-pressure flag; it does not estimate a staffing shortage."), 6),
+                desc="Teacher evidence contributes a pressure flag; it does not estimate a staffing shortage."), 6),
            (heatmap(b, "dm_sources", "Which school years each source covers", "school_year", "School year", None,
                     "source", "Source", None, "max", "has_data", "Has data (1 = yes)",
                     "Classrooms and teachers are available only for SY 2023-24, the year the queue uses."), 6)], 6)

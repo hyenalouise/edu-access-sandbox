@@ -187,6 +187,23 @@ def scatter(b, dataset, title, x, x_label, y, y_label, color, color_label, mappi
                  disaggregated=True, annotations=annotations)
 
 
+def point_map(b, dataset, title, latitude, longitude, color, color_label, mappings=None, order=None, extra=(),
+              desc=None):
+    """A Databricks AI/BI symbol map with one school point per dataset row."""
+    columns = [latitude, longitude, color] + [field for field, _ in extra]
+    encodings = {
+        "coordinates": {
+            "latitude": {"fieldName": latitude},
+            "longitude": {"fieldName": longitude},
+        },
+        "color": cat(color, color_label, order, mappings),
+        "extra": [{"fieldName": field, "displayName": label} for field, label in extra],
+    }
+    return chart(b, "symbol-map", dataset, title, encodings,
+                 [(column, bt(column)) for column in dict.fromkeys(columns)], desc,
+                 disaggregated=True, mark={"opacity": 0.75}, version=2)
+
+
 def heatmap(b, dataset, title, x, x_label, x_order, y, y_label, y_order, fn, value, value_label, desc=None):
     name, expression = agg(fn, value)
     encodings = {"x": cat(x, x_label, x_order), "y": cat(y, y_label, y_order),

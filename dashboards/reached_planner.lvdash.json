@@ -64,7 +64,9 @@
         "         classroom_priority_rank, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name,\n",
         "         queue_status, congested_school_count, ap2_affected_learners, ap2_affected_learner_share_pct,\n",
         "         ap2_learners_per_reported_room, teacher_status, teacher_levels_above, ap1_learners_per_public_school,\n",
-        "         ap4_enrollment_trend, data_review_reason, public_school_enrollment,\n",
+        "         ap4_enrollment_trend, COALESCE(data_review_reason, '\u2014') AS data_review_reason, public_school_enrollment,\n",
+        "         format_number(classroom_priority_rank, 0) || ' of ' || format_number((SELECT COUNT(*) FROM pri), 0)\n",
+        "           AS national_order_display,\n",
         "         NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)\n",
         "           AS lowest_coverage_pct\n",
         "  FROM pri\n",
@@ -629,11 +631,26 @@
         "       p.lgu_type_label || ' \u00b7 '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
         "         || ' \u00b7 ' || p.queue_status\n",
-        "         || ' \u00b7 order ' || format_number(p.priority_order, 0)\n",
+        "         || ' \u00b7 national order ' || format_number(p.priority_order, 0) || ' of '\n",
+        "         || format_number((SELECT COUNT(*) FROM pri), 0)\n",
         "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 top place in the filters' ELSE '' END AS details,\n",
         "       p.active_public_school_count AS public_schools, p.reported_instructional_classrooms AS classrooms,\n",
         "       COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0) + COALESCE(p.shs_teacher_count, 0) AS teachers,\n",
-        "       p.public_school_enrollment AS public_learners\n",
+        "       p.public_school_enrollment AS public_learners,\n",
+        "       p.congested_school_count AS schools_above_room_screen,\n",
+        "       (CASE WHEN p.ap3_es_learners_per_teacher > p.es_benchmark_max_learners_per_teacher THEN 1 ELSE 0 END\n",
+        "        + CASE WHEN p.ap3_jhs_learners_per_teacher > p.jhs_benchmark_max_learners_per_teacher THEN 1 ELSE 0 END\n",
+        "        + CASE WHEN p.ap3_shs_learners_per_teacher > p.shs_benchmark_max_learners_per_teacher THEN 1 ELSE 0 END)\n",
+        "         AS teacher_levels_above_reference,\n",
+        "       CASE p.ap4_enrollment_trend WHEN 'increasing' THEN 'Increasing' WHEN 'decreasing' THEN 'Decreasing'\n",
+        "            WHEN 'no change' THEN 'No change' ELSE 'Not fully assessed' END AS enrollment_direction,\n",
+        "       LEAST(COALESCE(p.ap1_coverage_pct, 0), COALESCE(p.ap2_learner_coverage_pct, 0),\n",
+        "             COALESCE(p.ap3_coverage_pct, 0)) / 100.0 AS lowest_coverage,\n",
+        "       format_number(p.active_public_school_count, 0) || ' public schools \u00b7 '\n",
+        "         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported rooms \u00b7 '\n",
+        "         || format_number(COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0)\n",
+        "                          + COALESCE(p.shs_teacher_count, 0), 0) || ' reported teachers \u00b7 '\n",
+        "         || format_number(p.public_school_enrollment, 0) || ' public learners (SY 2023-24)' AS facts\n",
         "FROM pri AS p\n",
         "JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code"
       ],
@@ -811,7 +828,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -821,11 +838,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -1061,7 +1078,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -1071,11 +1088,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -1148,7 +1165,7 @@
         "  UNION ALL\n",
         "  SELECT 2, CASE WHEN queue_status = 'Data review' THEN 'Data review: ' || data_review_reason || '.'\n",
         "                 ELSE format_number(COALESCE(missing_room_school_count, 0) + COALESCE(zero_room_school_count, 0), 0)\n",
-        "                      || ' public schools report no usable room count and are left out of the screen. Check them with '\n",
+        "                      || ' public schools report no usable room count and are left out of the screen. Verify them with '\n",
         "                      || 'the Schools Division Office.' END\n",
         "  FROM p\n",
         "  WHERE queue_status = 'Data review' OR COALESCE(missing_room_school_count, 0) + COALESCE(zero_room_school_count, 0) > 0\n",
@@ -1298,27 +1315,27 @@
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT 1 AS ord, 'Classrooms (AP2) \u00b7 school screen' AS measure,\n",
+        "SELECT 1 AS ord, 'Classrooms \u00b7 school screen' AS measure,\n",
         "       format_number(COALESCE(congested_school_count, 0), 0) || ' of ' || format_number(COALESCE(ratio_school_count, 0), 0)\n",
         "         || ' schools, ' || format_number(COALESCE(ap2_affected_learners, 0), 0) || ' learners' AS this_place,\n",
         "       'At or above 50 learners per reported room, school by school' AS reference,\n",
         "       queue_status AS status\n",
         "FROM p\n",
-        "UNION ALL SELECT 2, 'Classrooms (AP2) \u00b7 pooled ratio', COALESCE(format_number(ap2_learners_per_reported_room, 1), 'n/a') || ' learners per reported room',\n",
+        "UNION ALL SELECT 2, 'Classrooms \u00b7 pooled ratio', COALESCE(format_number(ap2_learners_per_reported_room, 1), 'n/a') || ' learners per reported room',\n",
         "       'Context: the school screen decides the queue', CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END FROM p\n",
-        "UNION ALL SELECT 3, 'Teachers, Elementary (AP3)', COALESCE(format_number(ap3_es_learners_per_teacher, 1), 'n/a') || ' learners per teacher',\n",
+        "UNION ALL SELECT 3, 'Teachers, Elementary', COALESCE(format_number(ap3_es_learners_per_teacher, 1), 'n/a') || ' learners per teacher',\n",
         "       'Above ' || COALESCE(format_number(es_benchmark_max_learners_per_teacher, 1), 'n/a') || ' (historical study reference)',\n",
         "       CASE WHEN es_offered_school_count = 0 THEN 'Not offered' WHEN ap3_es_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_es_learners_per_teacher > es_benchmark_max_learners_per_teacher THEN 'Above' ELSE 'At or below' END FROM p\n",
-        "UNION ALL SELECT 4, 'Teachers, Junior high (AP3)', COALESCE(format_number(ap3_jhs_learners_per_teacher, 1), 'n/a') || ' learners per teacher',\n",
+        "UNION ALL SELECT 4, 'Teachers, Junior high', COALESCE(format_number(ap3_jhs_learners_per_teacher, 1), 'n/a') || ' learners per teacher',\n",
         "       'Above ' || COALESCE(format_number(jhs_benchmark_max_learners_per_teacher, 1), 'n/a') || ' (derived deployment comparison)',\n",
         "       CASE WHEN jhs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_jhs_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_jhs_learners_per_teacher > jhs_benchmark_max_learners_per_teacher THEN 'Above' ELSE 'At or below' END FROM p\n",
-        "UNION ALL SELECT 5, 'Teachers, Senior high (AP3)', COALESCE(format_number(ap3_shs_learners_per_teacher, 1), 'n/a') || ' learners per teacher',\n",
+        "UNION ALL SELECT 5, 'Teachers, Senior high', COALESCE(format_number(ap3_shs_learners_per_teacher, 1), 'n/a') || ' learners per teacher',\n",
         "       'Above ' || COALESCE(format_number(shs_benchmark_max_learners_per_teacher, 1), 'n/a') || ' (derived deployment comparison)',\n",
         "       CASE WHEN shs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_shs_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_shs_learners_per_teacher > shs_benchmark_max_learners_per_teacher THEN 'Above' ELSE 'At or below' END FROM p\n",
-        "UNION ALL SELECT 6, 'Schools (AP1)', COALESCE(format_number(ap1_learners_per_public_school, 0), 'n/a') || ' learners per public school',\n",
+        "UNION ALL SELECT 6, 'Public schools', COALESCE(format_number(ap1_learners_per_public_school, 0), 'n/a') || ' learners per public school',\n",
         "       'Context only: no published reference', CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END FROM p"
       ],
       "parameters": [
@@ -1444,16 +1461,16 @@
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT 1 AS ord, 'Schools (AP1)' AS measure, COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'n/a') AS coverage,\n",
+        "SELECT 1 AS ord, 'Public schools' AS measure, COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'n/a') AS coverage,\n",
         "       CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END AS assessed,\n",
         "       '' AS unusual_schools\n",
         "FROM p\n",
-        "UNION ALL SELECT 2, 'Classrooms (AP2)', COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'n/a'),\n",
+        "UNION ALL SELECT 2, 'Classrooms', COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'n/a'),\n",
         "       CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
         "       format_number(COALESCE(missing_room_school_count, 0), 0) || ' with no room count, '\n",
         "         || format_number(COALESCE(zero_room_school_count, 0), 0) || ' with 0 rooms (left out of the screen)'\n",
         "FROM p\n",
-        "UNION ALL SELECT 3, 'Teachers (AP3)', COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
+        "UNION ALL SELECT 3, 'Teachers', COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
         "       CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,\n",
         "       format_number(zero_teacher_annex_schools, 0)\n",
         "         || CASE WHEN zero_teacher_annex_schools = 1 THEN ' annex school level' ELSE ' annex school levels' END\n",
@@ -1565,7 +1582,7 @@
         "  WHERE lv.offered > 0\n",
         ")\n",
         "SELECT level_label, ord, 'This place' AS series, ratio AS learners_per_teacher FROM me\n",
-        "UNION ALL SELECT level_label, ord, 'Reference (D-061)', reference FROM me"
+        "UNION ALL SELECT level_label, ord, 'Published comparison point', reference FROM me"
       ],
       "parameters": [
         {
@@ -1748,8 +1765,7 @@
         "  WHERE a.census_year IS NOT NULL\n",
         ")\n",
         "SELECT period, 'Children aged 5-17' AS series, school_age_population AS people FROM c\n",
-        "UNION ALL SELECT period, 'Enrolled, all sectors', enrollment_all_sectors FROM c\n",
-        "UNION ALL SELECT period, 'Difference (children minus enrolled)', population_enrollment_gap FROM c"
+        "UNION ALL SELECT period, 'Enrolled, all sectors', enrollment_all_sectors FROM c"
       ],
       "parameters": [
         {
@@ -1846,7 +1862,9 @@
         "  GROUP BY 1\n",
         ")\n",
         "SELECT age_band, children_2020, children_2024,\n",
-        "       (children_2024 - children_2020) / NULLIF(CAST(children_2020 AS DOUBLE), 0) AS change\n",
+        "       (children_2024 - children_2020) / NULLIF(CAST(children_2020 AS DOUBLE), 0) AS change,\n",
+        "       CASE WHEN children_2024 > children_2020 THEN 'Increase'\n",
+        "            WHEN children_2024 < children_2020 THEN 'Decrease' ELSE 'No change' END AS direction\n",
         "FROM a"
       ],
       "parameters": [
@@ -2023,7 +2041,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -2033,11 +2051,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -2057,6 +2075,437 @@
         "LEFT JOIN bs ON bs.barangay_psgc_code = b.barangay_psgc_code\n",
         "WHERE b.member_type = 'regular' AND (:barangay = 'All barangays' OR b.barangay_name = :barangay)\n",
         "ORDER BY es_sort, learners DESC, b.barangay_name"
+      ],
+      "parameters": [
+        {
+          "displayName": "region",
+          "keyword": "region",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All regions"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "province",
+          "keyword": "province",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All provinces"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "lgu_type",
+          "keyword": "lgu_type",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All LGU types"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "lgu",
+          "keyword": "lgu",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "(Top LGU in the filters)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "barangay",
+          "keyword": "barangay",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All barangays"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pr_map",
+      "displayName": "LGU Profile: validated school locations",
+      "queryLines": [
+        "WITH lgu AS (\n",
+        "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
+        "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
+        "         COALESCE(d.province_name, 'Independent cities (no province)') AS province_label,\n",
+        "         d.region_name,\n",
+        "         CASE WHEN lower(d.lgu_type) = 'city' THEN 'City' ELSE 'Municipality' END AS lgu_type_label,\n",
+        "         CASE WHEN lower(d.lgu_type) = 'city' THEN 'cities' ELSE 'municipalities' END AS type_plural\n",
+        "  FROM edu_access.`05-gold`.dim_city_municipality AS d\n",
+        "  WHERE d.member_type = 'regular'\n",
+        "),\n",
+        "sel AS (\n",
+        "  SELECT l.city_mun_psgc_code, l.lgu_label\n",
+        "  FROM lgu AS l\n",
+        "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
+        "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
+        "  LIMIT 1\n",
+        "),\n",
+        "lvl AS (SELECT CAST(NULL AS STRING) AS level_code),\n",
+        "e AS (\n",
+        "  SELECT e.* FROM edu_access.`05-gold`.fact_school_enrollment AS e JOIN sel ON sel.city_mun_psgc_code = e.city_mun_psgc_code\n",
+        "  WHERE e.sector = 'Public' AND e.psgc_match_status = 'matched'\n",
+        "),\n",
+        "sch AS (\n",
+        "  SELECT school_id, MAX(barangay_psgc_code) AS barangay_psgc_code, MAX(annex_status) AS annex_status,\n",
+        "         MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,\n",
+        "         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS is_blank,\n",
+        "         COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete_levels,\n",
+        "         SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners,\n",
+        "         MAX(CASE WHEN education_level_code = 'ES' AND is_offered THEN 1 ELSE 0 END) AS offers_es,\n",
+        "         MAX(CASE WHEN education_level_code = 'JHS' AND is_offered THEN 1 ELSE 0 END) AS offers_jhs,\n",
+        "         MAX(CASE WHEN education_level_code = 'SHS' AND is_offered THEN 1 ELSE 0 END) AS offers_shs,\n",
+        "         SUM(CASE WHEN education_level_code = 'ES' AND is_offered THEN learner_count END) AS es_learners,\n",
+        "         SUM(CASE WHEN education_level_code = 'JHS' AND is_offered THEN learner_count END) AS jhs_learners,\n",
+        "         SUM(CASE WHEN education_level_code = 'SHS' AND is_offered THEN learner_count END) AS shs_learners\n",
+        "  FROM e WHERE school_year = '2023-24' GROUP BY school_id\n",
+        "),\n",
+        "years AS (\n",
+        "  SELECT school_id,\n",
+        "         SUM(CASE WHEN school_year = '2020-21' AND is_offered THEN learner_count END) AS learners_2020,\n",
+        "         SUM(CASE WHEN school_year = '2025-26' AND is_offered THEN learner_count END) AS learners_2025,\n",
+        "         COUNT_IF(school_year IN ('2020-21', '2025-26') AND is_offered AND learner_count IS NULL) AS incomplete_ends\n",
+        "  FROM e GROUP BY school_id\n",
+        "),\n",
+        "t AS (\n",
+        "  SELECT school_id,\n",
+        "         MAX(CASE WHEN education_level_code = 'ES' THEN teacher_count END) AS es_teachers,\n",
+        "         MAX(CASE WHEN education_level_code = 'JHS' THEN teacher_count END) AS jhs_teachers,\n",
+        "         MAX(CASE WHEN education_level_code = 'SHS' THEN teacher_count END) AS shs_teachers,\n",
+        "         COUNT_IF(education_level_code = 'ES') AS es_rows, COUNT_IF(education_level_code = 'JHS') AS jhs_rows,\n",
+        "         COUNT_IF(education_level_code = 'SHS') AS shs_rows,\n",
+        "         SUM(COALESCE(sef_provincial_teacher_count, 0) + COALESCE(sef_city_municipal_teacher_count, 0)\n",
+        "             + COALESCE(lgu_funded_teacher_count, 0) + COALESCE(other_funded_teacher_count, 0)) AS locally_funded_teachers\n",
+        "  FROM edu_access.`05-gold`.fact_school_teacher_capacity WHERE school_year = '2023-24' GROUP BY school_id\n",
+        "),\n",
+        "x AS (\n",
+        "  SELECT s.school_id, COALESCE(ds.school_name, s.school_id) AS school_name, b.barangay_psgc_code,\n",
+        "         COALESCE(b.barangay_name, 'Barangay not matched') AS barangay_name,\n",
+        "         CASE WHEN s.annex_status = 'Annex/Extension School' THEN 'Annex' ELSE 'Main' END AS school_kind,\n",
+        "         concat_ws(' + ', CASE WHEN s.offers_es = 1 THEN 'ES' END, CASE WHEN s.offers_jhs = 1 THEN 'JHS' END,\n",
+        "                          CASE WHEN s.offers_shs = 1 THEN 'SHS' END) AS levels_offered,\n",
+        "         s.offers_es, s.offers_jhs, s.offers_shs, s.es_learners, s.jhs_learners, s.shs_learners,\n",
+        "         CASE WHEN s.incomplete_levels = 0 THEN s.learners END AS learners,\n",
+        "         r.instructional_classrooms_total AS rooms,\n",
+        "         COALESCE(r.temporary_learning_spaces, 0) + COALESCE(r.makeshift_rooms, 0) AS temporary_or_makeshift_rooms,\n",
+        "         r.temporary_learning_spaces, r.makeshift_rooms,\n",
+        "         CASE WHEN s.incomplete_levels = 0 AND r.instructional_classrooms_total > 0\n",
+        "              THEN s.learners / CAST(r.instructional_classrooms_total AS DOUBLE) END AS learners_per_room,\n",
+        "         t.es_teachers, t.jhs_teachers, t.shs_teachers, COALESCE(t.locally_funded_teachers, 0) AS locally_funded_teachers,\n",
+        "         COALESCE(t.es_teachers, 0) + COALESCE(t.jhs_teachers, 0) + COALESCE(t.shs_teachers, 0) AS teachers,\n",
+        "         (CASE WHEN t.es_teachers > 0 THEN COALESCE(s.es_learners, 0) ELSE 0 END\n",
+        "          + CASE WHEN t.jhs_teachers > 0 THEN COALESCE(s.jhs_learners, 0) ELSE 0 END\n",
+        "          + CASE WHEN t.shs_teachers > 0 THEN COALESCE(s.shs_learners, 0) ELSE 0 END)\n",
+        "          / NULLIF(CAST(CASE WHEN t.es_teachers > 0 THEN t.es_teachers ELSE 0 END\n",
+        "                        + CASE WHEN t.jhs_teachers > 0 THEN t.jhs_teachers ELSE 0 END\n",
+        "                        + CASE WHEN t.shs_teachers > 0 THEN t.shs_teachers ELSE 0 END AS DOUBLE), 0) AS learners_per_teacher,\n",
+        "         CASE (SELECT level_code FROM lvl)\n",
+        "              WHEN 'ES' THEN s.es_learners / NULLIF(CAST(t.es_teachers AS DOUBLE), 0)\n",
+        "              WHEN 'JHS' THEN s.jhs_learners / NULLIF(CAST(t.jhs_teachers AS DOUBLE), 0)\n",
+        "              WHEN 'SHS' THEN s.shs_learners / NULLIF(CAST(t.shs_teachers AS DOUBLE), 0) END AS learners_per_teacher_at_level,\n",
+        "         CASE WHEN y.incomplete_ends = 0 AND y.learners_2020 > 0\n",
+        "              THEN (y.learners_2025 - y.learners_2020) / CAST(y.learners_2020 AS DOUBLE) END AS enrollment_change,\n",
+        "         CASE (SELECT level_code FROM lvl) WHEN 'ES' THEN s.offers_es WHEN 'JHS' THEN s.offers_jhs\n",
+        "              WHEN 'SHS' THEN s.offers_shs ELSE 1 END AS offers_level,\n",
+        "         concat_ws('; ',\n",
+        "           CASE WHEN s.incomplete_levels = 0 AND r.instructional_classrooms_total > 0\n",
+        "                     AND s.learners / CAST(r.instructional_classrooms_total AS DOUBLE) >= 50\n",
+        "                THEN 'Learners per reported room ' || COALESCE(format_number(s.learners / CAST(r.instructional_classrooms_total AS DOUBLE), 1), 'n/a')\n",
+        "                     || ' is at or above the illustrative screen of 50' END,\n",
+        "           CASE WHEN r.school_id IS NULL OR r.instructional_classrooms_total IS NULL THEN 'Classroom count not reported' END,\n",
+        "           CASE WHEN r.instructional_classrooms_total = 0 THEN '0 classrooms reported' END,\n",
+        "           CASE WHEN s.incomplete_levels > 0 THEN 'An offered level has no learner count' END,\n",
+        "           CASE WHEN s.offers_es = 1 AND (t.es_rows IS NULL OR t.es_rows = 0 OR t.es_teachers IS NULL) THEN 'Elementary offered but no teacher count' END,\n",
+        "           CASE WHEN s.offers_jhs = 1 AND (t.jhs_rows IS NULL OR t.jhs_rows = 0 OR t.jhs_teachers IS NULL) THEN 'Junior high offered but no teacher count' END,\n",
+        "           CASE WHEN s.offers_shs = 1 AND (t.shs_rows IS NULL OR t.shs_rows = 0 OR t.shs_teachers IS NULL) THEN 'Senior high offered but no teacher count' END,\n",
+        "           CASE WHEN s.annex_status <> 'Annex/Extension School' AND ((s.offers_es = 1 AND t.es_teachers = 0)\n",
+        "                  OR (s.offers_jhs = 1 AND t.jhs_teachers = 0) OR (s.offers_shs = 1 AND t.shs_teachers = 0))\n",
+        "                THEN '0 teachers reported at an offered level' END) AS reasons,\n",
+        "         CASE WHEN s.incomplete_levels = 0 AND r.instructional_classrooms_total > 0\n",
+        "                   AND s.learners / CAST(r.instructional_classrooms_total AS DOUBLE) >= 50\n",
+        "                THEN 'At or above 50 per reported room'\n",
+        "              WHEN r.school_id IS NULL OR r.instructional_classrooms_total IS NULL OR s.incomplete_levels > 0\n",
+        "                   OR (s.offers_es = 1 AND t.es_teachers IS NULL) OR (s.offers_jhs = 1 AND t.jhs_teachers IS NULL)\n",
+        "                   OR (s.offers_shs = 1 AND t.shs_teachers IS NULL) THEN 'Missing report'\n",
+        "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
+        "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
+        "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
+        "              ELSE 'No verification flag' END AS status\n",
+        "  FROM sch AS s\n",
+        "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
+        "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
+        "  LEFT JOIN edu_access.`05-gold`.fact_school_classroom_capacity AS r ON r.school_id = s.school_id AND r.school_year = '2023-24'\n",
+        "  LEFT JOIN t ON t.school_id = s.school_id\n",
+        "  LEFT JOIN years AS y ON y.school_id = s.school_id\n",
+        "  WHERE s.is_active = 1 OR s.is_blank\n",
+        "),\n",
+        "schools AS (\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
+        "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
+        "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
+        "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
+        "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
+        "  FROM x\n",
+        ")\n",
+        "SELECT s.school_id, s.school_name, s.barangay_name, s.school_kind, s.levels_offered, s.learners,\n",
+        "       s.learners_per_room, s.learners_per_teacher, loc.longitude, loc.latitude,\n",
+        "       CASE WHEN s.to_check THEN 'Verification needed' ELSE 'Other schools' END AS map_status,\n",
+        "       'Validated inside selected LGU' AS coordinate_status\n",
+        "FROM schools AS s\n",
+        "JOIN edu_access.`05-gold`.dim_school_location AS loc ON loc.school_id = s.school_id\n",
+        "WHERE loc.boundary_status = 'inside' AND (:barangay = 'All barangays' OR s.barangay_name = :barangay)\n",
+        "ORDER BY CASE WHEN s.to_check THEN 0 ELSE 1 END, s.school_name"
+      ],
+      "parameters": [
+        {
+          "displayName": "region",
+          "keyword": "region",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All regions"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "province",
+          "keyword": "province",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All provinces"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "lgu_type",
+          "keyword": "lgu_type",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All LGU types"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "lgu",
+          "keyword": "lgu",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "(Top LGU in the filters)"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "displayName": "barangay",
+          "keyword": "barangay",
+          "dataType": "STRING",
+          "defaultSelection": {
+            "values": {
+              "dataType": "STRING",
+              "values": [
+                {
+                  "value": "All barangays"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pr_map_summary",
+      "displayName": "LGU Profile: school-location coverage",
+      "queryLines": [
+        "WITH lgu AS (\n",
+        "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
+        "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
+        "         COALESCE(d.province_name, 'Independent cities (no province)') AS province_label,\n",
+        "         d.region_name,\n",
+        "         CASE WHEN lower(d.lgu_type) = 'city' THEN 'City' ELSE 'Municipality' END AS lgu_type_label,\n",
+        "         CASE WHEN lower(d.lgu_type) = 'city' THEN 'cities' ELSE 'municipalities' END AS type_plural\n",
+        "  FROM edu_access.`05-gold`.dim_city_municipality AS d\n",
+        "  WHERE d.member_type = 'regular'\n",
+        "),\n",
+        "sel AS (\n",
+        "  SELECT l.city_mun_psgc_code, l.lgu_label\n",
+        "  FROM lgu AS l\n",
+        "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
+        "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
+        "  LIMIT 1\n",
+        "),\n",
+        "lvl AS (SELECT CAST(NULL AS STRING) AS level_code),\n",
+        "e AS (\n",
+        "  SELECT e.* FROM edu_access.`05-gold`.fact_school_enrollment AS e JOIN sel ON sel.city_mun_psgc_code = e.city_mun_psgc_code\n",
+        "  WHERE e.sector = 'Public' AND e.psgc_match_status = 'matched'\n",
+        "),\n",
+        "sch AS (\n",
+        "  SELECT school_id, MAX(barangay_psgc_code) AS barangay_psgc_code, MAX(annex_status) AS annex_status,\n",
+        "         MAX(CASE WHEN is_offered AND learner_count > 0 THEN 1 ELSE 0 END) AS is_active,\n",
+        "         COUNT_IF(is_offered) > 0 AND COUNT_IF(is_offered AND learner_count IS NOT NULL) = 0 AS is_blank,\n",
+        "         COUNT_IF(is_offered AND learner_count IS NULL) AS incomplete_levels,\n",
+        "         SUM(CASE WHEN is_offered AND learner_count IS NOT NULL THEN learner_count ELSE 0 END) AS learners,\n",
+        "         MAX(CASE WHEN education_level_code = 'ES' AND is_offered THEN 1 ELSE 0 END) AS offers_es,\n",
+        "         MAX(CASE WHEN education_level_code = 'JHS' AND is_offered THEN 1 ELSE 0 END) AS offers_jhs,\n",
+        "         MAX(CASE WHEN education_level_code = 'SHS' AND is_offered THEN 1 ELSE 0 END) AS offers_shs,\n",
+        "         SUM(CASE WHEN education_level_code = 'ES' AND is_offered THEN learner_count END) AS es_learners,\n",
+        "         SUM(CASE WHEN education_level_code = 'JHS' AND is_offered THEN learner_count END) AS jhs_learners,\n",
+        "         SUM(CASE WHEN education_level_code = 'SHS' AND is_offered THEN learner_count END) AS shs_learners\n",
+        "  FROM e WHERE school_year = '2023-24' GROUP BY school_id\n",
+        "),\n",
+        "years AS (\n",
+        "  SELECT school_id,\n",
+        "         SUM(CASE WHEN school_year = '2020-21' AND is_offered THEN learner_count END) AS learners_2020,\n",
+        "         SUM(CASE WHEN school_year = '2025-26' AND is_offered THEN learner_count END) AS learners_2025,\n",
+        "         COUNT_IF(school_year IN ('2020-21', '2025-26') AND is_offered AND learner_count IS NULL) AS incomplete_ends\n",
+        "  FROM e GROUP BY school_id\n",
+        "),\n",
+        "t AS (\n",
+        "  SELECT school_id,\n",
+        "         MAX(CASE WHEN education_level_code = 'ES' THEN teacher_count END) AS es_teachers,\n",
+        "         MAX(CASE WHEN education_level_code = 'JHS' THEN teacher_count END) AS jhs_teachers,\n",
+        "         MAX(CASE WHEN education_level_code = 'SHS' THEN teacher_count END) AS shs_teachers,\n",
+        "         COUNT_IF(education_level_code = 'ES') AS es_rows, COUNT_IF(education_level_code = 'JHS') AS jhs_rows,\n",
+        "         COUNT_IF(education_level_code = 'SHS') AS shs_rows,\n",
+        "         SUM(COALESCE(sef_provincial_teacher_count, 0) + COALESCE(sef_city_municipal_teacher_count, 0)\n",
+        "             + COALESCE(lgu_funded_teacher_count, 0) + COALESCE(other_funded_teacher_count, 0)) AS locally_funded_teachers\n",
+        "  FROM edu_access.`05-gold`.fact_school_teacher_capacity WHERE school_year = '2023-24' GROUP BY school_id\n",
+        "),\n",
+        "x AS (\n",
+        "  SELECT s.school_id, COALESCE(ds.school_name, s.school_id) AS school_name, b.barangay_psgc_code,\n",
+        "         COALESCE(b.barangay_name, 'Barangay not matched') AS barangay_name,\n",
+        "         CASE WHEN s.annex_status = 'Annex/Extension School' THEN 'Annex' ELSE 'Main' END AS school_kind,\n",
+        "         concat_ws(' + ', CASE WHEN s.offers_es = 1 THEN 'ES' END, CASE WHEN s.offers_jhs = 1 THEN 'JHS' END,\n",
+        "                          CASE WHEN s.offers_shs = 1 THEN 'SHS' END) AS levels_offered,\n",
+        "         s.offers_es, s.offers_jhs, s.offers_shs, s.es_learners, s.jhs_learners, s.shs_learners,\n",
+        "         CASE WHEN s.incomplete_levels = 0 THEN s.learners END AS learners,\n",
+        "         r.instructional_classrooms_total AS rooms,\n",
+        "         COALESCE(r.temporary_learning_spaces, 0) + COALESCE(r.makeshift_rooms, 0) AS temporary_or_makeshift_rooms,\n",
+        "         r.temporary_learning_spaces, r.makeshift_rooms,\n",
+        "         CASE WHEN s.incomplete_levels = 0 AND r.instructional_classrooms_total > 0\n",
+        "              THEN s.learners / CAST(r.instructional_classrooms_total AS DOUBLE) END AS learners_per_room,\n",
+        "         t.es_teachers, t.jhs_teachers, t.shs_teachers, COALESCE(t.locally_funded_teachers, 0) AS locally_funded_teachers,\n",
+        "         COALESCE(t.es_teachers, 0) + COALESCE(t.jhs_teachers, 0) + COALESCE(t.shs_teachers, 0) AS teachers,\n",
+        "         (CASE WHEN t.es_teachers > 0 THEN COALESCE(s.es_learners, 0) ELSE 0 END\n",
+        "          + CASE WHEN t.jhs_teachers > 0 THEN COALESCE(s.jhs_learners, 0) ELSE 0 END\n",
+        "          + CASE WHEN t.shs_teachers > 0 THEN COALESCE(s.shs_learners, 0) ELSE 0 END)\n",
+        "          / NULLIF(CAST(CASE WHEN t.es_teachers > 0 THEN t.es_teachers ELSE 0 END\n",
+        "                        + CASE WHEN t.jhs_teachers > 0 THEN t.jhs_teachers ELSE 0 END\n",
+        "                        + CASE WHEN t.shs_teachers > 0 THEN t.shs_teachers ELSE 0 END AS DOUBLE), 0) AS learners_per_teacher,\n",
+        "         CASE (SELECT level_code FROM lvl)\n",
+        "              WHEN 'ES' THEN s.es_learners / NULLIF(CAST(t.es_teachers AS DOUBLE), 0)\n",
+        "              WHEN 'JHS' THEN s.jhs_learners / NULLIF(CAST(t.jhs_teachers AS DOUBLE), 0)\n",
+        "              WHEN 'SHS' THEN s.shs_learners / NULLIF(CAST(t.shs_teachers AS DOUBLE), 0) END AS learners_per_teacher_at_level,\n",
+        "         CASE WHEN y.incomplete_ends = 0 AND y.learners_2020 > 0\n",
+        "              THEN (y.learners_2025 - y.learners_2020) / CAST(y.learners_2020 AS DOUBLE) END AS enrollment_change,\n",
+        "         CASE (SELECT level_code FROM lvl) WHEN 'ES' THEN s.offers_es WHEN 'JHS' THEN s.offers_jhs\n",
+        "              WHEN 'SHS' THEN s.offers_shs ELSE 1 END AS offers_level,\n",
+        "         concat_ws('; ',\n",
+        "           CASE WHEN s.incomplete_levels = 0 AND r.instructional_classrooms_total > 0\n",
+        "                     AND s.learners / CAST(r.instructional_classrooms_total AS DOUBLE) >= 50\n",
+        "                THEN 'Learners per reported room ' || COALESCE(format_number(s.learners / CAST(r.instructional_classrooms_total AS DOUBLE), 1), 'n/a')\n",
+        "                     || ' is at or above the illustrative screen of 50' END,\n",
+        "           CASE WHEN r.school_id IS NULL OR r.instructional_classrooms_total IS NULL THEN 'Classroom count not reported' END,\n",
+        "           CASE WHEN r.instructional_classrooms_total = 0 THEN '0 classrooms reported' END,\n",
+        "           CASE WHEN s.incomplete_levels > 0 THEN 'An offered level has no learner count' END,\n",
+        "           CASE WHEN s.offers_es = 1 AND (t.es_rows IS NULL OR t.es_rows = 0 OR t.es_teachers IS NULL) THEN 'Elementary offered but no teacher count' END,\n",
+        "           CASE WHEN s.offers_jhs = 1 AND (t.jhs_rows IS NULL OR t.jhs_rows = 0 OR t.jhs_teachers IS NULL) THEN 'Junior high offered but no teacher count' END,\n",
+        "           CASE WHEN s.offers_shs = 1 AND (t.shs_rows IS NULL OR t.shs_rows = 0 OR t.shs_teachers IS NULL) THEN 'Senior high offered but no teacher count' END,\n",
+        "           CASE WHEN s.annex_status <> 'Annex/Extension School' AND ((s.offers_es = 1 AND t.es_teachers = 0)\n",
+        "                  OR (s.offers_jhs = 1 AND t.jhs_teachers = 0) OR (s.offers_shs = 1 AND t.shs_teachers = 0))\n",
+        "                THEN '0 teachers reported at an offered level' END) AS reasons,\n",
+        "         CASE WHEN s.incomplete_levels = 0 AND r.instructional_classrooms_total > 0\n",
+        "                   AND s.learners / CAST(r.instructional_classrooms_total AS DOUBLE) >= 50\n",
+        "                THEN 'At or above 50 per reported room'\n",
+        "              WHEN r.school_id IS NULL OR r.instructional_classrooms_total IS NULL OR s.incomplete_levels > 0\n",
+        "                   OR (s.offers_es = 1 AND t.es_teachers IS NULL) OR (s.offers_jhs = 1 AND t.jhs_teachers IS NULL)\n",
+        "                   OR (s.offers_shs = 1 AND t.shs_teachers IS NULL) THEN 'Missing report'\n",
+        "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
+        "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
+        "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
+        "              ELSE 'No verification flag' END AS status\n",
+        "  FROM sch AS s\n",
+        "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
+        "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
+        "  LEFT JOIN edu_access.`05-gold`.fact_school_classroom_capacity AS r ON r.school_id = s.school_id AND r.school_year = '2023-24'\n",
+        "  LEFT JOIN t ON t.school_id = s.school_id\n",
+        "  LEFT JOIN years AS y ON y.school_id = s.school_id\n",
+        "  WHERE s.is_active = 1 OR s.is_blank\n",
+        "),\n",
+        "schools AS (\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
+        "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
+        "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
+        "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
+        "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
+        "  FROM x\n",
+        ")\n",
+        "SELECT 'Mapped ' || format_number(COUNT_IF(loc.boundary_status = 'inside'), 0) || ' of '\n",
+        "         || format_number(COUNT(*), 0) || ' active public schools \u00b7 '\n",
+        "         || format_number(COUNT_IF(COALESCE(loc.boundary_status, 'no_location') <> 'inside'), 0)\n",
+        "         || ' locations excluded pending verification' AS map_coverage\n",
+        "FROM schools AS s\n",
+        "LEFT JOIN edu_access.`05-gold`.dim_school_location AS loc ON loc.school_id = s.school_id\n",
+        "WHERE (:barangay = 'All barangays' OR s.barangay_name = :barangay)"
       ],
       "parameters": [
         {
@@ -2247,7 +2696,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -2257,11 +2706,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         ")\n",
@@ -2459,7 +2908,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -2469,11 +2918,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -2487,10 +2936,18 @@
         "       s.learners_per_room, s.learners_per_teacher, s.teacher_ratio,\n",
         "       CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN 'all levels' ELSE CASE (SELECT level_code FROM lvl) WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END END AS level_txt,\n",
         "       s.enrollment_change, s.temporary_or_makeshift_rooms, s.status,\n",
-        "       CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END AS check_label,\n",
+        "       CASE WHEN s.learners_per_room IS NULL THEN 'Not reported'\n",
+        "            WHEN s.learners_per_room >= 50 THEN 'Above screen' ELSE 'Below screen' END AS classroom_pressure,\n",
+        "       CASE WHEN s.teacher_ratio IS NULL THEN 'Not reported'\n",
+        "            ELSE format_number(s.teacher_ratio, 1) || ' learners per teacher' END AS teacher_pressure,\n",
+        "       CASE WHEN s.enrollment_change IS NULL THEN 'Not fully assessed'\n",
+        "            WHEN s.enrollment_change > 0 THEN 'Increasing'\n",
+        "            WHEN s.enrollment_change < 0 THEN 'Decreasing' ELSE 'No change' END AS enrollment_direction,\n",
+        "       CASE WHEN s.learners IS NULL OR s.rooms IS NULL OR s.teacher_ratio IS NULL THEN 'Verification needed'\n",
+        "            ELSE 'Core figures reported' END AS data_completeness,\n",
+        "       CASE WHEN s.to_check THEN 'Verification needed' ELSE 'No verification flag' END AS check_label,\n",
         "       'ID ' || s.school_id || ' \u00b7 ' || s.barangay_name || ' \u00b7 ' || s.school_kind || ' \u00b7 ' || s.levels_offered\n",
-        "         || ' \u00b7 ' || COALESCE(format_number(s.learners, 0), 'n/a') || ' learners \u00b7 '\n",
-        "         || CASE WHEN s.to_check THEN 'Figures to check' ELSE 'No figures to check' END\n",
+        "         || ' \u00b7 ' || COALESCE(format_number(s.learners, 0), 'n/a') || ' learners \u00b7 ' || s.status\n",
         "         || CASE WHEN :school <> '(First school to check)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
         "                 THEN ' \u00b7 first school to check' ELSE '' END AS details,\n",
         "       CASE WHEN :school <> '(First school to check)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
@@ -2716,7 +3173,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -2726,11 +3183,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -2743,7 +3200,7 @@
         "SELECT s.school_name, s.learners, s.learners_per_room,\n",
         "       s.teacher_ratio,\n",
         "       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'\n",
-        "            WHEN s.to_check THEN 'Figures to check' ELSE 'Other schools' END AS series\n",
+        "            WHEN s.to_check THEN 'Verification needed' ELSE 'Other schools' END AS series\n",
         "FROM schools AS s\n",
         "WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL\n",
         "  AND s.teacher_ratio IS NOT NULL"
@@ -2967,7 +3424,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -2977,11 +3434,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -3223,7 +3680,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -3233,11 +3690,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -3480,7 +3937,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -3490,11 +3947,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         "),\n",
@@ -3505,7 +3962,7 @@
         "  LIMIT 1\n",
         "),\n",
         "s AS (SELECT schools.* FROM schools JOIN pick USING (school_id))\n",
-        "SELECT CASE WHEN to_check THEN status ELSE 'No figures to check' END AS status,\n",
+        "SELECT CASE WHEN to_check THEN status ELSE 'No verification flag' END AS status,\n",
         "       CASE WHEN to_check THEN reasons ELSE 'Every figure is reported, and the school is below the illustrative screen of 50 learners per reported room.' END AS reason,\n",
         "       'Confirm with the school and the Schools Division Office before using this figure for planning.' AS next_step\n",
         "FROM s"
@@ -3729,7 +4186,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -3739,11 +4196,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         ")\n",
@@ -3751,7 +4208,7 @@
         "       teacher_ratio, enrollment_change,\n",
         "       temporary_or_makeshift_rooms, locally_funded_teachers, school_kind, status, reasons\n",
         "FROM schools\n",
-        "WHERE (:barangay = 'All barangays' OR barangay_name = :barangay) AND offers_level = 1 AND (:school_status = 'All schools' OR (:school_status = 'Figures to check' AND to_check) OR status = :school_status)\n",
+        "WHERE (:barangay = 'All barangays' OR barangay_name = :barangay) AND offers_level = 1 AND (:school_status = 'All schools' OR (:school_status = 'Verification needed' AND to_check) OR status = :school_status)\n",
         "ORDER BY list_order"
       ],
       "parameters": [
@@ -4069,11 +4526,11 @@
       "displayName": "Data and Method: published references",
       "queryLines": [
         "SELECT * FROM (VALUES\n",
-        "  ('Classrooms (AP2)', 'School learners per reported room', '>= 50', 'PIDS-style illustrative reported-room screen', 'Contributes the classroom-pressure flag'),\n",
-        "  ('Teachers, Elementary (AP3)', 'Learners per teacher', '> 35', 'historical study reference', 'Context: never ranked'),\n",
-        "  ('Teachers, Junior high (AP3)', 'Learners per teacher', '> 36', 'derived deployment comparison (45 maximum learners per class * 4 classes / 5 teachers)', 'Context: never ranked'),\n",
-        "  ('Teachers, Senior high (AP3)', 'Learners per teacher', '> 80/3 (26.7)', 'derived deployment comparison (40 maximum learners per class * 6 classes / 9 teachers)', 'Context: never ranked'),\n",
-        "  ('Schools (AP1)', 'Learners per public school', 'none', 'no published reference', 'Context only')) AS r(measure, unit, reference, basis, use_in_dashboard)"
+        "  ('Classrooms', 'School learners per reported room', '>= 50', 'PIDS-style illustrative reported-room screen', 'Contributes the classroom-pressure flag'),\n",
+        "  ('Teachers, Elementary', 'Learners per teacher', '> 35', 'historical study reference', 'Context: never ranked'),\n",
+        "  ('Teachers, Junior high', 'Learners per teacher', '> 36', 'derived deployment comparison (45 maximum learners per class * 4 classes / 5 teachers)', 'Context: never ranked'),\n",
+        "  ('Teachers, Senior high', 'Learners per teacher', '> 80/3 (26.7)', 'derived deployment comparison (40 maximum learners per class * 6 classes / 9 teachers)', 'Context: never ranked'),\n",
+        "  ('Public schools', 'Learners per public school', 'none', 'no published reference', 'Context only')) AS r(measure, unit, reference, basis, use_in_dashboard)"
       ],
       "parameters": []
     },
@@ -4129,13 +4586,13 @@
         "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
         "),\n",
         "c AS (\n",
-        "  SELECT 'Schools (AP1)' AS measure, ap1_coverage_pct AS coverage FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Classrooms (AP2)', ap2_learner_coverage_pct FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers, Elementary (AP3)', a.es_learner_coverage_pct FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code)\n",
+        "  SELECT 'Public schools' AS measure, ap1_coverage_pct AS coverage FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Classrooms', ap2_learner_coverage_pct FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers, Elementary', a.es_learner_coverage_pct FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code)\n",
         "            WHERE a.es_offered_school_count > 0 AND (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers, Junior high (AP3)', a.jhs_learner_coverage_pct FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code)\n",
+        "  UNION ALL SELECT 'Teachers, Junior high', a.jhs_learner_coverage_pct FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code)\n",
         "            WHERE a.jhs_offered_school_count > 0 AND (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers, Senior high (AP3)', a.shs_learner_coverage_pct FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code)\n",
+        "  UNION ALL SELECT 'Teachers, Senior high', a.shs_learner_coverage_pct FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code)\n",
         "            WHERE a.shs_offered_school_count > 0 AND (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
         ")\n",
         "SELECT measure,\n",
@@ -4144,7 +4601,7 @@
         "            WHEN coverage < 95 THEN '90-95% (assessed)' ELSE '95-100% (assessed)' END AS coverage_band,\n",
         "       COUNT(*) AS lgus\n",
         "FROM c\n",
-        "WHERE (:measure = 'All measures' OR measure = :measure OR (measure LIKE 'Teachers%' AND :measure = 'Teachers (AP3)'))\n",
+        "WHERE (:measure = 'All measures' OR measure = :measure OR (measure LIKE 'Teachers%' AND :measure = 'Teachers'))\n",
         "GROUP BY ALL"
       ],
       "parameters": [
@@ -4262,9 +4719,9 @@
         "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
         "),\n",
         "r AS (\n",
-        "  SELECT 'Schools (AP1)' AS measure, a.not_assessed_reason AS reason FROM pri JOIN edu_access.`06-analytics`.ap1_school_provision AS a USING (city_mun_psgc_code) WHERE (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Classrooms (AP2)', a.not_assessed_reason FROM pri JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a USING (city_mun_psgc_code) WHERE (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers (AP3)', a.not_assessed_reason FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code) WHERE (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
+        "  SELECT 'Public schools' AS measure, a.not_assessed_reason AS reason FROM pri JOIN edu_access.`06-analytics`.ap1_school_provision AS a USING (city_mun_psgc_code) WHERE (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Classrooms', a.not_assessed_reason FROM pri JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a USING (city_mun_psgc_code) WHERE (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers', a.not_assessed_reason FROM pri JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a USING (city_mun_psgc_code) WHERE (:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type)\n",
         ")\n",
         "SELECT measure, reason, COUNT(*) AS lgus\n",
         "FROM r\n",
@@ -4907,7 +5364,7 @@
       "name": "opt_status",
       "displayName": "Filter: school status",
       "queryLines": [
-        "SELECT * FROM (VALUES ('All schools'), ('Figures to check'), ('At or above 50 per reported room'), ('Missing report'), ('Zero rooms or teachers'), ('No figures to check')) AS v(status_option)"
+        "SELECT * FROM (VALUES ('All schools'), ('Verification needed'), ('At or above 50 per reported room'), ('Missing report'), ('Zero rooms or teachers'), ('No verification flag')) AS v(status_option)"
       ],
       "parameters": []
     },
@@ -5022,7 +5479,7 @@
         "              WHEN r.instructional_classrooms_total = 0 OR (s.annex_status <> 'Annex/Extension School'\n",
         "                   AND ((s.offers_es = 1 AND t.es_teachers = 0) OR (s.offers_jhs = 1 AND t.jhs_teachers = 0)\n",
         "                        OR (s.offers_shs = 1 AND t.shs_teachers = 0))) THEN 'Zero rooms or teachers'\n",
-        "              ELSE 'No figures to check' END AS status\n",
+        "              ELSE 'No verification flag' END AS status\n",
         "  FROM sch AS s\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_school AS ds ON ds.school_id = s.school_id\n",
         "  LEFT JOIN edu_access.`05-gold`.dim_barangay AS b ON b.barangay_psgc_code = s.barangay_psgc_code AND b.member_type = 'regular'\n",
@@ -5032,11 +5489,11 @@
         "  WHERE s.is_active = 1 OR s.is_blank\n",
         "),\n",
         "schools AS (\n",
-        "  SELECT x.*, status <> 'No figures to check' AS to_check,\n",
+        "  SELECT x.*, status <> 'No verification flag' AS to_check,\n",
         "         -- a chosen level shows only its own ratio; the all-level ratio never stands in for a missing one\n",
         "         CASE WHEN (SELECT level_code FROM lvl) IS NULL THEN learners_per_teacher\n",
         "              ELSE learners_per_teacher_at_level END AS teacher_ratio,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No figures to check' THEN 0 ELSE 1 END,\n",
+        "         ROW_NUMBER() OVER (ORDER BY CASE WHEN status <> 'No verification flag' THEN 0 ELSE 1 END,\n",
         "                                     learners_per_room DESC NULLS LAST, school_name) AS list_order\n",
         "  FROM x\n",
         ")\n",
@@ -5142,7 +5599,7 @@
       "name": "opt_measure",
       "displayName": "Filter: measure",
       "queryLines": [
-        "SELECT * FROM (VALUES ('All measures'), ('Schools (AP1)'), ('Classrooms (AP2)'), ('Teachers (AP3)')) AS v(measure_option)"
+        "SELECT * FROM (VALUES ('All measures'), ('Public schools'), ('Classrooms'), ('Teachers')) AS v(measure_option)"
       ],
       "parameters": []
     }
@@ -5159,9 +5616,9 @@
             "name": "text_001",
             "multilineTextboxSpec": {
               "lines": [
-                "# Which cities and municipalities should we inspect first?\n",
+                "# Where should the Local School Board review first?\n",
                 "\n",
-                "D-061 combines current classroom and teacher pressure with public-school enrollment growth. The result orders planning review and is not a shortage count."
+                "Planning priority combines current classroom and teacher pressure with public-school enrollment growth. It orders review and is not a shortage or funding-allocation count."
               ]
             }
           },
@@ -5759,7 +6216,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**Where are the planning priorities?**",
+                "title": "Where are the planning priorities?",
                 "showDescription": true,
                 "description": "Shows the review status of every city and municipality in the selected area.\n\nLGUs without available map boundaries are not drawn. A missing area should not be read as no reported congestion."
               }
@@ -5854,7 +6311,7 @@
                       }
                     ]
                   },
-                  "displayName": "AP3",
+                  "displayName": "Teacher evidence",
                   "legend": {
                     "position": "bottom"
                   }
@@ -5864,7 +6321,7 @@
                 "showTitle": true,
                 "title": "Teacher references beside the queue",
                 "showDescription": true,
-                "description": "Whether any offered level's learners per teacher is above its published reference. AP3 contributes the teacher-pressure flag under D-061."
+                "description": "Whether any offered level's learners per teacher is above its published comparison point. This contributes the teacher-pressure signal."
               },
               "mark": {
                 "layout": "stack"
@@ -6005,8 +6462,8 @@
                   "datasetName": "ov_lgu",
                   "fields": [
                     {
-                      "name": "classroom_priority_rank",
-                      "expression": "`classroom_priority_rank`"
+                      "name": "national_order_display",
+                      "expression": "`national_order_display`"
                     },
                     {
                       "name": "lgu_label",
@@ -6063,8 +6520,8 @@
               "encodings": {
                 "columns": [
                   {
-                    "fieldName": "classroom_priority_rank",
-                    "displayName": "Order"
+                    "fieldName": "national_order_display",
+                    "displayName": "National order"
                   },
                   {
                     "fieldName": "lgu_label",
@@ -6158,7 +6615,7 @@
                 "showTitle": true,
                 "title": "National planning order",
                 "showDescription": true,
-                "description": "D-061 orders LGUs by priority category, current-pressure count, affected learners, classroom evidence, teacher evidence and enrollment growth. It is not an official shortage, construction entitlement or funding allocation."
+                "description": "Orders LGUs by priority category, current-pressure count, affected learners, classroom evidence, teacher evidence, and enrollment growth. It is not an official shortage, construction entitlement, or funding allocation."
               }
             }
           },
@@ -6265,7 +6722,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**Which LGUs in the queue have rising enrollment?**",
+                "title": "Which priority LGUs have rising enrollment?",
                 "showDescription": true,
                 "description": "Shows the number of LGUs with each review status by whether all-sector enrollment increased, decreased or could not be fully assessed from SY 2020\u201321 to SY 2025\u201326. Context only."
               },
@@ -6473,6 +6930,32 @@
                 }
               },
               {
+                "name": "param_pr_map_lgu",
+                "query": {
+                  "datasetName": "pr_map",
+                  "parameters": [
+                    {
+                      "name": "lgu",
+                      "keyword": "lgu"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_summary_lgu",
+                "query": {
+                  "datasetName": "pr_map_summary",
+                  "parameters": [
+                    {
+                      "name": "lgu",
+                      "keyword": "lgu"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
                 "name": "param_pr_teaser_lgu",
                 "query": {
                   "datasetName": "pr_teaser",
@@ -6551,6 +7034,14 @@
                   },
                   {
                     "parameterName": "lgu",
+                    "queryName": "param_pr_map_lgu"
+                  },
+                  {
+                    "parameterName": "lgu",
+                    "queryName": "param_pr_map_summary_lgu"
+                  },
+                  {
+                    "parameterName": "lgu",
                     "queryName": "param_pr_teaser_lgu"
                   },
                   {
@@ -6617,6 +7108,32 @@
                 }
               },
               {
+                "name": "param_pr_map_barangay",
+                "query": {
+                  "datasetName": "pr_map",
+                  "parameters": [
+                    {
+                      "name": "barangay",
+                      "keyword": "barangay"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_summary_barangay",
+                "query": {
+                  "datasetName": "pr_map_summary",
+                  "parameters": [
+                    {
+                      "name": "barangay",
+                      "keyword": "barangay"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
                 "name": "param_pr_teaser_barangay",
                 "query": {
                   "datasetName": "pr_teaser",
@@ -6643,6 +7160,14 @@
                   {
                     "parameterName": "barangay",
                     "queryName": "param_pr_barangays_barangay"
+                  },
+                  {
+                    "parameterName": "barangay",
+                    "queryName": "param_pr_map_barangay"
+                  },
+                  {
+                    "parameterName": "barangay",
+                    "queryName": "param_pr_map_summary_barangay"
                   },
                   {
                     "parameterName": "barangay",
@@ -6783,8 +7308,8 @@
                   "datasetName": "pr_card",
                   "fields": [
                     {
-                      "name": "public_schools",
-                      "expression": "`public_schools`"
+                      "name": "schools_above_room_screen",
+                      "expression": "`schools_above_room_screen`"
                     }
                   ],
                   "disaggregated": true
@@ -6796,8 +7321,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "public_schools",
-                  "displayName": "Public schools",
+                  "fieldName": "schools_above_room_screen",
+                  "displayName": "Schools above classroom screen",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -6813,9 +7338,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Public schools",
+                "title": "Schools above classroom screen",
                 "showDescription": true,
-                "description": "Active, SY 2023-24"
+                "description": "At least 50 learners per reported room"
               },
               "style": {
                 "fontColor": {
@@ -6841,8 +7366,8 @@
                   "datasetName": "pr_card",
                   "fields": [
                     {
-                      "name": "classrooms",
-                      "expression": "`classrooms`"
+                      "name": "teacher_levels_above_reference",
+                      "expression": "`teacher_levels_above_reference`"
                     }
                   ],
                   "disaggregated": true
@@ -6854,8 +7379,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "classrooms",
-                  "displayName": "Instructional classrooms",
+                  "fieldName": "teacher_levels_above_reference",
+                  "displayName": "Teacher levels above reference",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -6871,9 +7396,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Instructional classrooms",
+                "title": "Teacher levels above reference",
                 "showDescription": true,
-                "description": "Usable counts, SY 2023-24"
+                "description": "Elementary, junior high, or senior high"
               },
               "style": {
                 "fontColor": {
@@ -6899,8 +7424,8 @@
                   "datasetName": "pr_card",
                   "fields": [
                     {
-                      "name": "teachers",
-                      "expression": "`teachers`"
+                      "name": "enrollment_direction",
+                      "expression": "`enrollment_direction`"
                     }
                   ],
                   "disaggregated": true
@@ -6912,15 +7437,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "teachers",
-                  "displayName": "Teachers",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
+                  "fieldName": "enrollment_direction",
+                  "displayName": "Enrollment direction",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 800
@@ -6929,9 +7447,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Teachers",
+                "title": "Enrollment direction",
                 "showDescription": true,
-                "description": "Elementary to senior high, SY 2023-24"
+                "description": "Public schools, first to latest available year"
               },
               "style": {
                 "fontColor": {
@@ -6957,8 +7475,8 @@
                   "datasetName": "pr_card",
                   "fields": [
                     {
-                      "name": "public_learners",
-                      "expression": "`public_learners`"
+                      "name": "lowest_coverage",
+                      "expression": "`lowest_coverage`"
                     }
                   ],
                   "disaggregated": true
@@ -6970,10 +7488,10 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "public_learners",
-                  "displayName": "Public learners",
+                  "fieldName": "lowest_coverage",
+                  "displayName": "Lowest reporting coverage",
                   "format": {
-                    "type": "number-plain",
+                    "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
@@ -6987,9 +7505,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Public learners",
+                "title": "Lowest reporting coverage",
                 "showDescription": true,
-                "description": "Public-school enrollment, SY 2023-24"
+                "description": "Lowest learner coverage across the three planning measures"
               },
               "style": {
                 "fontColor": {
@@ -7007,7 +7525,55 @@
         },
         {
           "widget": {
-            "name": "note_023",
+            "name": "kpi_023",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_card",
+                  "fields": [
+                    {
+                      "name": "facts",
+                      "expression": "`facts`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "facts",
+                  "displayName": "LGU facts",
+                  "style": {
+                    "fontSize": 16,
+                    "fontStyle": "normal",
+                    "fontWeight": 400
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": false,
+                "title": "LGU facts",
+                "showDescription": false,
+                "description": "Scale and reported resources",
+                "contentAlignment": "left"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "note_024",
             "queries": [
               {
                 "name": "main_query",
@@ -7046,14 +7612,14 @@
           },
           "position": {
             "x": 0,
-            "y": 7,
+            "y": 8,
             "width": 12,
             "height": 1
           }
         },
         {
           "widget": {
-            "name": "note_024",
+            "name": "note_025",
             "queries": [
               {
                 "name": "main_query",
@@ -7092,14 +7658,14 @@
           },
           "position": {
             "x": 0,
-            "y": 8,
+            "y": 9,
             "width": 12,
             "height": 1
           }
         },
         {
           "widget": {
-            "name": "note_025",
+            "name": "note_026",
             "queries": [
               {
                 "name": "main_query",
@@ -7138,14 +7704,14 @@
           },
           "position": {
             "x": 0,
-            "y": 9,
+            "y": 10,
             "width": 12,
             "height": 1
           }
         },
         {
           "widget": {
-            "name": "note_026",
+            "name": "note_027",
             "queries": [
               {
                 "name": "main_query",
@@ -7184,14 +7750,14 @@
           },
           "position": {
             "x": 0,
-            "y": 10,
+            "y": 11,
             "width": 12,
             "height": 1
           }
         },
         {
           "widget": {
-            "name": "note_027",
+            "name": "note_028",
             "queries": [
               {
                 "name": "main_query",
@@ -7213,7 +7779,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "answer_1",
-                  "displayName": "AP1 \u00b7 Enough public schools?",
+                  "displayName": "What is the scale of the public-school system?",
                   "style": {
                     "fontStyle": "normal",
                     "fontSize": 14,
@@ -7223,7 +7789,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Answer: AP1 schools",
+                "title": "Answer: Public schools",
                 "showDescription": true,
                 "description": "Learners per public school \u00b7 context only"
               }
@@ -7231,14 +7797,14 @@
           },
           "position": {
             "x": 0,
-            "y": 11,
+            "y": 12,
             "width": 3,
             "height": 4
           }
         },
         {
           "widget": {
-            "name": "note_028",
+            "name": "note_029",
             "queries": [
               {
                 "name": "main_query",
@@ -7260,7 +7826,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "answer_2",
-                  "displayName": "AP2 \u00b7 Are classrooms crowded?",
+                  "displayName": "Which schools show classroom pressure?",
                   "style": {
                     "fontStyle": "normal",
                     "fontSize": 14,
@@ -7270,7 +7836,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Answer: AP2 classrooms",
+                "title": "Answer: Classrooms",
                 "showDescription": true,
                 "description": "Schools at or above 50 learners per reported room"
               }
@@ -7278,14 +7844,14 @@
           },
           "position": {
             "x": 3,
-            "y": 11,
+            "y": 12,
             "width": 3,
             "height": 4
           }
         },
         {
           "widget": {
-            "name": "note_029",
+            "name": "note_030",
             "queries": [
               {
                 "name": "main_query",
@@ -7307,7 +7873,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "answer_3",
-                  "displayName": "AP3 \u00b7 Are there enough teachers?",
+                  "displayName": "Which levels are above the teacher reference?",
                   "style": {
                     "fontStyle": "normal",
                     "fontSize": 14,
@@ -7317,7 +7883,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Answer: AP3 teachers",
+                "title": "Answer: Teachers",
                 "showDescription": true,
                 "description": "Learners per teacher by level \u00b7 compared with the references, never ranked"
               }
@@ -7325,14 +7891,14 @@
           },
           "position": {
             "x": 6,
-            "y": 11,
+            "y": 12,
             "width": 3,
             "height": 4
           }
         },
         {
           "widget": {
-            "name": "note_030",
+            "name": "note_031",
             "queries": [
               {
                 "name": "main_query",
@@ -7354,7 +7920,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "answer_4",
-                  "displayName": "AP4 \u00b7 Is enrollment growing?",
+                  "displayName": "Is enrollment changing?",
                   "style": {
                     "fontStyle": "normal",
                     "fontSize": 14,
@@ -7364,7 +7930,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Answer: AP4 enrollment",
+                "title": "Answer: Enrollment",
                 "showDescription": true,
                 "description": "All sectors, SY 2020-21 to 2025-26 \u00b7 context only"
               }
@@ -7372,14 +7938,14 @@
           },
           "position": {
             "x": 9,
-            "y": 11,
+            "y": 12,
             "width": 3,
             "height": 4
           }
         },
         {
           "widget": {
-            "name": "table_031",
+            "name": "table_032",
             "queries": [
               {
                 "name": "main_query",
@@ -7432,22 +7998,22 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**The evidence behind this status**",
+                "title": "Evidence behind this status",
                 "showDescription": true,
-                "description": "Each measure beside its published reference. AP2 and AP3 contribute separate pressure flags under D-061; AP1 remains context."
+                "description": "Each measure beside its published comparison point. Classroom and teacher pressure contribute to the priority category; public schools per LGU remains context."
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 15,
+            "y": 16,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_032",
+            "name": "bar_033",
             "queries": [
               {
                 "name": "main_query",
@@ -7504,7 +8070,7 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "This place",
-                        "Reference (D-061)"
+                        "Published comparison point"
                       ]
                     },
                     "mappings": [
@@ -7513,7 +8079,7 @@
                         "color": "#712B13"
                       },
                       {
-                        "value": "Reference (D-061)",
+                        "value": "Published comparison point",
                         "color": "#A9B4BF"
                       }
                     ]
@@ -7534,14 +8100,14 @@
           },
           "position": {
             "x": 6,
-            "y": 15,
+            "y": 16,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "area_033",
+            "name": "line_034",
             "queries": [
               {
                 "name": "main_query",
@@ -7567,7 +8133,7 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "area",
+              "widgetType": "line",
               "encodings": {
                 "x": {
                   "fieldName": "school_year_label",
@@ -7622,7 +8188,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**How has enrollment changed?**",
+                "title": "How has enrollment changed?",
                 "showDescription": true,
                 "description": "Shows public-school enrollment and enrollment across all school sectors for each available school year."
               }
@@ -7630,14 +8196,14 @@
           },
           "position": {
             "x": 0,
-            "y": 22,
+            "y": 23,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_034",
+            "name": "bar_035",
             "queries": [
               {
                 "name": "main_query",
@@ -7651,6 +8217,10 @@
                     {
                       "name": "max(change)",
                       "expression": "MAX(`change`)"
+                    },
+                    {
+                      "name": "direction",
+                      "expression": "`direction`"
                     }
                   ],
                   "disaggregated": false
@@ -7690,11 +8260,40 @@
                     }
                   },
                   "displayName": "Age group"
+                },
+                "color": {
+                  "fieldName": "direction",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Increase",
+                        "Decrease",
+                        "No change"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Increase",
+                        "color": "#2F6F8F"
+                      },
+                      {
+                        "value": "Decrease",
+                        "color": "#A32D2D"
+                      },
+                      {
+                        "value": "No change",
+                        "color": "#8A96A3"
+                      }
+                    ]
+                  },
+                  "displayName": "Direction"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "**How is the school-age population changing?**",
+                "title": "How is the school-age population changing?",
                 "showDescription": true,
                 "description": "Shows the change in resident children grouped by the school level corresponding to their age. An increase in younger age groups may indicate future demand at higher school levels."
               }
@@ -7702,14 +8301,14 @@
           },
           "position": {
             "x": 6,
-            "y": 22,
+            "y": 23,
             "width": 6,
             "height": 7
           }
         },
         {
           "widget": {
-            "name": "bar_035",
+            "name": "bar_036",
             "queries": [
               {
                 "name": "main_query",
@@ -7767,8 +8366,7 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Children aged 5-17",
-                        "Enrolled, all sectors",
-                        "Difference (children minus enrolled)"
+                        "Enrolled, all sectors"
                       ]
                     },
                     "mappings": [
@@ -7779,10 +8377,6 @@
                       {
                         "value": "Enrolled, all sectors",
                         "color": "#A9B4BF"
-                      },
-                      {
-                        "value": "Difference (children minus enrolled)",
-                        "color": "#C9A227"
                       }
                     ]
                   },
@@ -7794,7 +8388,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**How do resident children and local enrollment compare?**",
+                "title": "How do resident children and local enrollment compare?",
                 "showDescription": true,
                 "description": "Compares resident children aged 5\u201317 with learners enrolled in local schools. Children are counted where they live, while learners are counted where they attend school. The difference is not an estimate of children who are out of school."
               },
@@ -7805,14 +8399,169 @@
           },
           "position": {
             "x": 0,
-            "y": 29,
-            "width": 6,
-            "height": 8
+            "y": 30,
+            "width": 12,
+            "height": 7
           }
         },
         {
           "widget": {
-            "name": "table_036",
+            "name": "symbol_map_037",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_map",
+                  "fields": [
+                    {
+                      "name": "latitude",
+                      "expression": "`latitude`"
+                    },
+                    {
+                      "name": "longitude",
+                      "expression": "`longitude`"
+                    },
+                    {
+                      "name": "map_status",
+                      "expression": "`map_status`"
+                    },
+                    {
+                      "name": "school_name",
+                      "expression": "`school_name`"
+                    },
+                    {
+                      "name": "school_id",
+                      "expression": "`school_id`"
+                    },
+                    {
+                      "name": "barangay_name",
+                      "expression": "`barangay_name`"
+                    },
+                    {
+                      "name": "school_kind",
+                      "expression": "`school_kind`"
+                    },
+                    {
+                      "name": "levels_offered",
+                      "expression": "`levels_offered`"
+                    },
+                    {
+                      "name": "learners",
+                      "expression": "`learners`"
+                    },
+                    {
+                      "name": "learners_per_room",
+                      "expression": "`learners_per_room`"
+                    },
+                    {
+                      "name": "learners_per_teacher",
+                      "expression": "`learners_per_teacher`"
+                    },
+                    {
+                      "name": "coordinate_status",
+                      "expression": "`coordinate_status`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "symbol-map",
+              "encodings": {
+                "coordinates": {
+                  "latitude": {
+                    "fieldName": "latitude"
+                  },
+                  "longitude": {
+                    "fieldName": "longitude"
+                  }
+                },
+                "color": {
+                  "fieldName": "map_status",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Verification needed",
+                        "Other schools"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Verification needed",
+                        "color": "#E3A008"
+                      },
+                      {
+                        "value": "Other schools",
+                        "color": "#8A96A3"
+                      }
+                    ]
+                  },
+                  "displayName": "Status"
+                },
+                "extra": [
+                  {
+                    "fieldName": "school_name",
+                    "displayName": "School"
+                  },
+                  {
+                    "fieldName": "school_id",
+                    "displayName": "School ID"
+                  },
+                  {
+                    "fieldName": "barangay_name",
+                    "displayName": "Barangay"
+                  },
+                  {
+                    "fieldName": "school_kind",
+                    "displayName": "Main or annex"
+                  },
+                  {
+                    "fieldName": "levels_offered",
+                    "displayName": "Levels"
+                  },
+                  {
+                    "fieldName": "learners",
+                    "displayName": "Public learners"
+                  },
+                  {
+                    "fieldName": "learners_per_room",
+                    "displayName": "Learners per reported room"
+                  },
+                  {
+                    "fieldName": "learners_per_teacher",
+                    "displayName": "Learners per reported teacher"
+                  },
+                  {
+                    "fieldName": "coordinate_status",
+                    "displayName": "Coordinate status"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "School locations and barangay access",
+                "showDescription": true,
+                "description": "Validated public-school coordinates inside the selected city or municipality. Barangay is a filter and tooltip attribute; the map does not infer barangay boundaries, catchments, or travel time."
+              },
+              "mark": {
+                "opacity": 0.75
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 37,
+            "width": 7,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "table_038",
             "queries": [
               {
                 "name": "main_query",
@@ -7887,22 +8636,70 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**Barangay access screening**",
+                "title": "Barangays without a matched public elementary school first",
                 "showDescription": true,
-                "description": "Shows public-school access in each barangay, with barangays that have no matched public elementary school listed first."
+                "description": "A nearby school may serve across barangay boundaries; zero matched schools is a review prompt, not proof that a new school is required."
               }
             }
           },
           "position": {
-            "x": 6,
-            "y": 29,
-            "width": 6,
-            "height": 8
+            "x": 7,
+            "y": 37,
+            "width": 5,
+            "height": 10
           }
         },
         {
           "widget": {
-            "name": "table_037",
+            "name": "kpi_039",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "pr_map_summary",
+                  "fields": [
+                    {
+                      "name": "map_coverage",
+                      "expression": "`map_coverage`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "map_coverage",
+                  "displayName": "School location coverage",
+                  "style": {
+                    "fontSize": 16,
+                    "fontStyle": "normal",
+                    "fontWeight": 400
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": false,
+                "title": "School location coverage",
+                "showDescription": false,
+                "description": "Only coordinates validated inside the selected LGU are plotted",
+                "contentAlignment": "left"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 47,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "table_040",
             "queries": [
               {
                 "name": "main_query",
@@ -7970,7 +8767,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**Schools for follow-up**",
+                "title": "Schools for follow-up",
                 "showDescription": true,
                 "description": "School records to verify first, followed by schools with the highest classroom pressure."
               }
@@ -7978,14 +8775,14 @@
           },
           "position": {
             "x": 0,
-            "y": 37,
+            "y": 48,
             "width": 12,
             "height": 5
           }
         },
         {
           "widget": {
-            "name": "table_038",
+            "name": "table_041",
             "queries": [
               {
                 "name": "main_query",
@@ -8038,7 +8835,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**Data coverage and verification checks**",
+                "title": "Data coverage and verification checks",
                 "showDescription": true,
                 "description": "Shows whether enough data were reported for each measure, and the schools left out because a room or teacher count is missing or zero."
               }
@@ -8046,7 +8843,7 @@
           },
           "position": {
             "x": 0,
-            "y": 42,
+            "y": 53,
             "width": 12,
             "height": 4
           }
@@ -8061,7 +8858,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_039",
+            "name": "text_042",
             "multilineTextboxSpec": {
               "lines": [
                 "# Which schools should we check, and why?\n",
@@ -8078,7 +8875,7 @@
         },
         {
           "widget": {
-            "name": "filter_040",
+            "name": "filter_043",
             "queries": [
               {
                 "name": "opt_opt_lgu",
@@ -8271,7 +9068,7 @@
         },
         {
           "widget": {
-            "name": "filter_041",
+            "name": "filter_044",
             "queries": [
               {
                 "name": "opt_opt_barangay_school",
@@ -8445,7 +9242,7 @@
         },
         {
           "widget": {
-            "name": "filter_044",
+            "name": "filter_047",
             "queries": [
               {
                 "name": "opt_opt_school",
@@ -8587,7 +9384,7 @@
         },
         {
           "widget": {
-            "name": "filter_043",
+            "name": "filter_046",
             "queries": [
               {
                 "name": "opt_opt_status",
@@ -8659,7 +9456,7 @@
         },
         {
           "widget": {
-            "name": "filter_042",
+            "name": "filter_045",
             "queries": [
               {
                 "name": "opt_opt_level",
@@ -8833,7 +9630,7 @@
         },
         {
           "widget": {
-            "name": "kpi_045",
+            "name": "kpi_048",
             "queries": [
               {
                 "name": "main_query",
@@ -8881,7 +9678,7 @@
         },
         {
           "widget": {
-            "name": "kpi_046",
+            "name": "kpi_049",
             "queries": [
               {
                 "name": "main_query",
@@ -8927,7 +9724,7 @@
         },
         {
           "widget": {
-            "name": "kpi_047",
+            "name": "kpi_050",
             "queries": [
               {
                 "name": "main_query",
@@ -8935,8 +9732,8 @@
                   "datasetName": "sa_school",
                   "fields": [
                     {
-                      "name": "learners_per_room",
-                      "expression": "`learners_per_room`"
+                      "name": "classroom_pressure",
+                      "expression": "`classroom_pressure`"
                     }
                   ],
                   "disaggregated": true
@@ -8948,15 +9745,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "learners_per_room",
-                  "displayName": "Learners per reported room",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    }
-                  },
+                  "fieldName": "classroom_pressure",
+                  "displayName": "Classroom pressure",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 800
@@ -8965,9 +9755,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Learners per reported room",
+                "title": "Classroom pressure",
                 "showDescription": true,
-                "description": "All levels \u00b7 rooms include labs"
+                "description": "Compared with the 50-learner screen"
               },
               "style": {
                 "fontColor": {
@@ -8985,7 +9775,7 @@
         },
         {
           "widget": {
-            "name": "kpi_048",
+            "name": "kpi_051",
             "queries": [
               {
                 "name": "main_query",
@@ -8993,8 +9783,8 @@
                   "datasetName": "sa_school",
                   "fields": [
                     {
-                      "name": "teacher_ratio",
-                      "expression": "`teacher_ratio`"
+                      "name": "teacher_pressure",
+                      "expression": "`teacher_pressure`"
                     }
                   ],
                   "disaggregated": true
@@ -9006,15 +9796,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "teacher_ratio",
-                  "displayName": "Learners per teacher",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    }
-                  },
+                  "fieldName": "teacher_pressure",
+                  "displayName": "Teacher pressure",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 800
@@ -9023,7 +9806,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Learners per teacher",
+                "title": "Teacher pressure",
                 "showDescription": true,
                 "description": "At the education level chosen above"
               },
@@ -9043,7 +9826,7 @@
         },
         {
           "widget": {
-            "name": "kpi_049",
+            "name": "kpi_052",
             "queries": [
               {
                 "name": "main_query",
@@ -9051,8 +9834,8 @@
                   "datasetName": "sa_school",
                   "fields": [
                     {
-                      "name": "enrollment_change",
-                      "expression": "`enrollment_change`"
+                      "name": "enrollment_direction",
+                      "expression": "`enrollment_direction`"
                     }
                   ],
                   "disaggregated": true
@@ -9064,15 +9847,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "enrollment_change",
-                  "displayName": "Enrollment change",
-                  "format": {
-                    "type": "number-percent",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    }
-                  },
+                  "fieldName": "enrollment_direction",
+                  "displayName": "Enrollment direction",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 800
@@ -9081,9 +9857,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Enrollment change",
+                "title": "Enrollment direction",
                 "showDescription": true,
-                "description": "SY 2020-21 to 2025-26, if complete"
+                "description": "SY 2020-21 to 2025-26, when complete"
               },
               "style": {
                 "fontColor": {
@@ -9101,7 +9877,7 @@
         },
         {
           "widget": {
-            "name": "kpi_050",
+            "name": "kpi_053",
             "queries": [
               {
                 "name": "main_query",
@@ -9109,8 +9885,8 @@
                   "datasetName": "sa_school",
                   "fields": [
                     {
-                      "name": "temporary_or_makeshift_rooms",
-                      "expression": "`temporary_or_makeshift_rooms`"
+                      "name": "data_completeness",
+                      "expression": "`data_completeness`"
                     }
                   ],
                   "disaggregated": true
@@ -9122,15 +9898,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "temporary_or_makeshift_rooms",
-                  "displayName": "Temporary and makeshift rooms",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
+                  "fieldName": "data_completeness",
+                  "displayName": "Data completeness",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 800
@@ -9139,9 +9908,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Temporary and makeshift rooms",
+                "title": "Data completeness",
                 "showDescription": true,
-                "description": "SY 2023-24"
+                "description": "Learners, rooms, and selected-level teachers"
               },
               "style": {
                 "fontColor": {
@@ -9159,7 +9928,7 @@
         },
         {
           "widget": {
-            "name": "scatter_051",
+            "name": "scatter_054",
             "queries": [
               {
                 "name": "main_query",
@@ -9200,14 +9969,14 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Learners per classroom"
+                  "displayName": "Learners per reported room"
                 },
                 "y": {
                   "fieldName": "teacher_ratio",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Learners per teacher"
+                  "displayName": "Learners per reported teacher"
                 },
                 "color": {
                   "fieldName": "series",
@@ -9217,7 +9986,7 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Selected school",
-                        "Figures to check",
+                        "Verification needed",
                         "Other schools"
                       ]
                     },
@@ -9227,7 +9996,7 @@
                         "color": "#712B13"
                       },
                       {
-                        "value": "Figures to check",
+                        "value": "Verification needed",
                         "color": "#E3A008"
                       },
                       {
@@ -9254,7 +10023,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "This school among schools in the same place",
+                "title": "Classroom and teacher pressure among schools in this LGU",
                 "showDescription": true,
                 "description": "Each dot is a public school offering the chosen level. A school-level screen, not the LGU priority rule; schools with no rooms or teachers reported cannot be placed."
               }
@@ -9269,7 +10038,7 @@
         },
         {
           "widget": {
-            "name": "table_052",
+            "name": "table_055",
             "queries": [
               {
                 "name": "main_query",
@@ -9314,7 +10083,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Figures to verify",
+                "title": "What should be verified?",
                 "showDescription": true,
                 "description": "A flag means verify, not incorrect. Flagged schools stay in every total."
               }
@@ -9329,7 +10098,7 @@
         },
         {
           "widget": {
-            "name": "line_053",
+            "name": "line_056",
             "queries": [
               {
                 "name": "main_query",
@@ -9441,7 +10210,7 @@
         },
         {
           "widget": {
-            "name": "table_054",
+            "name": "table_057",
             "queries": [
               {
                 "name": "main_query",
@@ -9560,7 +10329,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Rooms and teachers",
+                "title": "Reported rooms and teachers",
                 "showDescription": true,
                 "description": "SY 2023-24. Classrooms are reported for the whole school, not by level."
               }
@@ -9575,7 +10344,7 @@
         },
         {
           "widget": {
-            "name": "table_055",
+            "name": "table_058",
             "queries": [
               {
                 "name": "main_query",
@@ -9704,9 +10473,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "School action list",
+                "title": "School validation list",
                 "showDescription": true,
-                "description": "Figures to verify first, then the most crowded. The download adds school ID, main or annex, temporary or makeshift rooms and locally funded teachers."
+                "description": "Verification flags first, then the highest learners per reported room. The download adds school ID, main or annex, temporary or makeshift rooms and locally funded teachers."
               }
             }
           },
@@ -9719,7 +10488,7 @@
         },
         {
           "widget": {
-            "name": "text_056",
+            "name": "text_059",
             "multilineTextboxSpec": {
               "lines": [
                 "Confirm flagged figures with the Schools Division Office before using them for planning. The dashboard identifies pressure and data requiring review; it does not prescribe how many classrooms, teachers, or schools to add."
@@ -9743,7 +10512,7 @@
       "layout": [
         {
           "widget": {
-            "name": "text_057",
+            "name": "text_060",
             "multilineTextboxSpec": {
               "lines": [
                 "# Can we rely on these results, and how were they produced?\n",
@@ -9760,7 +10529,7 @@
         },
         {
           "widget": {
-            "name": "filter_058",
+            "name": "filter_061",
             "queries": [
               {
                 "name": "opt_opt_measure",
@@ -9849,7 +10618,7 @@
         },
         {
           "widget": {
-            "name": "kpi_059",
+            "name": "kpi_062",
             "queries": [
               {
                 "name": "main_query",
@@ -9912,7 +10681,7 @@
         },
         {
           "widget": {
-            "name": "kpi_060",
+            "name": "kpi_063",
             "queries": [
               {
                 "name": "main_query",
@@ -9970,7 +10739,7 @@
         },
         {
           "widget": {
-            "name": "kpi_061",
+            "name": "kpi_064",
             "queries": [
               {
                 "name": "main_query",
@@ -10033,7 +10802,7 @@
         },
         {
           "widget": {
-            "name": "kpi_062",
+            "name": "kpi_065",
             "queries": [
               {
                 "name": "main_query",
@@ -10091,7 +10860,7 @@
         },
         {
           "widget": {
-            "name": "kpi_063",
+            "name": "kpi_066",
             "queries": [
               {
                 "name": "main_query",
@@ -10137,15 +10906,15 @@
         },
         {
           "widget": {
-            "name": "text_064",
+            "name": "text_067",
             "multilineTextboxSpec": {
               "lines": [
-                "## How planning priority is built (D-061)\n\n",
+                "## How planning priority is built\n\n",
                 "1. **School screen, SY 2023-24:** each active public school with complete enrollment and more than zero reported instructional rooms passes when it has at least 50 learners per reported room. A PIDS-style illustrative screen, not an official DepEd ratio.\n",
                 "2. **Coverage gate:** classroom pressure counts only when at least 90% of an LGU's learners are in schools with a room count; each teacher level has the same 90% rule. A known pressure always counts.\n",
-                "3. **Current pressures:** AP2 contributes classroom pressure and AP3 contributes teacher pressure.\n",
-                "4. **Growth:** AP4 contributes whether public-school enrollment increased from the first to latest available school year.\n",
-                "5. **Priority:** the two current-pressure flags and growth assign Priority 1\u20133, Monitor, No current pressure identified, or Data review. Where growth cannot be checked, an LGU with a known pressure is placed as if it were not growing. **Data review** is for LGUs with no known pressure where coverage or growth could not be checked. The national order uses the published evidence fields. AP1, school-age population and poverty remain context."
+                "3. **Current pressures:** classroom evidence and teacher evidence contribute separate pressure signals.\n",
+                "4. **Growth:** public-school enrollment contributes whether enrollment increased from the first to latest available school year.\n",
+                "5. **Priority:** the two current-pressure flags and growth assign Priority 1\u20133, Monitor, No current pressure identified, or Data review. Where growth cannot be checked, an LGU with a known pressure is placed as if it were not growing. **Data review** is for LGUs with no known pressure where coverage or growth could not be checked. The national order uses the published evidence fields. Public schools per LGU, school-age population and poverty remain context."
               ]
             }
           },
@@ -10158,7 +10927,7 @@
         },
         {
           "widget": {
-            "name": "table_065",
+            "name": "table_068",
             "queries": [
               {
                 "name": "main_query",
@@ -10234,7 +11003,7 @@
         },
         {
           "widget": {
-            "name": "bar_066",
+            "name": "bar_069",
             "queries": [
               {
                 "name": "main_query",
@@ -10276,11 +11045,11 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Schools (AP1)",
-                        "Classrooms (AP2)",
-                        "Teachers, Elementary (AP3)",
-                        "Teachers, Junior high (AP3)",
-                        "Teachers, Senior high (AP3)"
+                        "Public schools",
+                        "Classrooms",
+                        "Teachers, Elementary",
+                        "Teachers, Junior high",
+                        "Teachers, Senior high"
                       ]
                     }
                   },
@@ -10325,7 +11094,7 @@
         },
         {
           "widget": {
-            "name": "bar_067",
+            "name": "bar_070",
             "queries": [
               {
                 "name": "main_query",
@@ -10389,7 +11158,7 @@
         },
         {
           "widget": {
-            "name": "bar_068",
+            "name": "bar_071",
             "queries": [
               {
                 "name": "main_query",
@@ -10438,9 +11207,9 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Schools (AP1)",
-                        "Classrooms (AP2)",
-                        "Teachers (AP3)"
+                        "Public schools",
+                        "Classrooms",
+                        "Teachers"
                       ]
                     }
                   },
@@ -10470,7 +11239,7 @@
         },
         {
           "widget": {
-            "name": "bar_069",
+            "name": "bar_072",
             "queries": [
               {
                 "name": "main_query",
@@ -10553,7 +11322,7 @@
         },
         {
           "widget": {
-            "name": "bar_070",
+            "name": "bar_073",
             "queries": [
               {
                 "name": "main_query",
@@ -10626,7 +11395,7 @@
                 "showTitle": true,
                 "title": "Teacher references by level",
                 "showDescription": true,
-                "description": "AP3 contributes the D-061 teacher-pressure flag; it does not estimate a staffing shortage."
+                "description": "Teacher evidence contributes a pressure flag; it does not estimate a staffing shortage."
               },
               "mark": {
                 "layout": "stack"
@@ -10642,7 +11411,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_071",
+            "name": "heatmap_074",
             "queries": [
               {
                 "name": "main_query",
@@ -10716,7 +11485,7 @@
         },
         {
           "widget": {
-            "name": "bar_072",
+            "name": "bar_075",
             "queries": [
               {
                 "name": "main_query",
@@ -10808,7 +11577,7 @@
         },
         {
           "widget": {
-            "name": "text_073",
+            "name": "text_076",
             "multilineTextboxSpec": {
               "lines": [
                 "## What this dashboard cannot tell you\n\n",
@@ -10837,7 +11606,7 @@
       "layout": [
         {
           "widget": {
-            "name": "filter_074",
+            "name": "filter_077",
             "queries": [
               {
                 "name": "opt_opt_region",
@@ -11025,6 +11794,32 @@
                 "name": "param_pr_barangays_region",
                 "query": {
                   "datasetName": "pr_barangays",
+                  "parameters": [
+                    {
+                      "name": "region",
+                      "keyword": "region"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_region",
+                "query": {
+                  "datasetName": "pr_map",
+                  "parameters": [
+                    {
+                      "name": "region",
+                      "keyword": "region"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_summary_region",
+                "query": {
+                  "datasetName": "pr_map_summary",
                   "parameters": [
                     {
                       "name": "region",
@@ -11337,6 +12132,14 @@
                   },
                   {
                     "parameterName": "region",
+                    "queryName": "param_pr_map_region"
+                  },
+                  {
+                    "parameterName": "region",
+                    "queryName": "param_pr_map_summary_region"
+                  },
+                  {
+                    "parameterName": "region",
                     "queryName": "param_pr_teaser_region"
                   },
                   {
@@ -11436,7 +12239,7 @@
         },
         {
           "widget": {
-            "name": "filter_075",
+            "name": "filter_078",
             "queries": [
               {
                 "name": "opt_opt_province",
@@ -11624,6 +12427,32 @@
                 "name": "param_pr_barangays_province",
                 "query": {
                   "datasetName": "pr_barangays",
+                  "parameters": [
+                    {
+                      "name": "province",
+                      "keyword": "province"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_province",
+                "query": {
+                  "datasetName": "pr_map",
+                  "parameters": [
+                    {
+                      "name": "province",
+                      "keyword": "province"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_summary_province",
+                "query": {
+                  "datasetName": "pr_map_summary",
                   "parameters": [
                     {
                       "name": "province",
@@ -11923,6 +12752,14 @@
                   },
                   {
                     "parameterName": "province",
+                    "queryName": "param_pr_map_province"
+                  },
+                  {
+                    "parameterName": "province",
+                    "queryName": "param_pr_map_summary_province"
+                  },
+                  {
+                    "parameterName": "province",
                     "queryName": "param_pr_teaser_province"
                   },
                   {
@@ -12018,7 +12855,7 @@
         },
         {
           "widget": {
-            "name": "filter_076",
+            "name": "filter_079",
             "queries": [
               {
                 "name": "opt_opt_type",
@@ -12206,6 +13043,32 @@
                 "name": "param_pr_barangays_lgu_type",
                 "query": {
                   "datasetName": "pr_barangays",
+                  "parameters": [
+                    {
+                      "name": "lgu_type",
+                      "keyword": "lgu_type"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_lgu_type",
+                "query": {
+                  "datasetName": "pr_map",
+                  "parameters": [
+                    {
+                      "name": "lgu_type",
+                      "keyword": "lgu_type"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "param_pr_map_summary_lgu_type",
+                "query": {
+                  "datasetName": "pr_map_summary",
                   "parameters": [
                     {
                       "name": "lgu_type",
@@ -12502,6 +13365,14 @@
                   {
                     "parameterName": "lgu_type",
                     "queryName": "param_pr_barangays_lgu_type"
+                  },
+                  {
+                    "parameterName": "lgu_type",
+                    "queryName": "param_pr_map_lgu_type"
+                  },
+                  {
+                    "parameterName": "lgu_type",
+                    "queryName": "param_pr_map_summary_lgu_type"
                   },
                   {
                     "parameterName": "lgu_type",

@@ -13,7 +13,8 @@ from test_analytics_priority import GOLD, add_public_school, run_all, store  # n
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
 PAGES = ["overview", "lgu_profile", "school_action", "data_and_method"]
-HEADINGS = ("Selected city or municipality", "Place details", "Selected school", "School details", "Data freshness")  # not KPIs
+HEADINGS = ("Selected city or municipality", "Place details", "LGU facts", "School location coverage",
+            "Selected school", "School details", "Data freshness")  # not KPIs
 SENTENCES = tuple(planner.FINDINGS) + tuple(title for title, _, _ in planner.ANSWERS)  # LGU Profile findings and answers
 
 
@@ -103,6 +104,22 @@ def test_wording_never_states_a_need_or_shortage_as_a_finding():
     for phrase in ("deficit", "under-capacity", "shortfall", "classroom shortage of", "need to build"):
         assert phrase not in text
     assert "out-of-school count" not in text
+
+
+def test_viewer_facing_pages_do_not_expose_internal_decision_labels():
+    page_text = json.dumps(load()["pages"])
+    for internal_label in ("D-061", "AP1", "AP2", "AP3", "AP4"):
+        assert internal_label not in page_text
+
+
+def test_profile_uses_a_native_point_map_and_reports_location_coverage():
+    page = next(page for page in load()["pages"] if page["name"] == "lgu_profile")
+    specs = [widget.get("spec", {}) for widget in widgets(page)]
+    maps = [spec for spec in specs if spec.get("widgetType") == "symbol-map"]
+    assert len(maps) == 1
+    assert maps[0]["version"] == 2
+    assert set(maps[0]["encodings"]["coordinates"]) == {"latitude", "longitude"}
+    assert any(spec.get("frame", {}).get("title") == "School location coverage" for spec in specs)
 
 
 def test_the_bundle_deploys_this_dashboard():

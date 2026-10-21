@@ -86,23 +86,24 @@ python -m pytest tests/test_dashboard_planner.py tests/test_local_job.py -q
 
 ```mermaid
 flowchart LR
-    matrix[(lgu_priority_matrix<br/>D-061 category and order)] --> ov[Overview]
-    aps[(AP1 to AP4)] --> ov & pr[LGU Profile] & dm[Data and Method]
+    matrix[(lgu_priority_matrix<br/>priority category and order)] --> ov[Overview]
+    evidence[(school, classroom, teacher<br/>and enrollment evidence)] --> ov & pr[LGU Profile] & dm[Data and Method]
     matrix --> pr & dm
     gold[(Gold facts and dimensions)] --> pr & sa[School Action]
+    locations[(validated school locations)] --> pr
     refs[config/analytics_benchmarks.json] --> dm
     control[(01-control)] --> dm
 ```
 
-It shows D-061's planning priorities. AP2 contributes a classroom-pressure flag, AP3 contributes a teacher-pressure flag, and AP4 contributes public-school enrollment growth. Those inputs assign Priority 1–3, Monitor, No current pressure identified, or Data review. The category and national planning order come from [`lgu_priority_matrix`](../etl/06_analytics/README.md); the dashboard only filters, labels, and presents them. AP1, school-age population, and poverty remain context.
+It presents the published planning priorities in language intended for LGU planners and Local School Boards. Classroom evidence contributes a classroom-pressure flag, teacher evidence contributes a teacher-pressure flag, and public-school enrollment contributes growth. Those inputs assign Priority 1–3, Monitor, No current pressure identified, or Data review. The category and national planning order come from [`lgu_priority_matrix`](../etl/06_analytics/README.md); the dashboard only filters, labels, and presents them. Public schools per LGU, school-age population, and poverty remain context. Internal decision and analytics identifiers are deliberately kept out of viewer-facing titles and descriptions.
 
 ### The four views
 
 | View | Question | Main content |
 |---|---|---|
-| **Overview** | Which places should we inspect first for crowded classrooms? | Map by review status, AP3 teacher references beside the queue, places by region and status, the ranked queue, review status against enrollment direction (context only) |
-| **LGU Profile** | Why is this place in the queue, and where should the board look? | The place, its status and rank; counts of schools, classrooms, teachers and learners; four findings; the four questions answered for this place; the evidence against each reference; learners per teacher by level against its reference; enrollment, school-age population and resident children (context only); barangay access; the first schools to follow up; data coverage |
-| **School Action** | Which schools should we check, and why? | The selected school, its place among schools in the same LGU, its enrollment, rooms and teachers, the exact figures to verify, the school action list |
+| **Overview** | Where should the Local School Board review first? | Map by review status, teacher evidence beside the queue, places by region and status, the national order as “X of Y”, and enrollment direction (context only) |
+| **LGU Profile** | Why is this place a priority, and where should the board look? | Four decision KPIs; compact LGU facts; findings and plain-language questions; evidence and comparison points; enrollment and school-age context; validated school-location map; barangay review; schools for follow-up; data coverage |
+| **School Action** | Which schools should we check, and why? | Four school decision KPIs; selected school; classroom/teacher peer plot; exact verification reason and next step; enrollment; reported rooms and teachers; school validation list |
 | **Data and Method** | Can we rely on these results, and how were they produced? | How the queue is built, the published references, coverage and reasons for data review, how concentrated screened learners are, teacher references by level, enrollment-trend completeness, source years, data quality checks, limits |
 
 ### KPIs
@@ -113,8 +114,14 @@ It shows D-061's planning priorities. AP2 contributes a classroom-pressure flag,
 | | Learners in screened schools | `ap2_affected_learners`, with their share of public learners in view |
 | | Screened schools | Public schools at or above 50 learners per reported room |
 | | LGUs needing data review | No known pressure, and coverage or growth could not be checked |
-| LGU Profile | Public schools, Instructional classrooms, Teachers, Public learners | AP1's school count, AP2's reported rooms, AP3's teachers, AP1's public enrollment, SY 2023-24 |
-| School Action | Learners per reported room, Learners per teacher, Enrollment change, Temporary and makeshift rooms | The selected school, SY 2023-24 (enrollment change SY 2020-21 to 2025-26, when both years are complete) |
+| LGU Profile | Schools above classroom screen | Public schools at or above 50 learners per reported room |
+| | Teacher levels above reference | Number of offered levels whose learners per reported teacher is above its published comparison point |
+| | Enrollment direction | Public-school enrollment direction from the first to latest available school year |
+| | Lowest reporting coverage | Lowest learner coverage across public-school, classroom, and teacher evidence |
+| School Action | Classroom pressure | Whether the selected school is above the 50-learner reported-room screen; `Not reported` when it cannot be assessed |
+| | Teacher pressure | Learners per reported teacher for the selected level; `Not reported` when unavailable |
+| | Enrollment direction | Direction from SY 2020-21 to 2025-26 when both endpoints are complete |
+| | Data completeness | Whether learners, rooms, and selected-level teacher figures required by the view are reported |
 | Data and Method | Assessed LGUs, LGUs requiring data review, LGUs in Priority 1–3, Screened schools | As on Overview, over Region, Province, and LGU type |
 
 ### Filters
@@ -125,7 +132,7 @@ Every filter is a query parameter applied after the published values are read, s
 |---|---|
 | Region, Province, LGU type (global) | Every view. Province options follow Region |
 | City or municipality (LGU Profile; School Action) | A page filter on each of the two views. Both default to the top of the queue in Region, Province and LGU type; a choice outside them falls back to that place and says so |
-| Barangay (LGU Profile; School Action) | The barangay table and school teaser on LGU Profile, and every school visual on School Action |
+| Barangay (LGU Profile; School Action) | The school-location map, barangay table, map coverage, and school teaser on LGU Profile, and every school visual on School Action |
 | Review status, Coverage status (Overview) | The KPIs, map, charts, and the queue table |
 | Education level, School, School status (School Action) | Every School Action visual; status filters the action list only |
 | Measure (Data and Method) | Coverage and reasons |
@@ -135,6 +142,12 @@ Databricks dashboards cannot open another page from a click or share a page filt
 ### Findings
 
 The LGU Profile's four findings are fixed SQL rules over the same tables as its charts, one counter each, left empty when the data is incomplete: the classroom screen with the place's queue rank, the data review reason or the schools left out of the screen, the enrollment trend when every year is complete (context only), and barangays without a matched public elementary school. No generative AI is used, and no sentence states a cause.
+
+### School-location map
+
+The LGU Profile point map joins active public schools to `dim_school_location` and plots only rows whose coordinates were validated inside the school's matched city or municipality boundary. It always reports “Mapped N of M” and the number excluded pending verification. Point color has only two meanings: **Verification needed** and **Other schools**. The Barangay filter uses the school's matched barangay PSGC path; no barangay polygon is inferred.
+
+The map supports locating and discussing schools. It does not establish a catchment, nearest-school assignment, route, travel time, or need for construction. A true barangay polygon map requires a reviewed boundary source, a documented geography vintage, PSGC reconciliation, and explicit missing-geometry handling.
 
 ### Limits
 
