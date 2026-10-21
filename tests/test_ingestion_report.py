@@ -79,7 +79,7 @@ def test_real_contract_loads_and_stays_profiled(repo_root):
     config, entry = load_source_config(repo_root, SOURCE)
     assert config["format"] == "xlsx_report"
     assert [d["school_year"] for d in config["deliveries"]] == ["2023-24"]
-    assert entry["status"] == "profiled", "ingestion must not promote the source; that is a team decision"
+    assert entry["status"] == "accepted", "accepted by the team on 2026-10-21 (D-063); a status change is a team decision"
 
 
 def test_real_contract_pins_the_profiled_shape(repo_root):

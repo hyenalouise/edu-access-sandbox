@@ -1,6 +1,6 @@
 # deped_enrollment_psgc: DepEd school-level enrollment with PSGC and coordinates
 
-**Status:** profiled
+**Status:** accepted
 
 Issue: #135. The same SY 2023-24 enrollment as [deped_enrollment](../deped_enrollment/README.md), with PSGC codes and school coordinates added. It supplements deped_enrollment rather than replacing it: the team agreed in #137 on option B, so deped_enrollment stays the only enrollment source and this file is used as a `school_id` → PSGC crosswalk, the first DepEd match method, with name matching as the fallback. The decision is recorded in `docs/governance/decisions.md` when #137 closes.
 

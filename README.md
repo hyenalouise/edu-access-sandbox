@@ -41,7 +41,7 @@ Each source moves through Bronze and Silver in its own lane. From Silver on, eve
 | **Implemented** | 9 sources through Bronze and Silver, 5 Integration maps, 13 Gold tables, 5 Analytics outputs, the data-quality and LGU planner dashboards, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
 | **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); the school-coordinates Bronze load ([evidence](evidence/pipeline-runs/2026-10-21-deped-psgc-coordinates-databricks.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
 | **Proven locally only** | The Analytics outputs and both dashboards (tested in CI, no Databricks run in `evidence/` yet); failure recovery, rehearsed end to end ([evidence](evidence/pipeline-runs/2026-10-20-failure-recovery-local.md)); the school-coordinates Silver lane, reconciled on the real workbook ([evidence](evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)) |
-| **Not built** | A `prod` target (#99) |
+| **Not built** | A run on `prod`: the target is defined in its own workspace (D-063) but not yet deployed (#99) |
 
 A commit on `main` is not what runs in the workspace until it is deployed: the job records the commit it ran as `code_revision` on every row it writes.
 
@@ -87,8 +87,8 @@ Raw files are never committed. Locally they sit in `raw-data/` beside the reposi
 |---|---|
 | Tests and policy checks (what CI runs) | `python -m pytest tests -q` |
 | The whole job, locally on DuckDB | macOS or Linux: `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run`. Windows PowerShell: `$env:RAW_DATA_DIR = "$HOME\Projects\reached-hq\raw-data"; python -m src.job.local_run` |
-| Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq` |
-| Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` |
+| Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq-dev` |
+| Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` |
 
 The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 0 only when every task succeeded. Deploy from a clean, pushed `main`; Databricks compute is shared, so agree a run with the team first ([workflow, Part 5](docs/operations/workflow.md#part-5-where-code-runs)).
 
@@ -116,6 +116,6 @@ Process, branches, and reviews: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Enrollment is observed demand at the school's location, not learner residence, and the classroom queue is a screen for review, not a shortage count ([business framing](docs/business/business-analytics-problem.md)).
 - Classroom and teacher capacity cover SY 2023-24 only; enrollment covers SY 2020-21 to 2025-26.
 - Annex schools publish no mother-school ID, so their counts are not consolidated (D-044).
-- `dev` is the only target, and alerts reach only the person who deployed them (#99).
+- `prod` is defined in its own workspace but has not run yet (D-063, #99).
 
 Every confirmed data limit, with its evidence, is in [limitations](docs/governance/limitations.md).

@@ -21,7 +21,7 @@ Records that a changed or unapproved file is blocked before Bronze are under *So
 
 - One file per claim, named `YYYY-MM-DD-<topic>.md`, with the claim as its title.
 - Include the job run IDs, `code_revision`, the commands or queries, the results, and what the run does not prove.
-- Say where it ran: Databricks `dev` or local DuckDB.
+- Say where it ran: Databricks `dev`, Databricks `prod`, or local DuckDB, and for Databricks the workspace host.
 - Counts and identifiers only: never source rows, table exports, logs, credentials, or screenshots with personal data.
 - Records are history. Do not edit an old result to match the current pipeline; add a new record and mark the old one superseded in the index.
 - Add the record to its folder's index in the same pull request.

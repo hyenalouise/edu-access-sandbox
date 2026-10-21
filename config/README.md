@@ -25,7 +25,7 @@ Every generated file has a test that fails when the committed file differs from 
 | `analytics_benchmarks.json` | The AP2 and AP3 reference values, their sources, derivations, and caveats (D-060) | `tests/test_analytics_priority.py`, which checks that the Analytics SQL writes the same values |
 | `sources.json` | The source registry: every candidate source and its status | `src/ingestion/contract.py`, `tests/test_config.py` |
 | `naming.yml` | Machine-readable naming patterns | `tests/test_naming.py` |
-| `project.json` | Workspace, catalog, schema, and storage settings | `tests/test_bundle.py` |
+| `project.json` | Workspace hosts and CLI profiles for `dev` and `prod`, catalog, schema, and storage settings | `tests/test_bundle.py` |
 
 ## Which sources are loaded
 

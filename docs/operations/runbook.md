@@ -53,10 +53,12 @@ These terms are different:
 
 | Action | When | Command | Expected result |
 |---|---|---|---|
-| Retry | A run or batch failed or was interrupted, and the cause is fixed | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` | Failed or `loading` batches are retried automatically. Existing Bronze keys are not duplicated. Downstream candidates rebuild and publish only after their gates pass |
-| Rerun | A succeeded full pipeline must be repeated to verify determinism or apply new downstream code | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` | Succeeded Bronze deliveries skip with zero inserted rows. Enabled downstream tables rebuild from the same current inputs and retain the same keys, row counts, and business totals |
+| Retry | A run or batch failed or was interrupted, and the cause is fixed | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | Failed or `loading` batches are retried automatically. Existing Bronze keys are not duplicated. Downstream candidates rebuild and publish only after their gates pass |
+| Rerun | A succeeded full pipeline must be repeated to verify determinism or apply new downstream code | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | Succeeded Bronze deliveries skip with zero inserted rows. Enabled downstream tables rebuild from the same current inputs and retain the same keys, row counts, and business totals |
 | Forced Bronze rerun | One succeeded batch must be validated and merged again | Local only: `python -m src.ingestion.cli ingest --source <source-id> --rerun <batch-id> --db <database-path>`. The job has no rerun parameter, so there is no `dev` command yet | The attempt is recorded as `rerun`, zero rows are inserted, and reconciliation runs again. Silver and Gold are not rebuilt; run the job for that |
-| Backfill | An approved older period arrives after newer periods | Add the delivery and checksum to its contract, place the original file in a new dated publisher folder, then run `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` | The batch records `load_type = backfill`; existing periods and versions remain present and unchanged |
+| Backfill | An approved older period arrives after newer periods | Add the delivery and checksum to its contract, place the original file in a new dated publisher folder, then run `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` | The batch records `load_type = backfill`; existing periods and versions remain present and unchanged |
+
+The commands show `dev`. On `prod`, use `--target prod --profile reached-hq-prod` instead, and announce the run first; a fix in code reaches `prod` only through `main` ([Deploying to prod](#deploying-to-prod)).
 
 For a local rehearsal, replace the Databricks command with `python -m src.job.local_run --landing <raw-data-root> --db <database-path>`. Always use a separate database path when the purpose is a destructive failure rehearsal.
 
@@ -69,14 +71,32 @@ Recover with a new run (`databricks bundle run`, or **Run now** in the Jobs UI),
 From a clean checkout of the merged `main`:
 
 ```bash
-databricks bundle validate --target dev --profile reached-hq
-databricks bundle deploy --target dev --profile reached-hq
-databricks bundle summary --target dev --profile reached-hq
+databricks bundle validate --target dev --profile reached-hq-dev
+databricks bundle deploy --target dev --profile reached-hq-dev
+databricks bundle summary --target dev --profile reached-hq-dev
 ```
 
 Confirm in the summary that `git_commit` and the `code_revision` parameter both equal `git rev-parse HEAD`, then start a new run.
 
-Use `prod` only after #99 defines and verifies that target. Until then, `dev` is the only deployed target and none of these commands is evidence of a production deployment.
+If `prod` needs the fix too, redeploy it from the same `main` with `python -m src.job.deploy_prod` ([Deploying to prod](#deploying-to-prod)), then start a new run there.
+
+### Deploying to prod
+
+`prod` is its own workspace, `dbc-76bcfddb-1669` (D-063). Deploy it only from a clean `main` that equals `origin/main`, after the change has run on `dev`:
+
+```bash
+git switch main
+git pull
+python -m src.job.deploy_prod
+```
+
+The script refuses (exit code 2, nothing deployed) on another branch, with uncommitted or untracked changes, when `HEAD` is not `origin/main`, or while `team_notification_destination_id` for `prod` is blank in `databricks.yml`; `--check` runs only these checks. Otherwise it runs `databricks bundle validate`, `deploy`, and `summary` with `--target prod --profile reached-hq-prod`. Confirm in the summary that `git_commit` and `code_revision` both equal `git rev-parse HEAD`, announce the run to the team, then start it:
+
+```bash
+databricks bundle run edu_access_pipeline --target prod --profile reached-hq-prod
+```
+
+Record the deploy and run in [`evidence/pipeline-runs/`](../../evidence/pipeline-runs/), naming `prod` and the workspace. The CLI also refuses `--target prod` from a branch other than `main` (`git.branch` in `databricks.yml`), so skipping the script still cannot deploy a branch.
 
 ## Verify recovery
 
@@ -133,7 +153,7 @@ WHERE f.school_id = '<school-id>'
   AND f.education_level_code = '<ES-JHS-or-SHS>';
 ```
 
-`archive_path` is relative to the landing root, `/Volumes/edu_access/00-source/raw` on `dev`.
+`archive_path` is relative to the landing root, `/Volumes/edu_access/00-source/raw` on `dev` and on `prod` alike.
 
 Then inspect the exact Bronze row without copying its values into `data_quality_results`:
 

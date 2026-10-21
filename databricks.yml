@@ -28,6 +28,11 @@ variables:
       When the SQL alerts evaluate (Quartz cron, Asia/Manila): daily at 08:00. Once a day keeps the
       warehouse idle otherwise; the job has no schedule, so a run's results wait at most a day.
     default: "0 0 8 * * ?"
+  team_notification_destination_id:
+    description: >-
+      The prod workspace's email notification destination holding every teammate's address (D-063).
+      The addresses live in the workspace, not in Git (D-043); only prod uses it.
+    default: ""
 
 resources:
   jobs:
@@ -1391,3 +1396,45 @@ targets:
     default: true
     workspace:
       host: https://dbc-2b6bf1c5-7bc3.cloud.databricks.com
+
+  # The old team workspace, kept for prod since 2026-10-21 (D-063). Being a
+  # separate workspace is what keeps prod apart from dev: the catalog and
+  # schema names are the same in both. Deploy it only with
+  # python -m src.job.deploy_prod, which refuses anything but a clean, pushed main.
+  prod:
+    mode: production
+    git:
+      branch: main
+    workspace:
+      host: https://dbc-76bcfddb-1669.cloud.databricks.com
+      # One shared copy whoever deploys, not one per teammate.
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      warehouse_id: 71d3ccb9cea611c0
+      # Settings > Notifications > Notification destinations in the prod
+      # workspace. deploy_prod refuses while this is blank.
+      team_notification_destination_id: 5f90d2b5-e67a-4341-8a04-0d3a63a05be0
+    permissions:
+      - group_name: reached-hq
+        level: CAN_MANAGE
+    # Everyone hears about prod, not only the deployer (D-043, D-063). The
+    # deployer's own emails above still apply.
+    resources:
+      jobs:
+        edu_access_pipeline:
+          webhook_notifications:
+            on_failure:
+              - id: ${var.team_notification_destination_id}
+            on_duration_warning_threshold_exceeded:
+              - id: ${var.team_notification_destination_id}
+      alerts:
+        quality_failures:
+          evaluation:
+            notification:
+              subscriptions:
+                - destination_id: ${var.team_notification_destination_id}
+        stale_sources:
+          evaluation:
+            notification:
+              subscriptions:
+                - destination_id: ${var.team_notification_destination_id}
