@@ -62,10 +62,11 @@ flowchart LR
         m3[hdx_adm3_psgc_map]
         m4[psa_school_age_population_psgc_map]
         m5[deped_annex_mother_map]
+        m6[deped_school_boundary_map]
     end
     subgraph gold["05 Gold"]
         direction TB
-        dims["dim_school · dim_school_year · dim_education_level<br/>dim_city_municipality · dim_barangay · dim_city_poverty"]
+        dims["dim_school · dim_school_year · dim_education_level<br/>dim_city_municipality · dim_barangay · dim_city_poverty<br/>dim_school_location"]
         facts["fact_school_enrollment · fact_school_classroom_capacity<br/>fact_school_teacher_capacity · fact_city_population<br/>fact_city_school_age_population · fact_school_year_source_availability"]
         dims --> facts
     end
@@ -91,7 +92,7 @@ Each source moves through Bronze and Silver in its own lane. From Silver on, eve
 
 | | |
 |---|---|
-| **Implemented** | 9 sources through Bronze and Silver, 5 Integration maps, 13 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
+| **Implemented** | 9 sources through Bronze and Silver, 6 Integration maps, 13 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
 | **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); the school-coordinates Bronze load ([evidence](evidence/pipeline-runs/2026-10-21-deped-psgc-coordinates-databricks.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
 | **Proven locally only** | The Analytics outputs and the data-quality dashboard (tested in CI, no Databricks run in `evidence/` yet); failure recovery, rehearsed end to end ([evidence](evidence/pipeline-runs/2026-10-20-failure-recovery-local.md)); the school-coordinates Silver lane, reconciled on the real workbook ([evidence](evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)) |
 | **Not built** | A `prod` target (#99); the LGU planner dashboard is in review (#224) |

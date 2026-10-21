@@ -178,5 +178,7 @@ def test_source_inventory_marks_the_sources_the_pipeline_loads(repo_root):
     )
     marked = {source_id for source_id, loaded in rows if loaded == "yes"}
     registry = json.loads((repo_root / "config" / "sources.json").read_text(encoding="utf-8"))
-    assert len(rows) == len(registry["sources"]), "list every source in config/sources.json in the source inventory"
+    listed = sorted(source_id for source_id, _ in rows)
+    assert listed == sorted(s["source_id"] for s in registry["sources"]), (
+        "list every source in config/sources.json exactly once in the source inventory")
     assert marked == set(approved_deliveries(repo_root)), "mark 'In pipeline' yes exactly for the sources with a contract in config/ingestion/"
