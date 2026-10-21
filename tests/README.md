@@ -1,6 +1,6 @@
 # Tests
 
-The pytest suite CI runs on every pull request: about 1,200 tests in 44 files, about 3 minutes. It uses **made-up data only** and no credentials, and it runs the real `src/` code and `etl/` SQL on DuckDB, so a test exercises what the job runs.
+The pytest suite CI runs on every pull request: about 1,200 tests in 46 files, about 3 minutes. It uses **made-up data only** and no credentials, and it runs the real `src/` code and `etl/` SQL on DuckDB, so a test exercises what the job runs.
 
 ```mermaid
 flowchart LR
@@ -27,8 +27,9 @@ Each layer's tests follow the data through the pipeline. The docstring at the to
 
 ```mermaid
 flowchart LR
-    ing[Ingestion<br/>9 files] --> sil[Silver<br/>8] --> int[Integration<br/>6] --> gold[Gold<br/>6] --> ana[Analytics<br/>2]
+    ing[Ingestion<br/>10 files] --> sil[Silver<br/>8] --> int[Integration<br/>6] --> gold[Gold<br/>6] --> ana[Analytics<br/>2]
     job[Whole job and control<br/>7] -.runs all of it.-> ing
+    ana --> dash[Planner dashboard<br/>1]
     repo[Repository<br/>6]
 ```
 
@@ -39,7 +40,8 @@ flowchart LR
 | Integration | `test_integration_deped_school_psgc.py`, `test_deped_school_psgc_rule.py` (the rule on made-up units), `test_integration_poverty.py`, `_hdx`, `_school_age`, `_annex` |
 | Gold | `test_gold_dim_barangay.py`, `test_gold_dim_city_municipality.py`, `test_gold_dim_city_poverty.py`, `test_gold_fact_school_enrollment.py`, `test_gold_fact_city_population.py`, `test_gold_fact_city_school_age_population.py` |
 | Analytics | `test_analytics_priority.py` (AP1 to AP4 and the D-060 classroom review queue), `test_analytics_ap4.py` |
-| Whole job and control | `test_local_job.py` (the whole job, task by task), `test_bundle.py` (commit tracking, task order), `test_databricks_runtime.py` (Databricks-only behavior imitated), `test_fan_in.py`, `test_freshness.py`, `test_alerts.py`, `test_dashboard.py` |
+| Whole job and control | `test_local_job.py` (the whole job, task by task), `test_bundle.py` (commit tracking, task order), `test_databricks_runtime.py` (Databricks-only behavior imitated), `test_fan_in.py`, `test_freshness.py`, `test_alerts.py`, `test_dashboard.py` (the data-quality dashboard) |
+| Planner dashboard | `test_dashboard_planner.py`: the JSON matches its generator, the layout and filters hold together, and it shows D-060's queue as published. `test_local_job.py` runs every planner query on a whole job's output |
 | Repository | `test_repo_policy.py` (no data or secrets, file size), `test_naming.py`, `test_config.py`, `test_documentation_structure.py`, `test_github_scripts.py`, `test_profiling_xlsx.py` |
 
 `conftest.py` provides two fixtures: `repo_root` and `repo_files` (every file git would commit).

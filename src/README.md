@@ -22,7 +22,7 @@ flowchart LR
 | [`ingestion/`](ingestion/README.md) | Job task | Validates approved deliveries, tracks batches, loads source-preserving Bronze rows |
 | [`silver/`](silver/README.md) | Generator | Silver build and gate SQL and the Silver data dictionaries, from `config/mappings/` |
 | [`integration/`](integration/README.md) | Generator | PSGC map build and gate SQL, from `config/integration/` |
-| [`dashboard/`](dashboard/README.md) | Generator | The data-quality dashboard JSON, from `config/quality_attributes.yml` |
+| [`dashboard/`](dashboard/README.md) | Generator | The data-quality and LGU planner dashboard JSON |
 | [`job/`](job/README.md) | Generator and runner | The fan-in and freshness SQL, and the local runner of the whole job |
 | [`profiling/`](profiling/README.md) | Library | Workbook helpers shared by `analysis/` scripts |
 
