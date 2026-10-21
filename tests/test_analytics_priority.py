@@ -134,8 +134,12 @@ def test_ap2_threshold_is_inclusive_at_50(store):
 
 
 def test_ap2_coverage_failure_goes_to_classroom_data_review(store):
+    # S1 loses its room count: City One keeps half its learners in the ratio, below the 90% gate
     store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
     run_all(store)
+    assert store.query(f"""SELECT learner_coverage_pct, is_assessed, not_assessed_reason
+        FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
+        (50.0, False, "learner coverage below 90%")]
     assert store.query(f"""SELECT ap2_assessed, classroom_priority_group, classroom_priority_rank
         FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C1'""") == [
         (False, "data_review", None)]
@@ -172,6 +176,64 @@ def test_teacher_context_never_assigns_a_teacher_priority_rank(store):
         "SELECT column_name FROM information_schema.columns WHERE table_name = 'lgu_priority_matrix'")}
     assert "ap3_review_status" in columns
     assert not {c for c in columns if "teacher_priority" in c}
+
+
+def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue(store):
+    for code, population in [("C1", 900), ("C2", 1800), ("M1", 800), ("M2", 1000)]:
+        for age in range(5, 18):
+            value = population // 26
+            store.sql(f"INSERT INTO {GOLD}.fact_city_school_age_population VALUES "
+                      f"('{code}',2020,{age},'male',{value},'matched',TRUE),"
+                      f"('{code}',2020,{age},'female',{value},'matched',TRUE)")
+    store.sql(f"""UPDATE {GOLD}.fact_city_school_age_population SET is_2020_2024_geography_comparable = FALSE
+        WHERE city_mun_psgc_code = 'M2'""")
+    run_all(store)
+    rows = {(r[0], r[1]): r[2:] for r in store.query(f"""SELECT city_mun_psgc_code, school_year, school_age_population,
+        enrollment_all_sectors, population_enrollment_gap, census_context FROM {ANALYTICS}.ap4_enrollment_trend""")}
+    # City One: 2020 population 34 x 26 = 884 against SY 2020-21 enrollment 200; 2024: 988 against 280
+    assert rows[("C1", "2020-21")] == (884, 200, 684, "available")
+    assert rows[("C1", "2024-25")] == (988, 280, 708, "available")
+    assert rows[("C1", "2023-24")] == (None, 260, None, "not available: no census in this school year")
+    gaps = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2020, ap4_gap_2024, ap4_gap_change,
+        ap4_enrollment_trend, classroom_priority_group, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert gaps["C1"][:4] == (684, 708, 24, "increasing")
+    assert gaps["M2"][2] is None                      # geography not comparable: no change in gap
+    # AP4 is context: a large gap never puts an LGU in the classroom queue (no school here reaches 50 per room)
+    assert {g[4:] for g in gaps.values()} == {("no_reported_congestion_screen", None)}
+
+
+def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
+    # review on #210: S7 offers JHS in City One with a blank count. It is not active, but the JHS level must stay
+    # offered and incomplete, so AP3 is not fully assessed instead of reading as no pressure.
+    store.sql(f"""INSERT INTO {GOLD}.fact_school_enrollment VALUES
+        ('S7','2023-24','ES','C1','Public','matched','Mother School',FALSE,0),
+        ('S7','2023-24','JHS','C1','Public','matched','Mother School',TRUE,NULL),
+        ('S7','2023-24','SHS','C1','Public','matched','Mother School',FALSE,0)""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S7','2023-24','JHS',3)")
+    run_all(store)
+    assert store.query(f"""SELECT jhs_offered_school_count, jhs_incomplete_school_count, jhs_passes_gate,
+        offered_level_count, passing_level_count, is_assessed, benchmark_status FROM {ANALYTICS}.ap3_teacher_pressure
+        WHERE city_mun_psgc_code = 'C1'""") == [(1, 1, False, 2, 1, False, "not fully assessed")]
+    assert store.query(f"""SELECT ap3_fully_assessed, ap3_review_status FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C1'""") == [(False, "not fully assessed")]
+
+
+def test_ap2_publishes_no_45_to_1_line(store):
+    # review on #210: RA 7880's 45:1 does not apply to the NSBI room count (D-045), so no column may invite a target line
+    run_all(store, STEPS[1:2])
+    columns = [c[0] for c in store.query(f"""SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'ap2_classroom_pressure'""")]
+    assert "learners_per_classroom" in columns
+    assert not [c for c in columns if "45" in c]
+
+
+def test_no_d057_or_d058_logic_remains():
+    sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
+                    for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
+                                 "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
+    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
+                 "Critical", "D-057", "D-058"]:
+        assert gone not in sql
 
 
 def test_priority_gate_rejects_a_wrong_classroom_rank(store):

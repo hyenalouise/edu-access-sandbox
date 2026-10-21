@@ -331,7 +331,7 @@ If distribution summaries are shown, they are descriptive only and must not be u
 
 D-060 replaces the percentile and composite-tier design. It creates one bounded classroom review queue and keeps school and teacher measures as separate evidence.
 
-1. **School-level screen.** For each active public school with complete enrollment and more than zero reported NSBI instructional rooms, compute `school_learners / school_reported_rooms`. The school passes at `>= 50`.
+1. **School-level screen.** For each active public school with complete enrollment and more than zero reported NSBI instructional rooms, compute `school_learners / school_reported_rooms`. The school passes at `>= 50`. A school with learners but 0 reported rooms has no ratio and cannot pass, although it is the most congested case; it lowers learner coverage and is counted in AP2's `zero_room_school_count`, which the dashboard should show beside the queue.
 2. **LGU evidence.** Aggregate the passing-school count, learners in passing schools, and their share of the LGU's public-school enrollment. Keep the pooled LGU reported-room ratio as descriptive context; do not use it alone to decide whether any school passes.
 3. **Coverage gate.** An LGU is assessed only when AP2 learner coverage is at least 90% and its pooled ratio is available. Otherwise its queue status is `data_review` and it has no priority rank.
 4. **Queue.** An assessed LGU with at least one passing school is `reported_congestion_screen`; an assessed LGU with none is `no_reported_congestion_screen`.

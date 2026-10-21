@@ -1,4 +1,9 @@
 -- D-060 LGU evidence-table publication gate; validates source reconciliation and the classroom queue.
+-- the one-row summary is written once to a table named for this run and dropped after the checks are recorded:
+-- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
+-- FAIL: rows, keys or LGUs that differ from dim_city_municipality, AP1 to AP3 values that differ from the published
+-- outputs, or a classroom group, rank or rule version that does not follow D-060. Counts only (PASS): queued and
+-- data-review LGUs.
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();
 DECLARE OR REPLACE VARIABLE analytics_gate_summary STRING;

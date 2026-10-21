@@ -1,7 +1,7 @@
 -- Analytics output for AP4 (#147): enrollment by city or municipality and school year and whether it goes up
 -- or down, with the school-age population gap on the census school years. Implements the AP4 contract of
--- docs/business/metric-specification.md and the team's BP and AP metrics (D-042). AP4 is context under D-057
--- and never changes a priority tier.
+-- docs/business/metric-specification.md and the team's BP and AP metrics (D-042). AP4 is context under D-060
+-- and never changes the classroom queue.
 --
 -- Grain: one row per city or municipality member and school year, key (city_mun_psgc_code,
 -- school_year), for every school year in fact_school_enrollment (SY 2020-21 to 2025-26 today).
