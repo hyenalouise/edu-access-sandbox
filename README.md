@@ -10,17 +10,54 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 [Evidence](evidence/README.md) ·
 [Contributing](CONTRIBUTING.md)
 
-## What it does
+## About the project
 
-The pipeline turns official DepEd, PSA, and HDX files into city- and municipality-level measures of classroom and teacher pressure, and puts the LGUs whose schools pass a classroom congestion screen into a review queue.
+National education totals show how many learners the Philippines enrolls, but not **where** public-school enrollment puts the most pressure on classrooms and teachers. Education Access Intelligence answers that at the level where local planning happens: every city and municipality.
+
+It brings together official DepEd, PSA, and HDX files, matches every school to the Philippine Standard Geographic Code (PSGC), checks each layer before it is published, and produces one comparable set of measures for every city and municipality, with the coverage behind each number.
 
 > **Business question:** How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?
 
-- **Users:** LGU Local School Boards, which decide how the Special Education Fund is spent (D-057).
-- **Scope:** public basic education, Kinder to Grade 12, in every Philippine city and municipality (D-003).
-- **Outputs:** one table per analytical question (AP1 to AP4) and `lgu_priority_matrix`, which shows AP1 to AP4 side by side and ranks the LGUs with reported classroom congestion into a review queue (D-060).
+| | |
+|---|---|
+| **Who it is for** | LGU Local School Boards (provincial, city, and municipal), which decide how the Special Education Fund is spent |
+| **Scope** | Public basic education, Kinder to Grade 12, in every Philippine city and municipality |
+| **School years** | Enrollment SY 2020-21 to 2025-26; classrooms and teachers SY 2023-24 |
+| **What it decides** | Which places to inspect first. Planners decide the response and the amount; the project organizes the evidence |
 
-The wording, the four analytical questions, and their limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
+### The four analytical questions
+
+| | Question | What the pipeline answers with |
+|---|---|---|
+| **AP1** | Which cities and municipalities have fewer public schools relative to their enrolled students and population? | Learners and school-age children per public school, and barangays without a public elementary school (context) |
+| **AP2** | Which have the most public-school students per classroom? | A school-by-school screen at 50 or more learners per reported instructional room, summed to the schools and learners affected in each place |
+| **AP3** | Which have the most public-school students per teacher? | Learners per teacher at each level, beside published references (context, never ranked) |
+| **AP4** | Which have the largest gap between school-age population and enrollment over time? | Enrollment in every sector by school year, its trend, and the gap to the 2020 and 2024 census population (context) |
+
+### What it produces
+
+- **A classroom review queue.** Every city or municipality whose reported data cover at least 90% of its learners, and that has at least one public school at or above the classroom screen, is ranked by the learners in those schools, then the number of those schools. The queue orders review effort; it is not a shortage count or a funding allocation.
+- **One table per analytical question**, with its coverage and the reason when a place cannot be assessed.
+- **Trusted Gold tables** of schools, places, enrollment, classrooms, teachers, population, and poverty, reusable for other questions.
+- **A data-quality dashboard** that shows every check the pipeline ran, by layer and source, with job runs and source freshness.
+
+The question wording and its limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
+
+## Data sources
+
+Nine official sources are loaded. Fifteen more were profiled and kept as context or set aside, each with a [source card](docs/data/source-inventory/README.md) saying why.
+
+| Source | Publisher | What it adds | Period |
+|---|---|---|---|
+| School enrollment | DepEd | Learners per school, level, and grade | SY 2020-21 to 2025-26 |
+| School facilities | DepEd | Instructional rooms and temporary or makeshift spaces | SY 2023-24 |
+| School personnel | DepEd | Teachers working in each school, by level | SY 2023-24 |
+| EMISD enrollment with PSGC codes | DepEd | Each school's PSGC city, municipality, and barangay | SY 2023-24 |
+| Public schools with coordinates | DepEd (through PSA) | Each public school's PSGC codes and location | SY 2023-24 |
+| Philippine Standard Geographic Code | PSA | The official list of regions, provinces, cities, municipalities, and barangays | 2nd quarter 2026 |
+| School-age population | PSA | Residents aged 5 to 24 by single year of age and sex | 2020 and 2024 censuses |
+| City and municipal poverty estimates | PSA | Poverty incidence with its precision | 2018, 2021, 2023 |
+| Administrative boundaries (COD-AB) | UN OCHA through HDX | City and municipality shapes and land area | 2025-02-13 edition |
 
 ## Pipeline at a glance
 
@@ -34,16 +71,15 @@ flowchart LR
 
 Each source moves through Bronze and Silver in its own lane. From Silver on, every table is built as a candidate and replaces the published table only when its validation gate passes, so a failed check never overwrites the last good result. Details: [architecture overview](docs/architecture/overview.md).
 
-## Status
-
-| | |
+| Layer | Holds |
 |---|---|
-| **Implemented** | 9 sources through Bronze and Silver, 5 Integration maps, 13 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
-| **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); the school-coordinates Bronze load ([evidence](evidence/pipeline-runs/2026-10-21-deped-psgc-coordinates-databricks.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
-| **Proven locally only** | The Analytics outputs and the data-quality dashboard (tested in CI, no Databricks run in `evidence/` yet); failure recovery, rehearsed end to end ([evidence](evidence/pipeline-runs/2026-10-20-failure-recovery-local.md)); the school-coordinates Silver lane, reconciled on the real workbook ([evidence](evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)) |
-| **Not built** | A run on `prod`: the target is defined in its own workspace (D-063) but not yet deployed (#99); the LGU planner dashboard is in review (#224) |
+| Bronze | 9 source tables, every value kept as received |
+| Silver | 9 cleaned tables, each with a quarantine table for rows that cannot be trusted |
+| Integration | 5 matching tables: schools, poverty estimates, boundaries, and census places to PSGC, and annex schools to their mother schools |
+| Gold | 13 dimensions and facts at their natural grain |
+| Analytics | AP1 to AP4 and the classroom review queue |
 
-A commit on `main` is not what runs in the workspace until it is deployed: the job records the commit it ran as `code_revision` on every row it writes.
+Every layer runs in one Databricks job, `edu_access_pipeline`, with a `dev` target for development and a `prod` target deployed only from `main`. The whole job has run source to Gold on Databricks twice with every gate passing and identical results ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)), and totals are traced from each source file to Gold in [validation](docs/operations/validation.md).
 
 ## Repository map
 
@@ -52,7 +88,7 @@ A commit on `main` is not what runs in the workspace until it is deployed: the j
 | [`etl/`](etl/README.md) | The SQL of every stage, `01_control` to `06_analytics`; each build has a `90_validate_*` gate |
 | [`src/`](src/README.md) | Python: ingestion, the generators of the Silver, Integration, and dashboard files, and the local job runner |
 | [`config/`](config/README.md) | Source contracts, reviewed mappings and rules, the table registry, freshness limits |
-| [`databricks.yml`](databricks.yml) | The job, its alerts, and the dashboard (Databricks Asset Bundle) |
+| [`databricks.yml`](databricks.yml) | The job, its alerts, the dashboard, and the `dev` and `prod` targets (Databricks Asset Bundle) |
 | [`dashboards/`](dashboards/README.md) | Generated AI/BI dashboards |
 | [`tests/`](tests/README.md) | pytest suite run by CI, on made-up data only |
 | [`docs/`](docs/README.md) | Architecture, business framing, source inventory, operations, decisions |
@@ -87,10 +123,10 @@ Raw files are never committed. Locally they sit in `raw-data/` beside the reposi
 |---|---|
 | Tests and policy checks (what CI runs) | `python -m pytest tests -q` |
 | The whole job, locally on DuckDB | macOS or Linux: `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run`. Windows PowerShell: `$env:RAW_DATA_DIR = "$HOME\Projects\reached-hq\raw-data"; python -m src.job.local_run` |
-| Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq-dev` |
-| Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` |
+| Deploy and run on `dev` | `databricks bundle deploy --target dev --profile reached-hq-dev`, then `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` |
+| Deploy to `prod` | From a clean `main` equal to `origin/main`: `python -m src.job.deploy_prod` ([runbook, Deploying to prod](docs/operations/runbook.md#deploying-to-prod)) |
 
-The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 0 only when every task succeeded. Deploy from a clean, pushed `main`; Databricks compute is shared, so agree a run with the team first ([workflow, Part 5](docs/operations/workflow.md#part-5-where-code-runs)).
+The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 0 only when every task succeeded. Databricks compute is shared, so agree a run with the team first ([workflow, Part 5](docs/operations/workflow.md#part-5-where-code-runs)).
 
 ## Check that it worked
 
@@ -113,9 +149,11 @@ Process, branches, and reviews: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Known limitations
 
-- Enrollment is observed demand at the school's location, not learner residence, and the classroom queue is a screen for review, not a shortage count ([business framing](docs/business/business-analytics-problem.md)).
-- Classroom and teacher capacity cover SY 2023-24 only; enrollment covers SY 2020-21 to 2025-26.
-- Annex schools publish no mother-school ID, so their counts are not consolidated (D-044).
-- `prod` is defined in its own workspace but has not run yet (D-063, #99).
+- **Enrollment is counted where the school is,** not where learners live, so cross-boundary attendance affects every result.
+- **The classroom screen is illustrative.** The 50-learner line comes from a PIDS study and is applied to a broader room count than K–12 classrooms; it orders review and is not an official DepEd ratio or a construction entitlement.
+- **Teacher figures count personnel working in schools,** not authorized positions or vacancies, so they cannot set a teacher allocation priority.
+- **Classrooms and teachers cover SY 2023-24 only;** enrollment covers SY 2020-21 to 2025-26.
+- **Annex schools publish no mother-school ID,** so their counts are not consolidated with their mother schools.
+- **The census gap is not an out-of-school count:** residents are counted where they live and learners where they enroll.
 
 Every confirmed data limit, with its evidence, is in [limitations](docs/governance/limitations.md).
