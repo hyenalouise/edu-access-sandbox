@@ -38,7 +38,7 @@ flowchart LR
 | Silver | `test_silver.py` (DepEd enrollment), `test_silver_facilities.py`, `_personnel`, `_psa`, `_psgc`, `_hdx`, `_school_age`, `_deped_enrollment_psgc` |
 | Integration | `test_integration_deped_school_psgc.py`, `test_deped_school_psgc_rule.py` (the rule on made-up units), `test_integration_poverty.py`, `_hdx`, `_school_age`, `_annex` |
 | Gold | `test_gold_dim_barangay.py`, `test_gold_dim_city_municipality.py`, `test_gold_dim_city_poverty.py`, `test_gold_fact_school_enrollment.py`, `test_gold_fact_city_population.py`, `test_gold_fact_city_school_age_population.py` |
-| Analytics | `test_analytics_priority.py` (AP1 to AP4 and the D-057 tiers), `test_analytics_ap4.py` |
+| Analytics | `test_analytics_priority.py` (AP1 to AP4 and the D-060 classroom review queue), `test_analytics_ap4.py` |
 | Whole job and control | `test_local_job.py` (the whole job, task by task), `test_bundle.py` (commit tracking, task order), `test_databricks_runtime.py` (Databricks-only behavior imitated), `test_fan_in.py`, `test_freshness.py`, `test_alerts.py`, `test_dashboard.py` |
 | Repository | `test_repo_policy.py` (no data or secrets, file size), `test_naming.py`, `test_config.py`, `test_documentation_structure.py`, `test_github_scripts.py`, `test_profiling_xlsx.py` |
 

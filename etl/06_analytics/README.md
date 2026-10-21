@@ -1,8 +1,8 @@
 # 06 Analytics
 
-This layer publishes one dataset per analytical question and the LGU priority table. The metrics follow the team's BP and AP metrics and the [metric specification](../../docs/business/metric-specification.md), and the priority rule is [D-057](../../docs/governance/decisions.md#d-057-lgu-priority-rule-version-1). Analytics owns ratios, percentiles, tiers and context labels. Gold remains reusable and holds no prioritization rule.
+This layer publishes one dataset per analytical question and an evidence-based LGU planning table. The metrics follow the [metric specification](../../docs/business/metric-specification.md). Gold remains reusable and contains no prioritization rule.
 
-AP1 to AP3 and the priority table have one row per regular city or municipality. AP4 has one row per city member (regular, `UNKNOWN` or `EXCLUDED`) and school year, so its totals add up; the priority table reads its regular rows. Each build writes a candidate table, its paired `90_validate_*` gate recomputes it from Gold, and only a passing candidate replaces the published table.
+AP1 to AP3 and the planning table have one row per regular city or municipality. AP4 has one row per city member and school year. Each build writes a candidate table, its paired `90_validate_*` gate independently recomputes the result from Gold, and only a passing candidate replaces the published table.
 
 ```mermaid
 flowchart LR
@@ -17,21 +17,31 @@ flowchart LR
     ap4[ap4_enrollment_trend] -->|context only| matrix[lgu_priority_matrix]
 ```
 
-| Build | Gate | Output | Measure |
+| Build | Gate | Output | Approved use |
 |---|---|---|---|
-| `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | SY 2023-24 learners per public school (ranked), and 2024 school-age population (5–17) per public school (context) |
-| `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | SY 2023-24 learners per reported instructional room (ranked) |
-| `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | SY 2023-24 learners per teacher for ES, JHS and SHS, re-ranked into one AP3 percentile (ranked) |
-| `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | One row per city member and school year: all-sector enrollment, its change and `increasing` / `decreasing` / `no change` trend, with school-age population and the gap on SY 2020-21 and 2024-25 (context) |
-| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-057 tier from the AP1 to AP3 high measures, order within the tier, Stable flag, and AP4 as context |
+| `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure |
+| `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
+| `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
+| `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
+| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
 
-**Ranking (D-057).** A measure is ranked only when its coverage is at least 90%: learner coverage for AP2 and each AP3 level, and for AP1 the share of active public schools with complete all-level enrollment (schools whose offered counts are all blank are added to the denominator as missing data). Each measure is ranked with `PERCENT_RANK()` within LGU type, and it is high at 0.90 or above. AP3 ranks each level, then re-ranks each LGU's highest level, and names that level.
+## D-060 classroom review queue
 
-**Tier (D-057).** Critical (3 high), Elevated (2), Targeted (1, naming the measure), Monitor (0), or Data review when a measure is not assessed. The order within a tier is affected learners, then the lowest percentile. The same rule run nationally gives the Stable flag. A count of high measures is not a weighted score, and the result is relative pressure, not a shortage.
+AP2 evaluates each usable school first. A school passes the illustrative screen when its complete all-level enrollment divided by its reported total NSBI instructional rooms is at least 50. The LGU row reports the number of screened schools, affected learners, and affected-learner share.
 
-**Context, never changing a tier.** AP1's school-age population per school, AP4's gap and enrollment direction, outlier school counts, poverty and Similar LGUs (#96). D-057's checks beside the ranking (the 0.85 and 0.80 lines, the 95% gate, tier changes without outlier schools, and measure overlap) are a follow-up.
+An LGU is queued as `reported_congestion_screen` when at least one school passes and AP2 learner coverage is at least 90%. It is `no_reported_congestion_screen` when assessed with no passing school, and `data_review` when coverage is below 90% or the ratio is unavailable.
 
-Each gate writes its one-row check summary to a table named for the run (`<output>_gate_summary_r_<sha256(run_id)>`) and drops it once the checks are recorded, as the Gold gates do (#202). Gates also record unplaced schools and learners as `WARN`, and the priority gate records the number of LGUs per tier.
+Only LGUs in `reported_congestion_screen` receive `classroom_priority_rank`. `DENSE_RANK()` orders them by affected learners, affected schools, then pooled reported-room ratio, all descending. Exact ties share a rank. These are triage ranks for validating classroom conditions, not official shortage or construction-entitlement ranks.
+
+The PIDS paper defines its 1:50 line for illustration and analyzes congestion at school and education-level grain. The current Gold facilities data provide a broader all-level NSBI instructional-room total, including room types outside a K–12-classroom-only denominator. The implementation is therefore labelled **PIDS-style illustrative reported-room screen** and does not claim to reproduce the paper or DepEd's official classroom–learner indicator.
+
+## Teacher context
+
+AP3 preserves ES 35 as a **historical study reference** and JHS 36 and SHS 80/3 as **derived deployment comparisons**. The latter convert published class-size maxima and teacher-to-class factors into a compatible unit. None is a current national staffing entitlement or teacher-shortage formula, so AP3 does not assign a teacher priority rank.
+
+The overall AP3 status is `pressure signal identified` when any offered, adequately covered level is above its reference, even if another offered level is incomplete. It is `not fully assessed` only when no passing level is above reference and at least one offered level fails coverage. This preserves the usable evidence without treating missing data as absence of pressure.
+
+All outputs retain coverage and missingness fields. A recorded zero remains zero; an all-NULL component total remains NULL. Every gate writes a one-row run-specific summary, records its checks, and removes the temporary summary after validation.
 
 Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).
 

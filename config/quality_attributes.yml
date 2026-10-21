@@ -344,14 +344,10 @@ checks:
     - not_in_source_match_pin
     - manila_reason_match_pin
     - manila_reason_on_city_of_manila
-    - tier_follows_d057
-    - national_tier_and_stable
-    - order_within_tier
-    - targeted_names_its_measure
-    - high_at_90th_percentile
-    - percentile_is_percent_rank
-    - level_percentile_is_percent_rank
-    - highest_level_reranked
+    - congestion_screen_valid
+    - teacher_reference_context_valid
+    - assessment_status_valid
+    - classroom_queue_follows_d060
     - ratio_and_coverage_arithmetic
     - arithmetic_holds
     - year_over_year_change_holds
@@ -609,13 +605,10 @@ recorded_counts:
     - members_increasing
     - members_decreasing
     - members_no_change
-    - lgus_high
-    - lgus_critical
-    - lgus_elevated
-    - lgus_targeted
-    - lgus_monitor
-    - lgus_data_review
-    - lgus_stable
+    - screened_congested_schools
+    - screened_affected_learners
+    - classroom_queue_lgus
+    - classroom_data_review_lgus
     - no_estimate_rows
     - sub_municipality_rows
     - not_in_source_huc

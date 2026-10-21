@@ -13,11 +13,11 @@ The metric contracts are complete enough to build and test the Gold facts. Publi
 | Area | What is supported now | What prevents final approval |
 |---|---|---|
 | **AP1 · Schools** | Public-school and enrollment counts can be aggregated by LGU and school year; multi-level, active-school, annex, and unmatched-barangay rules are set | Publication must show geography-match coverage and preserve the screen's distance, demand, and feasibility caveats |
-| **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero | The facilities field uses the NSBI “instructional classroom” definition, which includes rooms beyond Kindergarten-to-Grade-12 classrooms. It is not DepEd's published classroom–learner ratio, and its extreme observations are still under review |
-| **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level and the teacher positions and null rules are set | The source cannot show whether one person is counted in two columns, outliers remain under review, and without a mother-school ID the ratio is project-defined, not DepEd's indicator |
+| **AP2 · Classrooms** | SY 2023-24 enrollment and facilities match one-to-one by `school_id`; classroom counts are typed; levels are combined into one total-room ratio, and all-blank room counts are missing, not zero; EDCOM 2/PIDS supplies the adopted >=50 congestion screen | The facilities field uses the broader NSBI “instructional classroom” definition. The result is a congestion screen, not DepEd's published classroom–learner ratio or an RA No. 7880 shortage calculation |
+| **AP3 · Teachers** | SY 2023-24 enrollment and personnel match one-to-one by `school_id`; personnel counts are typed; the ratio is by level; the World Bank study supplies an aggregate ES reference and RM 379 supplies deployment-equivalent references for JHS and SHS | The source cannot show whether one person is counted in two columns, and without a mother-school ID the ratio remains project-defined. The ES reference is based on older DepEd service standards |
 | **AP4 · Population and enrollment** | Ages 5–17, the two matched periods (2020 and 2024), and all-sector enrollment are defined; PSA single-year-age workbooks for every city and municipality were found, profiled, and loaded in Bronze for 2020 and 2024; SY 2020-21 and SY 2024-25 enrollment are acquired, validated in Bronze, and published in Silver | Built in `ap4_enrollment_trend` (#208) from `fact_city_school_age_population` (2020 and 2024) and `fact_school_enrollment`. The gap is not an out-of-school count, and the change is NULL where the geography is not comparable |
 | **Poverty 2023 · Context** | PSA's 2023 estimate, 90% interval, and CV for 1,597 of the 1,642 cities and municipalities; the status of the other 45 is defined (D-046) | `dim_city_poverty` is built in Gold with D-046's checks (#174), and the ERD is approved (D-048); it is context only and never an analytical result |
-| **Resource-gap estimates** | RA No. 7880 supplies a 45:1 statutory classroom-shortage reference; the arithmetic form can be documented as a candidate | The current NSBI room field includes spaces excluded by the law, no current general teacher threshold has been validated, and the operational assumptions behind converting a ratio into rooms or teachers have not been approved |
+| **Resource-gap estimates** | AP2 and AP3 now carry benchmark statuses that describe pressure | Neither benchmark authorizes a room or teacher shortage estimate. The current NSBI room field remains incompatible with RA No. 7880, and RM 379 deployment factors are not staffing entitlements for this aggregated dataset |
 
 The DepEd evidence for these limitations is recorded in the source cards for [enrollment](../data/source-inventory/deped_enrollment/README.md#limitations-for-analysis), [facilities](../data/source-inventory/deped_facilities/README.md#limitations-for-analysis), and [personnel](../data/source-inventory/deped_personnel/README.md#limitations-for-analysis), with observed tests in their linked profiles.
 
@@ -107,7 +107,7 @@ barangays_without_public_es_pct =
     barangays_without_public_es / PSGC barangays in the LGU * 100
 ```
 
-Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level school count, count an active multi-level school once. For a level-specific school count, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. A school is active when at least one offered level has a complete `learner_count` above 0, even when another offered level is incomplete. For `learners_per_public_school`, use only active public schools whose all-level total is complete in both the numerator and denominator. Also publish the total active-public-school count, the number excluded from this ratio because their all-level total is incomplete, and the non-NULL learner-cell audit sum. `school_age_population_per_public_school` divides the LGU's 2024 school-age population (PSA, ages 5–17) by the full active-public-school count, following the team's BP and AP metrics. It is labelled **School-age population 2024 per public school**, not schools per 10,000 residents, and is context under D-057: only `learners_per_public_school` is ranked. Because learners may attend school outside their LGU, it is never read as a school shortage. A NULL or zero school count produces a NULL ratio with its reason. These measures describe provision and school size; they do not measure travel access or prove that construction is required.
+Use `COUNT(DISTINCT school_id)` and sum enrollment at the same LGU, education-level, and school-year grain. For the all-level school count, count an active multi-level school once. For a level-specific school count, count it once in every level where `is_offered = true`; do not infer an offering from a positive learner count or from another source. A school is active when at least one offered level has a complete `learner_count` above 0, even when another offered level is incomplete. For `learners_per_public_school`, use only active public schools whose all-level total is complete in both the numerator and denominator. Also publish the total active-public-school count, the number excluded from this ratio because their all-level total is incomplete, and the non-NULL learner-cell audit sum. `school_age_population_per_public_school` divides the LGU's 2024 school-age population (PSA, ages 5–17) by the full active-public-school count. It is labelled **School-age population 2024 per public school**, not schools per 10,000 residents. Both AP1 ratios are descriptive context under D-060 and are not ranked. Because learners may attend school outside their LGU, neither is read as a school shortage. A NULL or zero school count produces a NULL ratio with its reason. These measures describe provision and school size; they do not measure travel access or prove that construction is required.
 
 The AP1 population join is fixed and must not select a population row by proximity, latest-year logic, or an unconstrained join:
 
@@ -127,7 +127,7 @@ A newly approved enrollment school year also maps to 2024 until a reviewed decis
 
 The barangay measures follow DepEd Order No. 40, s. 2014, which expects at least one Kindergarten-to-Grade-6 school for every barangay (see the [national benchmark register](national-benchmarks-and-indicators.md#ap1--school-provision-references)). They are calculated per city or municipality and school year from `member_type = 'regular'` barangays in the PSGC 2Q 2026 master and are never ranked by barangay. A public school serves a barangay only when it is active, offers ES, and has a reviewed match to that regular barangay. A school assigned to the LGU's unknown-barangay member is retained in LGU totals but does not serve a specific barangay. If an LGU has one or more such schools, show `at most N barangays without a matched public elementary school`, the unmatched-school count, and geography-match coverage. A barangay without its own school may still be served by a nearby school, so the count is a screen for review, not evidence that a school is needed.
 
-**Validation status:** built for SY 2023-24 in `ap1_school_provision` (#208): learners per public school (ranked), school-age population per public school (context), the coverage gate, and the within-type and national percentiles. A school that offers a level but has every offered count blank is not active, but it is missing data rather than a closed school, so it is added to the coverage denominator (`blank_enrollment_school_count`). The barangay measures are not built yet. The active-school, multi-level, zero-enrollment, annex, and unmatched-barangay rules are set. Dashboard publication still requires the validation gate and the stated caveats.
+**Validation status:** built for SY 2023-24 in `ap1_school_provision` (#208): learners per public school and school-age population per public school as descriptive context, with coverage and no percentile or priority flag. A school that offers a level but has every offered count blank is not active, but it is missing data rather than a closed school, so it is added to the coverage denominator (`blank_enrollment_school_count`). The barangay measures are not built yet. The active-school, multi-level, zero-enrollment, annex, and unmatched-barangay rules are set. Dashboard publication still requires the validation gate and the stated caveats.
 
 ### AP2 · Classroom pressure
 
@@ -146,15 +146,24 @@ school_coverage_pct =
 
 learner_coverage_pct =
     enrollment_in_schools_with_usable_room_count / public_school_enrollment * 100
+
+school_screen =
+    "passes" when a usable school's learners / reported rooms >= 50
+    "does not pass" otherwise
+
+lgu_benchmark_status =
+    "not assessed" when learner coverage is below 90% or the LGU ratio is unavailable
+    "reported congestion identified" when one or more usable schools pass
+    "no reported congestion identified" otherwise
 ```
 
 The ratio uses each active public school's total learners and total instructional rooms across all levels, per school year, and then sums to the city or municipality (D-047). Its numerator and denominator use the same set of schools. This follows the form of the Technical Notes classroom–learner formula (p. 8), total learners over total classrooms; the room definition still differs, as explained below. A school is denominator-usable when its total rooms are above 0. When all three room counts are blank the total is missing, not zero (608 public schools in SY 2023-24), and its school and learner counts are reported separately. A reported total of 0 is also excluded from both ratio sums and gets a separate zero-denominator school and learner count. If an LGU has no denominator-usable school, its ratio is NULL, never 0.
 
 Levels are combined because rooms are shared across levels: 768 public schools have JHS learners and ES rooms but no JHS rooms. Learner coverage is 99.3% with totals, compared with 98.8% when learners and rooms are matched level by level.
 
-The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator.
+The dashboard label must say **learners per reported instructional room**, with the source shown separately as **DepEd School Facilities (NSBI)**. It must not be labelled “DepEd classroom–learner ratio.” NSBI is the source system behind the DepEd School Facilities data; it is not a different facilities dataset. DepEd's source documentation says `*_classrooms_instructional` includes ALS, audio-visual, computer, industrial-arts, home-economics, and laboratory rooms, while its published classroom–learner indicator uses Kindergarten-to-Grade-12 classrooms. The available data therefore tend to produce a lower ratio than the official indicator. PIDS Discussion Paper 2025-10 uses at least 50 learners per classroom as an illustrative school-level congestion definition. The project applies the line to each usable school's all-level reported-room ratio, then aggregates passing schools, affected learners, and the affected-learner share to the LGU. Because the paper analyzes school-and-level BEIS classroom data while the project has a broader all-level NSBI room total, the output is labelled **PIDS-style illustrative reported-room screen**. It is not an exact reproduction, official ratio, shortage count, or construction entitlement.
 
-**Validation status:** built for SY 2023-24 in `ap2_classroom_pressure` (#208), gated on learner coverage (D-057) and ranked within type. Outlier schools are counted and never change a result. School coverage is published beside it, counting a school as covered only with both a complete enrollment total and a usable room count, over active plus blank-enrollment schools. A project-defined descriptive measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap2_classroom_pressure` (#208), gated at 90% learner coverage under D-060. The output includes `congestion_benchmark = 50`, affected schools and learners, affected-learner share, and a validated `benchmark_status`. Outlier schools are counted and never change a result. School coverage is published beside it, counting a school as covered only with both a complete enrollment total and a usable room count, over active plus blank-enrollment schools. A project-defined screening measure, limited to SY 2023-24. Levels are combined (D-047). Review the extreme upper tail before dashboard publication.
 
 ### AP3 · Teacher pressure
 
@@ -165,6 +174,16 @@ learners_per_teacher =
     sum(level enrollment for denominator-usable schools
         plus level enrollment for annexes that report 0 teachers)
     / sum(teacher_count for denominator-usable schools)
+
+es_benchmark_max_learners_per_teacher = 35
+jhs_benchmark_max_learners_per_teacher = 45 * 4 / 5 = 36
+shs_benchmark_max_learners_per_teacher = 40 * 6 / 9 = 80 / 3
+
+level_benchmark_status =
+    "not applicable" when the LGU does not offer the level
+    "not assessed" when the level does not pass the coverage gate
+    "above historical study reference" or "above derived deployment comparison" when its ratio is above the applicable value
+    "at or below historical study reference" or "at or below derived deployment comparison" otherwise
 
 school_coverage_pct =
     active_public_schools_with_usable_teacher_count / active_public_schools_in_scope_at_level * 100
@@ -187,11 +206,15 @@ A non-annex school is denominator-usable at a level only when `teacher_count > 0
 
 Known limit: the source cannot show whether one person is counted in two columns.
 
+The [World Bank Philippines Education Note](https://documents.worldbank.org/curated/en/519221468948112271/pdf/106960-REVISED-16-PGS-PH-PETS-QSDS-Note-2.pdf), pages 3 and 15, gives an average elementary reference of 35 learners per teacher derived from older DepEd service standards. A value above 35 is `above historical study reference`; equality or below is `at or below historical study reference`. Page 5 of [DepEd CALABARZON RM 379, s. 2025](https://depedcalabarzon.ph/wp-content/uploads/2025/05/Personnel-RM-2025-379.pdf) gives maximum class sizes and deployment factors. JHS has a maximum of 45 learners per class and 5 teachers for every 4 classes, giving 36 learners per teacher. SHS has a maximum of 40 learners per class and 9 teachers for every 6 classes, giving 80/3, or about 26.67, learners per teacher. Values above those references are `above derived deployment comparison`; equality or below is `at or below derived deployment comparison`. The overall status is `pressure signal identified` whenever any offered level that passes coverage is above its reference. Otherwise it is `not fully assessed` if an offered level fails coverage, and `no pressure signal identified` only when all offered levels are assessed and none is above. This ordering prevents incomplete data at one level from hiding an observed signal at another.
+
+The published 45 for JHS and 40 for SHS are **learners per class**, not learners per teacher. AP3 cannot compare its learner-to-teacher ratio directly with either number because a secondary class is served by several subject teachers. RM 379's staffing factors make the units compatible: four JHS classes at the maximum hold `4 * 45 = 180` learners and are assigned five teachers, so `180 / 5 = 36` learners per teacher; six SHS classes at the maximum hold `6 * 40 = 240` learners and are assigned nine teachers, so `240 / 9 = 80/3`, about 26.67 learners per teacher. Applying 45 or 40 directly to AP3 would treat one class as one teacher and under-flag pressure. For example, a JHS result of 40 learners per teacher is below the class-size maximum of 45 but above the compatible deployment reference of 36. The derived values are therefore transparent unit conversions, not ratios directly printed in the memorandum and not estimates of teachers needed.
+
 The source measures personnel actually working in public schools; they are not authorized plantilla positions, vacancies, or approved new items.
 
 DepEd's documented teacher–learner method adds annex enrollment and teachers to the mother school before division. DepEd publishes no mother-school ID (#134), so AP3 cannot do this school by school. The ratio is labelled **project-defined** and must not claim to reproduce DepEd's indicator (D-047). An annex that reports 0 teachers keeps its learners in the city or municipality total instead of being dropped by the usable-denominator rule: 48 annexes with 21,114 learners in SY 2023-24. Because the ratio is summed to the city or municipality, this matches DepEd's add-to-mother rule whenever the annex and its mother school are in the same city or municipality.
 
-**Validation status:** built for SY 2023-24 in `ap3_teacher_pressure` (#208): ES, JHS and SHS side by side, each with its ratio, coverage and percentile, then D-057's re-ranked AP3 percentile and the level named. A project-defined ratio by level, limited to SY 2023-24. Teacher positions, levels, null rules, and annex handling are set (D-047). It is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
+**Validation status:** built for SY 2023-24 in `ap3_teacher_pressure` (#208): ES, JHS and SHS side by side, each with its ratio, coverage and bounded reference status. The three reference values, level statuses, and overall status are validated independently. AP3 has no percentile or teacher-priority rank. It is a project-defined ratio by level, limited to SY 2023-24, and is not DepEd's teacher–learner ratio. Resolve the reviewed personnel outliers before dashboard publication.
 
 ### AP4 · School-age population and enrollment gap
 
@@ -247,11 +270,11 @@ For Negros, Sulu, and Maguindanao the cities and municipalities themselves did n
 
 **Which way is enrollment moving.** AP4's answer is enrollment itself, as the BP and AP metrics ask: one row per city or municipality and school year, for every school year in `fact_school_enrollment` (SY 2020-21 to 2025-26 today, taken from the data, not listed). Each row has all-sector enrollment, public-school enrollment and share, the change from the previous school year (NULL when that year is not in the data), and the change from the first to the latest school year. `enrollment_trend` is `increasing`, `decreasing` or `no change` by the sign of that change, with no threshold. A school with a blank offered level is left out of the sums and counted in `schools_incomplete`, never read as 0. The census context (`census_year`, `school_age_population`, `population_enrollment_gap`, `gap_share`) is filled only on SY 2020-21 and 2024-25, and `census_context` says why the other years are empty. The `UNKNOWN` and `EXCLUDED` members keep their rows so the totals add up; dashboards filter `member_type = 'regular'`. The priority table reads one row per city: the two gaps, the gap rates, the change in gap (NULL where the geography is not comparable) and the trend.
 
-**Validation status:** built in `ap4_enrollment_trend` (#208, the design of #199): enrollment by school year and its trend, with the 2020 and 2024 gap as census-year context. The gate rebuilds every row from the two Gold facts and compares all columns. AP4 is context under D-057 and never changes a tier. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
+**Validation status:** built in `ap4_enrollment_trend` (#208, the design of #199): enrollment by school year and its trend, with the 2020 and 2024 gap as census-year context. The gate rebuilds every row from the two Gold facts and compares all columns. AP4 is context under D-060 and never changes the classroom queue. Source details are in the [dataset use map](dataset-use-map.md#school-age-population-source).
 
 ### Context · Poverty 2023
 
-Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, tier, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)). Its one other use is as a standardized input to the context-only [Similar LGUs](#similar-lgus-context) list (D-057).
+Poverty answers none of AP1 to AP4. It is shown beside the education measures so planners can see how poor an area is, and is never used in a ratio, rank, gap flag, queue, priority, or score ([D-046](../governance/decisions.md#d-046-psa-poverty-2023-as-context-in-the-area-comparison-view)). Its one other possible use is as an input to the context-only [Similar LGUs](#similar-lgus-context) list.
 
 | Item | Contract |
 |---|---|
@@ -295,42 +318,29 @@ The dashboard may show four distinct evidence types without treating them as int
 |---|---|
 | **LGU observed value** | Primary local measure, with coverage and quality status |
 | **Validated official benchmark** | Benchmark comparison only when authority, formula, scope, education level, effective period, and denominator compatibility match the observed metric; see the [research register](national-benchmarks-and-indicators.md) |
-| **National same-type distribution** | Cities compared with cities and municipalities with municipalities; the within-type percentile sets the [priority tier](#priority-rule) (D-057). Relative pressure, not an official standard |
-| **Similar LGUs** | The most similar LGUs of the same type, shown as context (method set in #96); never sets or changes a tier |
+| **National same-type distribution** | Descriptive context only; it does not set a queue, tier, or threshold |
+| **Similar LGUs** | The most similar LGUs of the same type, shown as context (method set in #96); never sets or changes a priority |
 
 ### Similar LGUs (context)
 
-Similar LGUs replaces the proposed peer groups, which were parked on 2026-10-18 (D-057). For each city or municipality, the LGU profile will list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input (44 areas have no PSA poverty row, most of them highly urbanized cities, and the 8 Special Geographic Area municipalities have no HDX area; every city and municipality has a 2024 population in PSGC, Isabela City included: the `#N/A` is on the container row "City of Isabela (Not a Province)", not on the city), and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it is not a comparison group for the tier and never changes one.
+Similar LGUs replaces the proposed peer groups. For each city or municipality, the LGU profile may list the most similar LGUs of the same type. The planned inputs are income class, population density (Population 2024 ÷ `hdx_boundaries.area_sqkm`; see the [dataset use map](dataset-use-map.md)), poverty incidence 2023 (D-046), and Population 2024. The method is not yet defined: how inputs are standardized, how income class is encoded, the distance measure, how many LGUs are listed, the rule for a missing input, and the tie-break are set and recorded in #96 before the view is built. The list describes the place; it never changes the D-060 classroom queue.
 
-For each measure, the national same-type median, interquartile range, and the LGU's percentile are shown beside the LGU's value. Median is not the only statistic: the IQR shows spread and the percentile locates the LGU.
+If distribution summaries are shown, they are descriptive only and must not be used as a need threshold or priority rule.
 
-### Priority rule
+### Planning-priority rule
 
-The priority rule is D-057. It ranks cities and municipalities for SY 2023-24 on AP1 (learners per public school), AP2 (learners per reported instructional room), and AP3 (learners per teacher by level), using the formulas above.
+D-060 replaces the percentile and composite-tier design. It creates one bounded classroom review queue and keeps school and teacher measures as separate evidence.
 
-1. **Coverage gate.** (Implementation note: AP1 also counts schools that offer a level but have every offered count blank in the denominator, as missing data; see AP1.) A measure is ranked only when its coverage is at least 90%: the learner coverage for AP2 and for each AP3 level, and for AP1 the share of active public schools whose all-level enrollment is complete. An LGU gets a tier only when all three measures are assessed (step 3); otherwise its tier is **Data review** and the measures it could compute are still shown.
-2. **Percentile.** `PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY ratio)`, that is (rank − 1) ÷ (n − 1), among the LGUs of the same type that pass the measure's gate; ties share the lowest rank. AP3 is ranked per level among the LGUs that offer it; then each LGU's highest level percentile, from the levels that pass, is ranked again the same way among the LGUs with at least one passing level.
-3. **High.** A measure is high at a percentile of 0.90 or above; for AP3 this is the second, re-ranked percentile, and the output names the level with the highest level percentile. AP3 is not high only when every offered level passes and it is still not high; otherwise it is not assessed.
-4. **Tier.** **Critical** (3 high), **Elevated** (2), **Targeted** (1, naming the measure), **Monitor** (0), or **Data review**. Critical is always shown with its meaning: high on all three measures compared with LGUs of the same type. The priority table stores a fixed tier code (3, 2, 1, 0, `data_review`) beside the label. The tier is a count of high measures, not a weighted score; each measure keeps its own value, percentile, and coverage in every view.
-5. **Order within a tier.** Affected learners (public-school learners in the LGU, the AP1 enrollment total), highest first; then the lowest of the three percentiles, highest first.
-6. **Stable.** The same steps without the type partition give a national tier. An LGU that is Critical both ways is marked Stable; the tier shown is always the within-type one.
+1. **School-level screen.** For each active public school with complete enrollment and more than zero reported NSBI instructional rooms, compute `school_learners / school_reported_rooms`. The school passes at `>= 50`. A school with learners but 0 reported rooms has no ratio and cannot pass, although it is the most congested case; it lowers learner coverage and is counted in AP2's `zero_room_school_count`, which the dashboard should show beside the queue.
+2. **LGU evidence.** Aggregate the passing-school count, learners in passing schools, and their share of the LGU's public-school enrollment. Keep the pooled LGU reported-room ratio as descriptive context; do not use it alone to decide whether any school passes.
+3. **Coverage gate.** An LGU is assessed only when AP2 learner coverage is at least 90% and its pooled ratio is available. Otherwise its queue status is `data_review` and it has no priority rank.
+4. **Queue.** An assessed LGU with at least one passing school is `reported_congestion_screen`; an assessed LGU with none is `no_reported_congestion_screen`.
+5. **Rank.** Only `reported_congestion_screen` LGUs receive `classroom_priority_rank`. Use `DENSE_RANK()` ordered by affected learners descending, affected schools descending, and pooled reported-room ratio descending. Exact ties receive the same rank.
+6. **Bounded interpretation.** The rank orders review effort. It is not a classroom-shortage total, construction entitlement, funding allocation, or proof that every reported room is a K–12 classroom.
 
-The result is labelled **relative capacity pressure**. Do not label it a shortage, deficit, or number of resources needed.
+AP1, AP3, AP4, poverty, Similar LGUs, and national distribution summaries remain visible context and never change the classroom queue. AP3 has no teacher-priority rank because the current data do not contain authorized positions, vacancies, STRIDE/TDA requirements, or a current national aggregate learner-per-teacher entitlement compatible with the metric.
 
-These checks are reported beside the ranking and never change a tier:
-
-| Check | Variation | Reported |
-|---|---|---|
-| High line | 0.85 and 0.80 | The LGUs that join Critical at each line (a lower line only adds LGUs) |
-| Coverage gate | 95% | The share of the 90% Critical list kept, and the LGUs that join |
-| Comparison | National | The Stable flag |
-| Outliers | Without the schools above Q3 + 3 × IQR of their school-level ratio: learners per room (all levels) and learners per teacher per level, with quartiles computed within LGU type over public schools with a usable denominator, SY 2023-24 | LGUs whose tier would change; the flagged schools stay in the published totals (rule 8) and the list is saved with the run |
-| Flag rate | None | The share of LGUs high on each measure, by type; about 10% each is expected |
-| Overlap of measures | Spearman rank correlation between the three measures by type, and the share of LGUs high on one measure that are also high on another (10% expected if unrelated) | How far the measures repeat one signal; the shared learner numerator makes some overlap expected |
-
-**Revisit trigger.** The rule is revisited when, under any check, fewer than 80% of the Critical LGUs stay Critical and at least 3 leave (D-057).
-
-No significance test is used: the sources cover every public school, so there is no sampling error to test. Reporting error remains, and the coverage gate and the outlier check address it.
+Before acting, users validate passing schools against actual K–12 classroom counts, building condition, shifts and utilization, enrolment projections, accessibility, and planned or funded projects. Those data are not all present in the current project.
 
 ## Candidate resource-gap calculations — blocked
 
@@ -360,19 +370,19 @@ The dashboard should expose concise decision fields while keeping audit fields a
 | **Teacher priority** | learners per teacher by level, matched enrollment, teacher count | school and learner coverage, included-position version, funding-source split, learners-without-same-level-teachers flag, annex status, outlier/quality flags | Built in `ap3_teacher_pressure` for SY 2023-24 (#208); project-defined |
 | **AP4 context** | enrollment in all sectors by school year, change from the previous year, change and trend from the first to the latest year, public-school share; on SY 2020-21 and 2024-25, population aged 5–17, gap and gap share; change in gap from 2020 to 2024 | census and school year for each point, population source, "not available" label for unmatched school years, negative-gap note, geography-comparability flag, name-match coverage | Built in `ap4_enrollment_trend` (#208); context only |
 | **Poverty context** | poverty incidence 2023, 90% interval, "less precise" label | poverty status and reason, estimate year beside the school year | `dim_city_poverty` built (#174); the dashboard view is in #96 |
-| **Comparisons** | applicable benchmark and status, within-type percentile per measure, national same-type median, Similar LGUs | benchmark citation/version, comparison-group count, IQR, national percentile, Similar LGUs inputs | Tier comparison built (D-057, #208); Similar LGUs method planned in #96 |
-| **Priority label** | tier, Stable flag, high measures (with the AP3 level), affected learners | rule version (D-057), coverage per measure, the priority checks, missingness and quality warnings | Built in `lgu_priority_matrix` (D-057, #208); the checks beside the ranking are a follow-up |
+| **Comparisons** | applicable bounded reference and status, national same-type summary, Similar LGUs | citation/version, comparison-group count, spread, Similar LGUs inputs | References built; Similar LGUs method planned in #96 |
+| **Classroom review queue** | queue status, classroom priority rank, affected schools and learners | D-060 rule version, AP2 coverage, denominator caveats, missingness and quality warnings | Built in `lgu_priority_matrix`; no composite tier or teacher rank |
 
 ## Separate follow-on decisions
 
 The AP1 to AP4 fact and metric contracts above do not depend on the following work. These items must not be guessed inside #46:
 
 1. The AP4 name-match implementation from the PSA census workbooks to PSGC. The matching issue must preserve the approved ages, periods, enrollment scope, comparability flag, and no-modelling rule.
-2. ~~Peer criteria, density bands, minimum group size, fallback, and percentile convention.~~ Settled by D-057: peer groups are replaced by [Similar LGUs](#similar-lgus-context), and the percentile is `PERCENT_RANK()` within LGU type. The Similar LGUs method is planned in #96.
-3. ~~Relative-priority sorting or banding.~~ Settled by D-057: the [priority rule](#priority-rule). A weighted classroom-teacher score remains out of scope unless a later decision approves its weights and interpretation.
+2. Similar LGUs criteria, distance method, missing-input fallback, and display are planned in #96; they remain context only.
+3. Any teacher-allocation rank or combined classroom-teacher score remains out of scope until compatible DepEd requirements data and a separately approved rule exist.
 4. Activation of the candidate classroom planning calculation or any teacher resource-gap calculation. These require compatible denominators and separate approval.
 
-Already set: poverty 2023 is context only, never a ranking, flag, tier, or score input (D-046); D-057 allows it as an input to the context-only Similar LGUs. The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
+Already set: poverty 2023 is context only, never a ranking, flag, queue, or score input (D-046). The complete display, uncertainty, missingness, and recount contract is in [Context · Poverty 2023](#context--poverty-2023).
 
 ## Validation gate
 

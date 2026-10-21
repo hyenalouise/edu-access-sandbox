@@ -8,8 +8,8 @@ Local education planners ask the question and make the planning decision. The pr
 
 | Role | Who | What they decide or need | What ReachED gives them |
 |---|---|---|---|
-| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer review for classroom support or a request to DepEd | Each LGU's priority tier and its school, classroom, and teacher measures, with enrollment context |
-| Primary decision users | LGU Local School Boards (provincial, city, and municipal) | Special Education Fund spending on classrooms and locally funded teachers, validation, and requests to DepEd or another agency | A priority list of cities and municipalities (D-057) with each school, classroom, and teacher measure shown on its own, official benchmarks where validated, national same-type context, Similar LGUs, coverage, and drill-down |
+| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer classroom review or a request to DepEd | The D-060 classroom review queue plus separate school and teacher context, with enrollment and coverage |
+| Primary decision users | LGU Local School Boards (provincial, city, and municipal) | Special Education Fund spending, local validation, and requests to DepEd or another agency | A source-bounded classroom queue and separate AP1/AP3/AP4 evidence; no unsupported composite or teacher rank |
 | Other decision users | City and municipal LGU education planners | Their own local school board spending, including Special Education Fund support and locally funded teachers | Their LGU's measures, comparison position, data coverage, and school-level drill-down |
 | Sponsors and funding partners | UNICEF and ADB | Which places warrant further assessment for possible support or investment | Comparable indicators, the enrolled learners covered by each measure, and stated data limitations |
 | Partner stakeholders | DepEd regional offices and Schools Division Offices | Teacher deployment and classroom-construction priorities | Areas with high classroom or teacher pressure indicators, with school-level detail for validation |
@@ -91,12 +91,12 @@ What this means for the dashboard:
 
 ## User story
 
-> As a Local School Board member, I want a priority list of cities and municipalities that shows where school, classroom, and teacher pressure are high, each measure shown on its own and supported by enrollment need, validated official benchmarks, similar LGUs, and national context, so that I can decide which results require local validation and where provision or allocation may need to go first.
+> As a Local School Board member, I want a classroom review queue based on affected schools and learners, with school, teacher, enrollment, coverage, and source limitations shown separately, so I can decide which results require local validation before choosing an intervention.
 
 The story is done when the planner can:
 
 1. See every city and municipality in scope with its public-school learners per school, per classroom, and per teacher.
-2. See each LGU's priority tier and which measures are high, with each measure and its enrolled-learner and source coverage shown on its own.
+2. See the classroom queue status and rank where supported, with affected schools, learners, and coverage; see teacher indicators as context without an unsupported rank.
 3. Compare an LGU with a validated official benchmark where available and the national distribution for the same LGU type, and see its Similar LGUs.
 4. See AP4 only where comparable school-age population and enrollment periods are supported, with the gap's limitations visible.
 5. Drill down to a single school and trace every number to its source and period.

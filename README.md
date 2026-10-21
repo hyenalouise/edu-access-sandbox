@@ -12,13 +12,13 @@ A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 
 ## What it does
 
-The pipeline turns official DepEd, PSA, and HDX files into city- and municipality-level measures of classroom and teacher pressure, and ranks LGUs into priority tiers.
+The pipeline turns official DepEd, PSA, and HDX files into city- and municipality-level measures of classroom and teacher pressure, and puts the LGUs whose schools pass a classroom congestion screen into a review queue.
 
 > **Business question:** How should we prioritize the provision of classrooms and teachers among cities based on their respective enrollment needs?
 
 - **Users:** LGU Local School Boards, which decide how the Special Education Fund is spent (D-057).
 - **Scope:** public basic education, Kinder to Grade 12, in every Philippine city and municipality (D-003).
-- **Outputs:** one table per analytical question (AP1 to AP4) and `lgu_priority_matrix`, which tiers each LGU by how many of the school, classroom, and teacher measures are high at the same time (D-057).
+- **Outputs:** one table per analytical question (AP1 to AP4) and `lgu_priority_matrix`, which shows AP1 to AP4 side by side and ranks the LGUs with reported classroom congestion into a review queue (D-060).
 
 The wording, the four analytical questions, and their limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
 
@@ -113,7 +113,7 @@ Process, branches, and reviews: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Known limitations
 
-- Enrollment is observed demand at the school's location, not learner residence, and a tier is relative pressure, not a shortage count ([business framing](docs/business/business-analytics-problem.md)).
+- Enrollment is observed demand at the school's location, not learner residence, and the classroom queue is a screen for review, not a shortage count ([business framing](docs/business/business-analytics-problem.md)).
 - Classroom and teacher capacity cover SY 2023-24 only; enrollment covers SY 2020-21 to 2025-26.
 - Annex schools publish no mother-school ID, so their counts are not consolidated (D-044).
 - `dev` is the only target, and alerts reach only the person who deployed them (#99).
