@@ -1,5 +1,8 @@
 # Education Access Intelligence
 
+[![CI](https://github.com/reached-hq/edu-access-intelligence/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/reached-hq/edu-access-intelligence/actions/workflows/ci.yml)
+[![CD - Deploy to Databricks prod](https://github.com/reached-hq/edu-access-intelligence/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/reached-hq/edu-access-intelligence/actions/workflows/deploy.yml)
+
 A data engineering capstone by **ReachED** for the FTW Data Engineering program.
 
 [Architecture](docs/architecture/overview.md) ·
@@ -178,7 +181,7 @@ Raw files are never committed. Locally they sit in `raw-data/` beside the reposi
 | Tests and policy checks (what CI runs) | `python -m pytest tests -q` |
 | The whole job, locally on DuckDB | macOS or Linux: `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run`. Windows PowerShell: `$env:RAW_DATA_DIR = "$HOME\Projects\reached-hq\raw-data"; python -m src.job.local_run` |
 | Deploy and run on `dev` | `databricks bundle deploy --target dev --profile reached-hq-dev`, then `databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev` |
-| Deploy to `prod` | From a clean `main` equal to `origin/main`: `python -m src.job.deploy_prod` ([runbook, Deploying to prod](docs/operations/runbook.md#deploying-to-prod)) |
+| Deploy to `prod` | Automatic after a merge to `main` that changes the job ([CD workflow](.github/workflows/deploy.yml)); by hand, from a clean `main` equal to `origin/main`: `python -m src.job.deploy_prod` ([runbook, Deploying to prod](docs/operations/runbook.md#deploying-to-prod)) |
 
 The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 0 only when every task succeeded. Databricks compute is shared, so agree a run with the team first ([workflow, Part 5](docs/operations/workflow.md#part-5-where-code-runs)).
 

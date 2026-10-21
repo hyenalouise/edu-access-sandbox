@@ -30,9 +30,12 @@ flowchart LR
 | Check | Fails when |
 |---|---|
 | Repository checks | Any test fails, including the data, secret, naming, and documentation checks |
+| Databricks bundle validates | `databricks bundle validate --target dev` fails on this branch, for example a task names a file that is missing or renamed |
 | PR links an issue | No open issue is linked, or merging would close a parent issue or more than one issue |
 | PR has a milestone | The pull request has no milestone (it is copied from the linked issue when the issue has one) |
 | PR declares AI help | The [AI help](#using-ai) section is not filled in correctly |
+
+After a merge to `main` that changes `databricks.yml`, `config/`, `dashboards/`, `etl/`, or `src/`, **CD - Deploy to Databricks prod** deploys the bundle to `prod`. It does not start a run ([workflows](.github/workflows/README.md)).
 
 ## Commit messages
 

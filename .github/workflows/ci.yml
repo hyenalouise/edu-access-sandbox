@@ -4,9 +4,9 @@ name: CI
 # are checked too), and on every push to main. Only checks on pull requests into
 # main block merging (branch protection).
 #
-# It has no Databricks credentials by design: CI proves the repository and code
-# behave correctly. Whether the real data is correct is checked by the DQ steps
-# inside Databricks.
+# Only the bundle check holds a Databricks token, and it can only validate: CI
+# proves the repository and code behave correctly. Whether the real data is
+# correct is checked by the DQ steps inside Databricks.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened, milestoned, demilestoned]
@@ -38,6 +38,46 @@ jobs:
 
       - name: Run tests and policy checks
         run: python -m pytest tests -q
+
+  # Validates databricks.yml against this branch's files on the dev workspace, so
+  # a missing or renamed file is caught before merge, not by the prod deploy.
+  # Uses the "ci-validate" environment, never "production": a pull request can
+  # change this workflow, so its token must only be able to validate.
+  # Skipped for pull requests from forks, which cannot read environment secrets.
+  # deployment: false reads the environment without recording a deployment, so
+  # pull requests do not show ci-validate as deployed.
+  bundle-validate:
+    name: Databricks bundle validates
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: ci-validate
+      deployment: false
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check the environment is set
+        run: |
+          if [ -z "$DATABRICKS_HOST" ]; then
+            echo "::error::Missing environment variable DATABRICKS_HOST (Settings -> Environments -> ci-validate)."
+            exit 1
+          fi
+          if [ -z "$DATABRICKS_TOKEN" ]; then
+            echo "::error::Missing environment secret DATABRICKS_TOKEN (Settings -> Environments -> ci-validate)."
+            exit 1
+          fi
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@d76f84cea9893ce68311a1f33fb0c95af6c963b7 # v1.17.0
+        with:
+          version: 1.17.0
+
+      - name: Validate the bundle
+        run: databricks bundle validate --target dev
 
   pr-description:
     name: PR links an issue
