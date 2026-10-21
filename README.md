@@ -116,6 +116,6 @@ Process, branches, and reviews: [CONTRIBUTING.md](CONTRIBUTING.md).
 - Enrollment is observed demand at the school's location, not learner residence, and the classroom queue is a screen for review, not a shortage count ([business framing](docs/business/business-analytics-problem.md)).
 - Classroom and teacher capacity cover SY 2023-24 only; enrollment covers SY 2020-21 to 2025-26.
 - Annex schools publish no mother-school ID, so their counts are not consolidated (D-044).
-- `prod` is defined in its own workspace but has not run yet: every source is still `profiled`, and only `accepted` sources load into `prod`. Alerts reach only the person who deployed them until the team picks a recipient (D-063, #99).
+- `prod` is defined in its own workspace but has not run yet; its team notification destination still has to be created there (D-063, #99).
 
 Every confirmed data limit, with its evidence, is in [limitations](docs/governance/limitations.md).

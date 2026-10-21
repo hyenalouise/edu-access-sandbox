@@ -86,7 +86,7 @@ git pull
 python -m src.job.deploy_prod
 ```
 
-The script refuses (exit code 2, nothing deployed) on another branch, with uncommitted or untracked changes, or when `HEAD` is not `origin/main`; `--check` runs only these checks. Otherwise it runs `databricks bundle validate`, `deploy`, and `summary` with `--target prod --profile reached-hq-prod`. Confirm in the summary that `git_commit` and `code_revision` both equal `git rev-parse HEAD`, announce the run to the team, then start it:
+The script refuses (exit code 2, nothing deployed) on another branch, with uncommitted or untracked changes, when `HEAD` is not `origin/main`, or while `team_notification_destination_id` for `prod` is blank in `databricks.yml`; `--check` runs only these checks. Otherwise it runs `databricks bundle validate`, `deploy`, and `summary` with `--target prod --profile reached-hq-prod`. Confirm in the summary that `git_commit` and `code_revision` both equal `git rev-parse HEAD`, announce the run to the team, then start it:
 
 ```bash
 databricks bundle run edu_access_pipeline --target prod --profile reached-hq-prod

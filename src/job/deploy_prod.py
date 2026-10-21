@@ -10,7 +10,9 @@ command this refuses unless:
 
 - the current branch is main;
 - the working tree has no uncommitted or untracked changes;
-- HEAD equals origin/main after a fetch, so the commit is pushed and current.
+- HEAD equals origin/main after a fetch, so the commit is pushed and current;
+- the prod target names the team's notification destination, so a failure
+  reaches everyone, not only the deployer (D-063).
 
 The databricks commands always pass --target prod --profile reached-hq-prod.
 Starting a run is left to the person deploying (docs/operations/runbook.md,
@@ -22,6 +24,8 @@ import inspect
 import subprocess
 import sys
 from pathlib import Path
+
+import yaml
 
 REPO_ROOT = Path(inspect.currentframe().f_code.co_filename).resolve().parents[2]
 
@@ -48,7 +52,15 @@ def problems(repo, fetch=True):
     remote = git(repo, "rev-parse", f"origin/{BRANCH}")
     if head != remote:
         found.append(f"HEAD {head[:7]} is not origin/{BRANCH} {remote[:7]}: pull, or push and merge first")
+    if not team_destination(repo):
+        found.append(f"targets.{TARGET}.variables.team_notification_destination_id in databricks.yml is blank")
     return found
+
+
+def team_destination(repo):
+    bundle = yaml.safe_load((Path(repo) / "databricks.yml").read_text(encoding="utf-8"))
+    variables = bundle["targets"][TARGET].get("variables") or {}
+    return variables.get("team_notification_destination_id")
 
 
 def main(argv=None, repo=REPO_ROOT):

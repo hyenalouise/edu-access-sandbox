@@ -7,6 +7,13 @@ import pytest
 from src.job import deploy_prod
 
 
+BUNDLE = """targets:
+  prod:
+    variables:
+      team_notification_destination_id: "{destination}"
+"""
+
+
 def run(repo, *args):
     subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
 
@@ -17,7 +24,9 @@ def clone(tmp_path):
     origin = tmp_path / "origin"
     origin.mkdir()
     run(origin, "init", "--quiet", "--initial-branch", "main")
-    run(origin, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--quiet", "--allow-empty", "-m", "first")
+    (origin / "databricks.yml").write_text(BUNDLE.format(destination="d-123"))
+    run(origin, "add", "databricks.yml")
+    run(origin, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "--quiet", "-m", "first")
     work = tmp_path / "work"
     run(tmp_path, "clone", "--quiet", str(origin), str(work))
     return work
@@ -45,6 +54,12 @@ def test_uncommitted_changes_are_refused(clone):
 def test_unpushed_commit_is_refused(clone):
     commit(clone, "local only")
     assert any("is not origin/main" in p for p in deploy_prod.problems(clone))
+
+
+def test_blank_team_destination_is_refused(clone):
+    (clone / "databricks.yml").write_text(BUNDLE.format(destination=""))
+    assert "targets.prod.variables.team_notification_destination_id in databricks.yml is blank" in (
+        deploy_prod.problems(clone))
 
 
 def test_refusal_runs_no_databricks_command(clone, monkeypatch):
