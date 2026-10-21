@@ -4,8 +4,8 @@ Records of the pipeline doing what it claims: loading once, rebuilding identical
 
 ```mermaid
 flowchart LR
-    bronze[Source to Bronze<br/>14 records] --> silver[Bronze to Silver<br/>8] --> integration[Integration<br/>4] --> gold[Gold<br/>4]
-    whole[Whole job<br/>4] -.covers.-> bronze & silver & integration & gold
+    bronze[Source to Bronze<br/>16 records] --> silver[Bronze to Silver<br/>8] --> integration[Integration<br/>4] --> gold[Gold<br/>4]
+    whole[Whole job<br/>5] -.covers.-> bronze & silver & integration & gold
     monitoring[Monitoring<br/>1]
 ```
 

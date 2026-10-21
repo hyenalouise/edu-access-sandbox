@@ -38,9 +38,9 @@ Each source moves through Bronze and Silver in its own lane. From Silver on, eve
 
 | | |
 |---|---|
-| **Implemented** | 8 sources through Bronze and Silver, 5 Integration maps, 12 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
-| **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
-| **Not yet proven on Databricks** | The Analytics outputs and the data-quality dashboard: tested locally, with no Databricks run in `evidence/` yet |
+| **Implemented** | 9 sources through Bronze, 8 through Silver (the DepEd school-coordinates lane's Silver is switched off until #218), 5 Integration maps, 12 Gold tables, 5 Analytics outputs, the data-quality dashboard, freshness and quality alerts. All are enabled in [`databricks.yml`](databricks.yml) and run by CI on made-up data |
+| **Proven on Databricks `dev`** | Source to Gold, twice, every gate passing and identical results, at `7542cc0` ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)); the school-coordinates Bronze load ([evidence](evidence/pipeline-runs/2026-10-21-deped-psgc-coordinates-databricks.md)); totals traced from source file to Gold in [validation](docs/operations/validation.md) |
+| **Proven locally only** | The Analytics outputs and the data-quality dashboard (tested in CI, no Databricks run in `evidence/` yet); failure recovery, rehearsed end to end ([evidence](evidence/pipeline-runs/2026-10-20-failure-recovery-local.md)) |
 | **Not built** | A `prod` target (#99); the LGU planner dashboard is in progress (#211) |
 
 A commit on `main` is not what runs in the workspace until it is deployed: the job records the commit it ran as `code_revision` on every row it writes.
@@ -100,7 +100,7 @@ The local run writes to `local_state/edu_access.duckdb` (git-ignored) and exits 
 
 ## When something fails
 
-The failed task names the gate or step. Its results are in `data_quality_results`, and the batch's state is in `` `01-control`.ingestion_batches ``. Reruns are safe: Bronze adds only missing rows, and every later layer rebuilds and publishes only after its gate passes. Responses per failure type are in [ingestion, Failure and recovery](docs/operations/ingestion.md#failure-and-recovery); a runbook covering every layer is in review ([#212](https://github.com/reached-hq/edu-access-intelligence/pull/212)).
+The failed task names the gate or step. Its results are in `data_quality_results`, and the batch's state is in `` `01-control`.ingestion_batches ``. Reruns are safe: Bronze adds only missing rows, and every later layer rebuilds and publishes only after its gate passes. Start with the [failure-recovery runbook](docs/operations/runbook.md): the first response, what to do for each failure type, how to retry, rerun, or backfill, and how to trace a number back to its raw file.
 
 ## Changing or extending it
 
