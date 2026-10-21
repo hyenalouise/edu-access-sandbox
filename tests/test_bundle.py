@@ -246,7 +246,7 @@ APS_STOPPED_BY = {
     "90_validate_deped_personnel_clean": {"ap3"},
     "90_validate_psa_school_age_population_clean": {"ap1", "ap4"},
     "90_validate_psa_poverty_stat_clean": set(),
-    "90_validate_deped_psgc_coordinates_clean": set(),   # a placeholder no AP reads yet
+    "90_validate_deped_psgc_coordinates_clean": set(),   # switched on by #218; no AP reads it yet
 }
 
 
