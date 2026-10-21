@@ -69,12 +69,12 @@ See the [source inventory](../data/source-inventory/).
 
 | Item | Value |
 |---|---|
-| Platform | Databricks Free Edition, one workspace shared by the team |
-| Host | `https://dbc-2b6bf1c5-7bc3.cloud.databricks.com` |
-| CLI profile | `reached-hq` (see [terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)) |
-| Catalog | `edu_access`: managed, Default Storage, bound to this workspace only (isolated) |
+| Platform | Databricks Free Edition, two workspaces shared by the team, one per target (D-063) |
+| Host | `dev`: `https://dbc-2b6bf1c5-7bc3.cloud.databricks.com`; `prod`: `https://dbc-76bcfddb-1669.cloud.databricks.com` |
+| CLI profile | `reached-hq-dev` and `reached-hq-prod` (see [terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)) |
+| Catalog | `edu_access` in each workspace: managed, Default Storage, bound to its own workspace only (isolated) |
 | Owner of the catalog, schemas, and volume | The `reached-hq` group (all five teammates), so no single account is a bottleneck |
-| SQL warehouse | Serverless Starter Warehouse, 2X-Small, auto-stop 10 minutes |
+| SQL warehouse | Each workspace's Serverless Starter Warehouse, 2X-Small, auto-stop 10 minutes (`dev` `ba94770acbbc293c`, `prod` `71d3ccb9cea611c0`) |
 | Free Edition limits | Not yet recorded (#1) |
 
 ## Storage
@@ -175,15 +175,24 @@ A job that succeeds has only run; it has not shown the data is right. So the job
 | `quality_failures` alert | `resources.alerts` | The latest run's newest result for any check is FAIL | The email lists each FAIL: layer, source, table, check, expected, actual |
 | `stale_sources` alert | `resources.alerts` | The latest freshness check found a source whose latest succeeded batch is older than its limit in `config/freshness.yml` | The email lists each stale source with its limit and last load date |
 
-- **Who is told.** The job's emails and the alerts go to whoever deployed them (`${workspace.current_user.userName}`, resolved at deploy time), so on `dev` only the person who ran it hears about it, and no address is committed. On `prod` the whole team will be told; that target and its recipients come with #99.
-- **When the alerts evaluate.** Daily at 08:00 Asia/Manila (`alert_schedule`). Development mode pauses alert schedules, so on `dev` an alert is evaluated by hand from its page in the workspace.
+- **Who is told.** The job's emails and the alerts go to whoever deployed them (`${workspace.current_user.userName}`, resolved at deploy time), so on `dev` only the person who ran it hears about it, and no address is committed. On `prod` they also go to everyone, through an email notification destination kept in the `prod` workspace; `databricks.yml` holds only its ID (D-063).
+- **When the alerts evaluate.** Daily at 08:00 Asia/Manila (`alert_schedule`). Development mode pauses alert schedules, so on `dev` an alert is evaluated by hand from its page in the workspace. On `prod` (production mode) the schedules run.
 - **Latest run only.** `quality_failures` reads the latest run that wrote any result, so a partial run (`--only`) after a failing one hides that run's FAILs until the next full run.
 - **Testing.** Each threshold is a bundle variable, and `freshness_as_of` is a job parameter, so every signal can be made to fire once without changing code or data: deploy with `--var duration_warning_seconds=60`, run only `90_validate_control` (no Silver lane ran in that run, so it records FAILs and fails), and run only `90_validate_freshness` with `freshness_as_of` set years ahead. Tested on `dev` on 2026-10-13 ([evidence](../../evidence/pipeline-runs/2026-10-13-monitoring-alerts.md)).
 
 ## Environments and deployment
 
-- **Not built yet:** a `prod` target and a workflow that deploys it from `main` (#99).
-- **Secrets:** none are committed. The CLI signs in through the `reached-hq` profile ([terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)), and alert recipients are resolved at deploy time ([Monitoring](#monitoring)).
-- `dev` is the only bundle target so far (`mode: development`); `prod` is not defined yet. `dev` and `prod` are deploy targets, not branches (D-005).
+Two bundle targets, each in its own Free Edition workspace (D-063). They are deploy targets, not branches (D-005).
+
+| | `dev` | `prod` |
+|---|---|---|
+| Workspace | `dbc-2b6bf1c5-7bc3` | `dbc-76bcfddb-1669` (the team's first workspace, D-009) |
+| CLI profile | `reached-hq-dev` | `reached-hq-prod` |
+| Mode | `development`: each deployer gets their own `[dev <name>]` job, alert schedules paused | `production`: one shared job, `edu_access_pipeline`, under `/Workspace/Shared/.bundle/`; alert schedules run |
+| Deployed from | Any branch, to test it | Only a clean `main` equal to `origin/main`, with `python -m src.job.deploy_prod` ([runbook](../operations/runbook.md#deploying-to-prod)) |
+| `environment` on every row | `dev` | `prod` |
+
+- The catalog, schemas, and table names are the same in both. Being in separate workspaces is what keeps one from writing over the other, so no SQL changes between targets.
+- No CD workflow: the deploy is a manual step whose script checks the checkout first. It uses the deployer's own `reached-hq-prod` login, so no token is stored in GitHub or in the repository (D-004).
 - The job runs the commit it was deployed from (`git_source.git_commit: ${bundle.git.commit}`), and records the same value as `code_revision` on every row it writes. New code needs a deploy from a clean, pushed `main`.
 - Only `accepted` sources may load into `prod`; `profiled` sources load into `local` and `dev` only.

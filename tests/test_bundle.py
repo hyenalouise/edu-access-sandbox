@@ -421,6 +421,17 @@ def test_dev_target_names_the_project_workspace(bundle, project):
     assert dev["workspace"]["host"] == project["workspace_host"]
 
 
+def test_prod_target_is_its_own_workspace_deployed_from_main(bundle, project):
+    """prod is kept apart from dev by its workspace, not by a schema prefix (D-063)."""
+    prod = bundle["targets"]["prod"]
+    assert prod["mode"] == "production"
+    assert prod["git"]["branch"] == "main"
+    assert prod["workspace"]["host"] == project["prod_workspace_host"]
+    assert prod["workspace"]["host"] != bundle["targets"]["dev"]["workspace"]["host"]
+    assert not prod.get("default"), "a deploy without --target must never reach prod"
+    assert prod["variables"]["warehouse_id"] != bundle["variables"]["warehouse_id"]["default"]
+
+
 def test_every_gate_result_stamps_the_revision_from_the_parameter(repo_root):
     """Checked per INSERT: one check out of several with a literal revision is enough to break lineage."""
     inserts = 0

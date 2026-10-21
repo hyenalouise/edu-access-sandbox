@@ -6,22 +6,22 @@ The list is copied from the approved deliveries in [`config/ingestion/`](../../c
 
 ## Get the files
 
-**Team members: copy the team volume.** The `dev` job reads `` edu_access.`00-source`.raw ``, so copying it gives you the same bytes. With the CLI profile from [terminal setup, Part 12](terminal-setup.md#part-12-logging-in-to-databricks) and `RAW_DATA_DIR` set ([Part 8](terminal-setup.md#part-8-raw-data-and-raw_data_dir)):
+**Team members: copy the team volume.** The `dev` job reads `` edu_access.`00-source`.raw ``, so copying it gives you the same bytes. With the `reached-hq-dev` profile from [terminal setup, Part 12](terminal-setup.md#part-12-logging-in-to-databricks) and `RAW_DATA_DIR` set ([Part 8](terminal-setup.md#part-8-raw-data-and-raw_data_dir)):
 
 macOS or Linux:
 
 ```bash
-databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/deped "$RAW_DATA_DIR/deped" --profile reached-hq
-databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/psa "$RAW_DATA_DIR/psa" --profile reached-hq
-databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/admin_boundaries "$RAW_DATA_DIR/admin_boundaries" --profile reached-hq
+databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/deped "$RAW_DATA_DIR/deped" --profile reached-hq-dev
+databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/psa "$RAW_DATA_DIR/psa" --profile reached-hq-dev
+databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/admin_boundaries "$RAW_DATA_DIR/admin_boundaries" --profile reached-hq-dev
 ```
 
 Windows PowerShell (`$env:RAW_DATA_DIR`, not `$RAW_DATA_DIR`, which PowerShell reads as an empty variable):
 
 ```powershell
-databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/deped "$env:RAW_DATA_DIR\deped" --profile reached-hq
-databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/psa "$env:RAW_DATA_DIR\psa" --profile reached-hq
-databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/admin_boundaries "$env:RAW_DATA_DIR\admin_boundaries" --profile reached-hq
+databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/deped "$env:RAW_DATA_DIR\deped" --profile reached-hq-dev
+databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/psa "$env:RAW_DATA_DIR\psa" --profile reached-hq-dev
+databricks fs cp -r dbfs:/Volumes/edu_access/00-source/raw/admin_boundaries "$env:RAW_DATA_DIR\admin_boundaries" --profile reached-hq-dev
 ```
 
 The volume also holds files the job does not load (other DepEd sources, `phl_admin4.geojson`); the copy brings them too. `phl_admin3.geojson` alone is 555,585,099 bytes.

@@ -42,7 +42,7 @@ def checks_by_name(prepared):
 def test_real_contract_loads(repo_root):
     config, entry = load_source_config(repo_root, "deped_enrollment")
     assert [d["school_year"] for d in config["deliveries"]] == ["2020-21", "2021-22", "2022-23", "2023-24", "2024-25", "2025-26"]
-    assert entry["status"] == "profiled", "ingestion must not promote the source; that is a team decision"
+    assert entry["status"] == "accepted", "accepted by the team on 2026-10-21 (D-063); a status change is a team decision"
 
 
 CONTRACTS = sorted((REPO_ROOT / "config" / "ingestion").glob("*.json"))

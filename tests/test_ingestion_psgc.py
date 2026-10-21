@@ -664,7 +664,7 @@ def test_real_contract_loads_and_stays_profiled(repo_root):
     assert (d["publication_period"], d["row_count"], d["range"]) == ("2026-Q2", 43768, "A1:K43769")
     assert d["workbook_sha256"] == "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d"
     assert config["master_reference_period"] == "2026-Q2"
-    assert entry["status"] == "profiled", "ingestion must not promote the source; that is a team decision"
+    assert entry["status"] == "accepted", "accepted by the team on 2026-10-21 (D-063); a status change is a team decision"
 
 
 def _with_delivery():

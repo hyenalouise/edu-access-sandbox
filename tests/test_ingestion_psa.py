@@ -20,7 +20,7 @@ from factories.psa_workbooks import (
     SHEET, SOURCE, WORKBOOK, add_schema, approve, banner, columns_for, default_rows, empty_config, fake_repo,
     real_config, registry_entry, unit, workbook_bytes, write_config, write_workbook,
 )
-from src.ingestion import cli, control
+from src.ingestion import cli, control, pipeline
 from src.ingestion.batch import batch_id, load_type_for_years
 from src.ingestion.contract import XLSX_PROVENANCE_COLUMNS, load_source_config, validate_config
 from src.ingestion.errors import IngestionError
@@ -61,7 +61,7 @@ def test_real_psa_contract_loads_and_does_not_promote_the_source(repo_root):
     d = config["deliveries"][0]
     assert (d["workbook"], d["sheet"], d["estimate_years"]) == (WORKBOOK, SHEET, list(YEARS))
     assert (d["body_rows"], d["unit_rows"], d["banner_rows"], d["footer_rows"]) == ({"first": 6, "last": 1635}, 1612, 18, 6)
-    assert entry["status"] == "profiled", "ingestion must not promote the source; that is a team decision"
+    assert entry["status"] == "accepted", "accepted by the team on 2026-10-21 (D-063); a status change is a team decision"
 
 
 def test_v1_columns_are_the_data_dictionary_columns(repo_root):
@@ -773,5 +773,9 @@ def test_cli_exit_codes(env, tmp_path, monkeypatch):
     assert cli.main(["ingest", "--source", SOURCE, "--landing", str(tmp_path / "nowhere"), *db]) == 3
     write_workbook(env.inbox / WORKBOOK)  # not approved
     assert cli.main(["ingest", "--source", SOURCE, "--landing", str(env.landing), *db]) == 1
+    def profiled(*args, **kwargs):
+        config, entry = load_source_config(*args, **kwargs)
+        return config, {**entry, "status": "profiled"}
+    monkeypatch.setattr(pipeline, "load_source_config", profiled)
     assert cli.main(["ingest", "--source", SOURCE, "--landing", str(env.landing), "--environment", "prod",
                      "--code-revision", REVISION, *db]) == 2  # not an accepted source

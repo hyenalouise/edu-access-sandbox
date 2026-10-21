@@ -24,13 +24,13 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/data/cross
 
 | source_id | Name | Publisher | Status | Owner | In pipeline |
 |---|---|---|---|---|---|
-| [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | profiled | @hyenalouise | yes |
-| [deped_enrollment_psgc](deped_enrollment_psgc/) | DepEd school-level enrollment with PSGC and coordinates (SY 2023-24) | DepEd | profiled | @maeveylain | yes |
-| [deped_psgc_coordinates](deped_psgc_coordinates/) | DepEd school-level enrollment with PSGC and coordinates, public schools only (SY 2023-24) | DepEd | profiled | @catweyine | yes |
-| [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | profiled | @hyenalouise | yes |
+| [deped_enrollment](deped_enrollment/) | DepEd school-level enrollment | DepEd | accepted | @hyenalouise | yes |
+| [deped_enrollment_psgc](deped_enrollment_psgc/) | DepEd school-level enrollment with PSGC and coordinates (SY 2023-24) | DepEd | accepted | @maeveylain | yes |
+| [deped_psgc_coordinates](deped_psgc_coordinates/) | DepEd school-level enrollment with PSGC and coordinates, public schools only (SY 2023-24) | DepEd | accepted | @catweyine | yes |
+| [deped_facilities](deped_facilities/) | DepEd school facilities | DepEd | accepted | @hyenalouise | yes |
 | [deped_ellna](deped_ellna/) | DepEd selected school-level ELLNA results | DepEd | profiled | @mafelisilda | no |
 | [deped_nat_gr6](deped_nat_gr6/) | DepEd selected school-level NAT Grade 6 results | DepEd | profiled | @mafelisilda | no |
-| [deped_personnel](deped_personnel/) | DepEd school-level personnel | DepEd | profiled | @mafelisilda | yes |
+| [deped_personnel](deped_personnel/) | DepEd school-level personnel | DepEd | accepted | @mafelisilda | yes |
 | [bpda_barmm_education](bpda_barmm_education/) | BARMM education performance indicators | BPDA | profiled | @hyenalouise | no |
 | [bpda_barmm_social_infrastructure](bpda_barmm_social_infrastructure/) | BARMM social infrastructure | BPDA | profiled | @hyenalouise | no |
 | [bpda_barmm_roads](bpda_barmm_roads/) | BARMM road length by surface and administrative class | BPDA | profiled | @hyenalouise | no |
@@ -41,10 +41,10 @@ Cross-source work (PSGC match rates, coverage matrix) lives in [`docs/data/cross
 | [ched_student_faculty_ratio](ched_student_faculty_ratio/) | CHED student-faculty ratio by region | CHED | profiled | @catweyine | no |
 | [dti_cmci](dti_cmci/) | Cities and Municipalities Competitiveness Index (CMCI) | DTI | profiled | @saraevcldn | no |
 | [osm_philippines](osm_philippines/) | OpenStreetMap Philippines geographic data | OpenStreetMap / Geofabrik | profiled | @saraevcldn | no |
-| [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | profiled | @maeveylain | yes |
-| [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | profiled | @maeveylain | yes |
+| [psa_psgc](psa_psgc/) | PSA Philippine Standard Geographic Code (PSGC) | PSA | accepted | @maeveylain | yes |
+| [psa_poverty_stat](psa_poverty_stat/) | PSA city- and municipal-level poverty estimates | PSA | accepted | @maeveylain | yes |
 | [psa_openstat_education](psa_openstat_education/) | PSA OpenSTAT education and literacy tables | PSA | profiled | @hyenalouise | no |
 | [psa_population_per_barangay](psa_population_per_barangay/) | PSA 2024 population by barangay | PSA | profiled | @mafelisilda | no |
 | [psa_population_per_age_group](psa_population_per_age_group/) | PSA 2024 household population by age group | PSA | profiled | @mafelisilda | no |
-| [psa_school_age_population](psa_school_age_population/) | PSA population aged 5-24 by single-year age, sex and city/municipality (2020, 2024) | PSA | profiled | @saraevcldn | yes |
-| [hdx_boundaries](hdx_boundaries/) | Philippine administrative boundaries | UN OCHA | profiled | @saraevcldn | yes |
+| [psa_school_age_population](psa_school_age_population/) | PSA population aged 5-24 by single-year age, sex and city/municipality (2020, 2024) | PSA | accepted | @saraevcldn | yes |
+| [hdx_boundaries](hdx_boundaries/) | Philippine administrative boundaries | UN OCHA | accepted | @saraevcldn | yes |
