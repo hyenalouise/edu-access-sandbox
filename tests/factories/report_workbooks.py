@@ -166,6 +166,22 @@ def approve(config, path, school_year="2023-24", delivery_version=1, supersedes=
     return entry
 
 
+# The public-only workbook (deped_psgc_coordinates): a separate file, same layout and schema v1, with a sector note in A6.
+COORDINATES = "deped_psgc_coordinates"
+PUBLIC_ONLY = "SY 2023-2024 School Level Data on Enrollment with PSGC Longitude & Latitude (Public only).xlsx"
+PUBLIC_ONLY_TITLE = {"A6": "SECTOR: PUBLIC ONLY"}
+
+
+def coordinates_config():
+    """The real public-only contract with no approved deliveries and the fixture's profiled counts."""
+    config = json.loads((REPO_ROOT / "config" / "ingestion" / f"{COORDINATES}.json").read_text(encoding="utf-8"))
+    config["deliveries"] = []
+    config["profiled"] = dict(FIXTURE_PROFILED)
+    for check in config["quality_checks"]:
+        check["profiled"] = FIXTURE_QUALITY.get(check["name"], 0)
+    return config
+
+
 def empty_config():
     """The real contract with no approved deliveries and the fixture's profiled counts."""
     config = copy.deepcopy(real_config())

@@ -1,0 +1,2 @@
+-- PLACEHOLDER: gate deped_psgc_coordinates_clean against its Bronze rows.
+-- Implement with the cleaning rules before activating this task.
