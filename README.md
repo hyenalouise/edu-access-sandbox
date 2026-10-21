@@ -29,10 +29,10 @@ It brings together official DepEd, PSA, and HDX files, matches every school to t
 
 | | Question | What the pipeline answers with |
 |---|---|---|
-| **AP1** | Which cities and municipalities have fewer public schools relative to their enrolled students and population? | Learners and school-age children per public school, and barangays without a public elementary school (context) |
+| **AP1** | Which cities and municipalities have fewer public schools relative to their enrolled students and population? | Learners and school-age children per public school, and barangays without a public elementary school |
 | **AP2** | Which have the most public-school students per classroom? | A school-by-school screen at 50 or more learners per reported instructional room, summed to the schools and learners affected in each place |
-| **AP3** | Which have the most public-school students per teacher? | Learners per teacher at each level, beside published references (context, never ranked) |
-| **AP4** | Which have the largest gap between school-age population and enrollment over time? | Enrollment in every sector by school year, its trend, and the gap to the 2020 and 2024 census population (context) |
+| **AP3** | Which have the most public-school students per teacher? | Learners per teacher at each level, beside published references |
+| **AP4** | Which have the largest gap between school-age population and enrollment over time? | Enrollment in every sector by school year, its trend, and the gap to the 2020 and 2024 census population |
 
 ### What it produces
 
