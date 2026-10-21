@@ -196,7 +196,7 @@ DOWNSTREAM = {
     "01_answer_ap1": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
     "02_answer_ap2": {"90_validate_fact_school_enrollment", "90_validate_fact_school_classroom_capacity"},
     "03_answer_ap3": {"90_validate_fact_school_enrollment", "90_validate_fact_school_teacher_capacity"},
-    "04_answer_ap4": {"90_validate_fact_school_enrollment"},
+    "04_answer_ap4": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
     "05_build_priority_matrix": {"90_validate_ap1", "90_validate_ap2", "90_validate_ap3", "90_validate_ap4"},
 }
 
@@ -244,9 +244,9 @@ APS_STOPPED_BY = {
     "90_validate_deped_enrollment_psgc_clean": {"ap1", "ap2", "ap3", "ap4"},
     "90_validate_deped_facilities_clean": {"ap2"},
     "90_validate_deped_personnel_clean": {"ap3"},
-    "90_validate_psa_school_age_population_clean": {"ap1"},
+    "90_validate_psa_school_age_population_clean": {"ap1", "ap4"},
     "90_validate_psa_poverty_stat_clean": set(),
-    "90_validate_deped_psgc_coordinates_clean": set(),   # a placeholder no AP reads yet
+    "90_validate_deped_psgc_coordinates_clean": set(),   # switched on by #218; no AP reads it yet
 }
 
 
