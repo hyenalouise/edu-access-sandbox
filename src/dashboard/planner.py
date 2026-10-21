@@ -384,7 +384,7 @@ t AS (
   FROM {G}.fact_school_teacher_capacity WHERE school_year = '2023-24' GROUP BY school_id
 ),
 x AS (
-  SELECT s.school_id, COALESCE(ds.school_name, s.school_id) AS school_name,
+  SELECT s.school_id, COALESCE(ds.school_name, s.school_id) AS school_name, b.barangay_psgc_code,
          COALESCE(b.barangay_name, 'Barangay not matched') AS barangay_name,
          CASE WHEN s.annex_status = 'Annex/Extension School' THEN 'Annex' ELSE 'Main' END AS school_kind,
          concat_ws(' + ', CASE WHEN s.offers_es = 1 THEN 'ES' END, CASE WHEN s.offers_jhs = 1 THEN 'JHS' END,
@@ -481,10 +481,12 @@ SELECT {r0('p.ap1_learners_per_public_school')} || ' learners per public school'
 FROM p CROSS JOIN tr"""
 
 PR_BARANGAYS = f"""WITH {school_base(level_param=False)},
+-- by PSGC code, since two barangays can share a name; a school counts for ES from its own ES learners, so a
+-- missing count at another level never hides it
 bs AS (
-  SELECT barangay_name, COUNT(*) AS public_schools, MAX(CASE WHEN offers_es = 1 AND learners > 0 THEN 1 ELSE 0 END) AS has_es,
+  SELECT barangay_psgc_code, COUNT(*) AS public_schools, MAX(CASE WHEN offers_es = 1 AND es_learners > 0 THEN 1 ELSE 0 END) AS has_es,
          SUM(learners) AS learners
-  FROM schools GROUP BY barangay_name
+  FROM schools WHERE barangay_psgc_code IS NOT NULL GROUP BY barangay_psgc_code
 )
 SELECT b.barangay_name, COALESCE(b.urban_rural, 'n/a') AS urban_rural, COALESCE(bs.public_schools, 0) AS public_schools,
        CASE WHEN COALESCE(bs.has_es, 0) = 1 THEN 'Yes' ELSE 'No' END AS public_es,
@@ -492,7 +494,7 @@ SELECT b.barangay_name, COALESCE(b.urban_rural, 'n/a') AS urban_rural, COALESCE(
        CASE WHEN COALESCE(bs.has_es, 0) = 1 THEN 1 ELSE 0 END AS es_sort
 FROM {G}.dim_barangay AS b
 JOIN sel ON sel.city_mun_psgc_code = b.city_mun_psgc_code
-LEFT JOIN bs ON bs.barangay_name = b.barangay_name
+LEFT JOIN bs ON bs.barangay_psgc_code = b.barangay_psgc_code
 WHERE b.member_type = 'regular' AND {BARANGAY.replace('barangay_name', 'b.barangay_name')}
 ORDER BY es_sort, learners DESC, b.barangay_name"""
 

@@ -183,6 +183,20 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
     assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="JHS")}
 
 
+def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(store):
+    # review on #224: X1 has ES learners but no JHS count, so its all-level learners are unknown; it still gives
+    # its barangay a public elementary school. Two barangays share a name and are told apart by PSGC code
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
+        WHERE school_id = 'X1' AND education_level_code = 'JHS'""")
+    run_all(store)
+    add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1"]), "B2": ("Poblacion", "M1", []),
+                              "B3": ("San Roque", "M1", ["S4"])})
+    rows = _rows(store, "pr_barangays", lgu="Town One, Province")
+    assert sorted((r["barangay_name"], r["public_schools"], r["public_es"]) for r in rows) == [
+        ("Poblacion", 0, "No"), ("Poblacion", 1, "Yes"), ("San Roque", 1, "Yes")]
+
+
 def test_no_d057_tier_or_check_table_is_read():
     text = DASHBOARD.read_text(encoding="utf-8")
     for retired in ("lgu_priority_checks", "lgu_priority_outlier_schools", "order_in_tier", "is_stable", "_percentile"):
