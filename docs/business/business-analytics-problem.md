@@ -1,6 +1,6 @@
 # Business and analytical questions
 
-**Status:** The question wording below was approved through mentor review on 2026-10-14. D-060 replaces the earlier percentile-tier rule with a bounded classroom review queue; the calculations are in the separate [metric specification](metric-specification.md).
+**Status:** The question wording below was approved through mentor review on 2026-10-14. D-061 uses separate benchmarked classroom and teacher pressures plus public-school enrollment growth; the calculations are in the separate [metric specification](metric-specification.md).
 
 | | |
 |---|---|
@@ -36,21 +36,22 @@ In this question, “cities” means cities and municipalities, the same unit th
 | Question | Role in the business decision | Primary output |
 |---|---|---|
 | **AP1 · Schools** | Descriptive school-provision and access-screen context; it is not ranked and does not by itself recommend construction | Learners per public school, school-age population (5–17, 2024) per public school, and barangays without a public elementary school |
-| **AP2 · Classrooms** | Bounded classroom review prioritization under D-060 | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to affected schools and learners with coverage |
-| **AP3 · Teachers** | Teacher-planning context pending compatible current DepEd requirements data | Public-school enrollment relative to reported teaching personnel, with coverage; ES uses a historical 35:1 study reference, while JHS and SHS use derived deployment comparisons |
-| **AP4 · Population and enrollment** | Supporting context on the difference between school-age residents and enrolled learners | Enrollment in all sectors for every school year and whether it goes up or down (`increasing`, `decreasing`, `no change`); on SY 2020-21 and 2024-25, population aged 5–17, the gap and the gap rate, and the change in gap between them; the public-school share beside it |
+| **AP2 · Classrooms** | Current classroom-pressure input | School-level screen at >=50 learners per reported NSBI instructional room, aggregated to affected schools and learners with coverage |
+| **AP3 · Teachers** | Current teacher-pressure input | Level-specific learners per eligible teacher with coverage; ES 35, JHS 36, and SHS 26.67 are the review references |
+| **AP4 · Population and enrollment** | Future-demand direction and supporting context | Public-school enrollment change from SY 2020-21 to SY 2025-26 supplies the growth flag; all-sector enrollment and the census-year population gap remain context |
 
 ```mermaid
 flowchart LR
     AP1["AP1 · School provision"] --> X["Separate planning context"]
-    AP2["AP2 · School-level room screen"] --> P["Classroom review queue<br/>affected learners · affected schools"]
-    AP3["AP3 · Teacher context"] --> X
-    AP4["AP4 · Enrollment-need context"] --> X["Context<br/>official benchmark · Similar LGUs · poverty"]
+    AP2["AP2 · Classroom pressure"] --> P["D-061 priority category"]
+    AP3["AP3 · Teacher pressure"] --> P
+    AP4["AP4 · Public enrollment growth"] --> P
+    AP4 --> X["Context<br/>population gap · Similar LGUs · poverty"]
     P --> R["Planner validation and response decision"]
     X --> R
 ```
 
-Schools, classrooms, and teachers are measured and shown separately. D-060 ranks only LGUs with one or more schools passing the classroom review screen; it does not combine unlike measures. A teacher rank or weighted combined score requires compatible current requirements data and a later approved decision.
+Classroom pressure and teacher pressure remain separate Boolean signals. D-061 counts the two signals without weights and uses public-school enrollment growth only to distinguish urgency. The underlying measures remain visible and are never converted into a shortage or resource-allocation total.
 
 ## Analytical boundaries
 
@@ -62,7 +63,7 @@ Schools, classrooms, and teachers are measured and shown separately. D-060 ranks
 - **AP2 and AP3 require matched coverage:** missing classroom or personnel values remain missing, not zero, and must be reported with coverage.
 - **AP4 is not an out-of-school count:** population is counted where people live, while enrollment is counted where the school is. The difference can include cross-boundary attendance, learners outside ages 5–17, and non-enrollment, and it can be negative where a city or municipality enrolls learners from neighboring areas.
 - **Comparison is not an adequacy claim:** national summaries and Similar LGUs are descriptive. Only a cited standard that matches the metric's definition, level, and period may be called an official benchmark.
-- **References have bounded uses:** AP2's illustrative school screen sets only the classroom review queue. AP3's historical and derived comparisons do not set a teacher rank.
+- **References have bounded uses:** AP2 and AP3 set pressure flags for planning review. They do not estimate official shortages, construction requirements, staffing entitlements, or funding allocations.
 - **Class size is not teacher ratio:** RM 379's published JHS 45 and SHS 40 values are learners per class. AP3 is learners per teacher, so it uses the memorandum's teacher-to-class factors to derive compatible references of 36 and 26.67. The derived values flag pressure for review but are not directly published teacher-ratio standards or teacher-shortage estimates.
 - **Planners make the response decision:** the evidence can lead to provision, reallocation, further investigation, another operational action, or no action.
 

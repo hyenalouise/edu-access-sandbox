@@ -353,7 +353,10 @@ checks:
     - congestion_screen_valid
     - teacher_reference_context_valid
     - assessment_status_valid
-    - classroom_queue_follows_d060
+    - priority_rule_follows_d061
+    - priority_inputs_reconcile_to_ap2_ap3_ap4
+    - priority_order_recomputed
+    - priority_order_unique
     - ratio_and_coverage_arithmetic
     - arithmetic_holds
     - year_over_year_change_holds
@@ -624,8 +627,8 @@ recorded_counts:
     - members_no_change
     - screened_congested_schools
     - screened_affected_learners
-    - classroom_queue_lgus
-    - classroom_data_review_lgus
+    - priority_1_lgus
+    - data_review_lgus
     - no_estimate_rows
     - sub_municipality_rows
     - not_in_source_huc

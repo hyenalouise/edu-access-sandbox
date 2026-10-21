@@ -41,7 +41,9 @@ enrollment AS (
   SELECT school_year, city_mun_psgc_code,
          SUM(CASE WHEN complete THEN learners ELSE 0 END) AS enrollment_all_sectors,
          SUM(CASE WHEN complete AND sector = 'Public' THEN learners ELSE 0 END) AS public_school_enrollment,
-         COUNT_IF(complete) AS schools_counted, COUNT_IF(NOT complete) AS schools_incomplete
+         COUNT_IF(complete) AS schools_counted, COUNT_IF(NOT complete) AS schools_incomplete,
+         COUNT_IF(sector = 'Public' AND complete) AS public_schools_counted,
+         COUNT_IF(sector = 'Public' AND NOT complete) AS public_schools_incomplete
   FROM schools GROUP BY school_year, city_mun_psgc_code
 ),
 population AS (
@@ -61,7 +63,9 @@ cells AS (
          COALESCE(e.enrollment_all_sectors, 0) AS enrollment_all_sectors,
          COALESCE(e.public_school_enrollment, 0) AS public_school_enrollment,
          COALESCE(e.schools_counted, 0) AS schools_counted,
-         COALESCE(e.schools_incomplete, 0) AS schools_incomplete
+         COALESCE(e.schools_incomplete, 0) AS schools_incomplete,
+         COALESCE(e.public_schools_counted, 0) AS public_schools_counted,
+         COALESCE(e.public_schools_incomplete, 0) AS public_schools_incomplete
   FROM members AS m CROSS JOIN years AS y
   LEFT JOIN enrollment AS e ON e.city_mun_psgc_code = m.city_mun_psgc_code AND e.school_year = y.school_year
 )
@@ -72,12 +76,24 @@ SELECT
   CAST(c.public_school_enrollment AS BIGINT) AS public_school_enrollment,
   c.schools_counted,
   c.schools_incomplete,
+  c.public_schools_counted,
+  c.public_schools_incomplete,
   CAST(f.enrollment_all_sectors AS BIGINT) AS enrollment_first_school_year,
   CAST(l.enrollment_all_sectors AS BIGINT) AS enrollment_latest_school_year,
   CASE WHEN c.city_mun_psgc_code IN ('UNKNOWN', 'EXCLUDED') THEN NULL
        WHEN l.enrollment_all_sectors > f.enrollment_all_sectors THEN 'increasing'
        WHEN l.enrollment_all_sectors < f.enrollment_all_sectors THEN 'decreasing'
        ELSE 'no change' END AS enrollment_trend,
+  CAST(f.public_school_enrollment AS BIGINT) AS public_enrollment_first_school_year,
+  CAST(l.public_school_enrollment AS BIGINT) AS public_enrollment_latest_school_year,
+  f.public_schools_counted > 0 AND f.public_schools_incomplete = 0
+    AND l.public_schools_counted > 0 AND l.public_schools_incomplete = 0 AS public_enrollment_endpoints_complete,
+  CASE WHEN c.city_mun_psgc_code IN ('UNKNOWN', 'EXCLUDED') OR f.public_schools_counted = 0
+         OR f.public_schools_incomplete > 0 OR l.public_schools_counted = 0 OR l.public_schools_incomplete > 0
+         OR f.public_school_enrollment = 0 THEN NULL
+       WHEN l.public_school_enrollment > f.public_school_enrollment THEN 'increasing'
+       WHEN l.public_school_enrollment < f.public_school_enrollment THEN 'decreasing'
+       ELSE 'no change' END AS public_enrollment_trend,
   CAST(p.school_age_population AS BIGINT) AS school_age_population,
   COALESCE(c.city_mun_psgc_code NOT IN ('UNKNOWN', 'EXCLUDED') AND k.comparable, FALSE) AS is_2020_2024_geography_comparable
 FROM cells AS c
@@ -93,7 +109,10 @@ DECLARE OR REPLACE VARIABLE analytics_ap4_rows_not_matching BIGINT;
 SET VARIABLE analytics_ap4_rows_not_matching = (
   (SELECT COUNT(*) FROM (
      SELECT city_mun_psgc_code, school_year, enrollment_all_sectors, public_school_enrollment, schools_counted,
-            schools_incomplete, enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+             schools_incomplete, public_schools_counted, public_schools_incomplete,
+             enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+             public_enrollment_first_school_year, public_enrollment_latest_school_year,
+             public_enrollment_endpoints_complete, public_enrollment_trend,
             school_age_population, is_2020_2024_geography_comparable
      FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate
      EXCEPT ALL SELECT * FROM ap4_expected) AS x)
@@ -101,7 +120,10 @@ SET VARIABLE analytics_ap4_rows_not_matching = (
      SELECT * FROM ap4_expected
      EXCEPT ALL
      SELECT city_mun_psgc_code, school_year, enrollment_all_sectors, public_school_enrollment, schools_counted,
-            schools_incomplete, enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+             schools_incomplete, public_schools_counted, public_schools_incomplete,
+             enrollment_first_school_year, enrollment_latest_school_year, enrollment_trend,
+             public_enrollment_first_school_year, public_enrollment_latest_school_year,
+             public_enrollment_endpoints_complete, public_enrollment_trend,
             school_age_population, is_2020_2024_geography_comparable
      FROM edu_access.`06-analytics`.ap4_enrollment_trend_candidate) AS x));
 
@@ -166,6 +188,10 @@ SELECT
                 OR enrollment_change_first_to_latest IS DISTINCT FROM enrollment_latest_school_year - enrollment_first_school_year
                 OR enrollment_change_pct_first_to_latest IS DISTINCT FROM
                    CAST(enrollment_change_first_to_latest AS DOUBLE) / NULLIF(enrollment_first_school_year, 0)
+                OR public_enrollment_change_first_to_latest IS DISTINCT FROM
+                   public_enrollment_latest_school_year - public_enrollment_first_school_year
+                OR public_enrollment_change_pct_first_to_latest IS DISTINCT FROM
+                   CAST(public_enrollment_change_first_to_latest AS DOUBLE) / NULLIF(public_enrollment_first_school_year, 0)
                 OR (census_year IS NOT NULL AND (age_min <> 5 OR age_max <> 17))) FROM ap4) AS arithmetic_errors,
   (SELECT COUNT_IF(enrollment_change_from_previous_year IS DISTINCT FROM enrollment_all_sectors - previous_enrollment
                 OR enrollment_change_pct_from_previous_year IS DISTINCT FROM

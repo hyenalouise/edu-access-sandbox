@@ -2,7 +2,7 @@
 
 **Status:** Draft for team review (#7), mapped to the approved [business and analytical questions](business-analytics-problem.md) (D-042, mentor review 2026-10-14).
 
-> **Current method under D-060 (2026-10-21):** percentiles and composite tiers are not used. AP2 supplies a bounded classroom review queue; AP1, AP3, national summaries, and Similar LGUs remain context.
+> **Current method under D-061 (2026-10-21):** AP2 and AP3 supply separate current-pressure flags and AP4 public-school enrollment growth modifies urgency. AP1, the population gap, national summaries, and Similar LGUs remain context.
 
 What LGU education planners need to decide, taken from published documents (D-001). The stakeholders are LGU planners, with students as the focus (D-013). Each need is tagged:
 
@@ -20,7 +20,7 @@ Question v1 is the approved business question (BP) and analytical questions AP1 
 | Comparison framework (official benchmark, peer, national) | 3 of those needs: N-05, N-06, N-22 | A-05, A-06 |
 | Primary users, planner roles, and first persona | 3 roles: R-01 to R-03 | A-07, A-08 |
 
-Most of what Question v1 measures is documented: student-to-teacher and classroom-to-student ratios, barangays with no school offering a level, population growth against school capacity, the city/municipal level, and comparison with broader averages. The parts that stay **assumed** include Population 2024 per public school and the inputs and method for Similar LGUs. D-060 removes percentiles as a priority statistic and bounds AP2's research-based line to a classroom review screen.
+Most of what Question v1 measures is documented: student-to-teacher and classroom-to-student ratios, barangays with no school offering a level, enrollment growth, the city/municipal level, and comparison with broader averages. The parts that stay **assumed** include Population 2024 per public school and the inputs and method for Similar LGUs. D-061 removes percentiles and weighted scoring, and uses only benchmarked AP2 and AP3 pressure plus observed public-school enrollment growth.
 
 ## Documents read
 
@@ -87,7 +87,7 @@ Question v1 relies on these, but none of the documents read states them. They st
 |---|---|---|---|
 | A-01 | Population 2024 per public school is a useful provision measure for LGU planners. | AP1 | A planning document that uses population per school, or a mentor check |
 | A-02 | Total population is useful AP1 context beside enrolled learners. | AP1 | AP1's approved wording names total population (D-042); whether planners find Population 2024 per public school useful is a mentor check. AP4's school-age population is a separate choice, ages 5–17 (D-042). |
-| A-03 | A school-level illustrative reported-room screen, aggregated by affected schools and learners, is useful for deciding which LGUs to validate first. | BP; AP2 | D-060 implements this as a bounded classroom review queue, not a shortage or entitlement. User testing or a DepEd/LSB review should confirm its usefulness. |
+| A-03 | A school-level illustrative reported-room screen, aggregated by affected schools and learners, is useful for deciding which LGUs to validate first. | BP; AP2 | D-061 uses this as the classroom-pressure flag, not a shortage or entitlement. User testing or a DepEd/LSB review should confirm its usefulness. |
 | A-04 | Settled: head teachers count as teachers in AP3. | AP3 | D-047 counts Head Teachers I–VI with the other teaching positions. No longer an assumption; the ID is kept so earlier references stay valid. |
 | A-05 | Population density is a fair criterion for grouping comparable LGUs. | Comparison framework: the proposed peer groups ([metric specification](metric-specification.md)); land area from HDX (D-042) | A planning document or a mentor check ([question 2](#questions-for-the-mentor)). The documents support comparing by income class (N-06, N-22) and against averages (N-05), but do not mention density. |
 | A-06 | Descriptive national and Similar-LGU summaries are useful beside the source-bounded measures. | Comparison framework ([metric specification](metric-specification.md)) | A mentor check. N-05 documents comparison with averages, but no distribution statistic is allowed to become a need threshold without a new decision. |
@@ -100,8 +100,8 @@ No threshold, standard or ideal ratio is used here unless quoted from a cited do
 
 - **AP1:** DepEd Order No. 40, s. 2014 is active as the count of barangays without a public elementary school (N-01, N-09).
 - **AP2:** Republic Act No. 7880's 45 learners per classroom is not applied, because the reported instructional rooms include spaces the law excludes and the law allocates by legislative district.
-- **AP2:** applies the PIDS `>=50` illustrative line per usable school, then aggregates affected schools and learners for the D-060 classroom review queue. This is not an exact reproduction or RA No. 7880 shortage estimate.
-- **AP3:** shows the World Bank study's historical 35:1 ES comparison plus derived JHS and SHS deployment comparisons. It has no teacher-priority rank and estimates no shortage.
+- **AP2:** applies the PIDS `>=50` illustrative line per usable school, then aggregates affected schools and learners for the D-061 classroom-pressure flag. This is not an exact reproduction or RA No. 7880 shortage estimate.
+- **AP3:** uses the World Bank study's historical 35:1 ES comparison plus derived JHS and SHS deployment comparisons as a pressure flag after coverage passes. It estimates no shortage, vacancy, or hiring requirement.
   RM 379's 45 JHS and 40 SHS figures are class-size maxima, not learner-to-teacher ratios. AP3 converts them with the same table's teacher-to-class factors to 36 and 26.67. Using 45 or 40 directly would mix denominators and under-flag teacher pressure.
 
 Two references from the documents read are not in the register:

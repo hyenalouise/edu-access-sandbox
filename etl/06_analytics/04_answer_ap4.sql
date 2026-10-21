@@ -1,7 +1,7 @@
 -- Analytics output for AP4 (#147): enrollment by city or municipality and school year and whether it goes up
 -- or down, with the school-age population gap on the census school years. Implements the AP4 contract of
--- docs/business/metric-specification.md and the team's BP and AP metrics (D-042). AP4 is context under D-060
--- and never changes the classroom queue.
+-- docs/business/metric-specification.md and the team's BP and AP metrics (D-061). Public-school enrollment
+-- growth feeds planning priority; the all-sector trend and population gap remain context.
 --
 -- Grain: one row per city or municipality member and school year, key (city_mun_psgc_code,
 -- school_year), for every school year in fact_school_enrollment (SY 2020-21 to 2025-26 today).
@@ -77,7 +77,9 @@ enrollment AS (
     CAST(COALESCE(SUM(school_learners), 0) AS BIGINT) AS enrollment_all_sectors,
     CAST(COALESCE(SUM(CASE WHEN sector = 'Public' THEN school_learners END), 0) AS BIGINT) AS public_school_enrollment,
     COUNT(school_learners) AS schools_counted,
-    COUNT_IF(school_learners IS NULL) AS schools_incomplete
+    COUNT_IF(school_learners IS NULL) AS schools_incomplete,
+    COUNT_IF(sector = 'Public' AND school_learners IS NOT NULL) AS public_schools_counted,
+    COUNT_IF(sector = 'Public' AND school_learners IS NULL) AS public_schools_incomplete
   FROM school_totals
   GROUP BY school_year, city_mun_psgc_code
 ),
@@ -110,7 +112,9 @@ grid AS (
     COALESCE(e.enrollment_all_sectors, 0) AS enrollment_all_sectors,
     COALESCE(e.public_school_enrollment, 0) AS public_school_enrollment,
     COALESCE(e.schools_counted, 0) AS schools_counted,
-    COALESCE(e.schools_incomplete, 0) AS schools_incomplete
+    COALESCE(e.schools_incomplete, 0) AS schools_incomplete,
+    COALESCE(e.public_schools_counted, 0) AS public_schools_counted,
+    COALESCE(e.public_schools_incomplete, 0) AS public_schools_incomplete
   FROM members AS m
   CROSS JOIN school_years AS y
   LEFT JOIN enrollment AS e ON e.city_mun_psgc_code = m.city_mun_psgc_code AND e.school_year = y.school_year
@@ -122,7 +126,11 @@ trend AS (
          THEN LAG(g.enrollment_all_sectors) OVER (PARTITION BY g.city_mun_psgc_code ORDER BY g.school_year_start) END
       AS previous_enrollment,
     f.enrollment_all_sectors AS enrollment_first_school_year,
-    l.enrollment_all_sectors AS enrollment_latest_school_year
+    l.enrollment_all_sectors AS enrollment_latest_school_year,
+    f.public_school_enrollment AS public_enrollment_first_school_year,
+    l.public_school_enrollment AS public_enrollment_latest_school_year,
+    f.public_schools_counted > 0 AND f.public_schools_incomplete = 0
+      AND l.public_schools_counted > 0 AND l.public_schools_incomplete = 0 AS public_enrollment_endpoints_complete
   FROM grid AS g
   CROSS JOIN bounds AS b
   JOIN grid AS f ON f.city_mun_psgc_code = g.city_mun_psgc_code AND f.school_year = b.first_school_year
@@ -138,6 +146,8 @@ SELECT
   CAST(t.public_school_enrollment AS DOUBLE) / NULLIF(t.enrollment_all_sectors, 0) AS public_school_share,
   t.schools_counted,
   t.schools_incomplete,
+  t.public_schools_counted,
+  t.public_schools_incomplete,
   t.enrollment_all_sectors - t.previous_enrollment AS enrollment_change_from_previous_year,
   CAST(t.enrollment_all_sectors - t.previous_enrollment AS DOUBLE) / NULLIF(t.previous_enrollment, 0) AS enrollment_change_pct_from_previous_year,
   b.first_school_year,
@@ -151,6 +161,17 @@ SELECT
        WHEN t.enrollment_latest_school_year > t.enrollment_first_school_year THEN 'increasing'
        WHEN t.enrollment_latest_school_year < t.enrollment_first_school_year THEN 'decreasing'
        ELSE 'no change' END AS enrollment_trend,
+  t.public_enrollment_first_school_year,
+  t.public_enrollment_latest_school_year,
+  t.public_enrollment_endpoints_complete,
+  t.public_enrollment_latest_school_year - t.public_enrollment_first_school_year AS public_enrollment_change_first_to_latest,
+  CAST(t.public_enrollment_latest_school_year - t.public_enrollment_first_school_year AS DOUBLE)
+    / NULLIF(t.public_enrollment_first_school_year, 0) AS public_enrollment_change_pct_first_to_latest,
+  CASE WHEN t.member_type <> 'regular' OR NOT t.public_enrollment_endpoints_complete
+         OR t.public_enrollment_first_school_year = 0 THEN NULL
+       WHEN t.public_enrollment_latest_school_year > t.public_enrollment_first_school_year THEN 'increasing'
+       WHEN t.public_enrollment_latest_school_year < t.public_enrollment_first_school_year THEN 'decreasing'
+       ELSE 'no change' END AS public_enrollment_trend,
   c.census_year,
   c.population_source,
   c.population_reference_date,

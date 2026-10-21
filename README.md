@@ -36,12 +36,12 @@ It brings together official DepEd, PSA, and HDX files, matches every school to t
 |---|---|---|
 | **AP1** | Which cities and municipalities have fewer public schools relative to their enrolled students and population? | Learners and school-age children per public school, and barangays without a public elementary school |
 | **AP2** | Which have the most public-school students per classroom? | A school-by-school screen at 50 or more learners per reported instructional room, summed to the schools and learners affected in each place |
-| **AP3** | Which have the most public-school students per teacher? | Learners per teacher at each level, beside published references |
-| **AP4** | Which have the largest gap between school-age population and enrollment over time? | Enrollment in every sector by school year, its trend, and the gap to the 2020 and 2024 census population |
+| **AP3** | Which have the most public-school students per teacher? | Learners per teacher at each level, beside the ES, JHS, and SHS review references |
+| **AP4** | Which have the largest gap between school-age population and enrollment over time? | Public-school enrollment growth from SY 2020-21 to 2025-26 for priority, with the all-sector trend and census gap as context |
 
 ### What it produces
 
-- **A classroom review queue.** Every city or municipality whose reported data cover at least 90% of its learners, and that has at least one public school at or above the classroom screen, is ranked by the learners in those schools, then the number of those schools. The queue orders review effort; it is not a shortage count or a funding allocation.
+- **A planning-priority list.** D-061 combines separate classroom and teacher pressure flags with public-school enrollment growth into Priority 1 to 3, Monitor, No current pressure identified, and Data review. It orders review effort and does not estimate shortages, entitlements, or funding allocations.
 - **One table per analytical question**, with its coverage and the reason when a place cannot be assessed. Every column is in [analytics outputs](docs/data/analytics-outputs.md).
 - **Trusted Gold tables** of schools, places, enrollment, classrooms, teachers, population, and poverty, reusable for other questions.
 - **A data-quality dashboard** that shows every check the pipeline ran, by layer and source, with job runs and source freshness.
@@ -112,7 +112,7 @@ flowchart LR
     end
     subgraph analytics["06 Analytics"]
         direction TB
-        ap["ap1_school_provision · ap2_classroom_pressure<br/>ap3_teacher_pressure · ap4_enrollment_trend"] --> matrix[lgu_priority_matrix<br/>D-060 classroom review queue]
+        ap["ap1_school_provision · ap2_classroom_pressure<br/>ap3_teacher_pressure · ap4_enrollment_trend"] --> matrix[lgu_priority_matrix<br/>D-061 planning priority]
     end
     sources --> lanes --> integration --> gold
     lanes --> gold
@@ -134,7 +134,7 @@ Each source moves through Bronze and Silver in its own lane. From Silver on, eve
 | Silver | 9 cleaned tables, each with a quarantine table for rows that cannot be trusted |
 | Integration | 6 matching tables: schools, poverty estimates, boundaries, and census places to PSGC, annex schools to their mother schools, and school points to boundaries |
 | Gold | 13 dimensions and facts at their natural grain |
-| Analytics | AP1 to AP4 and the classroom review queue |
+| Analytics | AP1 to AP4 and the D-061 planning-priority list |
 
 Every layer runs in one Databricks job, `edu_access_pipeline`, with a `dev` target for development and a `prod` target deployed only from `main`. The whole job has run source to Gold on Databricks twice with every gate passing and identical results ([evidence](evidence/pipeline-runs/2026-10-20-gold-databricks-dev.md)), and totals are traced from each source file to Gold in [validation](docs/operations/validation.md).
 

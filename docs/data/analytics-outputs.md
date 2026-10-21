@@ -10,7 +10,7 @@ Every column of the five tables in `` edu_access.`06-analytics` ``, the tables p
 | [`ap2_classroom_pressure`](#ap2_classroom_pressure) | One regular city or municipality, SY 2023-24 | AP2 · Classrooms |
 | [`ap3_teacher_pressure`](#ap3_teacher_pressure) | One regular city or municipality, SY 2023-24, with ES, JHS and SHS side by side | AP3 · Teachers: context only, not ranked |
 | [`ap4_enrollment_trend`](#ap4_enrollment_trend) | One city or municipality member and school year, SY 2020-21 to 2025-26 | AP4 · Population and enrollment: context only |
-| [`lgu_priority_matrix`](#lgu_priority_matrix) | One regular city or municipality, SY 2023-24 | AP1 to AP4 side by side, and the D-060 classroom review queue |
+| [`lgu_priority_matrix`](#lgu_priority_matrix) | One regular city or municipality | AP1 to AP4 side by side and the D-061 planning-priority category |
 
 ## Reading the columns
 
@@ -129,6 +129,8 @@ Built by `04_answer_ap4.sql`. Key: `city_mun_psgc_code`, `school_year`. Unlike t
 | `public_school_share` | DOUBLE | `public_school_enrollment` / `enrollment_all_sectors`, a fraction |
 | `schools_counted` | BIGINT | Schools in `enrollment_all_sectors` |
 | `schools_incomplete` | BIGINT | Schools left out because a level they offer is blank |
+| `public_schools_counted` | BIGINT | Public schools with complete enrollment in that school year |
+| `public_schools_incomplete` | BIGINT | Public schools left out because an offered level is blank |
 | `enrollment_change_from_previous_year` | BIGINT | Against the school year just before; NULL for the first year or when that year is missing |
 | `enrollment_change_pct_from_previous_year` | DOUBLE | The same change as a fraction of the previous year |
 | `first_school_year` | STRING | First school year in the data (`2020-21`) |
@@ -138,6 +140,12 @@ Built by `04_answer_ap4.sql`. Key: `city_mun_psgc_code`, `school_year`. Unlike t
 | `enrollment_change_first_to_latest` | BIGINT | Latest minus first |
 | `enrollment_change_pct_first_to_latest` | DOUBLE | The same change as a fraction of the first year; NULL when the first year is 0 |
 | `enrollment_trend` | STRING | `increasing`, `decreasing`, or `no change`, by the sign of the change, with no threshold; NULL for technical members |
+| `public_enrollment_first_school_year` | BIGINT | Public-school enrollment in the first school year |
+| `public_enrollment_latest_school_year` | BIGINT | Public-school enrollment in the latest school year |
+| `public_enrollment_endpoints_complete` | BOOLEAN | TRUE only when both endpoint years have at least one complete public school and no incomplete public school |
+| `public_enrollment_change_first_to_latest` | BIGINT | Latest minus first public-school enrollment |
+| `public_enrollment_change_pct_first_to_latest` | DOUBLE | Public-school enrollment change as a fraction of the first year; NULL when the first year is 0 |
+| `public_enrollment_trend` | STRING | `increasing`, `decreasing`, or `no change`, based on public-school enrollment from the first to latest year |
 | `census_year` | INT | 2020 on SY 2020-21, 2024 on SY 2024-25, NULL in other years |
 | `population_source` | STRING | The census, e.g. `2024 Census of Population (POPCEN), PSA Total Population` |
 | `population_reference_date` | DATE | Census reference date: 2020-05-01 or 2024-07-01 |
@@ -153,7 +161,7 @@ Built by `04_answer_ap4.sql`. Key: `city_mun_psgc_code`, `school_year`. Unlike t
 
 ## `lgu_priority_matrix`
 
-Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. Starts with the [LGU columns](#lgu-columns). It has no composite score, tier, or overall rank (D-060).
+Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. Starts with the [LGU columns](#lgu-columns). D-061 counts separate current-pressure flags and public-school enrollment growth without a weighted score.
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -165,24 +173,33 @@ Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. St
 | `ap2_learners_per_reported_room` | DOUBLE | AP2 `learners_per_classroom` |
 | `ap2_learner_coverage_pct` | DOUBLE | AP2 `learner_coverage_pct` |
 | `ap2_assessed` | BOOLEAN | AP2 `is_assessed` |
-| `ap2_screened_congested_school_count` | BIGINT | AP2 `congested_school_count` |
+| `ap2_affected_school_count` | BIGINT | AP2 `congested_school_count` |
 | `ap2_affected_learners` | BIGINT | AP2 `learners_in_congested_schools` |
 | `ap2_affected_learner_share_pct` | DOUBLE | AP2 `congested_learner_share_pct` |
 | `ap2_screen_status` | STRING | AP2 `benchmark_status` |
 | `ap3_es_learners_per_teacher` | DOUBLE | AP3 `es_learners_per_teacher` |
 | `ap3_jhs_learners_per_teacher` | DOUBLE | AP3 `jhs_learners_per_teacher` |
 | `ap3_shs_learners_per_teacher` | DOUBLE | AP3 `shs_learners_per_teacher` |
-| `ap3_fully_assessed` | BOOLEAN | AP3 `is_assessed` |
+| `ap3_assessed` | BOOLEAN | AP3 `is_assessed` |
 | `ap3_review_status` | STRING | AP3 `benchmark_status` |
-| `ap4_gap_2020` | BIGINT | AP4 `population_enrollment_gap` on SY 2020-21 |
+| `ap3_pressured_level_count` | BIGINT | Number of assessed ES, JHS, and SHS levels above their AP3 reference |
+| `ap3_affected_learners` | BIGINT | Learners in assessed levels above their AP3 reference |
+| `ap4_public_enrollment_first` | BIGINT | AP4 public-school enrollment in the first available school year |
+| `ap4_public_enrollment_latest` | BIGINT | AP4 public-school enrollment in the latest available school year |
+| `ap4_public_enrollment_change` | BIGINT | Latest minus first public-school enrollment |
+| `ap4_public_enrollment_change_pct` | DOUBLE | Public-school enrollment change as a fraction of the first year |
+| `ap4_public_enrollment_trend` | STRING | AP4 public-school enrollment trend |
+| `ap4_public_enrollment_endpoints_complete` | BOOLEAN | Whether AP4 has complete public-school enrollment at both endpoints used for growth |
+| `ap4_geography_comparable` | BOOLEAN | Whether the city or municipality's territory is comparable from 2020 to 2024; growth is not assessed where it is not |
 | `ap4_gap_2024` | BIGINT | AP4 `population_enrollment_gap` on SY 2024-25 |
-| `ap4_gap_rate_2020_pct` | DOUBLE | 100 × AP4 `gap_share` on SY 2020-21 |
 | `ap4_gap_rate_2024_pct` | DOUBLE | 100 × AP4 `gap_share` on SY 2024-25 |
-| `ap4_gap_change` | BIGINT | 2024 gap − 2020 gap; NULL unless the geography is comparable |
-| `ap4_enrollment_trend` | STRING | AP4 `enrollment_trend` |
-| `ap4_enrollment_change_pct` | DOUBLE | AP4 `enrollment_change_pct_first_to_latest`: a fraction, not 0 to 100 |
-| `classroom_priority_group` | STRING | `reported_congestion_screen` (AP2 assessed and has affected learners), `no_reported_congestion_screen` (assessed, none), or `data_review` (AP2 not assessed) |
-| `classroom_priority_rank` | BIGINT | Only in `reported_congestion_screen`: `DENSE_RANK()` by affected learners, then affected schools, then pooled room ratio, all descending; ties share a rank. A triage order for review, not a shortage rank |
-| `classroom_priority_basis` | STRING | Fixed text explaining the group |
-| `rule_version` | STRING | `D-060` |
+| `growth_not_assessed_reason` | STRING | Why growth is not assessed: `no AP4 enrollment row`, `no 2024 census population row`, `boundary changed 2020-2024`, `public enrollment incomplete in first or latest school year`, or `no public enrollment in first school year`; NULL when growth is assessed |
+| `classroom_pressure_flag` | INT | 1 when AP2 is assessed and has at least one affected school, otherwise 0 |
+| `teacher_pressure_flag` | INT | 1 when AP3 is assessed and at least one level is above its reference, otherwise 0 |
+| `growing_enrollment` | BOOLEAN | TRUE when public-school enrollment increased from the first to latest year, FALSE for decreasing or no change, and NULL when not assessed (see `growth_not_assessed_reason`) |
+| `current_pressure_count` | INT | Sum of the classroom and teacher pressure flags |
+| `priority_affected_learners` | BIGINT | Greater of AP2 and AP3 affected learners, avoiding double counting across pressures |
+| `priority_category` | STRING | D-061 category: `Priority 1`, `Priority 2`, `Priority 3`, `Monitor`, `No current pressure identified`, or `Data review`. Unassessed growth never raises a category: an LGU with a known pressure is placed as if it were not growing |
+| `priority_order` | BIGINT | Deterministic national planning order across the D-061 categories and evidence fields |
+| `rule_version` | STRING | `D-061` |
 | `code_revision` | STRING | Commit that built the row |

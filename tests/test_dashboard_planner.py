@@ -1,5 +1,5 @@
 """The LGU planner dashboard: its JSON matches the generator, its pages, filters and layout follow the plan, and it
-shows D-060's classroom review queue as the Analytics tables publish it."""
+shows D-061's planning priorities as the Analytics tables publish them."""
 
 import json
 import re
@@ -138,19 +138,19 @@ def _rows(store, name, **chosen):
     return store.records(sql, {k: v for k, v in params.items() if re.search(rf":{k}\b", sql)})
 
 
-def test_the_planner_shows_the_d060_review_queue_as_published(store):
+def test_the_planner_shows_the_d061_priority_as_published(store):
     # Town One gains a school with 300 learners in 4 reported rooms (75 per room), above the screen of 50
     add_public_school(store, "X1", "M1", 300, 4, 10)
     run_all(store)
     kpi = _rows(store, "ov_kpi")[0]
     assert (kpi["queue_lgus"], kpi["screened_schools"], kpi["screened_learners"], kpi["data_review_lgus"]) == (1, 1, 300, 0)
     assert _rows(store, "dm_kpi")[0]["queue_lgus"] == 1
-    # LGU Profile opens on the top of the queue, and its evidence restates the published screen
-    card = _rows(store, "pr_card")[0]
-    assert card["city_mun_name"] == "Town One" and card["queue_status"] == planner.QUEUE[0]
-    assert "rank 1 of 1" in card["details"]
-    screen = _rows(store, "pr_evidence")[0]
-    assert screen["this_place"] == "1 of 2 schools, 300 learners" and screen["status"] == planner.QUEUE[0]
+    # Town One has classroom pressure and growing enrollment, so D-061 publishes Priority 2
+    card = _rows(store, "pr_card", lgu="Town One, Province")[0]
+    assert card["city_mun_name"] == "Town One" and card["queue_status"] == planner.QUEUE[1]
+    assert "order 1" in card["details"]
+    screen = _rows(store, "pr_evidence", lgu="Town One, Province")[0]
+    assert screen["this_place"] == "1 of 2 schools, 300 learners" and screen["status"] == planner.QUEUE[1]
     assert {r["share_band"] for r in _rows(store, "dm_share")} <= set(planner.SHARE_BANDS)
 
 
@@ -174,13 +174,13 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
         WHERE school_id = 'X1' AND education_level_code = 'JHS'""")
     run_all(store)
     add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
-    ratio = {level: {r["school_id"]: r["teacher_ratio"] for r in _rows(store, "sa_list", level=level)}
+    ratio = {level: {r["school_id"]: r["teacher_ratio"] for r in _rows(store, "sa_list", level=level, lgu="Town One, Province")}
              for level in (planner.ALL_LEVELS, "ES", "JHS")}
     assert ratio[planner.ALL_LEVELS]["X1"] == ratio["ES"]["X1"] == 30  # 300 ES learners over 10 ES teachers
     assert ratio["JHS"]["X1"] is None
     # the comparison chart leaves it out at JHS rather than plotting the all-level ratio
-    assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS)}
-    assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="JHS")}
+    assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS, lgu="Town One, Province")}
+    assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="JHS", lgu="Town One, Province")}
 
 
 def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(store):

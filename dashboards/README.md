@@ -86,7 +86,7 @@ python -m pytest tests/test_dashboard_planner.py tests/test_local_job.py -q
 
 ```mermaid
 flowchart LR
-    matrix[(lgu_priority_matrix<br/>D-060 queue and rank)] --> ov[Overview]
+    matrix[(lgu_priority_matrix<br/>D-061 category and order)] --> ov[Overview]
     aps[(AP1 to AP4)] --> ov & pr[LGU Profile] & dm[Data and Method]
     matrix --> pr & dm
     gold[(Gold facts and dimensions)] --> pr & sa[School Action]
@@ -94,7 +94,7 @@ flowchart LR
     control[(01-control)] --> dm
 ```
 
-It shows D-060's **classroom review queue**: an assessed LGU (at least 90% of learners in schools with a room count) with at least one public school at 50 or more learners per reported instructional room is in the queue, ranked by learners in those schools, then the number of those schools, then the pooled ratio; one with none is *No reported congestion*; the rest are *Data review*. The queue, its rank, and the AP3 reference statuses come from [`lgu_priority_matrix`](../etl/06_analytics/README.md) and the AP tables. The dashboard filters, labels and arranges them; it computes no rank or status. AP1, AP3, and AP4 are context and never move a place.
+It shows D-061's planning priorities. AP2 contributes a classroom-pressure flag, AP3 contributes a teacher-pressure flag, and AP4 contributes public-school enrollment growth. Those inputs assign Priority 1–3, Monitor, No current pressure identified, or Data review. The category and national planning order come from [`lgu_priority_matrix`](../etl/06_analytics/README.md); the dashboard only filters, labels, and presents them. AP1, school-age population, and poverty remain context.
 
 ### The four views
 
@@ -109,13 +109,13 @@ It shows D-060's **classroom review queue**: an assessed LGU (at least 90% of le
 
 | View | KPI | Definition |
 |---|---|---|
-| Overview | LGUs in the review queue | `classroom_priority_group = reported_congestion_screen` |
+| Overview | LGUs in Priority 1–3 | `priority_category` is Priority 1, Priority 2, or Priority 3 |
 | | Learners in screened schools | `ap2_affected_learners`, with their share of public learners in view |
 | | Screened schools | Public schools at or above 50 learners per reported room |
-| | LGUs needing data review | Under 90% of learners have a room count |
+| | LGUs needing data review | No known pressure, and coverage or growth could not be checked |
 | LGU Profile | Public schools, Instructional classrooms, Teachers, Public learners | AP1's school count, AP2's reported rooms, AP3's teachers, AP1's public enrollment, SY 2023-24 |
 | School Action | Learners per reported room, Learners per teacher, Enrollment change, Temporary and makeshift rooms | The selected school, SY 2023-24 (enrollment change SY 2020-21 to 2025-26, when both years are complete) |
-| Data and Method | Assessed LGUs, LGUs requiring data review, LGUs in the review queue, Screened schools | As on Overview, over Region, Province, and LGU type |
+| Data and Method | Assessed LGUs, LGUs requiring data review, LGUs in Priority 1–3, Screened schools | As on Overview, over Region, Province, and LGU type |
 
 ### Filters
 
@@ -138,7 +138,7 @@ The LGU Profile's four findings are fixed SQL rules over the same tables as its 
 
 ### Limits
 
-The dashboard cannot tell how many classrooms, teachers or schools to add, a teacher allocation priority, room type or condition, or how far learners travel. The 50-learner line is a PIDS-style illustrative screen on a broader room field, not an official DepEd ratio (D-060). Classroom and teacher figures exist only for SY 2023-24. Users validate screened schools against actual classroom counts, condition, shifts, enrolment projections, and planned projects before acting.
+The dashboard cannot tell how many classrooms, teachers or schools to add, a staffing entitlement, room type or condition, or how far learners travel. The 50-learner classroom line and teacher references identify pressure signals; they do not measure shortages. Classroom and teacher figures exist only for SY 2023-24. Users validate screened schools against actual classroom counts, condition, shifts, enrolment projections, and planned projects before acting.
 
 ### Design
 

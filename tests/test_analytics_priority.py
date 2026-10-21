@@ -1,4 +1,4 @@
-"""AP1 to AP4 evidence and the separate classroom-screening queue under D-060."""
+"""AP1 to AP4 evidence and the D-061 planning-priority method."""
 
 import re
 from pathlib import Path
@@ -134,29 +134,40 @@ def test_ap2_threshold_is_inclusive_at_50(store):
         FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [(1, 100)]
 
 
-def test_ap2_coverage_failure_goes_to_classroom_data_review(store):
+def test_ap2_coverage_failure_goes_to_data_review(store):
     # S1 loses its room count: City One keeps half its learners in the ratio, below the 90% gate
     store.sql(f"DELETE FROM {GOLD}.fact_school_classroom_capacity WHERE school_id = 'S1'")
     run_all(store)
     assert store.query(f"""SELECT learner_coverage_pct, is_assessed, not_assessed_reason
         FROM {ANALYTICS}.ap2_classroom_pressure WHERE city_mun_psgc_code = 'C1'""") == [
         (50.0, False, "learner coverage below 90%")]
-    assert store.query(f"""SELECT ap2_assessed, classroom_priority_group, classroom_priority_rank
+    assert store.query(f"""SELECT ap2_assessed, priority_category
         FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C1'""") == [
-        (False, "data_review", None)]
+        (False, "Data review")]
 
 
-def test_classroom_queue_orders_by_affected_learners_and_preserves_ties(store):
-    add_public_school(store, "X1", "M1", 60, 1)
-    add_public_school(store, "X2", "M2", 60, 1)
+def test_classroom_pressure_and_growth_feed_priority(store):
+    add_public_school(store, "X1", "M1", 60, 1, 2)
+    add_public_school(store, "X2", "M2", 60, 1, 2)
     store.sql(f"""UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 8
         WHERE school_id = 'S5'""")
     run_all(store)
     rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap2_affected_learners,
-        ap2_screened_congested_school_count, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix
-        WHERE classroom_priority_group = 'reported_congestion_screen'""")}
-    assert rows["M1"] == (60, 1, 1)
-    assert rows["M2"] == (60, 1, 1)
+        ap2_affected_school_count, classroom_pressure_flag, growing_enrollment, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE classroom_pressure_flag = 1""")}
+    assert rows["M1"] == (60, 1, 1, True, "Priority 2")
+    assert rows["M2"] == (60, 1, 1, True, "Priority 2")
+
+
+def test_two_current_pressures_and_growth_are_priority_1(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_classroom_capacity SET instructional_classrooms_total = 2
+        WHERE school_id = 'S3'""")
+    store.sql(f"""UPDATE {GOLD}.fact_school_teacher_capacity SET teacher_count = 5
+        WHERE school_id = 'S3' AND education_level_code = 'ES'""")
+    run_all(store)
+    assert store.query(f"""SELECT classroom_pressure_flag, teacher_pressure_flag, current_pressure_count,
+        growing_enrollment, priority_category FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C2'""") == [(1, 1, 2, True, "Priority 1")]
 
 
 def test_ap3_pressure_signal_precedes_incomplete_level(store):
@@ -169,6 +180,20 @@ def test_ap3_pressure_signal_precedes_incomplete_level(store):
     assert store.query(f"""SELECT is_assessed, jhs_benchmark_status, shs_benchmark_status, benchmark_status
         FROM {ANALYTICS}.ap3_teacher_pressure WHERE city_mun_psgc_code = 'C1'""") == [
         (False, "above derived deployment comparison", "not assessed", "pressure signal identified")]
+
+
+def test_a_teacher_level_above_its_reference_counts_when_another_level_is_incomplete(store):
+    # review on #232: AP3 is not fully assessed (SHS fails coverage) but JHS is above its reference,
+    # so the teacher pressure counts and City One is not sent to Data review.
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 200
+        WHERE school_id = 'S1' AND school_year = '2023-24' AND education_level_code = 'JHS'""")
+    store.sql(f"INSERT INTO {GOLD}.fact_school_teacher_capacity VALUES ('S1','2023-24','JHS',4)")
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = 50
+        WHERE school_id = 'S2' AND school_year = '2023-24' AND education_level_code = 'SHS'""")
+    run_all(store)
+    assert store.query(f"""SELECT ap3_assessed, teacher_pressure_flag, current_pressure_count, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'C1'""") == [(False, 1, 2, "Priority 1")]
+    # The added JHS learners also put S1 at 66 learners per room (classroom pressure), and enrollment grows.
 
 
 def test_teacher_context_never_assigns_a_teacher_priority_rank(store):
@@ -195,12 +220,49 @@ def test_ap4_gives_the_gap_at_both_censuses_and_never_enters_the_classroom_queue
     assert rows[("C1", "2020-21")] == (884, 200, 684, "available")
     assert rows[("C1", "2024-25")] == (988, 280, 708, "available")
     assert rows[("C1", "2023-24")] == (None, 260, None, "not available: no census in this school year")
-    gaps = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2020, ap4_gap_2024, ap4_gap_change,
-        ap4_enrollment_trend, classroom_priority_group, classroom_priority_rank FROM {ANALYTICS}.lgu_priority_matrix""")}
-    assert gaps["C1"][:4] == (684, 708, 24, "increasing")
-    assert gaps["M2"][2] is None                      # geography not comparable: no change in gap
-    # AP4 is context: a large gap never puts an LGU in the classroom queue (no school here reaches 50 per room)
-    assert {g[4:] for g in gaps.values()} == {("no_reported_congestion_screen", None)}
+    priorities = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, ap4_gap_2024,
+        ap4_public_enrollment_change, ap4_public_enrollment_trend, growing_enrollment, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert priorities["C1"] == (708, 100, "increasing", True, "Monitor")
+    # Town Two's geography is not comparable and it shows no pressure, so with growth unknown it goes to Data review.
+    assert priorities["M2"][2:] == ("increasing", None, "Data review")
+    assert store.query(f"""SELECT growth_not_assessed_reason FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'M2'""") == [("boundary changed 2020-2024",)]
+    assert {k: p[4] for k, p in priorities.items() if k != "M2"} == {"C1": "Monitor", "C2": "Monitor", "M1": "Monitor"}
+
+
+def test_a_known_pressure_places_the_lgu_when_growth_is_not_assessed(store):
+    # review on #232: Town Two's boundary changed, so its growth is unknown, but a crowded school is a known
+    # classroom pressure. It is placed as one pressure without growth, not sent to Data review at the bottom.
+    add_public_school(store, "X2", "M2", 60, 1)
+    store.sql(f"""UPDATE {GOLD}.fact_city_school_age_population SET is_2020_2024_geography_comparable = FALSE
+        WHERE city_mun_psgc_code = 'M2'""")
+    run_all(store)
+    rows = {r[0]: r[1:] for r in store.query(f"""SELECT city_mun_psgc_code, current_pressure_count, growing_enrollment,
+        growth_not_assessed_reason, priority_category, priority_order FROM {ANALYTICS}.lgu_priority_matrix""")}
+    assert rows["M2"][:4] == (1, None, "boundary changed 2020-2024", "Priority 3")
+    assert rows["C1"][2:4] == (None, "Monitor")
+    assert rows["M2"][4] < min(r[4] for k, r in rows.items() if r[3] in ("Monitor", "Data review"))
+
+
+def test_incomplete_public_enrollment_is_named_as_the_reason_growth_is_not_assessed(store):
+    store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET learner_count = NULL
+        WHERE school_id = 'S4' AND school_year = '2025-26' AND education_level_code = 'ES'""")
+    run_all(store)
+    assert store.query(f"""SELECT growing_enrollment, growth_not_assessed_reason, priority_category
+        FROM {ANALYTICS}.lgu_priority_matrix WHERE city_mun_psgc_code = 'M1'""") == [
+        (None, "public enrollment incomplete in first or latest school year", "Data review")]
+
+
+def test_priority_gate_rejects_a_wrong_copied_input(store):
+    # review on #232: a copied AP value that no longer matches its AP table fails inputs_match_ap_outputs
+    run_all(store)
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET ap2_learner_coverage_pct = 1
+        WHERE city_mun_psgc_code = 'C1'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
+    assert store.query(f"""SELECT status FROM edu_access.`01-control`.data_quality_results
+        WHERE check_name = 'inputs_match_ap_outputs' ORDER BY checked_at_utc DESC LIMIT 1""") == [("FAIL",)]
 
 
 def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
@@ -215,8 +277,8 @@ def test_ap3_keeps_a_school_whose_offered_counts_are_all_blank(store):
     assert store.query(f"""SELECT jhs_offered_school_count, jhs_incomplete_school_count, jhs_passes_gate,
         offered_level_count, passing_level_count, is_assessed, benchmark_status FROM {ANALYTICS}.ap3_teacher_pressure
         WHERE city_mun_psgc_code = 'C1'""") == [(1, 1, False, 2, 1, False, "not fully assessed")]
-    assert store.query(f"""SELECT ap3_fully_assessed, ap3_review_status FROM {ANALYTICS}.lgu_priority_matrix
-        WHERE city_mun_psgc_code = 'C1'""") == [(False, "not fully assessed")]
+    assert store.query(f"""SELECT ap3_assessed, ap3_review_status, priority_category FROM {ANALYTICS}.lgu_priority_matrix
+        WHERE city_mun_psgc_code = 'C1'""") == [(False, "not fully assessed", "Data review")]
 
 
 def test_ap2_publishes_no_45_to_1_line(store):
@@ -232,20 +294,40 @@ def test_no_d057_or_d058_logic_remains():
     sql = "\n".join((ROOT / "etl/06_analytics" / name).read_text(encoding="utf-8")
                     for name in ["01_answer_ap1.sql", "02_answer_ap2.sql", "03_answer_ap3.sql",
                                  "04_answer_ap4.sql", "05_build_priority_matrix.sql"])
-    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Priority 1", "Lower Priority",
+    for gone in ["PERCENT_RANK", "national_same_type_ratio", "relative_pressure", "Lower Priority",
                  "Critical", "D-057", "D-058"]:
         assert gone not in sql
 
 
-def test_priority_gate_rejects_a_wrong_classroom_rank(store):
+def test_priority_gate_rejects_a_wrong_category(store):
     add_public_school(store, "X1", "M1", 60, 1)
     run_all(store)
     before = store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code")
-    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET classroom_priority_rank = 99
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate SET priority_category = 'wrong'
         WHERE city_mun_psgc_code = 'M1'""")
     with pytest.raises(Exception, match="Analytics gate failed"):
         run(store, "90_validate_priority_matrix.sql")
     assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
+
+
+def test_priority_gate_reconciles_flags_to_the_ap_outputs(store):
+    run_all(store)
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate
+        SET classroom_pressure_flag = 1, current_pressure_count = teacher_pressure_flag + 1,
+            priority_category = CASE WHEN growing_enrollment THEN 'Priority 2' ELSE 'Priority 3' END
+        WHERE city_mun_psgc_code = 'C1'""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
+
+
+def test_priority_gate_recomputes_the_full_order(store):
+    run_all(store)
+    first, second = store.query(f"""SELECT city_mun_psgc_code FROM {ANALYTICS}.lgu_priority_matrix_candidate
+        ORDER BY priority_order LIMIT 2""")
+    store.sql(f"""UPDATE {ANALYTICS}.lgu_priority_matrix_candidate
+        SET priority_order = CASE city_mun_psgc_code WHEN '{first[0]}' THEN 2 WHEN '{second[0]}' THEN 1 ELSE priority_order END""")
+    with pytest.raises(Exception, match="Analytics gate failed"):
+        run(store, "90_validate_priority_matrix.sql")
 
 
 def test_ap3_gate_rejects_a_wrong_reference_status(store):

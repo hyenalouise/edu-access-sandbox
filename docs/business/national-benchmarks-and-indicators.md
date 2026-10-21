@@ -2,7 +2,7 @@
 
 **Status:** Research register, verified against official sources on 2026-10-14. An entry in this document is not automatically approved for dashboard use. The metric must still match the source definition, education level, geographic grain, and period.
 
-> **Current use under D-060 (2026-10-21):** percentiles and composite tiers are not used. AP2 supplies a bounded classroom review queue; AP1, AP3, national distributions, and Similar LGUs remain separate context.
+> **Current use under D-061 (2026-10-21):** AP2 and AP3 supply separate current-pressure flags, and AP4 public-school enrollment growth modifies urgency. The references remain review screens, not shortage or entitlement formulas.
 
 ## Purpose and document boundary
 
@@ -61,7 +61,7 @@ Those questions are not interchangeable. An official formula may have no officia
 
 [PIDS Discussion Paper 2025-10](https://pidswebs.pids.gov.ph/CDN/document/pidsdps2510.pdf), also summarized by [EDCOM 2](https://edcom2.gov.ph/severe-congestion-in-elementary-schools-in-ncr-calabarzon-region-xii-barmm-edcom-2-pids-study/), defines a school as congested at at least 1:50 **for illustration purposes**. The paper is marked preliminary and unedited/unreviewed, and its analysis is by school and education level. AP2 applies the line to each usable school's all-level reported NSBI instructional-room ratio, then aggregates passing schools and affected learners to the LGU.
 
-This is a **PIDS-style illustrative reported-room screen**, not a validated official benchmark or a claim that the project reproduces the paper or DepEd's published classroom-learner indicator. The denominator is the broader NSBI reported-instructional-room field. It supports a review queue under D-060 but does not estimate a classroom shortage or construction entitlement.
+This is a **PIDS-style illustrative reported-room screen**, not a validated official benchmark or a claim that the project reproduces the paper or DepEd's published classroom-learner indicator. The denominator is the broader NSBI reported-instructional-room field. It supplies the D-061 classroom-pressure flag but does not estimate a classroom shortage or construction entitlement.
 
 ### Official computation
 

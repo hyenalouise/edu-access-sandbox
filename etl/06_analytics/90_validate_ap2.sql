@@ -4,7 +4,7 @@
 -- read many times as a temporary view, the same pattern made Databricks SQL fail with INTERNAL_ERROR (c64e949, #202).
 -- FAIL: rows, keys or LGUs that differ from dim_city_municipality, school counts, learners or rooms that differ
 -- from a recount from Gold, wrong ratio or coverage arithmetic, an assessment that does not follow the 90%
--- learner-coverage gate, or a school screen, affected-learner count, share or status that does not follow D-060.
+-- learner-coverage gate, or a school screen, affected-learner count, share or status that does not follow D-061.
 -- WARN: active public schools and learners not placed in a city or municipality.
 DECLARE OR REPLACE VARIABLE analytics_gate_started_at_utc TIMESTAMP;
 SET VARIABLE analytics_gate_started_at_utc = current_timestamp();

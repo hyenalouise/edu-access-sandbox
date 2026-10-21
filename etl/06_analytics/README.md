@@ -14,30 +14,34 @@ flowchart LR
     ap1[ap1_school_provision] --> matrix
     ap2[ap2_classroom_pressure] --> matrix
     ap3[ap3_teacher_pressure] --> matrix
-    ap4[ap4_enrollment_trend] -->|context only| matrix[lgu_priority_matrix]
+    ap4[ap4_enrollment_trend] -->|public enrollment growth| matrix[lgu_priority_matrix]
 ```
 
 | Build | Gate | Output | Approved use |
 |---|---|---|---|
 | `01_answer_ap1.sql` | `90_validate_ap1.sql` | `ap1_school_provision` | Descriptive school-provision context; not a school-establishment or priority measure |
 | `02_answer_ap2.sql` | `90_validate_ap2.sql` | `ap2_classroom_pressure` | School-level PIDS-style illustrative screen at >=50 learners per reported NSBI instructional room, aggregated to the LGU |
-| `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | Descriptive ES, JHS and SHS learner-per-teacher comparisons; not a teacher-shortage rank |
-| `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
-| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
+| `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | ES, JHS and SHS learner-per-teacher pressure references; not an official shortage estimate |
+| `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Public-school enrollment growth for priority; all-sector trend and census gap as context |
+| `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-061 priority categories from separate AP2 and AP3 pressure flags and AP4 public-enrollment growth |
+
+## D-061 planning-priority method
 
 Every column of these outputs is in [analytics outputs](../../docs/data/analytics-outputs.md).
 
-## D-060 classroom review queue
-
 AP2 evaluates each usable school first. A school passes the illustrative screen when its complete all-level enrollment divided by its reported total NSBI instructional rooms is at least 50. The LGU row reports the number of screened schools, affected learners, and affected-learner share.
 
-An LGU is queued as `reported_congestion_screen` when at least one school passes and AP2 learner coverage is at least 90%. It is `no_reported_congestion_screen` when assessed with no passing school, and `data_review` when coverage is below 90% or the ratio is unavailable.
+AP2 flags classroom pressure when at least one school passes and learner coverage is at least 90%. If coverage is below 90% or the ratio is unavailable, AP2 adds no classroom pressure, and the LGU goes to Data review unless teacher pressure is known; it is never read as having no pressure.
 
-Only LGUs in `reported_congestion_screen` receive `classroom_priority_rank`. `DENSE_RANK()` orders them by affected learners, affected schools, then pooled reported-room ratio, all descending. Exact ties share a rank. These are triage ranks for validating classroom conditions, not official shortage or construction-entitlement ranks.
+AP3 flags teacher pressure when any adequately covered offered level exceeds its reference: ES 35, JHS 36, or SHS 80/3 learners per eligible teacher. AP2 and AP3 remain separate current pressures. AP4 flags growth only when public-school enrollment increases from SY 2020-21 to SY 2025-26 and both endpoint years have at least one complete public school and no public school with an incomplete enrollment total.
+
+`current_pressure_count` is the sum of the two Boolean pressure flags. Priority 1 means both current pressures and growth. Priority 2 means both pressures without growth, or one pressure with growth. Priority 3 means one pressure without growth. Monitor means growth without a current pressure. No current pressure identified means neither pressure nor growth. A known pressure always counts. Where growth cannot be assessed, an LGU with a known pressure is placed as if it were not growing, with `growth_not_assessed_reason`. Data review is for LGUs with no known pressure where an AP2 or AP3 coverage gate failed or growth cannot be assessed.
+
+`priority_order` sorts the categories in that order, then uses current pressure count, affected learners, classroom-affected learners, pressured teacher levels, absolute growth, percentage growth, and PSGC code. Classroom and teacher affected learners remain separate; `priority_affected_learners` uses their larger value rather than adding potentially overlapping learners.
 
 The PIDS paper defines its 1:50 line for illustration and analyzes congestion at school and education-level grain. The current Gold facilities data provide a broader all-level NSBI instructional-room total, including room types outside a K–12-classroom-only denominator. The implementation is therefore labelled **PIDS-style illustrative reported-room screen** and does not claim to reproduce the paper or DepEd's official classroom–learner indicator.
 
-## Teacher context
+## Teacher-pressure interpretation
 
 AP3 preserves ES 35 as a **historical study reference** and JHS 36 and SHS 80/3 as **derived deployment comparisons**. The latter convert published class-size maxima and teacher-to-class factors into a compatible unit. None is a current national staffing entitlement or teacher-shortage formula, so AP3 does not assign a teacher priority rank.
 

@@ -8,7 +8,7 @@ Local education planners ask the question and make the planning decision. The pr
 
 | Role | Who | What they decide or need | What ReachED gives them |
 |---|---|---|---|
-| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer classroom review or a request to DepEd | The D-060 classroom review queue plus separate school and teacher context, with enrollment and coverage |
+| First dashboard persona | Provincial LGU education planner | Which component cities and municipalities warrant closer classroom and teacher review | The D-061 priority categories plus separate pressure, enrollment-growth, and coverage evidence |
 | Primary decision users | LGU Local School Boards (provincial, city, and municipal) | Special Education Fund spending, local validation, and requests to DepEd or another agency | A source-bounded classroom queue and separate AP1/AP3/AP4 evidence; no unsupported composite or teacher rank |
 | Other decision users | City and municipal LGU education planners | Their own local school board spending, including Special Education Fund support and locally funded teachers | Their LGU's measures, comparison position, data coverage, and school-level drill-down |
 | Sponsors and funding partners | UNICEF and ADB | Which places warrant further assessment for possible support or investment | Comparable indicators, the enrolled learners covered by each measure, and stated data limitations |
@@ -91,7 +91,7 @@ What this means for the dashboard:
 
 ## User story
 
-> As a Local School Board member, I want a classroom review queue based on affected schools and learners, with school, teacher, enrollment, coverage, and source limitations shown separately, so I can decide which results require local validation before choosing an intervention.
+> As a Local School Board member, I want a planning-priority list based on separate classroom and teacher pressure flags and public-school enrollment growth, with coverage and source limitations shown, so I can decide which results require local validation before choosing an intervention.
 
 The story is done when the planner can:
 

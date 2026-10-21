@@ -23,13 +23,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -56,7 +58,7 @@
         "  LEFT JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = m.city_mun_psgc_code\n",
         "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
         ")\n",
-        "  -- the list keeps the D-060 order: the review queue by its rank, then the rest\n",
+        "  -- the list keeps the published D-061 priority order\n",
         "  SELECT ROW_NUMBER() OVER (ORDER BY queue_sort, classroom_priority_rank NULLS LAST, ap2_affected_learners DESC,\n",
         "                                     city_mun_psgc_code) AS rank_in_view,\n",
         "         classroom_priority_rank, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name,\n",
@@ -66,7 +68,7 @@
         "         NULLIF(LEAST(COALESCE(ap1_coverage_pct, 0), COALESCE(ap2_learner_coverage_pct, 0), COALESCE(ap3_coverage_pct, 999)), 999)\n",
         "           AS lowest_coverage_pct\n",
         "  FROM pri\n",
-        "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))\n",
+        "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All priority categories' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))\n",
         ") AS b\n",
         "LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m\n",
         "  ON m.psgc_code = b.city_mun_psgc_code AND m.match_status = 'matched'\n",
@@ -128,7 +130,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All review statuses"
+                  "value": "All priority categories"
                 }
               ]
             }
@@ -167,13 +169,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -201,14 +205,14 @@
         "  LEFT JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code\n",
         ")\n",
         "SELECT COUNT(*) AS lgus,\n",
-        "       COUNT_IF(queue_status = 'Classroom review queue') AS queue_lgus,\n",
+        "       COUNT_IF(queue_status IN ('Priority 1', 'Priority 2', 'Priority 3')) AS queue_lgus,\n",
         "       COUNT_IF(queue_status = 'Data review') AS data_review_lgus,\n",
         "       SUM(COALESCE(congested_school_count, 0)) AS screened_schools,\n",
         "       SUM(COALESCE(ap2_affected_learners, 0)) AS screened_learners,\n",
         "       COALESCE(CAST(ROUND(100.0 * SUM(COALESCE(ap2_affected_learners, 0))\n",
         "         / NULLIF(SUM(public_school_enrollment), 0), 1) AS STRING) || '%', 'n/a') AS share_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))"
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All priority categories' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))"
       ],
       "parameters": [
         {
@@ -265,7 +269,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All review statuses"
+                  "value": "All priority categories"
                 }
               ]
             }
@@ -304,13 +308,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -339,7 +345,7 @@
         ")\n",
         "SELECT city_mun_psgc_code, queue_status, teacher_status\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))"
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All priority categories' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))"
       ],
       "parameters": [
         {
@@ -396,7 +402,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All review statuses"
+                  "value": "All priority categories"
                 }
               ]
             }
@@ -435,13 +441,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -478,7 +486,7 @@
         "                     WHEN pri.ap4_enrollment_trend = 'decreasing' THEN 'Decreased' ELSE 'No change' END AS enrollment_direction\n",
         "  FROM pri LEFT JOIN ap4_complete AS c USING (city_mun_psgc_code)\n",
         ")\n",
-        "SELECT city_mun_psgc_code, queue_status, enrollment_direction FROM f WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))"
+        "SELECT city_mun_psgc_code, queue_status, enrollment_direction FROM f WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All priority categories' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Data review' AND queue_status = 'Data review'))"
       ],
       "parameters": [
         {
@@ -535,7 +543,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All review statuses"
+                  "value": "All priority categories"
                 }
               ]
             }
@@ -574,13 +582,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -612,19 +622,14 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT p.lgu_label, p.city_mun_name, p.queue_status,\n",
         "       p.lgu_type_label || ' \u00b7 '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
         "         || ' \u00b7 ' || p.queue_status\n",
-        "         || CASE WHEN p.classroom_priority_rank IS NOT NULL\n",
-        "                 THEN ' \u00b7 rank ' || format_number(p.classroom_priority_rank, 0) || ' of '\n",
-        "                      || format_number((SELECT COUNT(*) FROM edu_access.`06-analytics`.lgu_priority_matrix\n",
-        "                                        WHERE classroom_priority_group = 'reported_congestion_screen'), 0)\n",
-        "                 ELSE '' END\n",
+        "         || ' \u00b7 order ' || format_number(p.priority_order, 0)\n",
         "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 top place in the filters' ELSE '' END AS details,\n",
         "       p.active_public_school_count AS public_schools, p.reported_instructional_classrooms AS classrooms,\n",
         "       COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0) + COALESCE(p.shs_teacher_count, 0) AS teachers,\n",
@@ -714,8 +719,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CAST(NULL AS STRING) AS level_code),\n",
@@ -827,13 +831,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -963,8 +969,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CAST(NULL AS STRING) AS level_code),\n",
@@ -1076,13 +1081,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -1116,7 +1123,7 @@
         "           || format_number(COALESCE(ap2_affected_learners, 0), 0) || ' learners (' || COALESCE(format_number(ap2_affected_learner_share_pct, 1), 'n/a')\n",
         "           || '% of public learners).'\n",
         "           || CASE WHEN classroom_priority_rank IS NOT NULL\n",
-        "                   THEN ' Rank ' || format_number(classroom_priority_rank, 0) || ' in the classroom review queue.'\n",
+        "                   THEN ' National planning order ' || format_number(classroom_priority_rank, 0) || '.'\n",
         "                   ELSE ' No school passes the screen; this is not proof the rooms are adequate.' END AS insight\n",
         "  FROM p WHERE ap2_assessed\n",
         "),\n",
@@ -1139,7 +1146,7 @@
         "rules AS (\n",
         "  SELECT 1 AS ord, insight FROM screen\n",
         "  UNION ALL\n",
-        "  SELECT 2, CASE WHEN queue_status = 'Data review' THEN 'Not placed in the queue yet: ' || data_review_reason || '.'\n",
+        "  SELECT 2, CASE WHEN queue_status = 'Data review' THEN 'Data review: ' || data_review_reason || '.'\n",
         "                 ELSE format_number(COALESCE(missing_room_school_count, 0) + COALESCE(zero_room_school_count, 0), 0)\n",
         "                      || ' public schools report no usable room count and are left out of the screen. Check them with '\n",
         "                      || 'the Schools Division Office.' END\n",
@@ -1247,13 +1254,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -1285,8 +1294,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
@@ -1392,13 +1400,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -1430,8 +1440,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
@@ -1445,7 +1454,7 @@
         "         || format_number(COALESCE(zero_room_school_count, 0), 0) || ' with 0 rooms (left out of the screen)'\n",
         "FROM p\n",
         "UNION ALL SELECT 3, 'Teachers (AP3)', COALESCE(format_number(ap3_coverage_pct, 0) || '%', 'n/a'),\n",
-        "       CASE WHEN ap3_fully_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,\n",
+        "       CASE WHEN ap3_assessed THEN 'Assessed' ELSE 'Not fully assessed' END,\n",
         "       format_number(zero_teacher_annex_schools, 0)\n",
         "         || CASE WHEN zero_teacher_annex_schools = 1 THEN ' annex school level' ELSE ' annex school levels' END\n",
         "         || ' with 0 teachers reported'\n",
@@ -1533,8 +1542,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lv AS (\n",
@@ -1557,7 +1565,7 @@
         "  WHERE lv.offered > 0\n",
         ")\n",
         "SELECT level_label, ord, 'This place' AS series, ratio AS learners_per_teacher FROM me\n",
-        "UNION ALL SELECT level_label, ord, 'Reference (D-060)', reference FROM me"
+        "UNION ALL SELECT level_label, ord, 'Reference (D-061)', reference FROM me"
       ],
       "parameters": [
         {
@@ -1641,8 +1649,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "y AS (SELECT a.* FROM edu_access.`06-analytics`.ap4_enrollment_trend AS a JOIN sel USING (city_mun_psgc_code))\n",
@@ -1731,8 +1738,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "c AS (\n",
@@ -1827,8 +1833,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "a AS (\n",
@@ -1926,8 +1931,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CAST(NULL AS STRING) AS level_code),\n",
@@ -2151,8 +2155,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CAST(NULL AS STRING) AS level_code),\n",
@@ -2364,8 +2367,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -2622,8 +2624,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -2874,8 +2875,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -3131,8 +3131,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -3389,8 +3388,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -3639,8 +3637,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -3902,13 +3899,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -3938,7 +3937,7 @@
         "SELECT COUNT(*) AS lgus,\n",
         "       COUNT_IF(queue_status <> 'Data review') AS assessed,\n",
         "       COUNT_IF(queue_status = 'Data review') AS data_review,\n",
-        "       COUNT_IF(queue_status = 'Classroom review queue') AS queue_lgus,\n",
+        "       COUNT_IF(queue_status IN ('Priority 1', 'Priority 2', 'Priority 3')) AS queue_lgus,\n",
         "       SUM(COALESCE(congested_school_count, 0)) AS screened_schools\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)"
@@ -4070,7 +4069,7 @@
       "displayName": "Data and Method: published references",
       "queryLines": [
         "SELECT * FROM (VALUES\n",
-        "  ('Classrooms (AP2)', 'School learners per reported room', '>= 50', 'PIDS-style illustrative reported-room screen', 'Places an LGU in the review queue'),\n",
+        "  ('Classrooms (AP2)', 'School learners per reported room', '>= 50', 'PIDS-style illustrative reported-room screen', 'Contributes the classroom-pressure flag'),\n",
         "  ('Teachers, Elementary (AP3)', 'Learners per teacher', '> 35', 'historical study reference', 'Context: never ranked'),\n",
         "  ('Teachers, Junior high (AP3)', 'Learners per teacher', '> 36', 'derived deployment comparison (45 maximum learners per class * 4 classes / 5 teachers)', 'Context: never ranked'),\n",
         "  ('Teachers, Senior high (AP3)', 'Learners per teacher', '> 80/3 (26.7)', 'derived deployment comparison (40 maximum learners per class * 6 classes / 9 teachers)', 'Context: never ranked'),\n",
@@ -4094,13 +4093,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -4225,13 +4226,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -4347,13 +4350,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -4453,13 +4458,15 @@
         "),\n",
         "pri AS (\n",
         "  SELECT l.lgu_label, l.province_label, l.lgu_type_label, l.type_plural, m.*,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 'Classroom review queue'\n",
-        "              WHEN 'no_reported_congestion_screen' THEN 'No reported congestion' ELSE 'Data review' END AS queue_status,\n",
-        "         CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END AS queue_sort,\n",
-        "         ROW_NUMBER() OVER (ORDER BY CASE m.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END, m.classroom_priority_rank NULLS LAST,\n",
-        "                                     m.ap2_affected_learners DESC, m.city_mun_psgc_code) AS national_order,\n",
-        "         CASE WHEN m.classroom_priority_group = 'data_review'\n",
-        "              THEN 'classrooms: ' || COALESCE(a2.not_assessed_reason, 'learner coverage below 90%') END AS data_review_reason,\n",
+        "         m.priority_category AS queue_status,\n",
+        "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
+        "         m.priority_order AS national_order,\n",
+        "         m.priority_order AS classroom_priority_rank,\n",
+        "         m.ap4_public_enrollment_trend AS ap4_enrollment_trend,\n",
+        "         CASE WHEN m.priority_category = 'Data review' THEN concat_ws(', ',\n",
+        "              CASE WHEN NOT COALESCE(m.ap2_assessed, FALSE) THEN 'classroom coverage' END,\n",
+        "              CASE WHEN NOT COALESCE(m.ap3_assessed, FALSE) THEN 'teacher coverage' END,\n",
+        "              CASE WHEN m.growing_enrollment IS NULL THEN 'enrollment growth' END) END AS data_review_reason,\n",
         "         -- AP3's published status: a signal at one level stands even if another offered level is short of coverage\n",
         "         CASE a3.benchmark_status WHEN 'pressure signal identified' THEN 'Above a reference'\n",
         "              WHEN 'no pressure signal identified' THEN 'At or below the references'\n",
@@ -4627,7 +4634,7 @@
       "name": "opt_queue",
       "displayName": "Filter: review status",
       "queryLines": [
-        "SELECT * FROM (VALUES ('All review statuses'), ('Classroom review queue'), ('No reported congestion'), ('Data review')) AS v(queue_option)"
+        "SELECT * FROM (VALUES ('All priority categories'), ('Priority 1'), ('Priority 2'), ('Priority 3'), ('Monitor'), ('No current pressure identified'), ('Data review')) AS v(queue_option)"
       ],
       "parameters": []
     },
@@ -4725,8 +4732,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT barangay_option FROM (\n",
@@ -4817,8 +4823,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT barangay_option FROM (\n",
@@ -4925,8 +4930,7 @@
         "  FROM lgu AS l\n",
         "  JOIN edu_access.`06-analytics`.lgu_priority_matrix AS p ON p.city_mun_psgc_code = l.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR l.region_name = :region) AND (:province = 'All provinces' OR l.province_label = :province) AND (:lgu_type = 'All LGU types' OR l.lgu_type_label = :lgu_type)\n",
-        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, CASE p.classroom_priority_group WHEN 'reported_congestion_screen' THEN 0 WHEN 'no_reported_congestion_screen' THEN 1 ELSE 2 END,\n",
-        "           p.classroom_priority_rank NULLS LAST, p.ap2_affected_learners DESC, l.city_mun_psgc_code\n",
+        "  ORDER BY CASE WHEN l.lgu_label = :lgu THEN 0 ELSE 1 END, p.priority_order, l.city_mun_psgc_code\n",
         "  LIMIT 1\n",
         "),\n",
         "lvl AS (SELECT CASE WHEN :level = 'All levels' THEN NULL ELSE :level END AS level_code),\n",
@@ -5155,9 +5159,9 @@
             "name": "text_001",
             "multilineTextboxSpec": {
               "lines": [
-                "# Which cities and municipalities should we inspect first for crowded classrooms?\n",
+                "# Which cities and municipalities should we inspect first?\n",
                 "\n",
-                "Public schools with at least 50 learners per reported instructional room, SY 2023\u201324, ordered by the learners in them (D-060). An order for review, not a shortage count."
+                "D-061 combines current classroom and teacher pressure with public-school enrollment growth. The result orders planning review and is not a shortage count."
               ]
             }
           },
@@ -5278,7 +5282,7 @@
                     "dataType": "STRING",
                     "values": [
                       {
-                        "value": "All review statuses"
+                        "value": "All priority categories"
                       }
                     ]
                   }
@@ -5442,7 +5446,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "queue_lgus",
-                  "displayName": "LGUs in the review queue",
+                  "displayName": "LGUs in Priority 1\u20133",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -5458,9 +5462,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs in the review queue",
+                "title": "LGUs in Priority 1\u20133",
                 "showDescription": true,
-                "description": "At least one school at 50 or more per reported room"
+                "description": "At least one current pressure signal"
               },
               "style": {
                 "fontColor": {
@@ -5640,7 +5644,7 @@
                 "showTitle": true,
                 "title": "LGUs needing data review",
                 "showDescription": true,
-                "description": "Under 90% of learners have a room count"
+                "description": "No known pressure, and coverage or growth could not be checked"
               },
               "style": {
                 "fontColor": {
@@ -5701,18 +5705,33 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Classroom review queue",
-                        "No reported congestion",
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
+                        "No current pressure identified",
                         "Data review"
                       ]
                     },
                     "mappings": [
                       {
-                        "value": "Classroom review queue",
+                        "value": "Priority 1",
                         "color": "#712B13"
                       },
                       {
-                        "value": "No reported congestion",
+                        "value": "Priority 2",
+                        "color": "#B85C38"
+                      },
+                      {
+                        "value": "Priority 3",
+                        "color": "#C9A227"
+                      },
+                      {
+                        "value": "Monitor",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "No current pressure identified",
                         "color": "#D9DEE3"
                       },
                       {
@@ -5721,7 +5740,7 @@
                       }
                     ]
                   },
-                  "displayName": "Review status"
+                  "displayName": "Priority category"
                 },
                 "extra": [
                   {
@@ -5740,7 +5759,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "**Where is the classroom review queue?**",
+                "title": "**Where are the planning priorities?**",
                 "showDescription": true,
                 "description": "Shows the review status of every city and municipality in the selected area.\n\nLGUs without available map boundaries are not drawn. A missing area should not be read as no reported congestion."
               }
@@ -5797,8 +5816,11 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Classroom review queue",
-                        "No reported congestion",
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
+                        "No current pressure identified",
                         "Data review"
                       ]
                     }
@@ -5842,7 +5864,7 @@
                 "showTitle": true,
                 "title": "Teacher references beside the queue",
                 "showDescription": true,
-                "description": "Whether any offered level's learners per teacher is above its published reference. Context only: AP3 never ranks or moves a place (D-060)."
+                "description": "Whether any offered level's learners per teacher is above its published reference. AP3 contributes the teacher-pressure flag under D-061."
               },
               "mark": {
                 "layout": "stack"
@@ -5914,18 +5936,33 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Classroom review queue",
-                        "No reported congestion",
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
+                        "No current pressure identified",
                         "Data review"
                       ]
                     },
                     "mappings": [
                       {
-                        "value": "Classroom review queue",
+                        "value": "Priority 1",
                         "color": "#712B13"
                       },
                       {
-                        "value": "No reported congestion",
+                        "value": "Priority 2",
+                        "color": "#B85C38"
+                      },
+                      {
+                        "value": "Priority 3",
+                        "color": "#C9A227"
+                      },
+                      {
+                        "value": "Monitor",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "No current pressure identified",
                         "color": "#D9DEE3"
                       },
                       {
@@ -6027,7 +6064,7 @@
                 "columns": [
                   {
                     "fieldName": "classroom_priority_rank",
-                    "displayName": "Queue rank"
+                    "displayName": "Order"
                   },
                   {
                     "fieldName": "lgu_label",
@@ -6119,9 +6156,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Classroom review queue",
+                "title": "National planning order",
                 "showDescription": true,
-                "description": "The queue ranks LGUs by learners in screened schools, then screened schools, then the pooled ratio; exact ties share a rank. It orders review effort and is not an official shortage, construction entitlement or funding allocation."
+                "description": "D-061 orders LGUs by priority category, current-pressure count, affected learners, classroom evidence, teacher evidence and enrollment growth. It is not an official shortage, construction entitlement or funding allocation."
               }
             }
           },
@@ -6176,8 +6213,11 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Classroom review queue",
-                        "No reported congestion",
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
+                        "No current pressure identified",
                         "Data review"
                       ]
                     }
@@ -7394,7 +7434,7 @@
                 "showTitle": true,
                 "title": "**The evidence behind this status**",
                 "showDescription": true,
-                "description": "Each measure beside the reference D-060 publishes for it. Only the classroom school screen places an LGU in the queue; teachers and schools are context."
+                "description": "Each measure beside its published reference. AP2 and AP3 contribute separate pressure flags under D-061; AP1 remains context."
               }
             }
           },
@@ -7464,7 +7504,7 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "This place",
-                        "Reference (D-060)"
+                        "Reference (D-061)"
                       ]
                     },
                     "mappings": [
@@ -7473,7 +7513,7 @@
                         "color": "#712B13"
                       },
                       {
-                        "value": "Reference (D-060)",
+                        "value": "Reference (D-061)",
                         "color": "#A9B4BF"
                       }
                     ]
@@ -9912,7 +9952,7 @@
                 "showTitle": true,
                 "title": "LGUs requiring data review",
                 "showDescription": true,
-                "description": "Classroom coverage below 90%"
+                "description": "No known pressure, and coverage or growth could not be checked"
               },
               "style": {
                 "fontColor": {
@@ -9956,7 +9996,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "queue_lgus",
-                  "displayName": "LGUs in the review queue",
+                  "displayName": "LGUs in Priority 1\u20133",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -9973,7 +10013,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs in the review queue",
+                "title": "LGUs in Priority 1\u20133",
                 "showDescription": true,
                 "description": "Of the assessed LGUs"
               },
@@ -10100,12 +10140,12 @@
             "name": "text_064",
             "multilineTextboxSpec": {
               "lines": [
-                "## How the review queue is built (D-060)\n\n",
+                "## How planning priority is built (D-061)\n\n",
                 "1. **School screen, SY 2023-24:** each active public school with complete enrollment and more than zero reported instructional rooms passes when it has at least 50 learners per reported room. A PIDS-style illustrative screen, not an official DepEd ratio.\n",
-                "2. **Coverage gate:** an LGU is assessed only when at least 90% of its learners are in schools with a room count. Otherwise it is **Data review**.\n",
-                "3. **Queue:** an assessed LGU with at least one passing school enters the **classroom review queue**; one with none is **No reported congestion**, which is not proof of adequacy.\n",
-                "4. **Rank:** learners in passing schools, then passing schools, then the pooled ratio, with `DENSE_RANK()`, so exact ties share a rank.\n",
-                "5. **Context only:** AP1 schools, AP3 teacher references, AP4 enrollment, school-age population and poverty never rank or move a place."
+                "2. **Coverage gate:** classroom pressure counts only when at least 90% of an LGU's learners are in schools with a room count; each teacher level has the same 90% rule. A known pressure always counts.\n",
+                "3. **Current pressures:** AP2 contributes classroom pressure and AP3 contributes teacher pressure.\n",
+                "4. **Growth:** AP4 contributes whether public-school enrollment increased from the first to latest available school year.\n",
+                "5. **Priority:** the two current-pressure flags and growth assign Priority 1\u20133, Monitor, No current pressure identified, or Data review. Where growth cannot be checked, an LGU with a known pressure is placed as if it were not growing. **Data review** is for LGUs with no known pressure where coverage or growth could not be checked. The national order uses the published evidence fields. AP1, school-age population and poverty remain context."
               ]
             }
           },
@@ -10586,7 +10626,7 @@
                 "showTitle": true,
                 "title": "Teacher references by level",
                 "showDescription": true,
-                "description": "Context only: AP3 has no teacher-priority rank (D-060)."
+                "description": "AP3 contributes the D-061 teacher-pressure flag; it does not estimate a staffing shortage."
               },
               "mark": {
                 "layout": "stack"

@@ -2,7 +2,7 @@
 
 **Status:** The BP and AP wording was approved through mentor review on 2026-10-14. Dataset roles and implementation choices remain subject to D-042.
 
-> **Current method: D-060 (2026-10-21).** Percentiles and composite tiers are not used. Similar LGUs and national distributions are context only; AP2 alone supplies a bounded classroom review queue from a school-level illustrative screen.
+> **Current method: D-061 (2026-10-21).** AP2 and AP3 supply separate current-pressure flags, and AP4 public-school enrollment growth modifies urgency. AP1, the population gap, Similar LGUs, and national distributions remain context.
 
 This map assigns every profiled source in `config/sources.json` to a defined role. A dataset being available does not mean it should enter an analytical metric. The map separates sources that calculate the four APs from sources used only for comparison, context, validation, deferred analysis, or the project record.
 
@@ -68,7 +68,7 @@ Solid paths are supported by profiled sources. A dotted path into an AP or resul
 | Question or method | Required datasets | How each dataset is used | Output |
 |---|---|---|---|
 | **AP1: schools relative to students and population** | `deped_enrollment`; `psa_school_age_population`; `psa_psgc` | Enrollment supplies public-school learners, the school roster, and level-offering flags. The PSA single-year-age workbook supplies the 2024 school-age population (5–17). PSGC supplies the city/municipality assignment and barangay list. | Descriptive learners per public school; school-age population 2024 per public school; barangays with no matched public elementary school |
-| **AP2: students per classroom** | `deped_enrollment`; `deped_facilities`; `psa_psgc`; PIDS/EDCOM 2 reference metadata | Enrollment supplies learners; facilities supplies reported instructional rooms; PSGC supplies the LGU assignment. The >=50 screen is applied per usable school before aggregation. | Pooled reported-room ratio and coverage; passing schools, affected learners and share; D-060 classroom review queue |
+| **AP2: students per classroom** | `deped_enrollment`; `deped_facilities`; `psa_psgc`; PIDS/EDCOM 2 reference metadata | Enrollment supplies learners; facilities supplies reported instructional rooms; PSGC supplies the LGU assignment. The >=50 screen is applied per usable school before aggregation. | Current classroom-pressure flag, passing schools, affected learners and share |
 | **AP3: students per teacher** | `deped_enrollment`; `deped_personnel`; `psa_psgc`; World Bank and DepEd deployment-reference metadata | Enrollment supplies learners; personnel supplies teacher counts and funding source; PSGC supplies the LGU assignment. | Descriptive learner-per-teacher ratios and coverage by level; historical ES and derived JHS/SHS comparison statuses; no teacher rank |
 | **AP4: school-age population and enrollment gap over time** | `deped_enrollment` (SY 2024-25 acquired and loaded; SY 2020-21 acquired and profiled in #160, approved as the fourth delivery in #172, and loaded in Bronze and Silver on Databricks dev (#175)); PSA Total Population by single-year age for 2020 (CPH) and 2024 (POPCEN) (`psa_school_age_population`), published in Gold as `fact_city_school_age_population` (#193); `psa_psgc` | Enrollment supplies learner counts in all sectors except Philippine Schools Overseas, the public-school share, and school location. The PSA workbooks supply population aged 5–17 for every city and municipality. PSGC supplies geographic alignment through a name match. | Population aged 5–17 minus enrollment for 2020 and 2024, gap share, and the change between them, with period, comparability, and coverage labels |
 | **Peer comparison method** | `psa_psgc`; `hdx_boundaries` | PSGC supplies LGU type, income class, population, codes, and hierarchy. `hdx_boundaries.area_sqkm` is the current land-area source for density, joined to PSGC through the reviewed HDX-to-PSGC crosswalk (#139). [PSA OpenSTAT table 1A6DLPD0](https://openstat.psa.gov.ph/PXWeb/pxweb/en/DB/DB__1A__PO_2024/0221A6DLPD0.px/), which publishes city/municipality land area and 2024 population density, may be acquired and profiled later as a cross-check or replacement. | Comparison inputs and peer-membership fields; exact statistics belong to the metric specification |
@@ -120,7 +120,7 @@ PSA uses **5–24 years old** for its published "school-age population." AP4 ins
 
 ## Known gap: compatible classroom and teacher benchmarks
 
-The [national benchmark register](national-benchmarks-and-indicators.md) distinguishes bounded screens from shortage claims. AP2 uses the PIDS paper's >=50 illustrative line at school level but not RA No. 7880's incompatible 45:1 shortage calculation. AP3 uses a historical World Bank ES reference and derived JHS/SHS deployment comparisons as context only. These statuses do not change the D-060 classroom queue.
+The [national benchmark register](national-benchmarks-and-indicators.md) distinguishes bounded screens from shortage claims. AP2 uses the PIDS paper's >=50 illustrative line at school level but not RA No. 7880's incompatible 45:1 shortage calculation. AP3 uses a historical World Bank ES reference and derived JHS/SHS deployment comparisons. Under D-061 these produce pressure flags, not shortage estimates.
 
 Before a dashboard value is labelled against an official benchmark, the team must record:
 
@@ -130,7 +130,7 @@ Before a dashboard value is labelled against an official benchmark, the team mus
 4. the exact numerator and denominator definition; and
 5. whether the source defines a target, ceiling, planning norm, or another kind of reference.
 
-Analytics may publish only the reviewed reference metadata and bounded uses in D-060. No other threshold may be populated or enforced without a recorded decision.
+Analytics may publish only the reviewed reference metadata and bounded uses in D-061. No other threshold may be populated or enforced without a recorded decision.
 
 ## All registered sources
 

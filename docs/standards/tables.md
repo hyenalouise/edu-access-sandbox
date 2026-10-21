@@ -111,7 +111,7 @@ ERD are in the [data model](../architecture/data-model.md).
 | `ap2_classroom_pressure` | One regular city or municipality, SY 2023-24 |
 | `ap3_teacher_pressure` | One regular city or municipality, SY 2023-24, with ES, JHS, and SHS side by side |
 | `ap4_enrollment_trend` | One city or municipality member (regular, `UNKNOWN`, or `EXCLUDED`) and school year |
-| `lgu_priority_matrix` | One regular city or municipality, SY 2023-24, with its AP1 to AP4 evidence and its D-060 classroom review queue status |
+| `lgu_priority_matrix` | One regular city or municipality, with separate AP2 and AP3 current-pressure flags, AP4 public-enrollment growth, D-061 priority category, and AP1 to AP4 evidence |
 
 All five are implemented and enabled in the job. Measures and the priority
 rule are in [`etl/06_analytics/`](../../etl/06_analytics/README.md).

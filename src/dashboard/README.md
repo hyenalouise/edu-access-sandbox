@@ -5,7 +5,7 @@ Code that writes the AI/BI dashboard JSON under [`dashboards/`](../../dashboards
 | Module | Writes | From |
 |---|---|---|
 | `data_quality.py` | `dashboards/data_quality.lvdash.json` | `config/quality_attributes.yml` and the control tables' columns |
-| `planner.py` | `dashboards/reached_planner.lvdash.json` | The D-060 Analytics outputs, Gold, and `config/analytics_benchmarks.json` |
+| `planner.py` | `dashboards/reached_planner.lvdash.json` | The D-061 Analytics outputs, Gold, and `config/analytics_benchmarks.json` |
 | `widgets.py` | Nothing on its own | The widget, filter, and page builders `planner.py` uses |
 
 ```bash

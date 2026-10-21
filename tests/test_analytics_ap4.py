@@ -130,6 +130,16 @@ def test_enrollment_per_school_year_and_the_trend():
     assert rows[("UNKNOWN", "2024-25")]["enrollment_trend"] is None
 
 
+def test_public_enrollment_trend_requires_complete_endpoint_data():
+    env = Env()
+    env.run()
+    rows = env.rows()
+    assert rows[(A, "2025-26")]["public_enrollment_endpoints_complete"] is False
+    assert rows[(A, "2025-26")]["public_enrollment_trend"] is None
+    assert rows[(MAKATI, "2025-26")]["public_enrollment_endpoints_complete"] is True
+    assert rows[(MAKATI, "2025-26")]["public_enrollment_trend"] == "decreasing"
+
+
 def test_school_age_population_is_context_on_census_school_years_only():
     env = Env()
     env.run()
