@@ -163,16 +163,21 @@ def test_every_planning_status_has_a_plain_label_and_basis():
         assert label in text and basis in text
 
 
-def test_the_map_draws_each_lgu_boundary_not_a_built_in_map():
-    # 2026-10-21: an aggregated geo_first(boundary) field exported as a map of Japan, and a geometry region did not
-    # draw; a custom region on an unaggregated field named geo(boundary) draws the Philippines (3af8ee1)
+def test_the_map_colours_each_lgu_by_its_priority_category():
+    # the reference map: one boundary per LGU from geo_first(boundary), a Priority category legend in the published
+    # order, and City or municipality, Review status and Learners in screened schools in the tooltip
     maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
-    assert maps
-    for widget in maps:
-        assert widget["spec"]["encodings"]["region"] == {"regionType": "custom", "fieldName": "geo(boundary)"}
-        query = widget["queries"][0]["query"]
-        assert query["disaggregated"]
-        assert {f["name"]: f["expression"] for f in query["fields"]}["geo(boundary)"] == "ST_ASGEOJSON(`boundary`)"
+    assert len(maps) == 1
+    encodings, query = maps[0]["spec"]["encodings"], maps[0]["queries"][0]["query"]
+    assert encodings["region"] == {"regionType": "custom", "fieldName": "geo_first(boundary)"}
+    assert {f["name"]: f["expression"] for f in query["fields"]}["geo_first(boundary)"] == "ST_ASGEOJSON(FIRST(`boundary`))"
+    assert not query["disaggregated"]
+    color = encodings["color"]
+    assert (color["fieldName"], color["displayName"]) == ("queue_status", "Priority category")
+    assert color["scale"]["sort"]["orderedValues"] == planner.QUEUE
+    assert [m["value"] for m in color["scale"]["mappings"]] == planner.QUEUE
+    assert [e["displayName"] for e in encodings["extra"]] == [
+        "City or municipality", "Review status", "Learners in screened schools"]
 
 
 def test_data_and_method_shows_the_scope_line():

@@ -99,9 +99,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -157,8 +154,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "ORDER BY rank_in_view"
@@ -264,9 +261,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -322,8 +316,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "WHERE rank_in_view <= 10\n",
@@ -411,7 +405,7 @@
       "name": "ov_map",
       "displayName": "Overview: LGU boundaries",
       "queryLines": [
-        "SELECT r.lgu_label, r.queue_status, r.status_label, r.status_level, st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326) AS boundary\n",
+        "SELECT r.lgu_label, r.queue_status, r.ap2_affected_learners, st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326) AS boundary\n",
         "FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
         "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
@@ -431,9 +425,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -489,14 +480,14 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m\n",
         "  ON m.psgc_code = r.city_mun_psgc_code AND m.match_status = 'matched'\n",
         "LEFT JOIN edu_access.`03-silver`.hdx_adm3_clean AS h ON h.adm3_pcode = m.adm3_pcode\n",
-        "WHERE h.geometry IS NOT NULL"
+        "ORDER BY r.rank_in_view"
       ],
       "parameters": [
         {
@@ -581,11 +572,10 @@
       "displayName": "Overview: map coverage",
       "queryLines": [
         "SELECT 'Drawn ' || format_number(COUNT(DISTINCT CASE WHEN h.geometry IS NOT NULL THEN r.city_mun_psgc_code END), 0)\n",
-        "       || ' of ' || format_number(COUNT(DISTINCT r.city_mun_psgc_code), 0) || ' LGUs in view. '\n",
+        "       || ' of ' || format_number(COUNT(DISTINCT r.city_mun_psgc_code), 0) || ' LGUs in view.'\n",
         "       || CASE WHEN COUNT(DISTINCT r.city_mun_psgc_code) > COUNT(DISTINCT CASE WHEN h.geometry IS NOT NULL THEN r.city_mun_psgc_code END)\n",
-        "               THEN 'LGUs without a published boundary are listed in the review queue; a missing area is never no pressure. '\n",
-        "               ELSE '' END\n",
-        "       || 'Insufficient-data LGUs are drawn without a status colour.' AS map_line\n",
+        "               THEN ' LGUs without a published boundary are listed in the review queue; a missing area is never no pressure.'\n",
+        "               ELSE '' END AS map_line\n",
         "FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
         "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
@@ -605,9 +595,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -663,8 +650,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m\n",
@@ -772,9 +759,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -957,9 +941,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -1015,8 +996,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "GROUP BY classroom_signal, teacher_signal\n",
@@ -1125,9 +1106,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -1183,8 +1161,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "GROUP BY region_short, queue_status"
@@ -1290,9 +1268,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -1348,8 +1323,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r"
       ],
@@ -1454,9 +1429,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -1512,8 +1484,8 @@
         ")\n",
         "SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,\n",
         "       national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,\n",
-        "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
-        "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
+        "       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,\n",
+        "       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "WHERE queue_status = 'Data review'\n",
@@ -1620,9 +1592,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -1805,9 +1774,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -1985,9 +1951,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -2183,9 +2146,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -3818,9 +3778,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -5351,9 +5308,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -5602,9 +5556,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -5762,9 +5713,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -5914,9 +5862,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -6050,9 +5995,6 @@
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Immediate joint review' WHEN 'Priority 2' THEN 'High-priority review' WHEN 'Priority 3' THEN 'Targeted review' WHEN 'Monitor' THEN 'Growth watchlist' WHEN 'No current pressure identified' THEN 'No current pressure identified' WHEN 'Data review' THEN 'Insufficient data to assess' END AS status_label,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 'Classroom and teacher pressure are present, and enrollment is growing' WHEN 'Priority 2' THEN 'Both pressure signals are present, or one pressure signal is present with growing enrollment' WHEN 'Priority 3' THEN 'One pressure signal is present without growing enrollment' WHEN 'Monitor' THEN 'Enrollment is growing, but no current pressure signal was identified' WHEN 'No current pressure identified' THEN 'No pressure signal or enrollment growth was identified from available data' WHEN 'Data review' THEN 'Coverage or growth data are incomplete and no known pressure signal is present' END AS status_basis,\n",
         "         CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END AS queue_sort,\n",
-        "         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour\n",
-        "         CASE WHEN m.priority_category = 'Data review' THEN NULL\n",
-        "              ELSE 5 - CASE m.priority_category WHEN 'Priority 1' THEN 0 WHEN 'Priority 2' THEN 1 WHEN 'Priority 3' THEN 2 WHEN 'Monitor' THEN 3 WHEN 'No current pressure identified' THEN 4 ELSE 5 END END AS status_level,\n",
         "         m.priority_order AS national_order,\n",
         "         CASE WHEN m.classroom_pressure_flag = 1 THEN 'Present' WHEN COALESCE(m.ap2_assessed, FALSE) THEN 'Not identified'\n",
         "              ELSE 'Not assessed' END AS classroom_signal,\n",
@@ -7398,27 +7340,23 @@
                   "datasetName": "ov_map",
                   "fields": [
                     {
-                      "name": "status_level",
-                      "expression": "`status_level`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
                       "name": "lgu_label",
                       "expression": "`lgu_label`"
                     },
                     {
-                      "name": "queue_status",
-                      "expression": "`queue_status`"
+                      "name": "ap2_affected_learners",
+                      "expression": "`ap2_affected_learners`"
                     },
                     {
-                      "name": "status_label",
-                      "expression": "`status_label`"
-                    },
-                    {
-                      "name": "geo(boundary)",
-                      "expression": "ST_ASGEOJSON(`boundary`)"
+                      "name": "geo_first(boundary)",
+                      "expression": "ST_ASGEOJSON(FIRST(`boundary`))"
                     }
                   ],
-                  "disaggregated": true
+                  "disaggregated": false
                 }
               }
             ],
@@ -7428,21 +7366,51 @@
               "encodings": {
                 "region": {
                   "regionType": "custom",
-                  "fieldName": "geo(boundary)"
+                  "fieldName": "geo_first(boundary)"
                 },
                 "color": {
-                  "fieldName": "status_level",
-                  "displayName": "Review status (5 = Priority 1, 1 = No current pressure identified)",
+                  "fieldName": "queue_status",
                   "scale": {
-                    "type": "quantitative",
-                    "colorRamp": {
-                      "mode": "custom-sequential",
-                      "colors": {
-                        "start": "#F3EEE9",
-                        "end": "#712B13"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
+                        "No current pressure identified",
+                        "Data review"
+                      ]
+                    },
+                    "mappings": [
+                      {
+                        "value": "Priority 1",
+                        "color": "#712B13"
+                      },
+                      {
+                        "value": "Priority 2",
+                        "color": "#B85C38"
+                      },
+                      {
+                        "value": "Priority 3",
+                        "color": "#C9A227"
+                      },
+                      {
+                        "value": "Monitor",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "No current pressure identified",
+                        "color": "#D9DEE3"
+                      },
+                      {
+                        "value": "Data review",
+                        "color": "#8A96A3"
                       }
-                    }
-                  }
+                    ]
+                  },
+                  "displayName": "Priority category"
                 },
                 "extra": [
                   {
@@ -7454,8 +7422,8 @@
                     "displayName": "Review status"
                   },
                   {
-                    "fieldName": "status_label",
-                    "displayName": "Planning status"
+                    "fieldName": "ap2_affected_learners",
+                    "displayName": "Learners in screened schools"
                   }
                 ]
               },
@@ -7463,7 +7431,7 @@
                 "showTitle": true,
                 "title": "Planning priority across the Philippines",
                 "showDescription": true,
-                "description": "Each LGU is coloured by review status; darker means more urgent review."
+                "description": "Each LGU is coloured by its priority category. A missing area has no published boundary, not no pressure."
               }
             }
           },

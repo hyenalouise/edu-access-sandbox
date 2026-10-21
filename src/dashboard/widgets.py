@@ -196,18 +196,16 @@ def heatmap(b, dataset, title, x, x_label, x_order, y, y_label, y_order, fn, val
     return chart(b, "heatmap", dataset, title, encodings, [(x, bt(x)), (y, bt(y)), (name, expression)], desc)
 
 
-def choropleth(b, dataset, title, value, value_label, extra, ramp, desc=None):
-    """One shape per row, coloured on a quantitative ramp (start, end). The shape is the dataset's `boundary` geometry
-    as GeoJSON in a field named geo(boundary), the name Databricks gives a geometry field; a custom region pointing at
-    any other name, or at an aggregated shape, draws a built-in map instead (the export showed Japan)."""
-    shape = "geo(boundary)"
-    fields = [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])] + [(shape, "ST_ASGEOJSON(`boundary`)")]
+def choropleth(b, dataset, title, value, value_label, extra, mappings, order, desc=None):
+    """One colour per category (`mappings`), one shape per place: the boundary is taken once per value and extra, as
+    GeoJSON in a field named geo_first(boundary) that a custom region points at."""
+    shape = "geo_first(boundary)"
+    fields = [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])]
+    fields.append((shape, "ST_ASGEOJSON(FIRST(`boundary`))"))
     encodings = {"region": {"regionType": "custom", "fieldName": shape},
-                 "color": {"fieldName": value, "displayName": value_label,
-                           "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
-                                                                           "colors": {"start": ramp[0], "end": ramp[1]}}}},
+                 "color": cat(value, value_label, order, mappings),
                  "extra": [{"fieldName": c, "displayName": label} for c, label in extra]}
-    return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, disaggregated=True, version=1)
+    return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, version=1)
 
 
 def point_map(b, dataset, title, latitude, longitude, color, color_label, mappings, order, extra, desc=None):

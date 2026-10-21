@@ -46,7 +46,9 @@ STATUS_BASIS = ["Classroom and teacher pressure are present, and enrollment is g
                 "Enrollment is growing, but no current pressure signal was identified",
                 "No pressure signal or enrollment growth was identified from available data",
                 "Coverage or growth data are incomplete and no known pressure signal is present"]
-STATUS_RAMP = ("#F3EEE9", "#712B13")  # map: lightest is no current pressure, darkest is Priority 1
+QUEUE_COLORS = [{"value": QUEUE[0], "color": "#712B13"}, {"value": QUEUE[1], "color": "#B85C38"},
+                {"value": QUEUE[2], "color": "#C9A227"}, {"value": QUEUE[3], "color": "#5B6B7A"},
+                {"value": QUEUE[4], "color": "#D9DEE3"}, {"value": QUEUE[5], "color": "#8A96A3"}]  # map legend
 SCREEN = 50  # the illustrative reported-room screen, config/analytics_benchmarks.json
 MEASURES = ["Public schools", "Classrooms", "Teachers"]
 SIGNALS = ["Present", "Not identified", "Not assessed"]
@@ -140,9 +142,6 @@ PRI_CTE = f"""pri AS (
          {STATUS_LABEL.format(c='m.priority_category')} AS status_label,
          {STATUS_BASIS_SQL.format(c='m.priority_category')} AS status_basis,
          {QUEUE_SORT.format(c='m.priority_category')} AS queue_sort,
-         -- the map's colour: 5 for immediate joint review down to 1; insufficient data has no level and no colour
-         CASE WHEN m.priority_category = '{QUEUE[5]}' THEN NULL
-              ELSE 5 - {QUEUE_SORT.format(c='m.priority_category')} END AS status_level,
          m.priority_order AS national_order,
          CASE WHEN m.classroom_pressure_flag = 1 THEN '{SIGNALS[0]}' WHEN COALESCE(m.ap2_assessed, FALSE) THEN '{SIGNALS[1]}'
               ELSE '{SIGNALS[2]}' END AS classroom_signal,
@@ -221,8 +220,8 @@ OV_FILTER = (f"{GEO} AND (:queue = '{ALL_QUEUE}' OR queue_status = :queue)"
 OV_ROWS = f"""WITH {PRI}
 SELECT ROW_NUMBER() OVER (ORDER BY national_order, city_mun_psgc_code) AS rank_in_view,
        national_order, city_mun_psgc_code, lgu_label, lgu_type_label, province_label, region_name, region_short,
-       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,
-       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt
+       queue_status, status_label, status_basis, pressure_signals, classroom_signal, teacher_signal,
+       growth_signal, priority_affected_learners, ap2_affected_learners, data_readiness, not_assessed_reason_txt
 FROM pri
 WHERE {OV_FILTER}"""
 OV_LGU = f"""SELECT * FROM ({OV_ROWS}) AS r
@@ -238,16 +237,15 @@ GEOM = "st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326)"
 SHAPES = """LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m
   ON m.psgc_code = r.city_mun_psgc_code AND m.match_status = 'matched'
 LEFT JOIN edu_access.`03-silver`.hdx_adm3_clean AS h ON h.adm3_pcode = m.adm3_pcode"""
-OV_MAP = f"""SELECT r.lgu_label, r.queue_status, r.status_label, r.status_level, {GEOM} AS boundary
+OV_MAP = f"""SELECT r.lgu_label, r.queue_status, r.ap2_affected_learners, {GEOM} AS boundary
 FROM ({OV_ROWS}) AS r
 {SHAPES}
-WHERE h.geometry IS NOT NULL"""
+ORDER BY r.rank_in_view"""
 OV_MAP_NOTE = f"""SELECT 'Drawn ' || format_number(COUNT(DISTINCT CASE WHEN h.geometry IS NOT NULL THEN r.city_mun_psgc_code END), 0)
-       || ' of ' || format_number(COUNT(DISTINCT r.city_mun_psgc_code), 0) || ' LGUs in view. '
+       || ' of ' || format_number(COUNT(DISTINCT r.city_mun_psgc_code), 0) || ' LGUs in view.'
        || CASE WHEN COUNT(DISTINCT r.city_mun_psgc_code) > COUNT(DISTINCT CASE WHEN h.geometry IS NOT NULL THEN r.city_mun_psgc_code END)
-               THEN 'LGUs without a published boundary are listed in the review queue; a missing area is never no pressure. '
-               ELSE '' END
-       || 'Insufficient-data LGUs are drawn without a status colour.' AS map_line
+               THEN ' LGUs without a published boundary are listed in the review queue; a missing area is never no pressure.'
+               ELSE '' END AS map_line
 FROM ({OV_ROWS}) AS r
 {SHAPES}"""
 
@@ -1082,10 +1080,10 @@ def overview(b):
            (kpi(b, "ov_kpi", "Data review LGUs", "data_review_kpi", None, desc="Insufficient data to assess, of all LGUs",
                 style=KPI_STYLE), 3)], 3)
     queue_map = choropleth(
-        b, "ov_map", "Planning priority across the Philippines", "status_level",
-        "Review status (5 = Priority 1, 1 = No current pressure identified)",
-        [("lgu_label", "City or municipality"), ("queue_status", "Review status"), ("status_label", "Planning status")],
-        STATUS_RAMP, "Each LGU is coloured by review status; darker means more urgent review.")
+        b, "ov_map", "Planning priority across the Philippines", "queue_status", "Priority category",
+        [("lgu_label", "City or municipality"), ("queue_status", "Review status"),
+         ("ap2_affected_learners", "Learners in screened schools")], QUEUE_COLORS, QUEUE,
+        "Each LGU is coloured by its priority category. A missing area has no published boundary, not no pressure.")
     map_note = note(b, "ov_map_note", "Map coverage", "map_line", style=LINE_STYLE, show_title=False)
     top = table(b, "ov_top", "Top LGUs to review", [
         ("rank_in_view", "#", None), ("lgu_label", "City or municipality", None), ("queue_status", "Review status", None)],
