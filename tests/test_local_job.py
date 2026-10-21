@@ -399,3 +399,47 @@ def test_a_crashed_python_task_fails_and_an_independent_source_still_runs(repo, 
     assert results["bronze_deped_enrollment"] == "failed"
     assert results["90_validate_deped_enrollment_raw"] == "upstream_failed"
     assert results["bronze_deped_facilities"] == "succeeded"
+
+
+def test_every_dashboard_query_runs_on_the_job_output(repo, tmp_path):
+    # the planner dashboard reads only what the job publishes: every dataset and every widget query must run on it
+    import re
+    from src.dashboard import planner
+    landing = tmp_path / "landing"
+    deliver(repo, landing)
+    db = tmp_path / "job.duckdb"
+    run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None)
+    store = DuckDBStore(db)
+    dashboard = planner.build()
+    datasets = {d["name"]: d for d in dashboard["datasets"]}
+    geometry = ("st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326)",
+                "ST_Simplify(ST_GeomFromGeoJSON(h.geometry), 0.003)")
+
+    def dataset_sql(name):
+        dataset = datasets[name]
+        sql = "".join(dataset["queryLines"]).replace(*geometry)
+        params = {p["keyword"]: p["defaultSelection"]["values"]["values"][0]["value"] for p in dataset["parameters"]}
+        return sql, {k: v for k, v in params.items() if re.search(rf":{k}\b", sql)}
+
+    for name in datasets:
+        sql, params = dataset_sql(name)
+        store.query(sql, params)
+    aggregate = re.compile(r"\b(SUM|COUNT|MAX|MIN|AVG|FIRST)\s*\(")
+    for page in dashboard["pages"]:
+        for item in page["layout"]:
+            for q in item["widget"].get("queries", []):
+                if "fields" not in q["query"]:
+                    continue
+                inner, params = dataset_sql(q["query"]["datasetName"])
+                fields = q["query"]["fields"]
+                groups = [f["expression"] for f in fields if not aggregate.search(f["expression"])]
+                sql = (f"SELECT {', '.join(f['expression'] + ' AS ' + chr(96) + f['name'] + chr(96) for f in fields)} "
+                       f"FROM ({inner}) AS t")
+                if not q["query"]["disaggregated"] and groups and len(groups) < len(fields):
+                    sql += " GROUP BY " + ", ".join(groups)
+                store.query(sql, params)
+    insights = store.query(*dataset_sql("pr_insights"))  # one row of four findings, at least one filled
+    assert len(insights) == 1 and any(insights[0])
+    answers = store.query(*dataset_sql("pr_answers"))
+    assert len(answers) == 1 and any(answers[0])
+    store.close()
