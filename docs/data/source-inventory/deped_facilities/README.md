@@ -1,6 +1,6 @@
 # deped_facilities: DepEd school facilities (classroom inventory)
 
-**Status:** profiled
+**Status:** accepted
 
 ## Identity
 

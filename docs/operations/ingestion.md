@@ -159,7 +159,7 @@ See [etl/01_control/README.md](../../etl/01_control/README.md). Batch statuses: 
 | Bronze write incomplete | Reconciliation FAIL; batch `failed`, not current | Run again: the MERGE adds the missing rows only |
 | Same file loaded twice | Skipped; nothing inserted | Nothing |
 | Not a full commit on Databricks | Exit 2 `code_revision_required` before anything runs | Deploy from a clean, pushed `main` |
-| No Spark or workspace | Exit 3 `store_unavailable` | Run locally, or fix the login (`databricks auth login --profile reached-hq`) |
+| No Spark or workspace | Exit 3 `store_unavailable` | Run locally, or fix the login (`databricks auth login --profile reached-hq-dev`) |
 | `prod` with a source that is not `accepted` | Exit 2 `source_not_accepted` | Use `dev` until the team accepts the source |
 
 Exit codes: 0 everything loaded or already loaded; 1 a batch failed or was blocked, or the gate failed; 2 configuration; 3 environment.
@@ -208,16 +208,16 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
 
 ## Running on Databricks
 
-**Current job: `edu_access_pipeline` (D-020).** Last run on 2026-10-18 at `135c1ac`, with every enabled task succeeding ([evidence](../../evidence/pipeline-runs/2026-10-18-per-lane-job.md)). First confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
+**Current job: `edu_access_pipeline` (D-020).** Last run on 2026-10-18 at `135c1ac`, with every enabled task succeeding ([evidence](../../evidence/pipeline-runs/2026-10-18-per-lane-job.md)). First confirmed on 2026-10-08 at `bb040a9`: two dev runs, every enabled task succeeded, neither inserted rows (every file was already loaded, so both skipped), and every Bronze gate passed and joined to its load ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The runs under [First Databricks run](#first-databricks-run) are earlier, source-specific evidence from the `bronze_ingest` job. These are the steps for the deliberate confirmation run (D-008). They need: the `reached-hq-dev` CLI profile, the raw files in the volume, the commit pushed to GitHub, and the run announced to the team (workflow, Part 5).
 
 1. Raw files. The three enrollment zips are already in `/Volumes/edu_access/00-source/raw/deped/` (checked 2026-10-06: sizes match the source card, and the folder's `SHA256SUMS.txt` lists the approved checksums). The first run hashes every zip itself, so a damaged upload is blocked, not loaded. For a later download, list the folder first, then upload into a new dated folder, never over an existing file:
 
    ```bash
-   databricks fs ls dbfs:/Volumes/edu_access/00-source/raw/deped/ --profile reached-hq
+   databricks fs ls dbfs:/Volumes/edu_access/00-source/raw/deped/ --profile reached-hq-dev
    ```
 
    ```bash
-   databricks fs cp "$RAW_DATA_DIR/deped/original/Enrollment-in-SY-2026-2027.zip" dbfs:/Volumes/edu_access/00-source/raw/deped/2027-08-15/ --profile reached-hq
+   databricks fs cp "$RAW_DATA_DIR/deped/original/Enrollment-in-SY-2026-2027.zip" dbfs:/Volumes/edu_access/00-source/raw/deped/2027-08-15/ --profile reached-hq-dev
    ```
 
    Then upload that folder's `SHA256SUMS.txt`.
@@ -229,23 +229,23 @@ python -m src.ingestion.cli gate --source deped_enrollment > etl/02_bronze/90_va
    ```
 
    ```bash
-   databricks bundle validate --target dev --profile reached-hq
+   databricks bundle validate --target dev --profile reached-hq-dev
    ```
 
    ```bash
-   databricks bundle deploy --target dev --profile reached-hq
+   databricks bundle deploy --target dev --profile reached-hq-dev
    ```
 
 3. Confirm what was deployed: in the job (`[dev <user>] edu_access_pipeline`; `[dev <user>] bronze_ingest` before #47), `git_source.git_commit` and the `code_revision` parameter must both equal `git rev-parse HEAD`:
 
    ```bash
-   databricks bundle summary --target dev --profile reached-hq
+   databricks bundle summary --target dev --profile reached-hq-dev
    ```
 
 4. Run it twice. The second run must skip every file and insert no rows:
 
    ```bash
-   databricks bundle run edu_access_pipeline --target dev --profile reached-hq
+   databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev
    ```
 
 5. Check the results with the queries below ("A load's true outcome" shows each load with its gate), and record the run as evidence in `evidence/pipeline-runs/`.
@@ -354,7 +354,7 @@ Status after run 1: items 1, 3 (after handing the tables to the group), and 4 ar
 
 Also to watch: `createDataFrame` of about 60,000 rows per year on serverless (Spark Connect), whether the job can clone the public repository without a Git credential, and whether the explicit Delta protocol versions in the Bronze DDL are accepted alongside the workspace's default table features.
 
-Unity Catalog makes whoever creates a table its owner, and a `dev` job runs as whoever deployed it, so each object is handed to the team group right after it is created; `tests/test_bundle.py` checks every `CREATE` in `etl/`. Locally the ownership statements are skipped (DuckDB has no owners).
+Unity Catalog makes whoever creates a table its owner, and a job runs as whoever deployed it (on `dev` and `prod` alike), so each object is handed to the team group right after it is created; `tests/test_bundle.py` checks every `CREATE` in `etl/`. Locally the ownership statements are skipped (DuckDB has no owners).
 
 Three runtime differences are imitated locally in `tests/test_databricks_runtime.py`, because each would otherwise surface only on Databricks: a job's Python file runs with `exec` and no `__file__`; it runs inside IPython, which reports even `SystemExit(0)` as a failure, so the command line exits only on failure; and `spark.sql()` runs a `SELECT` only when collected, so the Spark store collects every statement (otherwise the Bronze gate's final check would never run).
 
@@ -427,9 +427,9 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 |---|---|---|
 | Should the latest version of a school year always be current, or do revisions need review first? | Latest succeeded version | D-015 |
 | Are per-publisher raw folders enough, given #10 asked for one folder per source? | First downloads flat in `raw/deped/`, later ones in dated subfolders | D-016 |
-| When is a `prod` target added, and how is its data kept apart from `dev`? There is one workspace and one catalog, and `edu_access` is hardcoded in the SQL and `store.py` | `dev` only | Before #47 |
+| When is a `prod` target added, and how is its data kept apart from `dev`? | Answered by D-063: `prod` is its own workspace with the same catalog and names, so the hardcoded `edu_access` needs no change | D-063 |
 | How long are superseded versions kept in Bronze and Source? | Forever | Not yet logged |
-| Who can approve a delivery, and does `deped_enrollment` move to `accepted` before a `prod` target exists? | Any reviewer; stays `profiled` | Team |
+| Who can approve a delivery, and who moves a source to `accepted` so it can load into `prod`? | Any reviewer approves a delivery. The nine sources the job loads were moved to `accepted` on 2026-10-21; a new source moves in its own pull request, approved by its owner | D-063 |
 | Should a blank `school_id` fail the whole year, or be quarantined in Silver? | Fail the batch (none observed) | Profile O-1 |
 | Does DepEd publish the promised school ID mapping file, and should it be a delivery member? | Unexpected members fail the batch | Source card |
 
@@ -437,7 +437,7 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 
 `psa_poverty_stat` loads through the same pipeline as DepEd, from its own contract, `config/ingestion/psa_poverty_stat.json` (`format: xlsx_sheet`). What differs is in `src/ingestion/workbook.py` (reading and checking the workbook) and `src/ingestion/formats.py` (period, versions, load type). Decision: D-018.
 
-**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence: those skip runs show the lane and the Bronze gate on Databricks, not its first-load path. The source stays `profiled`. Its Silver build and gate now continue the lane ([Silver, PSA Poverty Stat](silver.md#psa-poverty-stat), D-034); they are tested locally and ran twice on Databricks `dev` on 2026-10-09 ([Silver evidence](../../evidence/reconciliation/2026-10-09-psa-poverty-stat-bronze-to-silver.md)).
+**Status:** implemented and tested locally with made-up workbooks (`tests/test_ingestion_psa.py`), and **verified locally on the real workbook** on 2026-10-07: every layout check passed, 1,641 rows loaded (1,612 unit, 18 region_banner, 1 title, 4 header, 6 footer), every known-issue count equal to the profile, and a second run skipped it ([evidence](../../evidence/pipeline-runs/2026-10-07-psa-poverty-stat-local-idempotency.md#real-workbook-local-duckdb)). **On Databricks `dev`**, its lane in `edu_access_pipeline` (D-020, #113) ran in four job runs on 2026-10-08: each skipped the workbook (already in Bronze, 1,641 rows), inserted 0, and its Bronze gate task passed (3 checks, 0 FAIL), joined to the load through `job_run_id` ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The run that first loaded the workbook into `dev` is not recorded as evidence: those skip runs show the lane and the Bronze gate on Databricks, not its first-load path. The source is `accepted` since 2026-10-21 (D-063). Its Silver build and gate now continue the lane ([Silver, PSA Poverty Stat](silver.md#psa-poverty-stat), D-034); they are tested locally and ran twice on Databricks `dev` on 2026-10-09 ([Silver evidence](../../evidence/reconciliation/2026-10-09-psa-poverty-stat-bronze-to-silver.md)).
 
 ### The flow
 
@@ -597,7 +597,7 @@ python -m src.ingestion.cli gate --source psa_poverty_stat > etl/02_bronze/90_va
 
 **Skip runs done on 2026-10-08** (`dev`, job `edu_access_pipeline`, runs `129683751826546` and `871133851621812` at `819a248`, runs `471206277550325` and `374205222997457` at `bb040a9`): every run skipped the workbook (`already loaded; same SHA-256`), inserted 0, left Bronze at 1,641 rows, and passed the Bronze gate task (3 PASS, 0 FAIL, 0 WARN: a skip checks no batch) ([evidence](../../evidence/pipeline-runs/2026-10-08-pipeline-dag-databricks-idempotency.md)). The load path (validate, MERGE, reconcile) on Databricks, and the 10 known-issue WARNs, are shown only by the local runs; the run that first loaded the workbook into `dev` is not recorded as evidence. A Databricks run that loads it again needs a new approved delivery, or an empty `dev`.
 
-In `edu_access_pipeline`, PSA Poverty Stat has its own lane: `05_create_psa_poverty_stat_raw` → `bronze_psa_poverty_stat` → `90_validate_psa_poverty_stat_raw` (D-020). It starts after the shared control setup and does not wait for any other source. Before running the job: the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+In `edu_access_pipeline`, PSA Poverty Stat has its own lane: `05_create_psa_poverty_stat_raw` → `bronze_psa_poverty_stat` → `90_validate_psa_poverty_stat_raw` (D-020). It starts after the shared control setup and does not wait for any other source. Before running the job: the run is announced to the team (it touches the shared control tables), and the CLI profile `reached-hq-dev` works. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). Then the same steps as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
 
 In the job, `bronze_psa_poverty_stat` runs `cli.py ingest --no-gate --no-setup --job-run-id {{job.parameters.run_id}}`: it creates no table, runs no gate, and stores the job run id in `pipeline_runs.job_run_id` so the load joins to its gate task's checks (D-020). The control columns this source needs (D-018: three in `ingestion_batches`, two in `ingestion_batch_attempts`) and `job_run_id` are added once, only if missing, by the job's `add_control_columns` task, before `05_create_current_batches` replaces the view; the PSA lane no longer adds them. On `dev`, D-018's columns were already present before these runs, so their `ALTER TABLE … ADD COLUMN` on older tables is shown only locally; `job_run_id` was added on `dev` by the first DAG run.
 
@@ -699,7 +699,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 |---|---|---|
 | Is a later release that adds a year (and may revise old ones) a revision of the current dataset, or a new dataset? | The contract refuses overlap across datasets, and a revision must keep every year of the version it supersedes. So a release covering all earlier years plus a new one loads as a revision; one that overlaps but drops a year (e.g. 2023, 2025 after 2018, 2021, 2023) cannot be approved either way until the team decides | D-018 |
 | Should the latest version always be current after a revision? | Latest succeeded version | D-015 |
-| Does `psa_poverty_stat` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
+| Does `psa_poverty_stat` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @maeveylain) |
 | How long are superseded versions kept? | Forever | Not yet logged |
 | Should Silver clip negative lower limits, or only flag them? | Flag only (`lower_limit_not_positive`); proposed in D-034, not yet reviewed | D-034 |
 
@@ -887,7 +887,7 @@ All seven steps, on made-up workbooks: `tests/test_ingestion_psgc.py::test_psgc_
 | Process dies mid-load | Batch stays `loading`; not in `current_batches` | (crash) | Run again: it is retried and completed |
 | Partial Bronze write | Reconciliation FAIL; `failed` | 1 | Run again: the MERGE adds the missing rows only |
 | Same quarter, changed bytes | `blocked`, `load_type = revision` | 1 | Approve as `delivery_version: 2` after review |
-| Databricks unavailable | `setup` / `store_unavailable` | 3 | Run locally, or `databricks auth login --profile reached-hq` |
+| Databricks unavailable | `setup` / `store_unavailable` | 3 | Run locally, or `databricks auth login --profile reached-hq-dev` |
 | `prod` while the source is `profiled` | `config` / `source_not_accepted` | 2 | Use `dev` until the team accepts it |
 
 ### Running locally (PSGC)
@@ -922,22 +922,22 @@ python -m src.ingestion.cli gate --source psa_psgc > etl/02_bronze/90_validate_p
 
 **Done on 2026-10-08** (`dev`, job runs `468579404509795` then `96808622487518`, commit `cb274bf`): load 43,768, then skip; [evidence](../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md). The first attempt failed because the shared `dev` control tables already carried D-018's columns before #109 merged; with #109 merged, `main` handles those columns itself.
 
-In `edu_access_pipeline`, PSGC has its own lane: `04_create_psa_psgc_raw` → `bronze_psa_psgc` → `90_validate_psa_psgc_raw` (D-020). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables, and works whether or not they carry #109's columns. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
+In `edu_access_pipeline`, PSGC has its own lane: `04_create_psa_psgc_raw` → `bronze_psa_psgc` → `90_validate_psa_psgc_raw` (D-020). Before running it, the pull request must be reviewed, the run announced to the team (the workspace and control tables are shared), and the `reached-hq-dev` profile working. The workbook is already on the volume (card: uploaded 2026-09-30, checksum verified). This change adds no column to the control tables, and works whether or not they carry #109's columns. Then, as for DepEd ([Running on Databricks](#running-on-databricks)):
 
 ```bash
-databricks bundle validate --target dev --profile reached-hq
+databricks bundle validate --target dev --profile reached-hq-dev
 ```
 
 ```bash
-databricks bundle deploy --target dev --profile reached-hq
+databricks bundle deploy --target dev --profile reached-hq-dev
 ```
 
 ```bash
-databricks bundle summary --target dev --profile reached-hq
+databricks bundle summary --target dev --profile reached-hq-dev
 ```
 
 ```bash
-databricks bundle run edu_access_pipeline --target dev --profile reached-hq
+databricks bundle run edu_access_pipeline --target dev --profile reached-hq-dev
 ```
 
 Run the last command twice: the second run must skip every file. The other source lanes run in parallel and skip their files.
@@ -1076,7 +1076,7 @@ For codes only in the new quarter, look for their `correspondence_code` among th
 | How long are superseded quarters and versions kept? | Forever | Not yet logged |
 | Should the control tables get a generic `period` column instead of the `school_year` convention? | Keep the convention; no shared DDL change | D-019, Ina |
 | When does the master reference move from 2Q 2026? | Never by loading; only by a team decision after the question-8 comparison | D-012 |
-| Does `psa_psgc` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @maeveylain) |
+| Does `psa_psgc` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @maeveylain) |
 | What is the `Correspondence Code`, and why are 84 codes stored as numbers in the workbook? | Kept as stored; to ask the publisher | Source card |
 
 ## Administrative boundaries (COD-AB ADM3 GeoJSON)
@@ -1221,7 +1221,7 @@ python -m src.ingestion.cli gate --source hdx_boundaries > etl/02_bronze/90_vali
 
 **Done on 2026-10-08** (`dev`, job runs `275546090497316` then `990080691102176` and `370044913196063`, commit `67ea4a2`): load 1,642, then two skips; [evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md). The first attempt (`555332578823580`) failed before loading anything, because the shared `dev` control tables carried #47's `job_run_id` column; #81's `control.py` fix (`7c0464b`) is included here.
 
-In `edu_access_pipeline`, the boundaries have their own lane: `06_create_hdx_adm3_raw` → `bronze_hdx_boundaries` → `90_validate_hdx_adm3_raw` (D-020); the Silver tasks after it stay disabled. The runs above used the earlier `bronze_ingest` job, before the DAG merged; the lane runs the same load and gate code. Before running it, the pull request must be reviewed, the run announced to the team, and the `reached-hq` profile working. Then, as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
+In `edu_access_pipeline`, the boundaries have their own lane: `06_create_hdx_adm3_raw` → `bronze_hdx_boundaries` → `90_validate_hdx_adm3_raw` (D-020); the Silver tasks after it stay disabled. The runs above used the earlier `bronze_ingest` job, before the DAG merged; the lane runs the same load and gate code. Before running it, the pull request must be reviewed, the run announced to the team, and the `reached-hq-dev` profile working. Then, as for DepEd ([Running on Databricks](#running-on-databricks)): `databricks bundle validate`, `deploy`, `summary`, `run` twice.
 
 **Confirmed in the DAG on 2026-10-09** (run `876944030170305`, commit `e352330`): the lane's three tasks succeeded, the load skipped the already-loaded file (0 inserted, Bronze 1,642), and the gate passed as its own task ([evidence](../../evidence/pipeline-runs/2026-10-08-hdx-boundaries-databricks-idempotency.md#in-the-edu_access_pipeline-dag-after-113)).
 
@@ -1313,7 +1313,7 @@ Run twice. The attempts query shows `load` then `skip` with 0 rows, Bronze still
 | Should `school_year` be renamed to a generic `period` for non-school sources? | Keep the column; it holds the reference date `2025-02-13` | D-019, D-026|
 | Is storing geometry as raw GeoJSON text in Bronze the rule for spatial sources? | Raw text; parsed in Silver | D-026 |
 | Should ADM4 (`phl_admin4.geojson`) be ingested? | Not now | Team (owner @saraevcldn) |
-| Does `hdx_boundaries` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+| Does `hdx_boundaries` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @saraevcldn) |
 
 ## DepEd EMISD workbook (xlsx_report)
 
@@ -1475,5 +1475,5 @@ In `edu_access_pipeline`, the source has its own lane: `08_create_psa_school_age
 
 | Question | Default until decided | Where |
 |---|---|---|
-| Does `psa_school_age_population` move from `profiled` to `accepted`? | Stays `profiled`; loads to `local` and `dev` only | Team (owner @saraevcldn) |
+| Does `psa_school_age_population` move from `profiled` to `accepted`? | Answered: `accepted` on 2026-10-21, so it loads into `prod` (D-063) | Team (owner @saraevcldn) |
 | Total or household population for school-age need? | Both loaded; Silver decides | Profile O-5, mentor |

@@ -18,6 +18,7 @@ from factories.deped_deliveries import (
 )
 from src.ingestion import cli, control, pipeline
 from src.ingestion.bronze import bronze_ddl, bronze_gate
+from src.ingestion.contract import load_source_config
 from src.ingestion.errors import IngestionError
 from src.ingestion.pipeline import IngestionRun
 from src.ingestion.store import DuckDBStore
@@ -438,7 +439,11 @@ def test_an_approved_file_missing_from_landing_is_reported(env):
                    "WHERE check_name = 'approved_deliveries_present'") == "WARN"
 
 
-def test_prod_refuses_a_source_that_is_not_accepted(env):
+def test_prod_refuses_a_source_that_is_not_accepted(env, monkeypatch):
+    def profiled(*args, **kwargs):
+        config, entry = load_source_config(*args, **kwargs)
+        return config, {**entry, "status": "profiled"}
+    monkeypatch.setattr(pipeline, "load_source_config", profiled)
     with pytest.raises(IngestionError) as e:
         env.run(environment="prod")
     assert e.value.code == "source_not_accepted"

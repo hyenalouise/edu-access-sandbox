@@ -1,6 +1,6 @@
 # deped_psgc_coordinates: DepEd school-level enrollment with PSGC and coordinates, public schools only
 
-**Status:** profiled
+**Status:** accepted
 
 SY 2023-24 school-level enrollment for public schools only (title cell A6 reads `SECTOR: PUBLIC ONLY`), with each school's PSGC codes, longitude and latitude. One workbook, one sheet, 47,818 schools.
 

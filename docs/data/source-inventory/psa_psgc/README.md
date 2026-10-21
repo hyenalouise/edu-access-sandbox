@@ -1,6 +1,6 @@
 # psa_psgc: Philippine Standard Geographic Code (PSGC), 2Q 2026
 
-**Status:** profiled
+**Status:** accepted
 
 ## Identity
 
@@ -31,7 +31,7 @@ Sheets: `Metadata`, `National Summary`, `Prov Sum`, `PSGC` (the data), `Notes`, 
 - **Ingestion:** loaded to `` edu_access.`02-bronze`.psa_psgc_raw `` from the contract [`config/ingestion/psa_psgc.json`](../../../../config/ingestion/psa_psgc.json) (format `xlsx_table`, D-019), which pins the checksum, range and row count in [Files](#files). Every row of sheet `PSGC` is kept as stored text, with the workbook, sheet and Excel row number as provenance. How to add the next quarter: [ingestion runbook](../../../operations/ingestion.md#runbook-psgc).
 - **Observed (ingestion, 2026-10-07):** 84 values of `10-digit PSGC` are stored in the workbook as numbers, not text. All 84 are exactly 10 digits (codes starting with `1`), so no leading zero was lost; they are kept as stored and counted as a WARN. The `2024 Population` cells use an accounting number format that displays 0 as `-`; Bronze keeps the stored `0`. Local load: 43,768 rows, every count above reproduced ([evidence](../../../../evidence/pipeline-runs/2026-10-07-psa-psgc-local-idempotency.md)); the same on Databricks `dev` on 2026-10-08 ([evidence](../../../../evidence/pipeline-runs/2026-10-08-psa-psgc-databricks-idempotency.md)).
 - **Master reference:** 2Q 2026 (D-012), written as `master_reference_period` in the contract. Loading another quarter never changes it.
-- **Status stays `profiled`** until the team accepts the source.
+- **Status `accepted`** on 2026-10-21, so it loads into `prod` (D-063).
 
 ## Publisher documentation
 

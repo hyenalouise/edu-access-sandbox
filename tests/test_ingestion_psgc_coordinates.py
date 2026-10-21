@@ -58,7 +58,7 @@ def test_real_contract_pins_the_public_only_workbook(repo_root):
     assert (d["row_count"], d["unit_rows"], d["blank_rows"], d["no_identifier_rows"], d["range"]) == (
         47818, 47818, 0, 0, "A1:CJ47826")
     assert d["title_cells"]["A6"] == "SECTOR: PUBLIC ONLY"
-    assert config["bronze_table"] == "deped_psgc_coordinates_raw" and entry["status"] == "profiled"
+    assert config["bronze_table"] == "deped_psgc_coordinates_raw" and entry["status"] == "accepted"
     # The same 88 columns as the all-sector workbook, so Silver can read both alike.
     assert config["schema_versions"] == real_config()["schema_versions"]
 

@@ -1,6 +1,6 @@
 # deped_enrollment: DepEd school-level enrollment
 
-**Status:** profiled
+**Status:** accepted
 
 ## Identity
 
