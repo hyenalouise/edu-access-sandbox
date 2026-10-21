@@ -44,5 +44,3 @@ The overall AP3 status is `pressure signal identified` when any offered, adequat
 All outputs retain coverage and missingness fields. A recorded zero remains zero; an all-NULL component total remains NULL. Every gate writes a one-row run-specific summary, records its checks, and removes the temporary summary after validation.
 
 Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql` (see [File naming and layout](../../docs/architecture/overview.md#file-naming-and-layout)).
-
-**Known dependency gap.** `04_answer_ap4.sql` reads `fact_city_school_age_population`, but its task in `databricks.yml` waits only for `90_validate_fact_school_enrollment`. If the school-age gate fails, AP4 still builds, from the last published school-age table.

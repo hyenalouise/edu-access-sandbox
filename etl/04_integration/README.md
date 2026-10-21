@@ -13,11 +13,15 @@ flowchart LR
     hdx[(hdx_adm3_clean)] --> hdx_map
     psgc --> age_map[psa_school_age_population_psgc_map]
     age[(psa_school_age_population_clean)] --> age_map
+    coords[(deped_psgc_coordinates_clean)] --> boundary_map[deped_school_boundary_map]
+    school_map --> boundary_map
+    hdx_map --> boundary_map
     enroll --> annex_map[deped_annex_mother_map]
     school_map --> fact_enroll[fact_school_enrollment]
     poverty_map --> dim_poverty[dim_city_poverty]
     hdx_map --> dim_city[dim_city_municipality]
     age_map --> fact_age[fact_city_school_age_population]
+    boundary_map --> dim_loc[dim_school_location]
 ```
 
 Each map waits only for the Silver gates of the tables it reads (D-051), and, like every layer from Silver on, builds a candidate that replaces the published map only when its gate passes.
@@ -31,6 +35,7 @@ Each map waits only for the Silver gates of the tables it reads (D-051), and, li
 | `hdx_adm3_psgc_map` | `03_map_hdx_adm3_psgc.sql` | `90_validate_hdx_adm3_psgc_map.sql` | Generated from [`config/integration/`](../../config/integration/README.md) | Each COD-AB ADM3 feature, by code and name together | #93, D-052 |
 | `deped_annex_mother_map` | `04_map_deped_annex_mother.sql` | `90_validate_deped_annex_mother_map.sql` | By hand | Each annex school and year to its mother school | D-044 |
 | `psa_school_age_population_psgc_map` | `05_map_psa_school_age_population_psgc.sql` | `90_validate_psa_school_age_population_psgc_map.sql` | Generated from [`config/integration/`](../../config/integration/README.md) | Each census place, inside its province | #159, D-055 |
+| `deped_school_boundary_map` | `06_map_deped_school_boundary.sql` | `90_validate_deped_school_boundary_map.sql` | By hand | Each public school of `deped_psgc_coordinates_clean`: its point against the HDX boundary of the city the school map assigns it (S-1); point and flag copied unchanged | #217 |
 
 Regenerate a generated map with `python -m src.integration.<module> sql|gate` ([src/integration](../../src/integration/README.md)); its test fails until the committed SQL matches.
 
@@ -41,5 +46,6 @@ Regenerate a generated map with `python -m src.integration.<module> sql|gate` ([
 - **`hdx_adm3_psgc_map`**: COD-AB P-codes are not PSGC codes, so a code counts only when the names agree. The 8 Special Geographic Area units stay unmatched.
 - **`deped_annex_mother_map`**: the DepEd releases name annexes but not their mother schools, so every row is `unmatched` with its evidence, and no totals are consolidated until a reviewed crosswalk exists. Nothing downstream reads it yet.
 - **`psa_school_age_population_psgc_map`**: census regions are mapped to today's PSGC regions first, then names are matched inside their province only.
+- **`deped_school_boundary_map`** matches no new geography: the city is the school map's, and HDX boundaries reach PSGC through `hdx_adm3_psgc_map`. It only tests each unflagged point against that city's boundaries from the latest release (`inside`, `outside`), and says why it could not (`no_usable_point`, `no_matched_city`, `no_boundary`). The gate warns on `outside` and does not redo the geometry; `dim_school_location` reads it.
 
 Files follow `NN_<verb>_<object>.sql`, with checks in `90_validate_<object>.sql`.

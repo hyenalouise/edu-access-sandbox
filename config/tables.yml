@@ -156,7 +156,8 @@ source_tables:
       sheet: DB
       note: >-
         One workbook of 47,818 public schools with PSGC codes and coordinates. Bronze keeps every row as
-        received (D-015). Silver is a disabled placeholder until its rules are reviewed.
+        received (D-015). Silver keeps each school's PSGC codes and coordinates only, in scope SY 2023-24 and
+        Public (#217).
     bronze:
       table: deped_psgc_coordinates_raw
       create_file: 09_create_deped_psgc_coordinates_raw.sql
@@ -189,6 +190,11 @@ integration_tables:
     validate_file: 90_validate_psa_poverty_psgc_map.sql
     grain: One row per psa_poverty_stat_clean row (psgc_id, estimate_year).
     purpose: PSA poverty estimates matched to PSGC by Correspondence Code only, estimates carried unchanged (D-054).
+  - table: deped_school_boundary_map
+    build_file: 06_map_deped_school_boundary.sql
+    validate_file: 90_validate_deped_school_boundary_map.sql
+    grain: One row per deped_psgc_coordinates_clean record (school and school year).
+    purpose: Each public school's published point tested against the HDX boundary of the city or municipality the school PSGC map assigns it (S-1, #217).
   - table: psa_school_age_population_psgc_map
     build_file: 05_map_psa_school_age_population_psgc.sql
     validate_file: 90_validate_psa_school_age_population_psgc_map.sql
@@ -225,6 +231,10 @@ gold_tables:
     build_file: 06_build_dim_city_poverty.sql
     validate_file: 90_validate_dim_city_poverty.sql
     grain: One row per regular city or municipality of dim_city_municipality; PSA 2023 poverty estimate and its status (D-046).
+  - table: dim_school_location
+    build_file: 07_build_dim_school_location.sql
+    validate_file: 90_validate_dim_school_location.sql
+    grain: One public school with a published location (deped_school_boundary_map, SY 2023-24); joins dim_school on school_id.
   - table: fact_school_enrollment
     build_file: 10_build_fact_school_enrollment.sql
     validate_file: 90_validate_fact_school_enrollment.sql

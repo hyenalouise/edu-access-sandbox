@@ -26,10 +26,10 @@ REASONS = ("school_id_malformed", "school_id_duplicated", "school_id_identical_c
 LEVELS = ("region", "province", "city_municipality", "barangay")
 FLAGS = ("missing", "zero", "outside_philippines")
 # Profiled counts recorded by the gate: PASS at the count, WARN when it changes, never FAIL.
-PROFILED = ("bronze_unit_rows", "bronze_other_rows", "barangay_codes_padded", "city_source_na", "city_not_in_workbook",
-            "barangay_source_na", "barangay_not_in_workbook", "recoded", "barangay_outside_city",
-            "coordinate_missing", "coordinate_zero", "coordinate_outside_philippines",
-            *[f"quarantine_{r}" for r in REASONS])
+PROFILED_BASE = ("bronze_unit_rows", "bronze_other_rows", "barangay_codes_padded", "city_source_na", "city_not_in_workbook",
+                 "barangay_source_na", "barangay_not_in_workbook", "recoded", "barangay_outside_city",
+                 "coordinate_missing", "coordinate_zero", "coordinate_outside_philippines")
+PROFILED = (*PROFILED_BASE, *[f"quarantine_{r}" for r in REASONS])
 
 
 def _error(message):
@@ -56,6 +56,30 @@ class CrosswalkSpec:
     profiled: dict
     content_columns: list
     mapping: dict = field(repr=False)
+    # Optional scope (deped_psgc_coordinates): rows whose column is not one of the values are quarantined
+    # with the rule's reason, never dropped. Empty for a source that keeps every unit row.
+    scope: list = field(default_factory=list)
+    # Optional columns (deped_psgc_coordinates). combined_null_reason: one psgc_null_reason instead of one per
+    # level; the gate fails if the levels' reasons ever differ, so nothing is lost. keep_published_coordinates:
+    # False leaves the exact coordinate text in Bronze only; the gate still recomputes each number from Bronze.
+    combined_null_reason: bool = False
+    keep_published_coordinates: bool = True
+
+    @property
+    def value_columns(self):
+        reasons = (("psgc_null_reason",) if self.combined_null_reason
+                   else ("psgc_city_municipality_null_reason", "psgc_barangay_null_reason"))
+        published = ("longitude_published", "latitude_published") if self.keep_published_coordinates else ()
+        return ("school_year", "school_id", *[f"psgc_{level}" for level in LEVELS], "psgc_recoded", *reasons,
+                "barangay_outside_city", "longitude", "latitude", *published, "coordinate_flag")
+
+    @property
+    def reasons(self):
+        return (*REASONS, *[rule["reason"] for rule in self.scope])
+
+    @property
+    def profiled_names(self):
+        return (*PROFILED_BASE, *[f"quarantine_{r}" for r in self.reasons])
 
 
 def load_spec(repo_root=REPO_ROOT, source_id=SOURCE_ID):
@@ -77,15 +101,25 @@ def load_spec(repo_root=REPO_ROOT, source_id=SOURCE_ID):
     missing = [c for c in named if c not in columns]
     if missing:
         raise _error(f"the mapping names columns that are not in the Bronze contract: {missing}.")
-    if sorted(mapping["profiled"]) != sorted(PROFILED):
-        raise _error(f"profiled must give a count for exactly {sorted(PROFILED)}.")
+    scope = mapping.get("scope", [])
+    for rule in scope:
+        if set(rule) != {"column", "values", "reason"} or not rule["values"]:
+            raise _error("each scope rule must give column, a non-empty list of values, and reason.")
+        if rule["column"] != "school_year" and rule["column"] not in columns:
+            raise _error(f"scope column {rule['column']!r} is not in the Bronze contract.")
+        if rule["reason"] in REASONS:
+            raise _error(f"scope reason {rule['reason']!r} repeats a built-in reason.")
+    names = (*PROFILED_BASE, *[f"quarantine_{r}" for r in (*REASONS, *[rule["reason"] for rule in scope])])
+    if sorted(mapping["profiled"]) != sorted(names):
+        raise _error(f"profiled must give a count for exactly {sorted(names)}.")
     if set(codes["null_markers"].values()) != {"source_na", "not_in_workbook"}:
         raise _error("codes.null_markers must map to the reasons source_na and not_in_workbook.")
     return CrosswalkSpec(source_id, contract["bronze_table"], silver["clean_file"], mapping["silver_table"],
                          mapping["quarantine_table"], silver["candidate_table"], silver["candidate_quarantine_table"],
                          mapping["row_kind"], mapping["identifier"]["column"], mapping["identifier"]["pattern"],
                          codes, mapping["recode"], coords, mapping["published_text"],
-                         mapping["quarantine_max_percent"], mapping["profiled"], columns, mapping)
+                         mapping["quarantine_max_percent"], mapping["profiled"], columns, mapping, scope,
+                         bool(mapping.get("combined_null_reason", False)), bool(mapping.get("keep_published_coordinates", True)))
 
 
 def _header(spec, name, command, path):
@@ -117,6 +151,11 @@ VALUE_COLUMNS = ("school_year", "school_id", *[f"psgc_{level}" for level in LEVE
                  "longitude", "latitude", "longitude_published", "latitude_published", "coordinate_flag")
 
 
+def _out_of_scope(rule, ref):
+    """TRUE when a row is outside one scope rule: its value is missing or not one of the rule's values."""
+    return f"({ref} IS NULL OR {ref} NOT IN ({', '.join(lit(v) for v in rule['values'])}))"
+
+
 def _stage_padded(spec):
     """From a Bronze row (alias r): the codes padded, the null reasons, the coordinates typed and as published."""
     lon, lat = spec.coordinates["longitude"], spec.coordinates["latitude"]
@@ -125,7 +164,7 @@ def _stage_padded(spec):
             f"{_null_reason(spec, 'psgc_city_municipality')} AS city_reason_if_null",
             f"{_null_reason(spec, 'psgc_barangay')} AS barangay_reason_if_null",
             f"{_number(spec, lon)} AS longitude", f"{_number(spec, lat)} AS latitude",
-            f"r.{lon} AS longitude_published", f"r.{lat} AS latitude_published",
+            *([f"r.{lon} AS longitude_published", f"r.{lat} AS latitude_published"] if spec.keep_published_coordinates else []),
             *[f"r.{c}" for c in spec.published_text]]
 
 
@@ -151,10 +190,13 @@ def _stage_final(spec):
         f"{swap('c.city_municipality_padded')} AS psgc_city_municipality",
         f"{swap('c.barangay_padded')} AS psgc_barangay",
         "c.psgc_recoded",
-        "CASE WHEN c.city_municipality_padded IS NULL THEN c.city_reason_if_null END AS psgc_city_municipality_null_reason",
-        "CASE WHEN c.barangay_padded IS NULL THEN c.barangay_reason_if_null END AS psgc_barangay_null_reason",
+        *(["CASE WHEN c.city_municipality_padded IS NULL THEN c.city_reason_if_null "
+           "WHEN c.barangay_padded IS NULL THEN c.barangay_reason_if_null END AS psgc_null_reason"]
+          if spec.combined_null_reason else
+          ["CASE WHEN c.city_municipality_padded IS NULL THEN c.city_reason_if_null END AS psgc_city_municipality_null_reason",
+           "CASE WHEN c.barangay_padded IS NULL THEN c.barangay_reason_if_null END AS psgc_barangay_null_reason"]),
         "COALESCE(substr(c.barangay_padded, 1, 7) <> substr(c.city_municipality_padded, 1, 7), FALSE) AS barangay_outside_city",
-        "c.longitude", "c.latitude", "c.longitude_published", "c.latitude_published",
+        "c.longitude", "c.latitude", *(["c.longitude_published", "c.latitude_published"] if spec.keep_published_coordinates else []),
         "CASE WHEN c.longitude IS NULL OR c.latitude IS NULL THEN 'missing' WHEN c.longitude = 0 AND c.latitude = 0 THEN 'zero' "
         f"WHEN NOT (c.longitude BETWEEN {box['longitude_min']} AND {box['longitude_max']} AND c.latitude BETWEEN {box['latitude_min']} AND {box['latitude_max']}) "
         "THEN 'outside_philippines' END AS coordinate_flag",
@@ -171,6 +213,7 @@ def build_sql(spec):
         "g.id_rows", "g.id_versions",
         f"ROW_NUMBER() OVER (PARTITION BY r.school_year, r.{spec.identifier} ORDER BY r.source_row_number) AS id_copy",
         *[f"r.{c}" for c in LINEAGE],
+        *[f"r.{rule['column']} AS scope_{rule['column']}" for rule in spec.scope],
     ]
     typed = [
         *_stage_final(spec),
@@ -178,11 +221,12 @@ def build_sql(spec):
             f"CASE WHEN NOT regexp_like(c.school_id, {lit(spec.identifier_pattern)}) THEN 'school_id_malformed' END",
             "CASE WHEN c.id_rows > 1 AND c.id_versions > 1 THEN 'school_id_duplicated' END",
             "CASE WHEN c.id_rows > 1 AND c.id_versions = 1 AND c.id_copy > 1 THEN 'school_id_identical_copy' END",
+            *[f"CASE WHEN {_out_of_scope(rule, 'c.scope_' + rule['column'])} THEN {lit(rule['reason'])} END" for rule in spec.scope],
         ], 6) + "\n    ) AS quarantine_reasons",
         *[f"c.{x}" for x in LINEAGE],
     ]
     recoded = _stage_recoded(spec)
-    clean_columns = [*VALUE_COLUMNS, *spec.published_text, *LINEAGE,
+    clean_columns = [*spec.value_columns, *spec.published_text, *LINEAGE,
                      *[f"session.silver_{c} AS {c}" for c in STAMP]]
     quarantine_columns = ["school_year", "school_id", "split(quarantine_reasons, ',') AS quarantine_reasons",
                           *LINEAGE, *[f"session.silver_{c} AS {c}" for c in STAMP]]
@@ -235,13 +279,15 @@ def _checks(spec):
         ("code_values_recognized", "FAIL", "unrecognized_code_values", "= 0"),
         ("region_province_values_recognized", "FAIL", "unrecognized_region_province", "= 0"),
         ("null_reason_matches_code", "FAIL", "null_reason_mismatches", "= 0"),
+        *([("null_reasons_agree", "FAIL", "null_reasons_differ", "= 0")] if spec.combined_null_reason else []),
         ("levels_null_together", "FAIL", "levels_not_null_together", "= 0"),
         ("coordinates_in_pairs", "FAIL", "coordinates_not_in_pairs", "= 0"),
         ("coordinate_values_recognized", "FAIL", "unrecognized_coordinates", "= 0"),
         ("lineage_complete", "FAIL", "missing_lineage", "= 0"),
         ("rows_built_by_this_run", "FAIL", "other_run_rows", "= 0"),
+        *([("rows_in_scope", "FAIL", "out_of_scope_clean_rows", "= 0")] if spec.scope else []),
     ]
-    profiled = [(f"profiled_{name}", "WARN", name, f"= {p[name]}") for name in PROFILED]
+    profiled = [(f"profiled_{name}", "WARN", name, f"= {p[name]}") for name in spec.profiled_names]
     return fail + profiled
 
 
@@ -253,6 +299,30 @@ def _null_safe(item):
         return item
     head, _, tail = item.rpartition(") FROM ")
     return "(SELECT COALESCE(COUNT_IF(" + head[len(start):] + "), 0) FROM " + tail
+
+
+def _level_reason(spec, level):
+    """The reason a level's code is NULL, read from the clean row: its own column, or the combined one."""
+    if spec.combined_null_reason:
+        return f"CASE WHEN psgc_{level} IS NULL THEN psgc_null_reason END"
+    return f"psgc_{level}_null_reason"
+
+
+def _reason_counts(spec):
+    """unrecognized_code_values, null_reason_mismatches and, with a combined reason, null_reasons_differ."""
+    unrecognized = " OR ".join(f"{_level_reason(spec, level)} = 'unrecognized'" for level in ("city_municipality", "barangay"))
+    if spec.combined_null_reason:
+        mismatch = ("(psgc_city_municipality IS NULL OR psgc_barangay IS NULL) <> (psgc_null_reason IS NOT NULL)")
+    else:
+        mismatch = ("(psgc_city_municipality IS NULL) <> (psgc_city_municipality_null_reason IS NOT NULL) "
+                    "OR (psgc_barangay IS NULL) <> (psgc_barangay_null_reason IS NOT NULL)")
+    counts = [f"(SELECT COUNT_IF({unrecognized}) FROM c) AS unrecognized_code_values",
+              f"(SELECT COUNT_IF({mismatch}) FROM c) AS null_reason_mismatches"]
+    if spec.combined_null_reason:
+        # Both levels NULL for different reasons (e.g. city '#N/A', barangay blank): one column could not say both.
+        counts.append(f"(SELECT COUNT_IF({_padded(spec, 'psgc_city_municipality', 'u')} IS NULL AND {_padded(spec, 'psgc_barangay', 'u')} IS NULL "
+                      f"AND {_null_reason(spec, 'psgc_city_municipality', 'u')} <> {_null_reason(spec, 'psgc_barangay', 'u')}) FROM unit AS u) AS null_reasons_differ")
+    return counts
 
 
 def gate_sql(spec):
@@ -271,7 +341,7 @@ def gate_sql(spec):
 
     def unrecognized(column):
         return f"(u.{column} IS NOT NULL AND u.{column} NOT IN ({code_markers}) AND NOT regexp_like(u.{column}, {stored}))"
-    value_differs = " OR ".join(f"c.{x} IS DISTINCT FROM e.{x}" for x in [*VALUE_COLUMNS, *spec.published_text])
+    value_differs = " OR ".join(f"c.{x} IS DISTINCT FROM e.{x}" for x in [*spec.value_columns, *spec.published_text])
     unions = []
     for name, failure, actual, condition in _checks(spec):
         table = quarantine_name if name.startswith("profiled_quarantine_") else clean_name
@@ -290,8 +360,9 @@ def gate_sql(spec):
         f"(SELECT COUNT(*) FROM c JOIN expected AS e ON e.source_sha256 = c.source_sha256 AND e.source_row_number = c.source_row_number "
         f"WHERE {value_differs}) AS value_mismatches",
         f"(SELECT COUNT(*) FROM c JOIN unit AS b ON b.source_sha256 = c.source_sha256 AND b.source_row_number = c.source_row_number "
-        f"WHERE c.longitude_published IS DISTINCT FROM b.{lon} OR c.latitude_published IS DISTINCT FROM b.{lat} "
-        f"OR c.longitude IS DISTINCT FROM {_number(spec, lon, 'b')} OR c.latitude IS DISTINCT FROM {_number(spec, lat, 'b')}) AS coordinate_mismatches",
+        "WHERE " + (f"c.longitude_published IS DISTINCT FROM b.{lon} OR c.latitude_published IS DISTINCT FROM b.{lat} OR "
+                    if spec.keep_published_coordinates else "") +
+        f"c.longitude IS DISTINCT FROM {_number(spec, lon, 'b')} OR c.latitude IS DISTINCT FROM {_number(spec, lat, 'b')}) AS coordinate_mismatches",
         f"(SELECT COUNT_IF({unrecognized('psgc_region')} OR {unrecognized('psgc_province')}) FROM unit AS u) AS unrecognized_region_province",
         f"(SELECT COUNT_IF(source_row_kind = {lit(spec.row_kind)}) FROM bronze) AS bronze_unit_rows",
         f"(SELECT COUNT_IF(source_row_kind <> {lit(spec.row_kind)}) FROM bronze) AS bronze_other_rows",
@@ -300,9 +371,7 @@ def gate_sql(spec):
         "(SELECT COUNT(*) - COUNT(DISTINCT (school_year, school_id)) FROM c) AS duplicate_clean_ids",
         f"(SELECT COUNT_IF(NOT regexp_like(school_id, {lit(spec.identifier_pattern)})) FROM c) AS malformed_clean_ids",
         "(SELECT COUNT_IF(" + " OR ".join(f"({x} IS NOT NULL AND NOT regexp_like({x}, '^[0-9]{{{spec.codes['length']}}}$'))" for x in codes) + ") FROM c) AS codes_not_ten_digits",
-        "(SELECT COUNT_IF(psgc_city_municipality_null_reason = 'unrecognized' OR psgc_barangay_null_reason = 'unrecognized') FROM c) AS unrecognized_code_values",
-        "(SELECT COUNT_IF((psgc_city_municipality IS NULL) <> (psgc_city_municipality_null_reason IS NOT NULL) "
-        "OR (psgc_barangay IS NULL) <> (psgc_barangay_null_reason IS NOT NULL)) FROM c) AS null_reason_mismatches",
+        *(_reason_counts(spec)),
         "(SELECT COUNT_IF((psgc_region IS NULL) <> (psgc_city_municipality IS NULL) OR (psgc_province IS NULL) <> (psgc_city_municipality IS NULL)) FROM c) AS levels_not_null_together",
         "(SELECT COUNT_IF((longitude IS NULL) <> (latitude IS NULL)) FROM c) AS coordinates_not_in_pairs",
         f"(SELECT COUNT_IF(source_row_kind = {lit(spec.row_kind)} AND ("
@@ -310,14 +379,15 @@ def gate_sql(spec):
         f"(SELECT COALESCE(COUNT_IF({every_lineage}), 0) FROM c AS x) + (SELECT COALESCE(COUNT_IF({every_lineage}), 0) FROM q AS x) AS missing_lineage",
         "(SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM c) + (SELECT COALESCE(COUNT_IF(run_id <> :run_id), 0) FROM q) AS other_run_rows",
         f"(SELECT COUNT_IF(source_row_kind = {lit(spec.row_kind)} AND regexp_like(b.psgc_barangay, {stored}) AND length(b.psgc_barangay) < {spec.codes['length']}) FROM bronze AS b) AS barangay_codes_padded",
-        "(SELECT COUNT_IF(psgc_city_municipality_null_reason = 'source_na') FROM c) AS city_source_na",
-        "(SELECT COUNT_IF(psgc_city_municipality_null_reason = 'not_in_workbook') FROM c) AS city_not_in_workbook",
-        "(SELECT COUNT_IF(psgc_barangay_null_reason = 'source_na') FROM c) AS barangay_source_na",
-        "(SELECT COUNT_IF(psgc_barangay_null_reason = 'not_in_workbook') FROM c) AS barangay_not_in_workbook",
+        *[f"(SELECT COUNT_IF({_level_reason(spec, level)} = {lit(reason)}) FROM c) AS {prefix}_{reason}"
+          for level, prefix in (("city_municipality", "city"), ("barangay", "barangay")) for reason in ("source_na", "not_in_workbook")],
         "(SELECT COUNT_IF(psgc_recoded) FROM c) AS recoded",
         "(SELECT COUNT_IF(barangay_outside_city) FROM c) AS barangay_outside_city",
         *[f"(SELECT COUNT_IF(coordinate_flag = {lit(f)}) FROM c) AS coordinate_{f}" for f in FLAGS],
-        *[f"(SELECT COUNT_IF(array_contains(quarantine_reasons, {lit(r)})) FROM q) AS quarantine_{r}" for r in REASONS],
+        *[f"(SELECT COUNT_IF(array_contains(quarantine_reasons, {lit(r)})) FROM q) AS quarantine_{r}" for r in spec.reasons],
+        *([f"(SELECT COUNT(*) FROM c JOIN unit AS b ON b.source_sha256 = c.source_sha256 AND b.source_row_number = c.source_row_number "
+           "WHERE " + " OR ".join(_out_of_scope(rule, 'b.' + rule['column']) for rule in spec.scope) + ") AS out_of_scope_clean_rows"]
+          if spec.scope else []),
     ]
     counts = [_null_safe(item) for item in counts]
     lines = _header(spec, "Silver gate", "gate", f"90_validate_{spec.clean_table}.sql") + [

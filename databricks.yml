@@ -34,8 +34,8 @@ resources:
     edu_access_pipeline:
       name: edu_access_pipeline
       description: >-
-        Validates and ingests eight approved education and geography sources
-        through Bronze; seven continue through Silver. Each Integration, Gold, and
+        Validates and ingests nine approved education and geography sources
+        through Bronze; eight continue through Silver. Each Integration, Gold, and
         Analytics task starts from the gates it reads (D-051); placeholders stay
         visible but disabled.
 
@@ -676,7 +676,7 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         # 09 - DepEd school-level enrollment with PSGC and coordinates, public schools only: a separate workbook from 07's.
-        # Bronze is live; Silver is a placeholder, disabled until its rules are reviewed.
+        # Silver keeps each school's PSGC codes and coordinates only (#217); the rest repeats deped_enrollment.
         - task_key: 09_create_deped_psgc_coordinates_raw
           depends_on:
             - task_key: 05_create_current_batches
@@ -723,7 +723,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 09_clean_deped_psgc_coordinates
-          disabled: true
           depends_on:
             - task_key: 90_validate_deped_psgc_coordinates_raw
           run_if: ALL_SUCCESS
@@ -734,7 +733,6 @@ resources:
             warehouse_id: ${var.warehouse_id}
 
         - task_key: 90_validate_deped_psgc_coordinates_clean
-          disabled: true
           depends_on:
             - task_key: 09_clean_deped_psgc_coordinates
           run_if: ALL_SUCCESS
@@ -875,6 +873,28 @@ resources:
               path: etl/04_integration/90_validate_psa_school_age_population_psgc_map.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
+        # The public-school boundary map (#217): each school's point against the HDX boundary of the city the
+        # school map assigns it (S-1). It reads the coordinates Silver, the school map and the HDX map.
+        - task_key: 06_map_deped_school_boundary
+          depends_on:
+            - task_key: 90_validate_deped_psgc_coordinates_clean
+            - task_key: 90_validate_deped_school_psgc_map
+            - task_key: 90_validate_hdx_adm3_psgc_map
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/04_integration/06_map_deped_school_boundary.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_deped_school_boundary_map
+          depends_on:
+            - task_key: 06_map_deped_school_boundary
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/04_integration/90_validate_deped_school_boundary_map.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
         # Gold dimensions (D-048), each from the gates it reads.
         - task_key: 01_build_dim_school
           depends_on:
@@ -985,6 +1005,27 @@ resources:
           sql_task:
             file:
               path: etl/05_gold/90_validate_dim_city_poverty.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        # Public-school locations (#217): each school's point and its boundary status, from the boundary map.
+        # Nothing waits for it, so a failure here stops no fact, AP or the priority matrix.
+        - task_key: 07_build_dim_school_location
+          depends_on:
+            - task_key: 90_validate_deped_school_boundary_map
+            - task_key: 90_validate_dim_school
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/07_build_dim_school_location.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+        - task_key: 90_validate_dim_school_location
+          depends_on:
+            - task_key: 07_build_dim_school_location
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/05_gold/90_validate_dim_school_location.sql
               source: GIT
             warehouse_id: ${var.warehouse_id}
         # Gold facts (D-048), each from its Silver or Integration gate and the dimension gates it joins.
@@ -1152,6 +1193,7 @@ resources:
         - task_key: 04_answer_ap4
           depends_on:
             - task_key: 90_validate_fact_school_enrollment
+            - task_key: 90_validate_fact_city_school_age_population
           run_if: ALL_SUCCESS
           sql_task:
             file:

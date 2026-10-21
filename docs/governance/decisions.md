@@ -575,7 +575,7 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   | `deped_enrollment`, `psa_psgc`, `hdx_boundaries`, `deped_enrollment_psgc` | AP1 to AP4 |
   | `deped_facilities` | AP2 |
   | `deped_personnel` | AP3 |
-  | `psa_school_age_population` | AP4 |
+  | `psa_school_age_population` | AP1 and AP4 |
   | `psa_poverty_stat` | No AP (`dim_city_poverty` only) |
 
   `tests/test_bundle.py` checks this table against the job. Run on Databricks `dev` at `135c1ac` (job run `18257140364359`): the annex map started the moment the enrollment Silver gate passed, the disabled EMISD Silver tasks resolved when the EMISD Bronze gate finished, and the fan-in wrote a PASS for each of the six lanes switched on ([evidence](../../evidence/pipeline-runs/2026-10-18-per-lane-job.md)). **Revisit** if a partial run is published as complete, or if HDX failures keep blocking outputs that do not use land area.

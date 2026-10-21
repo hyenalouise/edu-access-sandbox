@@ -24,8 +24,6 @@ from src.silver import psa_school_age_population
 REVISION = "d" * 40
 CONTROL = "edu_access.`01-control`"
 BRONZE = "edu_access.`02-bronze`.deped_enrollment_raw"
-# Silver placeholders: in the graph, switched off until their rules are reviewed.
-PLACEHOLDERS = {"09_clean_deped_psgc_coordinates": "disabled", "90_validate_deped_psgc_coordinates_clean": "disabled"}
 
 
 @pytest.fixture
@@ -66,12 +64,13 @@ def repo(tmp_path):
                                               rows={9: report_workbooks.school(100001), 10: report_workbooks.school(100002)})
     report_workbooks.approve(emisd, workbook, row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
     write_config(root, emisd)
-    # The public-only workbook (lane 09) is a separate file: its own name and its row-6 sector note.
-    # Its Silver is a placeholder, so Bronze only.
+    # The public-only workbook (lane 09) is a separate file: its own name and its row-6 sector note. It runs
+    # through Silver and Gold too (#217): two of the made-up enrollment schools, so dim_school_location's gate
+    # finds both in dim_school; nothing quarantined.
     coordinates = report_workbooks.coordinates_config()
     workbook = report_workbooks.make_workbook(tmp_path / "landing" / "deped" / "original", name=report_workbooks.PUBLIC_ONLY,
                                               title=report_workbooks.PUBLIC_ONLY_TITLE,
-                                              rows={9: report_workbooks.school(100001), 10: report_workbooks.school(100002)})
+                                              rows={9: report_workbooks.school(900001), 10: report_workbooks.school(900002)})
     report_workbooks.approve(coordinates, workbook, title=report_workbooks.PUBLIC_ONLY_TITLE,
                              row_count=2, unit_rows=2, blank_rows=0, no_identifier_rows=0, last_row=10)
     write_config(root, coordinates)
@@ -166,7 +165,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.pipeline_runs WHERE pipeline_name = 'silver_build' "
                        "ORDER BY 1") == [("deped_enrollment", "succeeded"), ("deped_enrollment_psgc", "succeeded"),
                                          ("deped_facilities", "succeeded"),
-                                         ("deped_personnel", "succeeded"), ("hdx_boundaries", "succeeded"),
+                                         ("deped_personnel", "succeeded"), ("deped_psgc_coordinates", "succeeded"),
+                                         ("hdx_boundaries", "succeeded"),
                                          ("psa_poverty_stat", "succeeded"), ("psa_psgc", "succeeded"),
                                          ("psa_school_age_population", "succeeded")]
     assert store.query("SELECT COUNT(*), MIN(run_id) FROM edu_access.\"03-silver\".deped_facilities_clean") == [(3, "job-run-1")]
@@ -194,8 +194,8 @@ def test_every_task_runs_in_order_and_succeeds(repo, tmp_path):
     assert store.query(f"SELECT source_id, status FROM {CONTROL}.data_quality_results "
                        "WHERE run_id = 'job-run-1' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
         ("deped_enrollment", "PASS"), ("deped_enrollment_psgc", "PASS"), ("deped_facilities", "PASS"),
-        ("deped_personnel", "PASS"), ("hdx_boundaries", "PASS"), ("psa_poverty_stat", "PASS"),
-        ("psa_psgc", "PASS"), ("psa_school_age_population", "PASS")]   # one per Silver lane on
+        ("deped_personnel", "PASS"), ("deped_psgc_coordinates", "PASS"), ("hdx_boundaries", "PASS"),
+        ("psa_poverty_stat", "PASS"), ("psa_psgc", "PASS"), ("psa_school_age_population", "PASS")]   # one per Silver lane on
     fresh = store.query(f"SELECT source_id, status, actual FROM {CONTROL}.data_quality_results "
                         "WHERE run_id = 'job-run-1' AND check_name = 'source_fresh' ORDER BY 1")
     # One per loaded source, after the fan-in. Every batch was just loaded, so each source with one is fresh;
@@ -224,7 +224,7 @@ def test_a_second_run_changes_nothing(repo, tmp_path):
     db = tmp_path / "job.duckdb"
     run_job(repo, landing, db, REVISION, log=lambda *_: None)
     results = run_job(repo, landing, db, REVISION, log=lambda *_: None)
-    assert {k: v for k, v in statuses(results).items() if v != "succeeded"} == PLACEHOLDERS
+    assert set(statuses(results).values()) == {"succeeded"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT COUNT(*) FROM {BRONZE}") == [(3,)]
     assert store.query(f"SELECT action, COUNT(*) FROM {CONTROL}.ingestion_batch_attempts GROUP BY 1 ORDER BY 1") \
@@ -247,10 +247,10 @@ def test_the_job_runs_on_control_tables_from_before_added_columns(repo, tmp_path
     store.close()
     results = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
     assert results["add_control_columns"] == "succeeded"
-    assert {k: v for k, v in results.items() if v != "succeeded"} == PLACEHOLDERS
+    assert set(results.values()) == {"succeeded"}
     store = DuckDBStore(db)
     assert store.query(f"SELECT pipeline_name, COUNT(*) FROM {CONTROL}.pipeline_runs WHERE job_run_id = 'job-run-1' "
-                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 9), ("integration_build", 4), ("silver_build", 8)]   # one filter, both layers; the DepEd school, HDX, poverty and school-age maps write their own runs
+                       "GROUP BY 1 ORDER BY 1") == [("bronze_ingest", 9), ("integration_build", 5), ("silver_build", 9)]   # one filter, both layers; the DepEd school, HDX, poverty, school-age and school-boundary maps write their own runs
     store.close()
 
 
@@ -292,6 +292,7 @@ def test_a_failing_gate_fails_its_task_and_an_independent_source_still_runs(repo
                        "WHERE run_id = 'job-run-2' AND check_name = 'silver_lane_succeeded' ORDER BY 1") == [
         ("deped_enrollment", "FAIL", "not run"), ("deped_enrollment_psgc", "PASS", "succeeded"),
         ("deped_facilities", "PASS", "succeeded"), ("deped_personnel", "PASS", "succeeded"),
+        ("deped_psgc_coordinates", "PASS", "succeeded"),
         ("hdx_boundaries", "PASS", "succeeded"), ("psa_poverty_stat", "PASS", "succeeded"),
         ("psa_psgc", "PASS", "succeeded"), ("psa_school_age_population", "PASS", "succeeded")]
     store.close()
@@ -321,7 +322,7 @@ def test_a_gate_code_bug_is_fixed_and_recovered_by_rerun(repo, tmp_path):
     deliver(repo, landing)
     db = tmp_path / "job.duckdb"
     first = statuses(run_job(repo, landing, db, REVISION, run_id="job-run-1", log=lambda *_: None))
-    assert {k: v for k, v in first.items() if v != "succeeded"} == PLACEHOLDERS
+    assert set(first.values()) == {"succeeded"}   # lane 09 Silver is built, so no task is disabled
     store = DuckDBStore(db)
     good = published(store)
     store.close()
@@ -352,7 +353,7 @@ VALUES (:run_id, NULL, 'deped_enrollment', 'bronze', 'edu_access.02-bronze.deped
     fixed = "e" * 40
     gate.write_text(good_gate, encoding="utf-8")
     recovered = statuses(run_job(repo, landing, db, fixed, run_id="job-run-3", log=lambda *_: None))
-    assert {k: v for k, v in recovered.items() if v != "succeeded"} == PLACEHOLDERS
+    assert set(recovered.values()) == {"succeeded"}   # lane 09 Silver is built, so no task is disabled
     store = DuckDBStore(db)
     assert published(store) == good
     assert store.query(f"SELECT COUNT(*) FROM {CONTROL}.data_quality_results WHERE run_id = 'job-run-3' "

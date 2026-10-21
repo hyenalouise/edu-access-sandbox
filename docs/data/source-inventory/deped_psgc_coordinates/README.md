@@ -56,8 +56,8 @@ Summary only; evidence in [profile.md](profile.md).
 |---|---|
 | Contract | [`config/ingestion/deped_psgc_coordinates.json`](../../../../config/ingestion/deped_psgc_coordinates.json), format `xlsx_report`. The file name, SHA-256, range, title cells and row counts are pinned in the approved delivery |
 | Bronze table | `` edu_access.`02-bronze`.deped_psgc_coordinates_raw ``: every sheet row below the header as text, with its Excel row number and kind, and the 16 provenance columns. Nothing is padded, typed, or filtered (D-015). `dq_sector_not_public` WARNs if a row of another sector ever appears |
-| Pipeline | Lane 09 of `edu_access_pipeline`: `09_create_deped_psgc_coordinates_raw` → `bronze_deped_psgc_coordinates` → `90_validate_deped_psgc_coordinates_raw`, then Silver `09_clean_deped_psgc_coordinates` → `90_validate_deped_psgc_coordinates_clean`, both disabled placeholders |
-| Silver table | `` edu_access.`03-silver`.deped_psgc_coordinates_clean ``: placeholder until its rules are reviewed |
+| Pipeline | Lane 09 of `edu_access_pipeline`: `09_create_deped_psgc_coordinates_raw` → `bronze_deped_psgc_coordinates` → `90_validate_deped_psgc_coordinates_raw`, then Silver `09_clean_deped_psgc_coordinates` → `90_validate_deped_psgc_coordinates_clean` |
+| Silver table | `` edu_access.`03-silver`.deped_psgc_coordinates_clean ``: one row per public school, SY 2023-24, with its PSGC codes (padded, Sulu recoded) and coordinates (typed, flagged); the enrollment counts and the columns `deped_enrollment` already holds are not carried ([dictionary](../../silver/deped-psgc-coordinates-clean.md), [rules](../../../operations/silver.md#deped-public-school-locations), #217) |
 | Loaded | Locally, 2026-10-21 ([evidence](../../../../evidence/pipeline-runs/2026-10-21-deped-psgc-coordinates-local-idempotency.md)); not yet on Databricks |
 
 ## Limitations for analysis
