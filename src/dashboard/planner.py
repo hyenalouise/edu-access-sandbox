@@ -26,7 +26,7 @@ OUTPUT = ROOT / "dashboards" / "reached_planner.lvdash.json"
 A = "edu_access.`06-analytics`"
 G = "edu_access.`05-gold`"
 ALL_REGIONS, ALL_PROVINCES, ALL_TYPES = "All regions", "All provinces", "All LGU types"
-ALL_QUEUE, ALL_COVERAGE = "All planning statuses", "All LGUs"
+ALL_QUEUE, ALL_COVERAGE = "All review statuses", "All LGUs"
 READINESS = ["Assessed", "Insufficient data"]
 TOP_LGU = "(Top LGU in the filters)"
 ALL_BARANGAYS = "All barangays"
@@ -35,7 +35,8 @@ LEVELS = ["Elementary", "Junior high", "Senior high"]
 ALL_MEASURES = "All measures"
 SCHOOL_YEARS = ["SY 2020-21", "SY 2021-22", "SY 2022-23", "SY 2023-24", "SY 2024-25", "SY 2025-26"]
 
-# Published priority categories (database values), most urgent first, with the label and basis an LGU user reads
+# Review status: the published priority categories, most urgent first, used in every legend, axis and filter. Each
+# has a planning status, the plain-language reading shown beside it, and its basis
 QUEUE = ["Priority 1", "Priority 2", "Priority 3", "Monitor", "No current pressure identified", "Data review"]
 STATUS_LABELS = ["Immediate joint review", "High-priority review", "Targeted review", "Growth watchlist",
                  "No current pressure identified", "Insufficient data to assess"]
@@ -45,7 +46,7 @@ STATUS_BASIS = ["Classroom and teacher pressure are present, and enrollment is g
                 "Enrollment is growing, but no current pressure signal was identified",
                 "No pressure signal or enrollment growth was identified from available data",
                 "Coverage or growth data are incomplete and no known pressure signal is present"]
-STATUS_RAMP = ("#F3EEE9", "#712B13")  # map: lightest is no current pressure, darkest is immediate joint review
+STATUS_RAMP = ("#F3EEE9", "#712B13")  # map: lightest is no current pressure, darkest is Priority 1
 SCREEN = 50  # the illustrative reported-room screen, config/analytics_benchmarks.json
 MEASURES = ["Public schools", "Classrooms", "Teachers"]
 SIGNALS = ["Present", "Not identified", "Not assessed"]
@@ -119,6 +120,12 @@ def measure(expr, places, unit, missing="Not reported"):
 # published reasons a measure is not assessed, in the words an LGU user reads
 REASON = ("CASE {c} WHEN 'no AP4 enrollment row' THEN 'no enrollment trend for this LGU' "
           "WHEN 'no usable classroom denominator' THEN 'no usable room count' ELSE {c} END")
+
+
+def compact(expr):
+    """6.48M or 12,345: millions shortened, anything smaller in full."""
+    return (f"CASE WHEN {expr} >= 1000000 THEN format_number({expr} / 1000000.0, 2) || 'M' "
+            f"ELSE format_number({expr}, 0) END")
 
 
 def signed(expr):
@@ -205,7 +212,7 @@ SELECT 'Scope: '
 FROM lgu
 WHERE {GEO}"""
 
-OV_FILTER = (f"{GEO} AND (:queue = '{ALL_QUEUE}' OR status_label = :queue)"
+OV_FILTER = (f"{GEO} AND (:queue = '{ALL_QUEUE}' OR queue_status = :queue)"
              f" AND (:coverage = '{ALL_COVERAGE}' OR (:coverage = '{READINESS[0]}' AND queue_status <> '{QUEUE[5]}')"
              f" OR (:coverage = '{READINESS[1]}' AND queue_status = '{QUEUE[5]}'))")
 
@@ -231,7 +238,7 @@ GEOM = "st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326)"
 SHAPES = """LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m
   ON m.psgc_code = r.city_mun_psgc_code AND m.match_status = 'matched'
 LEFT JOIN edu_access.`03-silver`.hdx_adm3_clean AS h ON h.adm3_pcode = m.adm3_pcode"""
-OV_MAP = f"""SELECT r.lgu_label, r.status_label, r.status_level, r.status_basis, {GEOM} AS boundary
+OV_MAP = f"""SELECT r.lgu_label, r.queue_status, r.status_label, r.status_level, {GEOM} AS boundary
 FROM ({OV_ROWS}) AS r
 {SHAPES}
 WHERE h.geometry IS NOT NULL"""
@@ -257,34 +264,34 @@ k AS (
   FROM pri
   WHERE {OV_FILTER}
 )
+-- each KPI is written whole here, so Databricks never abbreviates a count to 1.38K
 SELECT k.*,
-       {share('joint_review', 'assessed')} || ' of assessed' AS joint_share_txt,
-       format_number(assessed, 0) || ' assessed (' || {share('any_pressure', 'assessed')} || ')' AS any_txt,
-       {share('learners_above', 'public_learners')} || ' of public learners · '
-         || format_number(schools_above, 0) || CASE WHEN schools_above = 1 THEN ' school' ELSE ' schools' END AS learners_txt,
-       format_number(lgus, 0) || ' LGUs (' || {share('data_review', 'lgus')} || ')' AS data_review_txt
+       format_number(joint_review, 0) || ' (' || {share('joint_review', 'assessed')} || ')' AS joint_kpi,
+       format_number(any_pressure, 0) || ' of ' || format_number(assessed, 0) AS any_kpi,
+       {compact('learners_above')} || ' (' || {share('learners_above', 'public_learners')} || ')' AS learners_kpi,
+       format_number(data_review, 0) || ' of ' || format_number(lgus, 0) AS data_review_kpi
 FROM k"""
 
 # the priority rule as a signal matrix: each combination of the two pressure signals, how many LGUs, how many grow
 SIGNAL_SORT = "CASE {c} " + " ".join(f"WHEN '{s}' THEN {i}" for i, s in enumerate(SIGNALS)) + " END"
 OV_SIGNALS = f"""SELECT classroom_signal, teacher_signal, COUNT(*) AS lgus, COUNT_IF(growth_signal = '{GROWTH[0]}') AS growing,
        CASE WHEN classroom_signal = '{SIGNALS[0]}' AND teacher_signal = '{SIGNALS[0]}'
-              THEN '{STATUS_LABELS[0]} if growing, otherwise {STATUS_LABELS[1].lower()}'
+              THEN '{QUEUE[0]} if growing, otherwise {QUEUE[1]}'
             WHEN classroom_signal = '{SIGNALS[0]}' OR teacher_signal = '{SIGNALS[0]}'
-              THEN '{STATUS_LABELS[1]} if growing, otherwise {STATUS_LABELS[2].lower()}'
+              THEN '{QUEUE[1]} if growing, otherwise {QUEUE[2]}'
             WHEN classroom_signal = '{SIGNALS[1]}' AND teacher_signal = '{SIGNALS[1]}'
-              THEN '{STATUS_LABELS[3]} if growing, no current pressure if not, insufficient data if not comparable'
-            ELSE '{STATUS_LABELS[5]}' END AS resulting_status
+              THEN '{QUEUE[3]} if growing, {QUEUE[4]} if not, {QUEUE[5]} if not comparable'
+            ELSE '{QUEUE[5]}' END AS resulting_status
 FROM ({OV_ROWS}) AS r
 GROUP BY classroom_signal, teacher_signal
 ORDER BY {SIGNAL_SORT.format(c='classroom_signal')}, {SIGNAL_SORT.format(c='teacher_signal')}"""
 
-OV_REGION = f"""SELECT region_short, status_label, COUNT(*) AS lgus,
+OV_REGION = f"""SELECT region_short, queue_status, COUNT(*) AS lgus,
        COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY region_short) AS share_of_region
 FROM ({OV_ROWS}) AS r
-GROUP BY region_short, status_label"""
+GROUP BY region_short, queue_status"""
 
-OV_DEMAND = f"""SELECT city_mun_psgc_code, status_label, growth_signal FROM ({OV_ROWS}) AS r"""
+OV_DEMAND = f"""SELECT city_mun_psgc_code, queue_status, growth_signal FROM ({OV_ROWS}) AS r"""
 
 # ============================================================ 2 LGU Profile
 SEL = f"""sel AS (
@@ -303,7 +310,7 @@ scoped AS (
   FROM pri WHERE {GEO}
 )
 SELECT p.lgu_label, p.city_mun_name, p.queue_status, p.status_label,
-       p.status_label || ': ' || p.status_basis AS status_line,
+       p.queue_status || ' · ' || p.status_label || ': ' || p.status_basis AS status_line,
        p.lgu_type_label || ' · '
          || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END
          || ' · National review order: ' || format_number(p.priority_order, 0) || ' of '
@@ -313,23 +320,17 @@ SELECT p.lgu_label, p.city_mun_name, p.queue_status, p.status_label,
          || ' · Data readiness: ' || p.data_readiness
          || CASE WHEN :lgu <> '{TOP_LGU}' AND p.lgu_label <> :lgu THEN ' · your choice is outside the filters, so this is the first LGU in them'
                  ELSE '' END AS details,
+       -- each KPI is a short value; what it means is in the card's subtitle and the decision panel
        CASE WHEN NOT COALESCE(p.ap2_assessed, FALSE) THEN 'Not assessed'
             ELSE format_number(COALESCE(p.congested_school_count, 0), 0) || ' of '
-                 || format_number(COALESCE(p.ratio_school_count, 0), 0) || ' schools' END AS classroom_kpi,
-       CASE WHEN p.levels_offered = 0 THEN 'No level offered' WHEN p.levels_assessed = 0 THEN 'Not assessed'
-            ELSE format_number(p.ap3_pressured_level_count, 0) || ' of ' || format_number(p.levels_assessed, 0)
-                 || CASE WHEN p.levels_assessed = 1 THEN ' level' ELSE ' levels' END
-                 || CASE WHEN p.teacher_levels_above <> '' THEN ' · ' || p.teacher_levels_above ELSE '' END
-                 || CASE WHEN p.levels_assessed < p.levels_offered
-                         THEN ' · ' || format_number(p.levels_offered - p.levels_assessed, 0) || ' not assessed' ELSE '' END
-            END AS teacher_kpi,
+                 || format_number(COALESCE(p.ratio_school_count, 0), 0) END AS classroom_kpi,
+       CASE WHEN p.levels_offered = 0 THEN 'None offered' WHEN p.levels_assessed = 0 THEN 'Not assessed'
+            ELSE format_number(p.ap3_pressured_level_count, 0) || ' of ' || format_number(p.levels_assessed, 0) END
+         AS teacher_kpi,
        CASE WHEN p.growing_enrollment IS NULL OR p.ap4_public_enrollment_change_pct IS NULL THEN 'Not comparable'
-            ELSE CASE WHEN p.growing_enrollment THEN 'Growing'
-                      WHEN p.ap4_public_enrollment_trend = 'decreasing' THEN 'Declining' ELSE 'Stable' END
-                 || ' · ' || {signed('p.ap4_public_enrollment_change_pct / 100')} END AS enrollment_kpi,
-       CASE WHEN p.queue_status = '{QUEUE[5]}' THEN 'Needs data review'
-            ELSE p.data_readiness || ' · lowest coverage '
-                 || {cov('LEAST(p.ap2_learner_coverage_pct, p.teacher_coverage_pct)')} END AS readiness_kpi,
+            ELSE {signed('p.ap4_public_enrollment_change_pct / 100')} END AS enrollment_kpi,
+       CASE WHEN p.queue_status = '{QUEUE[5]}' THEN '{QUEUE[5]}'
+            ELSE {cov('LEAST(p.ap2_learner_coverage_pct, p.teacher_coverage_pct)')} END AS readiness_kpi,
        format_number(COALESCE(p.active_public_school_count, 0), 0) || ' public schools · '
          || {r0('p.reported_instructional_classrooms')} || ' reported instructional rooms · '
          || format_number(COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0)
@@ -369,7 +370,7 @@ SELECT 3, 'Enrollment growing',
                  || {r0('ap4_public_enrollment_first')} || ' to ' || {r0('ap4_public_enrollment_latest')} || ')' END
 FROM p
 UNION ALL
-SELECT 4, 'Planning status', status_label, status_basis FROM p
+SELECT 4, 'Review status', queue_status, status_label || ': ' || status_basis FROM p
 ORDER BY ord"""
 
 
@@ -695,18 +696,16 @@ SA_SCHOOL = f"""WITH {school_base()},
 {PICK}
 SELECT s.school_name, s.school_id, s.verify_header,
        'ID ' || s.school_id || ' · ' || s.barangay_name || ' · ' || s.school_kind || ' · ' || s.levels_offered
-         || ' · ' || s.learners_txt || ' learners, SY 2023-24 · LGU planning status: ' || st.status_label
+         || ' · ' || s.learners_txt || ' learners, SY 2023-24 · LGU review status: ' || st.queue_status
          || CASE WHEN :school <> '{FIRST_SCHOOL}' AND s.school_name || ' · ' || s.school_id <> :school
                  THEN ' · your school is outside the filters, so this is the first school to verify' ELSE '' END AS details,
-       {measure('s.learners_per_room', 1, ' learners / room', 'Not assessable')} AS room_kpi,
-       {measure('s.teacher_ratio', 1, ' learners / teacher', 'Not assessable')} AS teacher_kpi,
-       s.change_txt AS change_kpi,
-       CASE WHEN s.checks > 0 THEN '{VERIFY[0]} · ' || format_number(s.checks, 0)
-                 || CASE WHEN s.checks = 1 THEN ' check' ELSE ' checks' END
-            ELSE '{VERIFY[1]}' END AS verify_kpi
+       {measure('s.learners_per_room', 1, '', 'Not assessable')} AS room_kpi,
+       {measure('s.teacher_ratio', 1, '', 'Not assessable')} AS teacher_kpi,
+       CASE WHEN s.enrollment_change IS NULL THEN 'Incomplete' ELSE s.change_txt END AS change_kpi,
+       CASE WHEN s.checks > 0 THEN format_number(s.checks, 0) || ' to verify' ELSE 'No flag' END AS verify_kpi
 FROM schools AS s
 JOIN pick USING (school_id)
-CROSS JOIN (SELECT pri.status_label FROM pri JOIN sel USING (city_mun_psgc_code)) AS st"""
+CROSS JOIN (SELECT pri.queue_status FROM pri JOIN sel USING (city_mun_psgc_code)) AS st"""
 
 SA_PEERS = f"""WITH {school_base()},
 {PICK}
@@ -805,7 +804,7 @@ checks AS (
     QUALIFY ROW_NUMBER() OVER (PARTITION BY layer, table_name, check_name ORDER BY checked_at_utc DESC) = 1
   ) AS latest
 )
-SELECT COALESCE('Updated ' || CAST(CAST(runs.last_run AS DATE) AS STRING), 'Not available') AS updated,
+SELECT COALESCE(CAST(CAST(runs.last_run AS DATE) AS STRING), 'Not available') AS updated,
        'Publication status: '
          || CASE WHEN checks.checks = 0 THEN 'No checks recorded' WHEN checks.failed > 0 THEN 'Needs attention' ELSE 'Ready' END
          || ' · enrollment SY ' || COALESCE(years.first_enrollment, 'not available') || ' to SY '
@@ -826,9 +825,9 @@ k AS (
   WHERE {GEO}
 )
 SELECT k.*,
-       format_number(lgus, 0) || ' LGUs (' || {share('classroom_assessed', 'lgus')} || ')' AS classroom_txt,
-       format_number(offering, 0) || ' LGUs (' || {share('teacher_assessed', 'offering')} || ')' AS teacher_txt,
-       format_number(lgus, 0) || ' LGUs (' || {share('trends_comparable', 'lgus')} || ')' AS trend_txt,
+       format_number(classroom_assessed, 0) || ' of ' || format_number(lgus, 0) AS classroom_kpi,
+       format_number(teacher_assessed, 0) || ' of ' || format_number(offering, 0) AS teacher_kpi,
+       format_number(trends_comparable, 0) || ' of ' || format_number(lgus, 0) AS trend_kpi,
        CASE WHEN data_review = 0 THEN 'No LGU in this scope requires data review.'
             ELSE format_number(data_review, 0) || CASE WHEN data_review = 1 THEN ' LGU requires' ELSE ' LGUs require' END
                  || ' data review: see Why some LGUs cannot be fully assessed below.' END AS alert_line
@@ -877,14 +876,14 @@ DM_REFS = references()
 
 # how each planning status is assigned, in plain language
 DM_RULES = literal_rows([
-    (STATUS_LABELS[0], "Classroom and teacher", "Yes"),
-    (STATUS_LABELS[1], "Classroom and teacher", "No or not comparable"),
-    (STATUS_LABELS[1], "Classroom or teacher", "Yes"),
-    (STATUS_LABELS[2], "Classroom or teacher", "No or not comparable"),
-    (STATUS_LABELS[3], "None", "Yes"),
-    (STATUS_LABELS[4], "None, both assessed", "No"),
-    (STATUS_LABELS[5], "None known", "Coverage or growth incomplete")],
-    ["planning_status", "pressure_signals", "enrollment_growing"])
+    (QUEUE[0], STATUS_LABELS[0], "Classroom and teacher", "Yes"),
+    (QUEUE[1], STATUS_LABELS[1], "Classroom and teacher", "No or not comparable"),
+    (QUEUE[1], STATUS_LABELS[1], "Classroom or teacher", "Yes"),
+    (QUEUE[2], STATUS_LABELS[2], "Classroom or teacher", "No or not comparable"),
+    (QUEUE[3], STATUS_LABELS[3], "None", "Yes"),
+    (QUEUE[4], STATUS_LABELS[4], "None, both assessed", "No"),
+    (QUEUE[5], STATUS_LABELS[5], "None known", "Coverage or growth incomplete")],
+    ["review_status", "planning_status", "pressure_signals", "enrollment_growing"])
 
 COVERAGE_STATUS = ["Assessed (90% or more)", "Incomplete (under 90%)", "Unavailable"]
 COVERAGE_MEASURES = [MEASURES[0], MEASURES[1]] + [f"{MEASURES[2]} · {level}" for level in LEVELS]
@@ -1046,7 +1045,7 @@ def datasets(b):
     b.dataset("opt_region", "Filter: region", OPT_REGION)
     b.dataset("opt_province", "Filter: province", OPT_PROVINCE, ["region"])
     b.dataset("opt_type", "Filter: LGU type", values("lgu_type_option", [ALL_TYPES, "City", "Municipality"]))
-    b.dataset("opt_queue", "Filter: planning status", values("queue_option", [ALL_QUEUE] + STATUS_LABELS))
+    b.dataset("opt_queue", "Filter: review status", values("queue_option", [ALL_QUEUE] + QUEUE))
     b.dataset("opt_coverage", "Filter: data readiness", values("coverage_option", [ALL_COVERAGE] + READINESS))
     b.dataset("opt_lgu", "Filter: city or municipality", OPT_LGU, GEO_P)
     b.dataset("opt_barangay", "Filter: barangay (LGU Profile)", OPT_BARANGAY, LGU_P)
@@ -1070,55 +1069,54 @@ def overview(b):
     intro = text(b, "# Where should the Local School Board review first?\n", "\n",
                  "Prioritizes cities and municipalities for validation using classroom pressure, teacher pressure, "
                  "enrollment direction, and data completeness. It does not prescribe staffing, construction, or funding.")
-    queue = param_filter(b, "queue", "Planning status", targets, "Show LGUs with the selected planning status.")
+    queue = param_filter(b, "queue", "Review status", targets, "Show LGUs with the selected review status.")
     coverage = param_filter(b, "coverage", "Data readiness", targets,
                             "Separate assessed LGUs from LGUs with insufficient data.")
     p.columns([(8, [(intro, 2)]), (4, [(queue, 1), (coverage, 1)])], 2)
     p.row([(scope_line(b), 12)], 1)
-    p.row([(kpi(b, "ov_kpi", "Immediate joint review", "joint_review", num(), "{{ @formatted }} ({{joint_share_txt}})",
-                "Both pressure signals and growing enrollment", extra=("joint_share_txt",), style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "LGUs with any pressure signal", "any_pressure", num(), "{{ @formatted }} of {{any_txt}}",
-                "Classroom or teacher pressure: the broad review workload", extra=("any_txt",), style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "Learners in schools above the classroom screen", "learners_above", num(2, True),
-                "{{ @formatted }} ({{learners_txt}})",
-                f"At or above {SCREEN} learners per reported room, SY 2023-24", extra=("learners_txt",), style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "LGUs with insufficient data", "data_review", num(), "{{ @formatted }} of {{data_review_txt}}",
-                "A data-completion workload, not a low priority", extra=("data_review_txt",), style=KPI_STYLE), 3)], 3)
+    p.row([(kpi(b, "ov_kpi", "Priority 1 LGUs", "joint_kpi", None, desc="Immediate joint review · share of assessed",
+                style=KPI_STYLE), 3),
+           (kpi(b, "ov_kpi", "LGUs with any pressure", "any_kpi", None, desc="Priority 1 to 3, of assessed LGUs",
+                style=KPI_STYLE), 3),
+           (kpi(b, "ov_kpi", "Learners above classroom screen", "learners_kpi", None,
+                desc="Share of public learners, SY 2023-24", style=KPI_STYLE), 3),
+           (kpi(b, "ov_kpi", "Data review LGUs", "data_review_kpi", None, desc="Insufficient data to assess, of all LGUs",
+                style=KPI_STYLE), 3)], 3)
     queue_map = choropleth(
         b, "ov_map", "Planning priority across the Philippines", "status_level",
-        "Planning status (5 = immediate joint review, 1 = no current pressure)",
-        [("lgu_label", "City or municipality"), ("status_label", "Planning status"), ("status_basis", "Basis")],
-        STATUS_RAMP, "Each LGU is coloured by planning status; darker means more urgent review.")
+        "Review status (5 = Priority 1, 1 = No current pressure identified)",
+        [("lgu_label", "City or municipality"), ("queue_status", "Review status"), ("status_label", "Planning status")],
+        STATUS_RAMP, "Each LGU is coloured by review status; darker means more urgent review.")
     map_note = note(b, "ov_map_note", "Map coverage", "map_line", style=LINE_STYLE, show_title=False)
     top = table(b, "ov_top", "Top LGUs to review", [
-        ("rank_in_view", "#", None), ("lgu_label", "City or municipality", None), ("status_label", "Planning status", None)],
+        ("rank_in_view", "#", None), ("lgu_label", "City or municipality", None), ("queue_status", "Review status", None)],
         "The first ten LGUs in view, in the published review order.")
     p.columns([(8, [(queue_map, 11), (map_note, 1)]), (4, [(top, 12)])], 12)
-    p.row([(heatmap(b, "ov_region", "Planning status by region", "status_label", "Planning status", STATUS_LABELS,
+    p.row([(heatmap(b, "ov_region", "Review status by region", "queue_status", "Review status", QUEUE,
                     "region_short", "Region", None, "max", "share_of_region", "Share of the region's LGUs",
-                    "Each row is one region's LGUs split by planning status, so regions of different sizes compare."), 6),
+                    "Each row is one region's LGUs split by review status, so regions of different sizes compare."), 6),
            (table(b, "ov_signals", "What is driving priority?", [
                ("classroom_signal", "Classroom pressure", None), ("teacher_signal", "Teacher pressure", None),
                ("lgus", "LGUs", num()), ("growing", "Of them, enrollment growing", num()),
-               ("resulting_status", "Planning status", None)],
+               ("resulting_status", "Review status", None)],
                "LGUs by the two pressure signals, how many also have growing public enrollment, and the status that "
                "results."), 6)], 8)
     p.row([(table(b, "ov_lgu", "LGU review queue", [
         ("rank_in_view", "#", None), ("lgu_label", "City or municipality", None),
-        ("status_label", "Planning status", None), ("pressure_signals", "Pressure signals", None),
-        ("priority_affected_learners", "Affected learners", num()), ("data_readiness", "Data readiness", None),
-        ("status_basis", "Why", None)],
+        ("queue_status", "Review status", None), ("status_label", "Planning status", None),
+        ("pressure_signals", "Pressure signals", None), ("priority_affected_learners", "Affected learners", num()),
+        ("data_readiness", "Data readiness", None)],
         "Orders LGUs for validation using classroom pressure, teacher pressure, enrollment direction, affected "
         "learners, and data readiness. A review order, not a performance rank, shortage, or allocation. Open LGU "
         "Profile and choose an LGU to see its evidence."), 12)], 10)
-    p.row([(table(b, "ov_insufficient", "LGUs with insufficient data to assess", [
+    p.row([(table(b, "ov_insufficient", "Data review LGUs", [
                ("lgu_label", "City or municipality", None), ("region_short", "Region", None),
                ("not_assessed_reason_txt", "Reason data could not be assessed", None)],
-               "No known pressure signal, and coverage or growth could not be checked."), 6),
-           (heatmap(b, "ov_demand", "Enrollment direction by planning status", "growth_signal",
-                    "Public enrollment, SY 2020-21 to SY 2025-26", GROWTH, "status_label", "Planning status",
-                    STATUS_LABELS, "count", "city_mun_psgc_code", "LGUs",
-                    "Counts LGUs by planning status and public-enrollment direction. Context for the status."), 6)], 6)
+               "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked."), 6),
+           (heatmap(b, "ov_demand", "Enrollment direction by review status", "growth_signal",
+                    "Public enrollment, SY 2020-21 to SY 2025-26", GROWTH, "queue_status", "Review status",
+                    QUEUE, "count", "city_mun_psgc_code", "LGUs",
+                    "Counts LGUs by review status and public-enrollment direction. Context for the status."), 6)], 6)
     p.row([(text(b, "**Next:** open **LGU Profile** and choose a city or municipality from the queue.\n", "\n",
                  "Before acting, validate flagged schools against actual classroom counts, building condition, shifts, "
                  "enrollment projections and planned projects. The queue prioritizes validation, not allocation."), 12)], 2)
@@ -1139,20 +1137,20 @@ def lgu_profile(b):
     p.row([(kpi(b, "pr_card", "LGU details", "details", None,
                 desc="Type · province or region · national review order · data readiness",
                 style=DETAIL_STYLE, heading=True, align="left"), 12)], 1)
-    p.row([(kpi(b, "pr_card", "Planning status", "status_line", None, desc="The status and its plain-language basis",
+    p.row([(kpi(b, "pr_card", "Review status", "status_line", None, desc="Review status · planning status: basis",
                 style=STATUS_STYLE, heading=True, align="left"), 12)], 1)
-    p.row([(kpi(b, "pr_card", "Schools above the classroom screen", "classroom_kpi", None,
-                desc=f"At or above {SCREEN} learners per reported room, school by school, SY 2023-24", style=KPI_STYLE), 3),
-           (kpi(b, "pr_card", "Teacher levels above comparison point", "teacher_kpi", None,
-                desc="Offered and assessed levels above their published comparison point", style=KPI_STYLE), 3),
-           (kpi(b, "pr_card", "Public enrollment direction", "enrollment_kpi", None,
-                desc="SY 2020-21 to SY 2025-26, when both years are complete and comparable", style=KPI_STYLE), 3),
-           (kpi(b, "pr_card", "Data readiness", "readiness_kpi", None,
-                desc="Lowest learner coverage across classrooms and offered teacher levels", style=KPI_STYLE), 3)], 3)
+    p.row([(kpi(b, "pr_card", "Schools above classroom screen", "classroom_kpi", None,
+                desc=f"Of schools assessed, at {SCREEN}+ learners per room", style=KPI_STYLE), 3),
+           (kpi(b, "pr_card", "Teacher levels above comparison", "teacher_kpi", None,
+                desc="Of levels assessed; named in the panel below", style=KPI_STYLE), 3),
+           (kpi(b, "pr_card", "Public enrollment change", "enrollment_kpi", None,
+                desc="SY 2020-21 to SY 2025-26", style=KPI_STYLE), 3),
+           (kpi(b, "pr_card", "Lowest data coverage", "readiness_kpi", None,
+                desc="Classrooms and offered teacher levels", style=KPI_STYLE), 3)], 3)
     p.row([(note(b, "pr_card", "Facts", "facts", style=LINE_STYLE, show_title=False), 12)], 1)
     p.row([(table(b, "pr_decision", "Why this LGU has this status", [
                 ("signal", "Signal", None), ("result", "Result", None), ("basis", "Basis", None)],
-                "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the planning status "
+                "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the review status "
                 "they produce."), 6),
            (table(b, "pr_evidence", "Measures and comparison points", [
                 ("measure", "Measure", None), ("this_lgu", "This LGU", None), ("comparison", "Comparison point", None),
@@ -1234,14 +1232,13 @@ def school_action(b):
                 style=DETAIL_STYLE, heading=True, align="left"), 12)], 1)
     p.row([(kpi(b, "sa_school", "What to verify", "verify_header", None, desc="The first figure to verify",
                 style=STATUS_STYLE, heading=True, align="left"), 12)], 1)
-    p.row([(kpi(b, "sa_school", "Classroom pressure", "room_kpi", None,
-                desc=f"Learners per reported room, all levels · screen {SCREEN}", style=KPI_STYLE), 3),
-           (kpi(b, "sa_school", "Teacher pressure", "teacher_kpi", None,
-                desc="At the level chosen above · comparison points: Elementary 35, Junior high 36, Senior high 26.7",
-                style=KPI_STYLE), 3),
-           (kpi(b, "sa_school", "Enrollment direction", "change_kpi", None,
-                desc="Public enrollment, SY 2020-21 to SY 2025-26", style=KPI_STYLE), 3),
-           (kpi(b, "sa_school", "Data completeness", "verify_kpi", None,
+    p.row([(kpi(b, "sa_school", "Learners per room", "room_kpi", None,
+                desc=f"All levels, reported rooms · screen {SCREEN}", style=KPI_STYLE), 3),
+           (kpi(b, "sa_school", "Learners per teacher", "teacher_kpi", None,
+                desc="Chosen level · ES 35, JHS 36, SHS 26.7", style=KPI_STYLE), 3),
+           (kpi(b, "sa_school", "Enrollment change", "change_kpi", None,
+                desc="SY 2020-21 to SY 2025-26", style=KPI_STYLE), 3),
+           (kpi(b, "sa_school", "Figures to verify", "verify_kpi", None,
                 desc="A flag means verify, not incorrect", style=KPI_STYLE), 3)], 3)
     p.row([(scatter(b, "sa_peers", "Classroom and teacher pressure among schools in this LGU", "learners_per_room",
                     "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series", "School",
@@ -1287,17 +1284,18 @@ def data_and_method(b):
                  "Explains the planning rule, source coverage, comparison points, freshness, and known limitations in "
                  "plain language."), 12)], 2)
     p.row([(scope_line(b), 12)], 1)
-    p.row([(kpi(b, "dm_kpi", "Classroom assessment coverage", "classroom_assessed", num(), "{{ @formatted }} of {{classroom_txt}}",
-                "At least 90% of learners have a usable room count", extra=("classroom_txt",), style=KPI_STYLE), 3),
-           (kpi(b, "dm_kpi", "Teacher assessment coverage", "teacher_assessed", num(), "{{ @formatted }} of {{teacher_txt}}",
-                "Every offered level passes its 90% learner-coverage rule", extra=("teacher_txt",), style=KPI_STYLE), 3),
-           (kpi(b, "dm_kpi", "Comparable enrollment trends", "trends_comparable", num(), "{{ @formatted }} of {{trend_txt}}",
-                "Complete endpoint years and comparable boundaries", extra=("trend_txt",), style=KPI_STYLE), 3),
-           (kpi(b, "freshness", "Data freshness", "updated", None, desc="Latest successful pipeline run",
+    p.row([(kpi(b, "dm_kpi", "Classrooms assessed", "classroom_kpi", None,
+                desc="LGUs with 90%+ learners in schools with a room count", style=KPI_STYLE), 3),
+           (kpi(b, "dm_kpi", "Teachers assessed", "teacher_kpi", None,
+                desc="LGUs where every offered level has 90%+ coverage", style=KPI_STYLE), 3),
+           (kpi(b, "dm_kpi", "Comparable enrollment trends", "trend_kpi", None,
+                desc="LGUs with complete years and unchanged boundaries", style=KPI_STYLE), 3),
+           (kpi(b, "freshness", "Last refresh", "updated", None, desc="Latest successful pipeline run",
                 style=KPI_STYLE), 3)], 3)
     p.row([(note(b, "dm_kpi", "Data review alert", "alert_line", style=STATUS_STYLE, show_title=False), 12)], 1)
-    p.row([(table(b, "dm_rules", "How the planning status is assigned", [
-               ("planning_status", "Planning status", None), ("pressure_signals", "Pressure signals present", None),
+    p.row([(table(b, "dm_rules", "How the review status is assigned", [
+               ("review_status", "Review status", None), ("planning_status", "Planning status", None),
+               ("pressure_signals", "Pressure signals present", None),
                ("enrollment_growing", "Public enrollment growing", None)],
                "Two current pressure signals, classroom and teacher, and public-enrollment growth produce each status. A "
                "known pressure always counts; where growth cannot be checked, the LGU is placed as if it were not "

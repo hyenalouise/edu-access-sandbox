@@ -160,7 +160,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "ORDER BY rank_in_view"
       ],
       "parameters": [
@@ -218,7 +218,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -325,7 +325,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "WHERE rank_in_view <= 10\n",
         "ORDER BY rank_in_view"
       ],
@@ -384,7 +384,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -411,7 +411,7 @@
       "name": "ov_map",
       "displayName": "Overview: LGU boundaries",
       "queryLines": [
-        "SELECT r.lgu_label, r.status_label, r.status_level, r.status_basis, st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326) AS boundary\n",
+        "SELECT r.lgu_label, r.queue_status, r.status_label, r.status_level, st_setsrid(st_simplify(st_geomfromgeojson(h.geometry), 0.003), 4326) AS boundary\n",
         "FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
         "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
@@ -492,7 +492,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m\n",
         "  ON m.psgc_code = r.city_mun_psgc_code AND m.match_status = 'matched'\n",
         "LEFT JOIN edu_access.`03-silver`.hdx_adm3_clean AS h ON h.adm3_pcode = m.adm3_pcode\n",
@@ -553,7 +553,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -666,7 +666,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "LEFT JOIN edu_access.`04-integration`.hdx_adm3_psgc_map AS m\n",
         "  ON m.psgc_code = r.city_mun_psgc_code AND m.match_status = 'matched'\n",
         "LEFT JOIN edu_access.`03-silver`.hdx_adm3_clean AS h ON h.adm3_pcode = m.adm3_pcode"
@@ -726,7 +726,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -838,14 +838,14 @@
         "         SUM(COALESCE(ap2_affected_learners, 0)) AS learners_above,\n",
         "         SUM(public_school_enrollment) AS public_learners\n",
         "  FROM pri\n",
-        "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))\n",
+        "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))\n",
         ")\n",
+        "-- each KPI is written whole here, so Databricks never abbreviates a count to 1.38K\n",
         "SELECT k.*,\n",
-        "       COALESCE(format_number(100.0 * joint_review / NULLIF(assessed, 0), 1) || '%', '\u2014') || ' of assessed' AS joint_share_txt,\n",
-        "       format_number(assessed, 0) || ' assessed (' || COALESCE(format_number(100.0 * any_pressure / NULLIF(assessed, 0), 1) || '%', '\u2014') || ')' AS any_txt,\n",
-        "       COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '\u2014') || ' of public learners \u00b7 '\n",
-        "         || format_number(schools_above, 0) || CASE WHEN schools_above = 1 THEN ' school' ELSE ' schools' END AS learners_txt,\n",
-        "       format_number(lgus, 0) || ' LGUs (' || COALESCE(format_number(100.0 * data_review / NULLIF(lgus, 0), 1) || '%', '\u2014') || ')' AS data_review_txt\n",
+        "       format_number(joint_review, 0) || ' (' || COALESCE(format_number(100.0 * joint_review / NULLIF(assessed, 0), 1) || '%', '\u2014') || ')' AS joint_kpi,\n",
+        "       format_number(any_pressure, 0) || ' of ' || format_number(assessed, 0) AS any_kpi,\n",
+        "       CASE WHEN learners_above >= 1000000 THEN format_number(learners_above / 1000000.0, 2) || 'M' ELSE format_number(learners_above, 0) END || ' (' || COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '\u2014') || ')' AS learners_kpi,\n",
+        "       format_number(data_review, 0) || ' of ' || format_number(lgus, 0) AS data_review_kpi\n",
         "FROM k"
       ],
       "parameters": [
@@ -903,7 +903,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -932,12 +932,12 @@
       "queryLines": [
         "SELECT classroom_signal, teacher_signal, COUNT(*) AS lgus, COUNT_IF(growth_signal = 'Growing') AS growing,\n",
         "       CASE WHEN classroom_signal = 'Present' AND teacher_signal = 'Present'\n",
-        "              THEN 'Immediate joint review if growing, otherwise high-priority review'\n",
+        "              THEN 'Priority 1 if growing, otherwise Priority 2'\n",
         "            WHEN classroom_signal = 'Present' OR teacher_signal = 'Present'\n",
-        "              THEN 'High-priority review if growing, otherwise targeted review'\n",
+        "              THEN 'Priority 2 if growing, otherwise Priority 3'\n",
         "            WHEN classroom_signal = 'Not identified' AND teacher_signal = 'Not identified'\n",
-        "              THEN 'Growth watchlist if growing, no current pressure if not, insufficient data if not comparable'\n",
-        "            ELSE 'Insufficient data to assess' END AS resulting_status\n",
+        "              THEN 'Monitor if growing, No current pressure identified if not, Data review if not comparable'\n",
+        "            ELSE 'Data review' END AS resulting_status\n",
         "FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
         "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
@@ -1018,7 +1018,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "GROUP BY classroom_signal, teacher_signal\n",
         "ORDER BY CASE classroom_signal WHEN 'Present' THEN 0 WHEN 'Not identified' THEN 1 WHEN 'Not assessed' THEN 2 END, CASE teacher_signal WHEN 'Present' THEN 0 WHEN 'Not identified' THEN 1 WHEN 'Not assessed' THEN 2 END"
       ],
@@ -1077,7 +1077,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -1104,7 +1104,7 @@
       "name": "ov_region",
       "displayName": "Overview: planning status by region",
       "queryLines": [
-        "SELECT region_short, status_label, COUNT(*) AS lgus,\n",
+        "SELECT region_short, queue_status, COUNT(*) AS lgus,\n",
         "       COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY region_short) AS share_of_region\n",
         "FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
@@ -1186,8 +1186,8 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
-        "GROUP BY region_short, status_label"
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "GROUP BY region_short, queue_status"
       ],
       "parameters": [
         {
@@ -1244,7 +1244,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -1271,7 +1271,7 @@
       "name": "ov_demand",
       "displayName": "Overview: enrollment direction by planning status",
       "queryLines": [
-        "SELECT city_mun_psgc_code, status_label, growth_signal FROM (WITH lgu AS (\n",
+        "SELECT city_mun_psgc_code, queue_status, growth_signal FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
         "         d.city_mun_name || ', ' || COALESCE(d.province_name, d.region_name) AS lgu_label,\n",
         "         COALESCE(d.province_name, 'Independent cities (no province)') AS province_label,\n",
@@ -1351,7 +1351,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r"
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r"
       ],
       "parameters": [
         {
@@ -1408,7 +1408,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -1515,7 +1515,7 @@
         "       queue_status, status_label, status_basis, status_level, pressure_signals, classroom_signal, teacher_signal,\n",
         "       growth_signal, priority_affected_learners, data_readiness, not_assessed_reason_txt\n",
         "FROM pri\n",
-        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All planning statuses' OR status_label = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
+        "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))) AS r\n",
         "WHERE queue_status = 'Data review'\n",
         "ORDER BY lgu_label"
       ],
@@ -1574,7 +1574,7 @@
               "dataType": "STRING",
               "values": [
                 {
-                  "value": "All planning statuses"
+                  "value": "All review statuses"
                 }
               ]
             }
@@ -1689,7 +1689,7 @@
         "  FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         ")\n",
         "SELECT p.lgu_label, p.city_mun_name, p.queue_status, p.status_label,\n",
-        "       p.status_label || ': ' || p.status_basis AS status_line,\n",
+        "       p.queue_status || ' \u00b7 ' || p.status_label || ': ' || p.status_basis AS status_line,\n",
         "       p.lgu_type_label || ' \u00b7 '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
         "         || ' \u00b7 National review order: ' || format_number(p.priority_order, 0) || ' of '\n",
@@ -1699,23 +1699,17 @@
         "         || ' \u00b7 Data readiness: ' || p.data_readiness\n",
         "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 your choice is outside the filters, so this is the first LGU in them'\n",
         "                 ELSE '' END AS details,\n",
+        "       -- each KPI is a short value; what it means is in the card's subtitle and the decision panel\n",
         "       CASE WHEN NOT COALESCE(p.ap2_assessed, FALSE) THEN 'Not assessed'\n",
         "            ELSE format_number(COALESCE(p.congested_school_count, 0), 0) || ' of '\n",
-        "                 || format_number(COALESCE(p.ratio_school_count, 0), 0) || ' schools' END AS classroom_kpi,\n",
-        "       CASE WHEN p.levels_offered = 0 THEN 'No level offered' WHEN p.levels_assessed = 0 THEN 'Not assessed'\n",
-        "            ELSE format_number(p.ap3_pressured_level_count, 0) || ' of ' || format_number(p.levels_assessed, 0)\n",
-        "                 || CASE WHEN p.levels_assessed = 1 THEN ' level' ELSE ' levels' END\n",
-        "                 || CASE WHEN p.teacher_levels_above <> '' THEN ' \u00b7 ' || p.teacher_levels_above ELSE '' END\n",
-        "                 || CASE WHEN p.levels_assessed < p.levels_offered\n",
-        "                         THEN ' \u00b7 ' || format_number(p.levels_offered - p.levels_assessed, 0) || ' not assessed' ELSE '' END\n",
-        "            END AS teacher_kpi,\n",
+        "                 || format_number(COALESCE(p.ratio_school_count, 0), 0) END AS classroom_kpi,\n",
+        "       CASE WHEN p.levels_offered = 0 THEN 'None offered' WHEN p.levels_assessed = 0 THEN 'Not assessed'\n",
+        "            ELSE format_number(p.ap3_pressured_level_count, 0) || ' of ' || format_number(p.levels_assessed, 0) END\n",
+        "         AS teacher_kpi,\n",
         "       CASE WHEN p.growing_enrollment IS NULL OR p.ap4_public_enrollment_change_pct IS NULL THEN 'Not comparable'\n",
-        "            ELSE CASE WHEN p.growing_enrollment THEN 'Growing'\n",
-        "                      WHEN p.ap4_public_enrollment_trend = 'decreasing' THEN 'Declining' ELSE 'Stable' END\n",
-        "                 || ' \u00b7 ' || CASE WHEN p.ap4_public_enrollment_change_pct / 100 >= 0 THEN '+' ELSE '' END || format_number(100 * p.ap4_public_enrollment_change_pct / 100, 1) || '%' END AS enrollment_kpi,\n",
-        "       CASE WHEN p.queue_status = 'Data review' THEN 'Needs data review'\n",
-        "            ELSE p.data_readiness || ' \u00b7 lowest coverage '\n",
-        "                 || COALESCE(format_number(LEAST(p.ap2_learner_coverage_pct, p.teacher_coverage_pct), 0) || '%', 'Not available') END AS readiness_kpi,\n",
+        "            ELSE CASE WHEN p.ap4_public_enrollment_change_pct / 100 >= 0 THEN '+' ELSE '' END || format_number(100 * p.ap4_public_enrollment_change_pct / 100, 1) || '%' END AS enrollment_kpi,\n",
+        "       CASE WHEN p.queue_status = 'Data review' THEN 'Data review'\n",
+        "            ELSE COALESCE(format_number(LEAST(p.ap2_learner_coverage_pct, p.teacher_coverage_pct), 0) || '%', 'Not available') END AS readiness_kpi,\n",
         "       format_number(COALESCE(p.active_public_school_count, 0), 0) || ' public schools \u00b7 '\n",
         "         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported instructional rooms \u00b7 '\n",
         "         || format_number(COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0)\n",
@@ -1902,7 +1896,7 @@
         "                 || COALESCE(format_number(ap4_public_enrollment_first, 0), 'Not reported') || ' to ' || COALESCE(format_number(ap4_public_enrollment_latest, 0), 'Not reported') || ')' END\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 4, 'Planning status', status_label, status_basis FROM p\n",
+        "SELECT 4, 'Review status', queue_status, status_label || ': ' || status_basis FROM p\n",
         "ORDER BY ord"
       ],
       "parameters": [
@@ -3888,18 +3882,16 @@
         ")\n",
         "SELECT s.school_name, s.school_id, s.verify_header,\n",
         "       'ID ' || s.school_id || ' \u00b7 ' || s.barangay_name || ' \u00b7 ' || s.school_kind || ' \u00b7 ' || s.levels_offered\n",
-        "         || ' \u00b7 ' || s.learners_txt || ' learners, SY 2023-24 \u00b7 LGU planning status: ' || st.status_label\n",
+        "         || ' \u00b7 ' || s.learners_txt || ' learners, SY 2023-24 \u00b7 LGU review status: ' || st.queue_status\n",
         "         || CASE WHEN :school <> '(First school to verify)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
         "                 THEN ' \u00b7 your school is outside the filters, so this is the first school to verify' ELSE '' END AS details,\n",
-        "       CASE WHEN s.learners_per_room IS NULL THEN 'Not assessable' ELSE format_number(s.learners_per_room, 1) || ' learners / room' END AS room_kpi,\n",
-        "       CASE WHEN s.teacher_ratio IS NULL THEN 'Not assessable' ELSE format_number(s.teacher_ratio, 1) || ' learners / teacher' END AS teacher_kpi,\n",
-        "       s.change_txt AS change_kpi,\n",
-        "       CASE WHEN s.checks > 0 THEN 'Verification needed \u00b7 ' || format_number(s.checks, 0)\n",
-        "                 || CASE WHEN s.checks = 1 THEN ' check' ELSE ' checks' END\n",
-        "            ELSE 'No verification flag' END AS verify_kpi\n",
+        "       CASE WHEN s.learners_per_room IS NULL THEN 'Not assessable' ELSE format_number(s.learners_per_room, 1) || '' END AS room_kpi,\n",
+        "       CASE WHEN s.teacher_ratio IS NULL THEN 'Not assessable' ELSE format_number(s.teacher_ratio, 1) || '' END AS teacher_kpi,\n",
+        "       CASE WHEN s.enrollment_change IS NULL THEN 'Incomplete' ELSE s.change_txt END AS change_kpi,\n",
+        "       CASE WHEN s.checks > 0 THEN format_number(s.checks, 0) || ' to verify' ELSE 'No flag' END AS verify_kpi\n",
         "FROM schools AS s\n",
         "JOIN pick USING (school_id)\n",
-        "CROSS JOIN (SELECT pri.status_label FROM pri JOIN sel USING (city_mun_psgc_code)) AS st"
+        "CROSS JOIN (SELECT pri.queue_status FROM pri JOIN sel USING (city_mun_psgc_code)) AS st"
       ],
       "parameters": [
         {
@@ -5325,7 +5317,7 @@
         "    QUALIFY ROW_NUMBER() OVER (PARTITION BY layer, table_name, check_name ORDER BY checked_at_utc DESC) = 1\n",
         "  ) AS latest\n",
         ")\n",
-        "SELECT COALESCE('Updated ' || CAST(CAST(runs.last_run AS DATE) AS STRING), 'Not available') AS updated,\n",
+        "SELECT COALESCE(CAST(CAST(runs.last_run AS DATE) AS STRING), 'Not available') AS updated,\n",
         "       'Publication status: '\n",
         "         || CASE WHEN checks.checks = 0 THEN 'No checks recorded' WHEN checks.failed > 0 THEN 'Needs attention' ELSE 'Ready' END\n",
         "         || ' \u00b7 enrollment SY ' || COALESCE(years.first_enrollment, 'not available') || ' to SY '\n",
@@ -5426,9 +5418,9 @@
         "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         ")\n",
         "SELECT k.*,\n",
-        "       format_number(lgus, 0) || ' LGUs (' || COALESCE(format_number(100.0 * classroom_assessed / NULLIF(lgus, 0), 1) || '%', '\u2014') || ')' AS classroom_txt,\n",
-        "       format_number(offering, 0) || ' LGUs (' || COALESCE(format_number(100.0 * teacher_assessed / NULLIF(offering, 0), 1) || '%', '\u2014') || ')' AS teacher_txt,\n",
-        "       format_number(lgus, 0) || ' LGUs (' || COALESCE(format_number(100.0 * trends_comparable / NULLIF(lgus, 0), 1) || '%', '\u2014') || ')' AS trend_txt,\n",
+        "       format_number(classroom_assessed, 0) || ' of ' || format_number(lgus, 0) AS classroom_kpi,\n",
+        "       format_number(teacher_assessed, 0) || ' of ' || format_number(offering, 0) AS teacher_kpi,\n",
+        "       format_number(trends_comparable, 0) || ' of ' || format_number(lgus, 0) AS trend_kpi,\n",
         "       CASE WHEN data_review = 0 THEN 'No LGU in this scope requires data review.'\n",
         "            ELSE format_number(data_review, 0) || CASE WHEN data_review = 1 THEN ' LGU requires' ELSE ' LGUs require' END\n",
         "                 || ' data review: see Why some LGUs cannot be fully assessed below.' END AS alert_line\n",
@@ -5487,13 +5479,13 @@
       "displayName": "Data & Method: how the planning status is assigned",
       "queryLines": [
         "SELECT * FROM (VALUES\n",
-        "  ('Immediate joint review', 'Classroom and teacher', 'Yes'),\n",
-        "  ('High-priority review', 'Classroom and teacher', 'No or not comparable'),\n",
-        "  ('High-priority review', 'Classroom or teacher', 'Yes'),\n",
-        "  ('Targeted review', 'Classroom or teacher', 'No or not comparable'),\n",
-        "  ('Growth watchlist', 'None', 'Yes'),\n",
-        "  ('No current pressure identified', 'None, both assessed', 'No'),\n",
-        "  ('Insufficient data to assess', 'None known', 'Coverage or growth incomplete')) AS r(planning_status, pressure_signals, enrollment_growing)"
+        "  ('Priority 1', 'Immediate joint review', 'Classroom and teacher', 'Yes'),\n",
+        "  ('Priority 2', 'High-priority review', 'Classroom and teacher', 'No or not comparable'),\n",
+        "  ('Priority 2', 'High-priority review', 'Classroom or teacher', 'Yes'),\n",
+        "  ('Priority 3', 'Targeted review', 'Classroom or teacher', 'No or not comparable'),\n",
+        "  ('Monitor', 'Growth watchlist', 'None', 'Yes'),\n",
+        "  ('No current pressure identified', 'No current pressure identified', 'None, both assessed', 'No'),\n",
+        "  ('Data review', 'Insufficient data to assess', 'None known', 'Coverage or growth incomplete')) AS r(review_status, planning_status, pressure_signals, enrollment_growing)"
       ],
       "parameters": []
     },
@@ -6239,9 +6231,9 @@
     },
     {
       "name": "opt_queue",
-      "displayName": "Filter: planning status",
+      "displayName": "Filter: review status",
       "queryLines": [
-        "SELECT * FROM (VALUES ('All planning statuses'), ('Immediate joint review'), ('High-priority review'), ('Targeted review'), ('Growth watchlist'), ('No current pressure identified'), ('Insufficient data to assess')) AS v(queue_option)"
+        "SELECT * FROM (VALUES ('All review statuses'), ('Priority 1'), ('Priority 2'), ('Priority 3'), ('Monitor'), ('No current pressure identified'), ('Data review')) AS v(queue_option)"
       ],
       "parameters": []
     },
@@ -6934,7 +6926,7 @@
                 "fields": [
                   {
                     "fieldName": "queue_option",
-                    "displayName": "Planning status",
+                    "displayName": "Review status",
                     "queryName": "opt_opt_queue"
                   },
                   {
@@ -6977,9 +6969,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Planning status",
+                "title": "Review status",
                 "showDescription": true,
-                "description": "Show LGUs with the selected planning status."
+                "description": "Show LGUs with the selected review status."
               },
               "selection": {
                 "defaultSelection": {
@@ -6987,7 +6979,7 @@
                     "dataType": "STRING",
                     "values": [
                       {
-                        "value": "All planning statuses"
+                        "value": "All review statuses"
                       }
                     ]
                   }
@@ -7268,12 +7260,8 @@
                   "datasetName": "ov_kpi",
                   "fields": [
                     {
-                      "name": "joint_review",
-                      "expression": "`joint_review`"
-                    },
-                    {
-                      "name": "joint_share_txt",
-                      "expression": "`joint_share_txt`"
+                      "name": "joint_kpi",
+                      "expression": "`joint_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -7285,16 +7273,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "joint_review",
-                  "displayName": "Immediate joint review",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} ({{joint_share_txt}})",
+                  "fieldName": "joint_kpi",
+                  "displayName": "Priority 1 LGUs",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -7303,9 +7283,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Immediate joint review",
+                "title": "Priority 1 LGUs",
                 "showDescription": true,
-                "description": "Both pressure signals and growing enrollment"
+                "description": "Immediate joint review \u00b7 share of assessed"
               }
             }
           },
@@ -7326,12 +7306,8 @@
                   "datasetName": "ov_kpi",
                   "fields": [
                     {
-                      "name": "any_pressure",
-                      "expression": "`any_pressure`"
-                    },
-                    {
-                      "name": "any_txt",
-                      "expression": "`any_txt`"
+                      "name": "any_kpi",
+                      "expression": "`any_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -7343,16 +7319,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "any_pressure",
-                  "displayName": "LGUs with any pressure signal",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} of {{any_txt}}",
+                  "fieldName": "any_kpi",
+                  "displayName": "LGUs with any pressure",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -7361,9 +7329,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs with any pressure signal",
+                "title": "LGUs with any pressure",
                 "showDescription": true,
-                "description": "Classroom or teacher pressure: the broad review workload"
+                "description": "Priority 1 to 3, of assessed LGUs"
               }
             }
           },
@@ -7384,12 +7352,8 @@
                   "datasetName": "ov_kpi",
                   "fields": [
                     {
-                      "name": "learners_above",
-                      "expression": "`learners_above`"
-                    },
-                    {
-                      "name": "learners_txt",
-                      "expression": "`learners_txt`"
+                      "name": "learners_kpi",
+                      "expression": "`learners_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -7401,17 +7365,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "learners_above",
-                  "displayName": "Learners in schools above the classroom screen",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 2
-                    },
-                    "abbreviation": "compact"
-                  },
-                  "formatTemplate": "{{ @formatted }} ({{learners_txt}})",
+                  "fieldName": "learners_kpi",
+                  "displayName": "Learners above classroom screen",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -7420,9 +7375,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Learners in schools above the classroom screen",
+                "title": "Learners above classroom screen",
                 "showDescription": true,
-                "description": "At or above 50 learners per reported room, SY 2023-24"
+                "description": "Share of public learners, SY 2023-24"
               }
             }
           },
@@ -7443,12 +7398,8 @@
                   "datasetName": "ov_kpi",
                   "fields": [
                     {
-                      "name": "data_review",
-                      "expression": "`data_review`"
-                    },
-                    {
-                      "name": "data_review_txt",
-                      "expression": "`data_review_txt`"
+                      "name": "data_review_kpi",
+                      "expression": "`data_review_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -7460,16 +7411,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "data_review",
-                  "displayName": "LGUs with insufficient data",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} of {{data_review_txt}}",
+                  "fieldName": "data_review_kpi",
+                  "displayName": "Data review LGUs",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -7478,9 +7421,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs with insufficient data",
+                "title": "Data review LGUs",
                 "showDescription": true,
-                "description": "A data-completion workload, not a low priority"
+                "description": "Insufficient data to assess, of all LGUs"
               }
             }
           },
@@ -7513,12 +7456,12 @@
                       "expression": "`lgu_label`"
                     },
                     {
-                      "name": "status_label",
-                      "expression": "`status_label`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
-                      "name": "status_basis",
-                      "expression": "`status_basis`"
+                      "name": "status_label",
+                      "expression": "`status_label`"
                     }
                   ],
                   "disaggregated": true
@@ -7537,7 +7480,7 @@
                 },
                 "color": {
                   "fieldName": "status_level",
-                  "displayName": "Planning status (5 = immediate joint review, 1 = no current pressure)",
+                  "displayName": "Review status (5 = Priority 1, 1 = No current pressure identified)",
                   "scale": {
                     "type": "quantitative",
                     "colorRamp": {
@@ -7555,12 +7498,12 @@
                     "displayName": "City or municipality"
                   },
                   {
-                    "fieldName": "status_label",
-                    "displayName": "Planning status"
+                    "fieldName": "queue_status",
+                    "displayName": "Review status"
                   },
                   {
-                    "fieldName": "status_basis",
-                    "displayName": "Basis"
+                    "fieldName": "status_label",
+                    "displayName": "Planning status"
                   }
                 ]
               },
@@ -7568,7 +7511,7 @@
                 "showTitle": true,
                 "title": "Planning priority across the Philippines",
                 "showDescription": true,
-                "description": "Each LGU is coloured by planning status; darker means more urgent review."
+                "description": "Each LGU is coloured by review status; darker means more urgent review."
               }
             }
           },
@@ -7643,8 +7586,8 @@
                       "expression": "`lgu_label`"
                     },
                     {
-                      "name": "status_label",
-                      "expression": "`status_label`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     }
                   ],
                   "disaggregated": true
@@ -7665,8 +7608,8 @@
                     "displayName": "City or municipality"
                   },
                   {
-                    "fieldName": "status_label",
-                    "displayName": "Planning status"
+                    "fieldName": "queue_status",
+                    "displayName": "Review status"
                   }
                 ]
               },
@@ -7695,8 +7638,8 @@
                   "datasetName": "ov_region",
                   "fields": [
                     {
-                      "name": "status_label",
-                      "expression": "`status_label`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
                       "name": "region_short",
@@ -7716,22 +7659,22 @@
               "widgetType": "heatmap",
               "encodings": {
                 "x": {
-                  "fieldName": "status_label",
+                  "fieldName": "queue_status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Immediate joint review",
-                        "High-priority review",
-                        "Targeted review",
-                        "Growth watchlist",
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
                         "No current pressure identified",
-                        "Insufficient data to assess"
+                        "Data review"
                       ]
                     }
                   },
-                  "displayName": "Planning status"
+                  "displayName": "Review status"
                 },
                 "y": {
                   "fieldName": "region_short",
@@ -7757,9 +7700,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Planning status by region",
+                "title": "Review status by region",
                 "showDescription": true,
-                "description": "Each row is one region's LGUs split by planning status, so regions of different sizes compare."
+                "description": "Each row is one region's LGUs split by review status, so regions of different sizes compare."
               }
             }
           },
@@ -7841,7 +7784,7 @@
                   },
                   {
                     "fieldName": "resulting_status",
-                    "displayName": "Planning status"
+                    "displayName": "Review status"
                   }
                 ]
               },
@@ -7878,6 +7821,10 @@
                       "expression": "`lgu_label`"
                     },
                     {
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
+                    },
+                    {
                       "name": "status_label",
                       "expression": "`status_label`"
                     },
@@ -7892,10 +7839,6 @@
                     {
                       "name": "data_readiness",
                       "expression": "`data_readiness`"
-                    },
-                    {
-                      "name": "status_basis",
-                      "expression": "`status_basis`"
                     }
                   ],
                   "disaggregated": true
@@ -7914,6 +7857,10 @@
                   {
                     "fieldName": "lgu_label",
                     "displayName": "City or municipality"
+                  },
+                  {
+                    "fieldName": "queue_status",
+                    "displayName": "Review status"
                   },
                   {
                     "fieldName": "status_label",
@@ -7937,10 +7884,6 @@
                   {
                     "fieldName": "data_readiness",
                     "displayName": "Data readiness"
-                  },
-                  {
-                    "fieldName": "status_basis",
-                    "displayName": "Why"
                   }
                 ]
               },
@@ -8006,9 +7949,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs with insufficient data to assess",
+                "title": "Data review LGUs",
                 "showDescription": true,
-                "description": "No known pressure signal, and coverage or growth could not be checked."
+                "description": "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked."
               }
             }
           },
@@ -8033,8 +7976,8 @@
                       "expression": "`growth_signal`"
                     },
                     {
-                      "name": "status_label",
-                      "expression": "`status_label`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
                       "name": "count(city_mun_psgc_code)",
@@ -8065,22 +8008,22 @@
                   "displayName": "Public enrollment, SY 2020-21 to SY 2025-26"
                 },
                 "y": {
-                  "fieldName": "status_label",
+                  "fieldName": "queue_status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Immediate joint review",
-                        "High-priority review",
-                        "Targeted review",
-                        "Growth watchlist",
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
                         "No current pressure identified",
-                        "Insufficient data to assess"
+                        "Data review"
                       ]
                     }
                   },
-                  "displayName": "Planning status"
+                  "displayName": "Review status"
                 },
                 "color": {
                   "fieldName": "count(city_mun_psgc_code)",
@@ -8099,9 +8042,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Enrollment direction by planning status",
+                "title": "Enrollment direction by review status",
                 "showDescription": true,
-                "description": "Counts LGUs by planning status and public-enrollment direction. Context for the status."
+                "description": "Counts LGUs by review status and public-enrollment direction. Context for the status."
               }
             }
           },
@@ -8600,7 +8543,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "status_line",
-                  "displayName": "Planning status",
+                  "displayName": "Review status",
                   "style": {
                     "fontSize": 18,
                     "fontStyle": "normal",
@@ -8610,9 +8553,9 @@
               },
               "frame": {
                 "showTitle": false,
-                "title": "Planning status",
+                "title": "Review status",
                 "showDescription": false,
-                "description": "The status and its plain-language basis",
+                "description": "Review status \u00b7 planning status: basis",
                 "contentAlignment": "left"
               }
             }
@@ -8648,7 +8591,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "classroom_kpi",
-                  "displayName": "Schools above the classroom screen",
+                  "displayName": "Schools above classroom screen",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8657,9 +8600,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Schools above the classroom screen",
+                "title": "Schools above classroom screen",
                 "showDescription": true,
-                "description": "At or above 50 learners per reported room, school by school, SY 2023-24"
+                "description": "Of schools assessed, at 50+ learners per room"
               }
             }
           },
@@ -8694,7 +8637,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Teacher levels above comparison point",
+                  "displayName": "Teacher levels above comparison",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8703,9 +8646,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Teacher levels above comparison point",
+                "title": "Teacher levels above comparison",
                 "showDescription": true,
-                "description": "Offered and assessed levels above their published comparison point"
+                "description": "Of levels assessed; named in the panel below"
               }
             }
           },
@@ -8740,7 +8683,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "enrollment_kpi",
-                  "displayName": "Public enrollment direction",
+                  "displayName": "Public enrollment change",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8749,9 +8692,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Public enrollment direction",
+                "title": "Public enrollment change",
                 "showDescription": true,
-                "description": "SY 2020-21 to SY 2025-26, when both years are complete and comparable"
+                "description": "SY 2020-21 to SY 2025-26"
               }
             }
           },
@@ -8786,7 +8729,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "readiness_kpi",
-                  "displayName": "Data readiness",
+                  "displayName": "Lowest data coverage",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8795,9 +8738,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Data readiness",
+                "title": "Lowest data coverage",
                 "showDescription": true,
-                "description": "Lowest learner coverage across classrooms and offered teacher levels"
+                "description": "Classrooms and offered teacher levels"
               }
             }
           },
@@ -8903,7 +8846,7 @@
                 "showTitle": true,
                 "title": "Why this LGU has this status",
                 "showDescription": true,
-                "description": "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the planning status they produce."
+                "description": "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the review status they produce."
               }
             }
           },
@@ -10700,7 +10643,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "room_kpi",
-                  "displayName": "Classroom pressure",
+                  "displayName": "Learners per room",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -10709,9 +10652,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Classroom pressure",
+                "title": "Learners per room",
                 "showDescription": true,
-                "description": "Learners per reported room, all levels \u00b7 screen 50"
+                "description": "All levels, reported rooms \u00b7 screen 50"
               }
             }
           },
@@ -10746,7 +10689,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Teacher pressure",
+                  "displayName": "Learners per teacher",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -10755,9 +10698,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Teacher pressure",
+                "title": "Learners per teacher",
                 "showDescription": true,
-                "description": "At the level chosen above \u00b7 comparison points: Elementary 35, Junior high 36, Senior high 26.7"
+                "description": "Chosen level \u00b7 ES 35, JHS 36, SHS 26.7"
               }
             }
           },
@@ -10792,7 +10735,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "change_kpi",
-                  "displayName": "Enrollment direction",
+                  "displayName": "Enrollment change",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -10801,9 +10744,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Enrollment direction",
+                "title": "Enrollment change",
                 "showDescription": true,
-                "description": "Public enrollment, SY 2020-21 to SY 2025-26"
+                "description": "SY 2020-21 to SY 2025-26"
               }
             }
           },
@@ -10838,7 +10781,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "verify_kpi",
-                  "displayName": "Data completeness",
+                  "displayName": "Figures to verify",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -10847,7 +10790,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Data completeness",
+                "title": "Figures to verify",
                 "showDescription": true,
                 "description": "A flag means verify, not incorrect"
               }
@@ -11605,12 +11548,8 @@
                   "datasetName": "dm_kpi",
                   "fields": [
                     {
-                      "name": "classroom_assessed",
-                      "expression": "`classroom_assessed`"
-                    },
-                    {
-                      "name": "classroom_txt",
-                      "expression": "`classroom_txt`"
+                      "name": "classroom_kpi",
+                      "expression": "`classroom_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -11622,16 +11561,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "classroom_assessed",
-                  "displayName": "Classroom assessment coverage",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} of {{classroom_txt}}",
+                  "fieldName": "classroom_kpi",
+                  "displayName": "Classrooms assessed",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -11640,9 +11571,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Classroom assessment coverage",
+                "title": "Classrooms assessed",
                 "showDescription": true,
-                "description": "At least 90% of learners have a usable room count"
+                "description": "LGUs with 90%+ learners in schools with a room count"
               }
             }
           },
@@ -11663,12 +11594,8 @@
                   "datasetName": "dm_kpi",
                   "fields": [
                     {
-                      "name": "teacher_assessed",
-                      "expression": "`teacher_assessed`"
-                    },
-                    {
-                      "name": "teacher_txt",
-                      "expression": "`teacher_txt`"
+                      "name": "teacher_kpi",
+                      "expression": "`teacher_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -11680,16 +11607,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "teacher_assessed",
-                  "displayName": "Teacher assessment coverage",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} of {{teacher_txt}}",
+                  "fieldName": "teacher_kpi",
+                  "displayName": "Teachers assessed",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -11698,9 +11617,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Teacher assessment coverage",
+                "title": "Teachers assessed",
                 "showDescription": true,
-                "description": "Every offered level passes its 90% learner-coverage rule"
+                "description": "LGUs where every offered level has 90%+ coverage"
               }
             }
           },
@@ -11721,12 +11640,8 @@
                   "datasetName": "dm_kpi",
                   "fields": [
                     {
-                      "name": "trends_comparable",
-                      "expression": "`trends_comparable`"
-                    },
-                    {
-                      "name": "trend_txt",
-                      "expression": "`trend_txt`"
+                      "name": "trend_kpi",
+                      "expression": "`trend_kpi`"
                     }
                   ],
                   "disaggregated": true
@@ -11738,16 +11653,8 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "trends_comparable",
+                  "fieldName": "trend_kpi",
                   "displayName": "Comparable enrollment trends",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  },
-                  "formatTemplate": "{{ @formatted }} of {{trend_txt}}",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -11758,7 +11665,7 @@
                 "showTitle": true,
                 "title": "Comparable enrollment trends",
                 "showDescription": true,
-                "description": "Complete endpoint years and comparable boundaries"
+                "description": "LGUs with complete years and unchanged boundaries"
               }
             }
           },
@@ -11793,7 +11700,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "updated",
-                  "displayName": "Data freshness",
+                  "displayName": "Last refresh",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -11802,7 +11709,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Data freshness",
+                "title": "Last refresh",
                 "showDescription": true,
                 "description": "Latest successful pipeline run"
               }
@@ -11871,6 +11778,10 @@
                   "datasetName": "dm_rules",
                   "fields": [
                     {
+                      "name": "review_status",
+                      "expression": "`review_status`"
+                    },
+                    {
                       "name": "planning_status",
                       "expression": "`planning_status`"
                     },
@@ -11893,6 +11804,10 @@
               "encodings": {
                 "columns": [
                   {
+                    "fieldName": "review_status",
+                    "displayName": "Review status"
+                  },
+                  {
                     "fieldName": "planning_status",
                     "displayName": "Planning status"
                   },
@@ -11908,7 +11823,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "How the planning status is assigned",
+                "title": "How the review status is assigned",
                 "showDescription": true,
                 "description": "Two current pressure signals, classroom and teacher, and public-enrollment growth produce each status. A known pressure always counts; where growth cannot be checked, the LGU is placed as if it were not growing."
               }

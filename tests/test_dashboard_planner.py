@@ -109,6 +109,23 @@ def test_wording_never_states_a_need_or_shortage_as_a_finding():
     assert "out-of-school count" not in text
 
 
+def test_kpis_show_a_short_value_never_an_abbreviated_count():
+    # review of the 2026-10-21 deploy: KPI values were cut off, and 1,380 showed as 1.38K
+    for page in load()["pages"][:4]:
+        for counter in kpis(page):
+            value = counter["spec"]["encodings"]["value"]
+            assert "format" not in value and "formatTemplate" not in value, (page["name"], value["displayName"])
+
+
+def test_legends_axes_and_filters_use_the_review_status():
+    dashboard = load()
+    orders = re.findall(r'"orderedValues": (\[[^\]]*\])', json.dumps([w for p in dashboard["pages"] for w in widgets(p)]))
+    orders = [json.loads(o) for o in orders]
+    assert planner.QUEUE in orders and not any(set(o) & set(planner.STATUS_LABELS[:4]) for o in orders)
+    options = "".join(next(d for d in dashboard["datasets"] if d["name"] == "opt_queue")["queryLines"])
+    assert all(f"('{q}')" in options for q in planner.QUEUE)
+
+
 def test_no_title_renders_markdown():
     # review of the 2026-10-21 export: asterisks in chart titles rendered literally
     for page in load()["pages"]:
@@ -139,6 +156,7 @@ def test_missing_values_are_never_written_as_null_or_na():
 
 
 def test_every_planning_status_has_a_plain_label_and_basis():
+    # review status (Priority 1 to 3, ...) names every legend, axis and filter; the planning status reads beside it
     assert len(planner.QUEUE) == len(planner.STATUS_LABELS) == len(planner.STATUS_BASIS)
     text = DASHBOARD.read_text(encoding="utf-8")
     for label, basis in zip(planner.STATUS_LABELS, planner.STATUS_BASIS):
@@ -224,19 +242,24 @@ def test_the_planner_shows_the_priority_as_published(store):
     card = _rows(store, "pr_card", lgu="Town One, Province")[0]
     assert card["city_mun_name"] == "Town One" and card["queue_status"] == planner.QUEUE[1]
     assert card["status_label"] == planner.STATUS_LABELS[1]
-    assert "National review order: 1 of " in card["details"] and card["classroom_kpi"] == "1 of 2 schools"
+    assert card["status_line"].startswith("Priority 2 · High-priority review: ")
+    assert "National review order: 1 of " in card["details"]
+    assert (card["classroom_kpi"], card["teacher_kpi"], card["enrollment_kpi"], card["readiness_kpi"]) == (
+        "1 of 2", "0 of 1", "+41.7%", "100%")
+    assert (kpi["joint_kpi"], kpi["any_kpi"], kpi["learners_kpi"], kpi["data_review_kpi"]) == (
+        "0 (0.0%)", "1 of 4", "300 (24.0%)", "0 of 4")
     screen = _rows(store, "pr_evidence", lgu="Town One, Province")[0]
     assert screen["this_lgu"] == "1 of 2 schools, 300 learners" and screen["status"] == "Signal present"
     decision = _rows(store, "pr_decision", lgu="Town One, Province")
     assert [(r["signal"], r["result"]) for r in decision] == [
         ("Classroom pressure", "Yes"), ("Teacher pressure", "No"), ("Enrollment growing", "Yes"),
-        ("Planning status", planner.STATUS_LABELS[1])]
+        ("Review status", planner.QUEUE[1])]
     queue = {r["lgu_label"]: r for r in _rows(store, "ov_lgu")}
     assert queue["Town One, Province"]["pressure_signals"] == "Classroom"
     assert queue["Town One, Province"]["status_basis"] == planner.STATUS_BASIS[1]
     assert {r["share_band"] for r in _rows(store, "dm_share")} <= set(planner.SHARE_BANDS)
-    # a planning-status filter takes the label a user sees, not the database value
-    assert [r["lgu_label"] for r in _rows(store, "ov_lgu", queue=planner.STATUS_LABELS[1])] == ["Town One, Province"]
+    # the review-status filter and every legend use Priority 1 to 3, Monitor, No current pressure, Data review
+    assert [r["lgu_label"] for r in _rows(store, "ov_lgu", queue=planner.QUEUE[1])] == ["Town One, Province"]
 
 
 def test_a_level_above_its_reference_shows_even_when_another_level_is_not_fully_assessed(store):
@@ -280,7 +303,8 @@ def test_every_listed_school_says_why_and_what_to_verify(store):
     assert rows["X1"]["why_listed"] == "Above classroom screen" and rows["X1"]["verification_status"] == planner.VERIFY[0]
     assert rows["S4"]["why_listed"] == "Included by classroom-pressure order"
     school = _rows(store, "sa_school", lgu="Town One, Province")[0]
-    assert school["school_id"] == "X1" and school["verify_kpi"] == "Verification needed · 1 check"
+    assert school["school_id"] == "X1" and school["verify_kpi"] == "1 to verify"
+    assert (school["room_kpi"], school["teacher_kpi"], school["change_kpi"]) == ("75.0", "30.0", "Incomplete")
     assert school["verify_header"] == "Verify reported room count and enrollment"
     assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town One, Province")] == ["Classroom pressure"]
 
