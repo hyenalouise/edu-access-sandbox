@@ -438,8 +438,8 @@ def test_every_dashboard_query_runs_on_the_job_output(repo, tmp_path):
                 if not q["query"]["disaggregated"] and groups and len(groups) < len(fields):
                     sql += " GROUP BY " + ", ".join(groups)
                 store.query(sql, params)
-    insights = store.query(*dataset_sql("pr_insights"))  # one row of four findings, at least one filled
-    assert len(insights) == 1 and any(insights[0])
-    answers = store.query(*dataset_sql("pr_answers"))
-    assert len(answers) == 1 and any(answers[0])
+    decision = store.query(*dataset_sql("pr_decision"))  # the two pressure signals, growth, then the status
+    assert len(decision) == 4 and all(row[3] for row in decision)
+    card = store.query(*dataset_sql("pr_card"))
+    assert len(card) == 1 and all(value is not None for value in card[0])
     store.close()

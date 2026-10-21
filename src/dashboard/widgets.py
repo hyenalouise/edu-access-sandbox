@@ -1,8 +1,8 @@
 """Lakeview (AI/BI) widget, filter and page builders.
 
 Widget field expressions are only plain columns or SUM/COUNT/AVG/MIN/MAX of a column; ratios, conditions and text are
-computed in the dataset SQL. Counters and tables are spec version 2, bar, line, area, scatter, heatmap and histogram
-version 3, choropleth and box version 1.
+computed in the dataset SQL. Counters, tables and symbol maps are spec version 2, bar, line, area, scatter, heatmap and
+histogram version 3, choropleth and box version 1.
 """
 
 
@@ -196,15 +196,27 @@ def heatmap(b, dataset, title, x, x_label, x_order, y, y_label, y_order, fn, val
     return chart(b, "heatmap", dataset, title, encodings, [(x, bt(x)), (y, bt(y)), (name, expression)], desc)
 
 
-def choropleth(b, dataset, title, value, value_label, extra, mappings, order, desc=None):
-    """One colour per category (`mappings`), one shape per place: the boundary is taken once per value and extra."""
-    shape = "geo_first(boundary)"
-    fields = [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])]
-    fields.append((shape, "ST_ASGEOJSON(FIRST(`boundary`))"))
-    encodings = {"region": {"regionType": "custom", "fieldName": shape},
-                 "color": cat(value, value_label, order, mappings),
+def choropleth(b, dataset, title, value, value_label, extra, ramp, desc=None):
+    """One shape per row, coloured on a quantitative ramp (start, end). The shape is the dataset's `boundary` geometry
+    drawn as GeoJSON; a `geometry` region, not a `custom` one, which Databricks reads as a named built-in map."""
+    shape = "boundary_geojson"
+    fields = [(shape, "ST_ASGEOJSON(`boundary`)")] + [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])]
+    encodings = {"region": {"regionType": "geometry", "geometry": {"fieldName": shape}},
+                 "color": {"fieldName": value, "displayName": value_label,
+                           "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
+                                                                           "colors": {"start": ramp[0], "end": ramp[1]}}}},
                  "extra": [{"fieldName": c, "displayName": label} for c, label in extra]}
-    return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, version=1)
+    return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, disaggregated=True, version=1)
+
+
+def point_map(b, dataset, title, latitude, longitude, color, color_label, mappings, order, extra, desc=None):
+    """One point per row at (latitude, longitude), one colour per category; `extra` fields show in the tooltip."""
+    columns = [latitude, longitude, color] + [c for c, _ in extra]
+    encodings = {"coordinates": {"latitude": {"fieldName": latitude}, "longitude": {"fieldName": longitude}},
+                 "color": cat(color, color_label, order, mappings),
+                 "extra": [{"fieldName": c, "displayName": label} for c, label in extra]}
+    return chart(b, "symbol-map", dataset, title, encodings, [(c, bt(c)) for c in dict.fromkeys(columns)], desc,
+                 disaggregated=True, mark={"opacity": 0.8}, version=2)
 
 
 def table(b, dataset, title, columns, desc=None):
