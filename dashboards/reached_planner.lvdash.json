@@ -19,11 +19,11 @@
         ")\n",
         "SELECT 'Scope: '\n",
         "       || CASE WHEN :region = 'All regions' AND :province = 'All provinces' THEN 'All Philippines'\n",
-        "               ELSE concat_ws(' · ', CASE WHEN :region <> 'All regions' THEN :region END,\n",
+        "               ELSE concat_ws(' \u00b7 ', CASE WHEN :region <> 'All regions' THEN :region END,\n",
         "                                     CASE WHEN :province <> 'All provinces' THEN :province END) END\n",
-        "       || CASE :lgu_type WHEN 'City' THEN ' · cities' WHEN 'Municipality' THEN ' · municipalities' ELSE '' END\n",
-        "       || ' · ' || CASE WHEN COUNT(*) = 0 THEN 'No matching LGUs' ELSE format_number(COUNT(*), 0) || ' LGUs' END\n",
-        "       || CASE WHEN (:region <> 'All regions' OR :province <> 'All provinces' OR :lgu_type <> 'All LGU types') THEN ' · reset Region, Province and LGU type in the filter panel to clear' ELSE '' END\n",
+        "       || CASE :lgu_type WHEN 'City' THEN ' \u00b7 cities' WHEN 'Municipality' THEN ' \u00b7 municipalities' ELSE '' END\n",
+        "       || ' \u00b7 ' || CASE WHEN COUNT(*) = 0 THEN 'No matching LGUs' ELSE format_number(COUNT(*), 0) || ' LGUs' END\n",
+        "       || CASE WHEN (:region <> 'All regions' OR :province <> 'All provinces' OR :lgu_type <> 'All LGU types') THEN ' \u00b7 reset Region, Province and LGU type in the filter panel to clear' ELSE '' END\n",
         "         AS scope_line\n",
         "FROM lgu\n",
         "WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)"
@@ -842,9 +842,9 @@
         ")\n",
         "-- each KPI is written whole here, so Databricks never abbreviates a count to 1.38K\n",
         "SELECT k.*,\n",
-        "       format_number(joint_review, 0) || ' (' || COALESCE(format_number(100.0 * joint_review / NULLIF(assessed, 0), 1) || '%', '—') || ')' AS joint_kpi,\n",
+        "       format_number(joint_review, 0) || ' (' || COALESCE(format_number(100.0 * joint_review / NULLIF(assessed, 0), 1) || '%', '\u2014') || ')' AS joint_kpi,\n",
         "       format_number(any_pressure, 0) || ' of ' || format_number(assessed, 0) AS any_kpi,\n",
-        "       CASE WHEN learners_above >= 1000000 THEN format_number(learners_above / 1000000.0, 2) || 'M' ELSE format_number(learners_above, 0) END || ' (' || COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '—') || ')' AS learners_kpi,\n",
+        "       CASE WHEN learners_above >= 1000000 THEN format_number(learners_above / 1000000.0, 2) || 'M' ELSE format_number(learners_above, 0) END || ' (' || COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '\u2014') || ')' AS learners_kpi,\n",
         "       format_number(data_review, 0) || ' of ' || format_number(lgus, 0) AS data_review_kpi\n",
         "FROM k"
       ],
@@ -1689,15 +1689,15 @@
         "  FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         ")\n",
         "SELECT p.lgu_label, p.city_mun_name, p.queue_status, p.status_label,\n",
-        "       p.queue_status || ' · ' || p.status_label || ': ' || p.status_basis AS status_line,\n",
-        "       p.lgu_type_label || ' · '\n",
+        "       p.queue_status || ' \u00b7 ' || p.status_label || ': ' || p.status_basis AS status_line,\n",
+        "       p.lgu_type_label || ' \u00b7 '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
-        "         || ' · National review order: ' || format_number(p.priority_order, 0) || ' of '\n",
+        "         || ' \u00b7 National review order: ' || format_number(p.priority_order, 0) || ' of '\n",
         "         || format_number((SELECT COUNT(*) FROM pri), 0) || ' LGUs'\n",
-        "         || CASE WHEN (:region <> 'All regions' OR :province <> 'All provinces' OR :lgu_type <> 'All LGU types') THEN ' · ' || format_number(s.scope_order, 0) || ' of '\n",
+        "         || CASE WHEN (:region <> 'All regions' OR :province <> 'All provinces' OR :lgu_type <> 'All LGU types') THEN ' \u00b7 ' || format_number(s.scope_order, 0) || ' of '\n",
         "                 || format_number(s.scope_total, 0) || ' LGUs in current scope' ELSE '' END\n",
-        "         || ' · Data readiness: ' || p.data_readiness\n",
-        "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' · your choice is outside the filters, so this is the first LGU in them'\n",
+        "         || ' \u00b7 Data readiness: ' || p.data_readiness\n",
+        "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 your choice is outside the filters, so this is the first LGU in them'\n",
         "                 ELSE '' END AS details,\n",
         "       -- each KPI is a short value; what it means is in the card's subtitle and the decision panel\n",
         "       CASE WHEN NOT COALESCE(p.ap2_assessed, FALSE) THEN 'Not assessed'\n",
@@ -1710,11 +1710,11 @@
         "            ELSE CASE WHEN p.ap4_public_enrollment_change_pct / 100 >= 0 THEN '+' ELSE '' END || format_number(100 * p.ap4_public_enrollment_change_pct / 100, 1) || '%' END AS enrollment_kpi,\n",
         "       CASE WHEN p.queue_status = 'Data review' THEN 'Data review'\n",
         "            ELSE COALESCE(format_number(LEAST(p.ap2_learner_coverage_pct, p.teacher_coverage_pct), 0) || '%', 'Not available') END AS readiness_kpi,\n",
-        "       format_number(COALESCE(p.active_public_school_count, 0), 0) || ' public schools · '\n",
-        "         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported instructional rooms · '\n",
+        "       format_number(COALESCE(p.active_public_school_count, 0), 0) || ' public schools \u00b7 '\n",
+        "         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported instructional rooms \u00b7 '\n",
         "         || format_number(COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0)\n",
-        "                          + COALESCE(p.shs_teacher_count, 0), 0) || ' reported teachers · '\n",
-        "         || COALESCE(format_number(p.public_school_enrollment, 0), 'Not reported') || ' public learners · SY 2023-24' AS facts\n",
+        "                          + COALESCE(p.shs_teacher_count, 0), 0) || ' reported teachers \u00b7 '\n",
+        "         || COALESCE(format_number(p.public_school_enrollment, 0), 'Not reported') || ' public learners \u00b7 SY 2023-24' AS facts\n",
         "FROM pri AS p\n",
         "JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code\n",
         "LEFT JOIN scoped AS s ON s.city_mun_psgc_code = p.city_mun_psgc_code"
@@ -2050,7 +2050,7 @@
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT 1 AS ord, 'Classroom pressure · school screen' AS measure,\n",
+        "SELECT 1 AS ord, 'Classroom pressure \u00b7 school screen' AS measure,\n",
         "       CASE WHEN NOT COALESCE(ap2_assessed, FALSE) THEN 'Not assessed'\n",
         "            ELSE format_number(COALESCE(congested_school_count, 0), 0) || ' of ' || format_number(COALESCE(ratio_school_count, 0), 0)\n",
         "                 || ' schools, ' || format_number(COALESCE(ap2_affected_learners, 0), 0) || ' learners' END AS this_lgu,\n",
@@ -2060,36 +2060,36 @@
         "       COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'Not available') AS coverage\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 2, 'Classroom pressure · all schools pooled', CASE WHEN ap2_learners_per_reported_room IS NULL THEN 'Not reported' ELSE format_number(ap2_learners_per_reported_room, 1) || ' learners per reported room' END,\n",
+        "SELECT 2, 'Classroom pressure \u00b7 all schools pooled', CASE WHEN ap2_learners_per_reported_room IS NULL THEN 'Not reported' ELSE format_number(ap2_learners_per_reported_room, 1) || ' learners per reported room' END,\n",
         "       'Context: the school screen sets the signal', CASE WHEN ap2_assessed THEN 'Context' ELSE 'Not assessed' END,\n",
         "       COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'Not available')\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 3, 'Teacher pressure · Elementary',\n",
-        "       CASE WHEN es_offered_school_count = 0 THEN '—'\n",
+        "SELECT 3, 'Teacher pressure \u00b7 Elementary',\n",
+        "       CASE WHEN es_offered_school_count = 0 THEN '\u2014'\n",
         "            ELSE CASE WHEN ap3_es_learners_per_teacher IS NULL THEN 'Not reported' ELSE format_number(ap3_es_learners_per_teacher, 1) || ' learners per reported teacher' END END,\n",
         "       'Comparison point ' || COALESCE(format_number(es_benchmark_max_learners_per_teacher, 1), 'Not reported') || ' (historical study reference)',\n",
         "       CASE WHEN es_offered_school_count = 0 THEN 'Not offered' WHEN ap3_es_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_es_learners_per_teacher > es_benchmark_max_learners_per_teacher THEN 'Above comparison point' ELSE 'At or below comparison point' END,\n",
-        "       CASE WHEN es_offered_school_count = 0 THEN '—' ELSE COALESCE(format_number(es_learner_coverage_pct, 0) || '%', 'Not available') END\n",
+        "       CASE WHEN es_offered_school_count = 0 THEN '\u2014' ELSE COALESCE(format_number(es_learner_coverage_pct, 0) || '%', 'Not available') END\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 4, 'Teacher pressure · Junior high',\n",
-        "       CASE WHEN jhs_offered_school_count = 0 THEN '—'\n",
+        "SELECT 4, 'Teacher pressure \u00b7 Junior high',\n",
+        "       CASE WHEN jhs_offered_school_count = 0 THEN '\u2014'\n",
         "            ELSE CASE WHEN ap3_jhs_learners_per_teacher IS NULL THEN 'Not reported' ELSE format_number(ap3_jhs_learners_per_teacher, 1) || ' learners per reported teacher' END END,\n",
         "       'Comparison point ' || COALESCE(format_number(jhs_benchmark_max_learners_per_teacher, 1), 'Not reported') || ' (derived deployment comparison)',\n",
         "       CASE WHEN jhs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_jhs_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_jhs_learners_per_teacher > jhs_benchmark_max_learners_per_teacher THEN 'Above comparison point' ELSE 'At or below comparison point' END,\n",
-        "       CASE WHEN jhs_offered_school_count = 0 THEN '—' ELSE COALESCE(format_number(jhs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
+        "       CASE WHEN jhs_offered_school_count = 0 THEN '\u2014' ELSE COALESCE(format_number(jhs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 5, 'Teacher pressure · Senior high',\n",
-        "       CASE WHEN shs_offered_school_count = 0 THEN '—'\n",
+        "SELECT 5, 'Teacher pressure \u00b7 Senior high',\n",
+        "       CASE WHEN shs_offered_school_count = 0 THEN '\u2014'\n",
         "            ELSE CASE WHEN ap3_shs_learners_per_teacher IS NULL THEN 'Not reported' ELSE format_number(ap3_shs_learners_per_teacher, 1) || ' learners per reported teacher' END END,\n",
         "       'Comparison point ' || COALESCE(format_number(shs_benchmark_max_learners_per_teacher, 1), 'Not reported') || ' (derived deployment comparison)',\n",
         "       CASE WHEN shs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_shs_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_shs_learners_per_teacher > shs_benchmark_max_learners_per_teacher THEN 'Above comparison point' ELSE 'At or below comparison point' END,\n",
-        "       CASE WHEN shs_offered_school_count = 0 THEN '—' ELSE COALESCE(format_number(shs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
+        "       CASE WHEN shs_offered_school_count = 0 THEN '\u2014' ELSE COALESCE(format_number(shs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
         "FROM p\n",
         "UNION ALL\n",
         "SELECT 6, 'School network context', CASE WHEN ap1_learners_per_public_school IS NULL THEN 'Not reported' ELSE format_number(ap1_learners_per_public_school, 0) || ' learners per public school' END,\n",
@@ -2250,7 +2250,7 @@
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
         "SELECT 1 AS ord, 'Public schools' AS measure, COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'Not available') AS coverage,\n",
         "       CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END AS assessed,\n",
-        "       '—' AS unusual_schools\n",
+        "       '\u2014' AS unusual_schools\n",
         "FROM p\n",
         "UNION ALL SELECT 2, 'Classrooms', COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'Not available'),\n",
         "       CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
@@ -2361,7 +2361,7 @@
         "  UNION ALL SELECT city_mun_psgc_code, 3, 'SHS', shs_offered_school_count, shs_learners_per_teacher, shs_passes_gate,\n",
         "         shs_benchmark_max_learners_per_teacher FROM edu_access.`06-analytics`.ap3_teacher_pressure\n",
         ")\n",
-        "SELECT ord, CASE lvl WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END || ' · '\n",
+        "SELECT ord, CASE lvl WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END || ' \u00b7 '\n",
         "         || CASE WHEN ratio IS NULL OR NOT COALESCE(passes, FALSE) THEN 'not assessed'\n",
         "                 ELSE format_number(ratio, 1) || ' vs ' || format_number(reference, 1) END AS level_axis,\n",
         "       CASE WHEN ratio IS NOT NULL AND COALESCE(passes, FALSE) THEN ratio / NULLIF(reference, 0) END AS share_of_comparison\n",
@@ -3359,13 +3359,13 @@
         "       'Mapped ' || format_number(COUNT_IF(boundary_status = 'inside'), 0) || ' of ' || format_number(COUNT(*), 0)\n",
         "       || ' public schools in view'\n",
         "       || CASE WHEN COUNT_IF(boundary_status = 'outside') > 0\n",
-        "               THEN ' · ' || format_number(COUNT_IF(boundary_status = 'outside'), 0) || ' outside the LGU boundary (locations to verify)'\n",
+        "               THEN ' \u00b7 ' || format_number(COUNT_IF(boundary_status = 'outside'), 0) || ' outside the LGU boundary (locations to verify)'\n",
         "               ELSE '' END\n",
         "       || CASE WHEN COUNT_IF(boundary_status = 'no_usable_point') > 0\n",
-        "               THEN ' · ' || format_number(COUNT_IF(boundary_status = 'no_usable_point'), 0) || ' with no usable coordinates'\n",
+        "               THEN ' \u00b7 ' || format_number(COUNT_IF(boundary_status = 'no_usable_point'), 0) || ' with no usable coordinates'\n",
         "               ELSE '' END\n",
         "       || CASE WHEN COUNT_IF(boundary_status IN ('no_matched_city', 'no_boundary')) > 0\n",
-        "               THEN ' · ' || format_number(COUNT_IF(boundary_status IN ('no_matched_city', 'no_boundary')), 0)\n",
+        "               THEN ' \u00b7 ' || format_number(COUNT_IF(boundary_status IN ('no_matched_city', 'no_boundary')), 0)\n",
         "                    || ' with a boundary not validated'\n",
         "               ELSE '' END END AS map_line\n",
         "FROM loc"
@@ -3877,14 +3877,14 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT s.school_name, s.school_id, s.verify_header,\n",
-        "       'ID ' || s.school_id || ' · ' || s.barangay_name || ' · ' || s.school_kind || ' · ' || s.levels_offered\n",
-        "         || ' · ' || s.learners_txt || ' learners, SY 2023-24 · LGU review status: ' || st.queue_status\n",
-        "         || CASE WHEN :school <> '(First school to verify)' AND s.school_name || ' · ' || s.school_id <> :school\n",
-        "                 THEN ' · your school is outside the filters, so this is the first school to verify' ELSE '' END AS details,\n",
+        "       'ID ' || s.school_id || ' \u00b7 ' || s.barangay_name || ' \u00b7 ' || s.school_kind || ' \u00b7 ' || s.levels_offered\n",
+        "         || ' \u00b7 ' || s.learners_txt || ' learners, SY 2023-24 \u00b7 LGU review status: ' || st.queue_status\n",
+        "         || CASE WHEN :school <> '(First school to verify)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
+        "                 THEN ' \u00b7 your school is outside the filters, so this is the first school to verify' ELSE '' END AS details,\n",
         "       CASE WHEN s.learners_per_room IS NULL THEN 'Not assessable' ELSE format_number(s.learners_per_room, 1) || '' END AS room_kpi,\n",
         "       CASE WHEN s.teacher_ratio IS NULL THEN 'Not assessable' ELSE format_number(s.teacher_ratio, 1) || '' END AS teacher_kpi,\n",
         "       CASE WHEN s.enrollment_change IS NULL THEN 'Incomplete' ELSE s.change_txt END AS change_kpi,\n",
@@ -4137,7 +4137,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT s.school_name, s.learners, s.learners_per_room, s.teacher_ratio,\n",
@@ -4391,7 +4391,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "y AS (\n",
@@ -4651,7 +4651,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "s AS (SELECT schools.* FROM schools JOIN pick USING (school_id)),\n",
@@ -4663,7 +4663,7 @@
         "-- rooms are reported for the whole school, so a level row shows a dash, not a count\n",
         "SELECT ord, level, COALESCE(format_number(learners, 0), 'Not reported') AS learners, COALESCE(format_number(teachers, 0), 'Not reported') AS teachers,\n",
         "       COALESCE(format_number(learners / NULLIF(CAST(teachers AS DOUBLE), 0), 1), 'Not assessable') AS learners_per_teacher,\n",
-        "       '—' AS classrooms, '—' AS temporary_rooms, '—' AS makeshift_rooms\n",
+        "       '\u2014' AS classrooms, '\u2014' AS temporary_rooms, '\u2014' AS makeshift_rooms\n",
         "FROM lv WHERE offered = 1\n",
         "UNION ALL\n",
         "SELECT 4, 'Whole school', learners_txt, format_number(teachers, 0), COALESCE(format_number(learners_per_teacher, 1), 'Not assessable'),\n",
@@ -4915,7 +4915,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "s AS (SELECT schools.* FROM schools JOIN pick USING (school_id))\n",
@@ -5320,12 +5320,13 @@
         "SELECT COALESCE(CAST(CAST(runs.last_run AS DATE) AS STRING), 'Not available') AS updated,\n",
         "       'Publication status: '\n",
         "         || CASE WHEN checks.checks = 0 THEN 'No checks recorded' WHEN checks.failed > 0 THEN 'Needs attention' ELSE 'Ready' END\n",
-        "         || ' · enrollment SY ' || COALESCE(years.first_enrollment, 'not available') || ' to SY '\n",
+        "         || ' \u00b7 enrollment SY ' || COALESCE(years.first_enrollment, 'not available') || ' to SY '\n",
         "         || COALESCE(years.last_enrollment, 'not available')\n",
-        "         || ' · classrooms and teachers SY ' || COALESCE(years.last_capacity, 'not available')\n",
-        "         || ' · check counts are on the engineering data-quality dashboard' AS health_line\n",
+        "         || ' \u00b7 classrooms and teachers SY ' || COALESCE(years.last_capacity, 'not available')\n",
+        "         || ' \u00b7 check counts are on the engineering data-quality dashboard' AS health_line\n",
         "FROM runs CROSS JOIN years CROSS JOIN checks"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "dm_kpi",
@@ -5485,7 +5486,8 @@
         "  ('Monitor', 'Growth watchlist', 'None', 'Yes'),\n",
         "  ('No current pressure identified', 'No current pressure identified', 'None, both assessed', 'No'),\n",
         "  ('Data review', 'Insufficient data to assess', 'None known', 'Coverage or growth incomplete')) AS r(review_status, planning_status, pressure_signals, enrollment_growing)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "dm_ap4",
@@ -5570,11 +5572,12 @@
       "queryLines": [
         "SELECT * FROM (VALUES\n",
         "  ('Classroom pressure', 'School learners per reported room', '>= 50', 'PIDS-style illustrative reported-room screen', 'Sets the classroom-pressure signal'),\n",
-        "  ('Teacher pressure · Elementary', 'Learners per reported teacher', '> 35', 'historical study reference', 'Sets the teacher-pressure signal'),\n",
-        "  ('Teacher pressure · Junior high', 'Learners per reported teacher', '> 36', 'derived deployment comparison (45 maximum learners per class * 4 classes / 5 teachers)', 'Sets the teacher-pressure signal'),\n",
-        "  ('Teacher pressure · Senior high', 'Learners per reported teacher', '> 80/3 (26.7)', 'derived deployment comparison (40 maximum learners per class * 6 classes / 9 teachers)', 'Sets the teacher-pressure signal'),\n",
+        "  ('Teacher pressure \u00b7 Elementary', 'Learners per reported teacher', '> 35', 'historical study reference', 'Sets the teacher-pressure signal'),\n",
+        "  ('Teacher pressure \u00b7 Junior high', 'Learners per reported teacher', '> 36', 'derived deployment comparison (45 maximum learners per class * 4 classes / 5 teachers)', 'Sets the teacher-pressure signal'),\n",
+        "  ('Teacher pressure \u00b7 Senior high', 'Learners per reported teacher', '> 80/3 (26.7)', 'derived deployment comparison (40 maximum learners per class * 6 classes / 9 teachers)', 'Sets the teacher-pressure signal'),\n",
         "  ('School network context', 'Learners per public school', 'none', 'no published comparison point', 'Context only')) AS r(measure, unit, comparison_point, basis, use_in_dashboard)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "dm_coverage",
@@ -5658,9 +5661,9 @@
         "c AS (\n",
         "  SELECT 'Public schools' AS measure, ap1_coverage_pct AS coverage FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         "  UNION ALL SELECT 'Classrooms', ap2_learner_coverage_pct FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers · Elementary', es_learner_coverage_pct FROM pri WHERE es_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers · Junior high', jhs_learner_coverage_pct FROM pri WHERE jhs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers · Senior high', shs_learner_coverage_pct FROM pri WHERE shs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers \u00b7 Elementary', es_learner_coverage_pct FROM pri WHERE es_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers \u00b7 Junior high', jhs_learner_coverage_pct FROM pri WHERE jhs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers \u00b7 Senior high', shs_learner_coverage_pct FROM pri WHERE shs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         "),\n",
         "b AS (\n",
         "  SELECT measure,\n",
@@ -6175,7 +6178,8 @@
         "            WHEN 'deped_personnel' THEN 'Teachers (personnel)' ELSE source_id END AS source,\n",
         "       CASE WHEN has_data THEN 1 ELSE 0 END AS has_data\n",
         "FROM edu_access.`05-gold`.fact_school_year_source_availability"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_region",
@@ -6185,7 +6189,8 @@
         "  SELECT 'All regions' AS region, 0 AS s\n",
         "  UNION ALL SELECT DISTINCT region_name, 1 FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'\n",
         ") AS r ORDER BY s, region"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_province",
@@ -6221,21 +6226,24 @@
       "displayName": "Filter: LGU type",
       "queryLines": [
         "SELECT * FROM (VALUES ('All LGU types'), ('City'), ('Municipality')) AS v(lgu_type_option)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_queue",
       "displayName": "Filter: review status",
       "queryLines": [
         "SELECT * FROM (VALUES ('All review statuses'), ('Priority 1'), ('Priority 2'), ('Priority 3'), ('Monitor'), ('No current pressure identified'), ('Data review')) AS v(queue_option)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_coverage",
       "displayName": "Filter: data readiness",
       "queryLines": [
         "SELECT * FROM (VALUES ('All LGUs'), ('Assessed'), ('Insufficient data')) AS v(coverage_option)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_lgu",
@@ -6500,14 +6508,16 @@
       "displayName": "Filter: education level",
       "queryLines": [
         "SELECT * FROM (VALUES ('All levels'), ('Elementary'), ('Junior high'), ('Senior high')) AS v(level_option)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_status",
       "displayName": "Filter: school status",
       "queryLines": [
         "SELECT * FROM (VALUES ('All schools'), ('Verification needed'), ('Above classroom screen'), ('Missing figure'), ('Zero rooms or teachers'), ('No verification flag')) AS v(status_option)"
-      ]
+      ],
+      "parameters": []
     },
     {
       "name": "opt_school",
@@ -6659,7 +6669,7 @@
         ")\n",
         "SELECT school_option FROM (\n",
         "  SELECT '(First school to verify)' AS school_option, 0 AS s\n",
-        "  UNION ALL SELECT school_name || ' · ' || school_id, 1 FROM schools WHERE offers_level = 1\n",
+        "  UNION ALL SELECT school_name || ' \u00b7 ' || school_id, 1 FROM schools WHERE offers_level = 1\n",
         ") AS o ORDER BY s, school_option"
       ],
       "parameters": [
@@ -6745,13 +6755,16 @@
       "displayName": "Filter: measure",
       "queryLines": [
         "SELECT * FROM (VALUES ('All measures'), ('Public schools'), ('Classrooms'), ('Teachers')) AS v(measure_option)"
-      ]
+      ],
+      "parameters": []
     }
   ],
   "pages": [
     {
       "name": "overview",
       "displayName": "National Overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
@@ -7193,7 +7206,7 @@
         },
         {
           "widget": {
-            "name": "kpi_005",
+            "name": "kpi_004",
             "queries": [
               {
                 "name": "main_query",
@@ -7226,7 +7239,7 @@
                 "showTitle": true,
                 "title": "Priority 1 LGUs",
                 "showDescription": true,
-                "description": "Immediate joint review · share of assessed"
+                "description": "Immediate joint review \u00b7 share of assessed"
               }
             }
           },
@@ -7239,7 +7252,7 @@
         },
         {
           "widget": {
-            "name": "kpi_006",
+            "name": "kpi_005",
             "queries": [
               {
                 "name": "main_query",
@@ -7285,7 +7298,7 @@
         },
         {
           "widget": {
-            "name": "kpi_007",
+            "name": "kpi_006",
             "queries": [
               {
                 "name": "main_query",
@@ -7331,7 +7344,7 @@
         },
         {
           "widget": {
-            "name": "kpi_008",
+            "name": "kpi_007",
             "queries": [
               {
                 "name": "main_query",
@@ -7377,7 +7390,7 @@
         },
         {
           "widget": {
-            "name": "choropleth_map_009",
+            "name": "choropleth_map_008",
             "queries": [
               {
                 "name": "main_query",
@@ -7410,21 +7423,13 @@
               }
             ],
             "spec": {
-              "frame": {
-                "showTitle": true,
-                "showDescription": true,
-                "title": {
-                  "value": "Planning priority across the Philippines",
-                  "fields": []
-                },
-                "description": {
-                  "value": "Each LGU is coloured by review status; darker means more urgent review.",
-                  "fields": []
-                }
-              },
               "version": 1,
               "widgetType": "choropleth-map",
               "encodings": {
+                "region": {
+                  "regionType": "custom",
+                  "fieldName": "geo(boundary)"
+                },
                 "color": {
                   "fieldName": "status_level",
                   "displayName": "Review status (5 = Priority 1, 1 = No current pressure identified)",
@@ -7452,14 +7457,13 @@
                     "fieldName": "status_label",
                     "displayName": "Planning status"
                   }
-                ],
-                "region": {
-                  "regionType": "custom",
-                  "fieldName": "geo(boundary)"
-                }
+                ]
               },
-              "data": {
-                "queryName": "main_query"
+              "frame": {
+                "showTitle": true,
+                "title": "Planning priority across the Philippines",
+                "showDescription": true,
+                "description": "Each LGU is coloured by review status; darker means more urgent review."
               }
             }
           },
@@ -7472,7 +7476,7 @@
         },
         {
           "widget": {
-            "name": "note_010",
+            "name": "note_009",
             "queries": [
               {
                 "name": "main_query",
@@ -7518,7 +7522,7 @@
         },
         {
           "widget": {
-            "name": "table_011",
+            "name": "table_010",
             "queries": [
               {
                 "name": "main_query",
@@ -7578,7 +7582,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_012",
+            "name": "heatmap_011",
             "queries": [
               {
                 "name": "main_query",
@@ -7663,7 +7667,7 @@
         },
         {
           "widget": {
-            "name": "table_013",
+            "name": "table_012",
             "queries": [
               {
                 "name": "main_query",
@@ -7753,7 +7757,7 @@
         },
         {
           "widget": {
-            "name": "table_014",
+            "name": "table_013",
             "queries": [
               {
                 "name": "main_query",
@@ -7852,7 +7856,7 @@
         },
         {
           "widget": {
-            "name": "table_015",
+            "name": "table_014",
             "queries": [
               {
                 "name": "main_query",
@@ -7877,18 +7881,6 @@
               }
             ],
             "spec": {
-              "frame": {
-                "showTitle": true,
-                "showDescription": true,
-                "title": {
-                  "value": "Data review LGUs",
-                  "fields": []
-                },
-                "description": {
-                  "value": "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked.",
-                  "fields": []
-                }
-              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -7907,8 +7899,11 @@
                   }
                 ]
               },
-              "data": {
-                "queryName": "main_query"
+              "frame": {
+                "showTitle": true,
+                "title": "Data review LGUs",
+                "showDescription": true,
+                "description": "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked."
               }
             }
           },
@@ -7921,7 +7916,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_016",
+            "name": "heatmap_015",
             "queries": [
               {
                 "name": "main_query",
@@ -8014,7 +8009,7 @@
         },
         {
           "widget": {
-            "name": "text_017",
+            "name": "text_016",
             "multilineTextboxSpec": {
               "lines": [
                 "**Next:** open **LGU Profile** and choose a city or municipality from the queue.\n",
@@ -8030,17 +8025,17 @@
             "height": 2
           }
         }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
+      ]
     },
     {
       "name": "lgu_profile",
       "displayName": "LGU Profile",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
-            "name": "text_018",
+            "name": "text_017",
             "multilineTextboxSpec": {
               "lines": [
                 "# What is driving the planning status in this LGU?\n",
@@ -8058,7 +8053,7 @@
         },
         {
           "widget": {
-            "name": "filter_019",
+            "name": "filter_018",
             "queries": [
               {
                 "name": "opt_opt_lgu",
@@ -8336,7 +8331,7 @@
         },
         {
           "widget": {
-            "name": "kpi_021",
+            "name": "kpi_019",
             "queries": [
               {
                 "name": "main_query",
@@ -8384,7 +8379,7 @@
         },
         {
           "widget": {
-            "name": "kpi_022",
+            "name": "kpi_020",
             "queries": [
               {
                 "name": "main_query",
@@ -8418,7 +8413,7 @@
                 "showTitle": false,
                 "title": "LGU details",
                 "showDescription": false,
-                "description": "Type · province or region · national review order · data readiness",
+                "description": "Type \u00b7 province or region \u00b7 national review order \u00b7 data readiness",
                 "contentAlignment": "left"
               }
             }
@@ -8432,7 +8427,7 @@
         },
         {
           "widget": {
-            "name": "kpi_023",
+            "name": "kpi_021",
             "queries": [
               {
                 "name": "main_query",
@@ -8466,7 +8461,7 @@
                 "showTitle": false,
                 "title": "Review status",
                 "showDescription": false,
-                "description": "Review status · planning status: basis",
+                "description": "Review status \u00b7 planning status: basis",
                 "contentAlignment": "left"
               }
             }
@@ -8480,7 +8475,7 @@
         },
         {
           "widget": {
-            "name": "kpi_024",
+            "name": "kpi_022",
             "queries": [
               {
                 "name": "main_query",
@@ -8526,7 +8521,7 @@
         },
         {
           "widget": {
-            "name": "kpi_025",
+            "name": "kpi_023",
             "queries": [
               {
                 "name": "main_query",
@@ -8572,7 +8567,7 @@
         },
         {
           "widget": {
-            "name": "kpi_026",
+            "name": "kpi_024",
             "queries": [
               {
                 "name": "main_query",
@@ -8618,7 +8613,7 @@
         },
         {
           "widget": {
-            "name": "kpi_027",
+            "name": "kpi_025",
             "queries": [
               {
                 "name": "main_query",
@@ -8664,7 +8659,7 @@
         },
         {
           "widget": {
-            "name": "note_028",
+            "name": "note_026",
             "queries": [
               {
                 "name": "main_query",
@@ -8710,7 +8705,7 @@
         },
         {
           "widget": {
-            "name": "table_029",
+            "name": "table_027",
             "queries": [
               {
                 "name": "main_query",
@@ -8770,7 +8765,7 @@
         },
         {
           "widget": {
-            "name": "table_030",
+            "name": "table_028",
             "queries": [
               {
                 "name": "main_query",
@@ -8846,7 +8841,7 @@
         },
         {
           "widget": {
-            "name": "bar_031",
+            "name": "bar_029",
             "queries": [
               {
                 "name": "main_query",
@@ -8889,7 +8884,7 @@
                   "scale": {
                     "type": "categorical"
                   },
-                  "displayName": "Level · value vs comparison point"
+                  "displayName": "Level \u00b7 value vs comparison point"
                 }
               },
               "frame": {
@@ -8926,7 +8921,7 @@
         },
         {
           "widget": {
-            "name": "line_032",
+            "name": "line_030",
             "queries": [
               {
                 "name": "main_query",
@@ -9029,7 +9024,7 @@
         },
         {
           "widget": {
-            "name": "bar_033",
+            "name": "bar_031",
             "queries": [
               {
                 "name": "main_query",
@@ -9117,7 +9112,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Change in school-age population, 2020–2024",
+                "title": "Change in school-age population, 2020\u20132024",
                 "showDescription": true,
                 "description": "Percentage change in resident children by the school level matching their age."
               },
@@ -9149,7 +9144,7 @@
         },
         {
           "widget": {
-            "name": "line_034",
+            "name": "line_032",
             "queries": [
               {
                 "name": "main_query",
@@ -9248,7 +9243,7 @@
         },
         {
           "widget": {
-            "name": "symbol_map_036",
+            "name": "symbol_map_034",
             "queries": [
               {
                 "name": "main_query",
@@ -9419,7 +9414,7 @@
         },
         {
           "widget": {
-            "name": "note_037",
+            "name": "note_035",
             "queries": [
               {
                 "name": "main_query",
@@ -9465,7 +9460,7 @@
         },
         {
           "widget": {
-            "name": "filter_035",
+            "name": "filter_033",
             "queries": [
               {
                 "name": "opt_opt_barangay",
@@ -9573,7 +9568,7 @@
         },
         {
           "widget": {
-            "name": "table_038",
+            "name": "table_036",
             "queries": [
               {
                 "name": "main_query",
@@ -9663,7 +9658,7 @@
         },
         {
           "widget": {
-            "name": "table_039",
+            "name": "table_037",
             "queries": [
               {
                 "name": "main_query",
@@ -9739,7 +9734,7 @@
         },
         {
           "widget": {
-            "name": "table_040",
+            "name": "table_038",
             "queries": [
               {
                 "name": "main_query",
@@ -9805,17 +9800,17 @@
             "height": 6
           }
         }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
+      ]
     },
     {
       "name": "school_action",
       "displayName": "School Action",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
-            "name": "text_041",
+            "name": "text_039",
             "multilineTextboxSpec": {
               "lines": [
                 "# Which schools should be validated first?\n",
@@ -9833,7 +9828,7 @@
         },
         {
           "widget": {
-            "name": "filter_042",
+            "name": "filter_040",
             "queries": [
               {
                 "name": "opt_opt_lgu",
@@ -10026,7 +10021,7 @@
         },
         {
           "widget": {
-            "name": "filter_044",
+            "name": "filter_041",
             "queries": [
               {
                 "name": "opt_opt_school",
@@ -10168,7 +10163,7 @@
         },
         {
           "widget": {
-            "name": "filter_045",
+            "name": "filter_042",
             "queries": [
               {
                 "name": "opt_opt_level",
@@ -10342,7 +10337,7 @@
         },
         {
           "widget": {
-            "name": "kpi_046",
+            "name": "kpi_043",
             "queries": [
               {
                 "name": "main_query",
@@ -10390,7 +10385,7 @@
         },
         {
           "widget": {
-            "name": "kpi_047",
+            "name": "kpi_044",
             "queries": [
               {
                 "name": "main_query",
@@ -10424,7 +10419,7 @@
                 "showTitle": false,
                 "title": "School details",
                 "showDescription": false,
-                "description": "School ID · barangay · main or annex · levels · learners · LGU planning status",
+                "description": "School ID \u00b7 barangay \u00b7 main or annex \u00b7 levels \u00b7 learners \u00b7 LGU planning status",
                 "contentAlignment": "left"
               }
             }
@@ -10438,7 +10433,7 @@
         },
         {
           "widget": {
-            "name": "kpi_048",
+            "name": "kpi_045",
             "queries": [
               {
                 "name": "main_query",
@@ -10486,7 +10481,7 @@
         },
         {
           "widget": {
-            "name": "kpi_049",
+            "name": "kpi_046",
             "queries": [
               {
                 "name": "main_query",
@@ -10519,7 +10514,7 @@
                 "showTitle": true,
                 "title": "Learners per room",
                 "showDescription": true,
-                "description": "All levels, reported rooms · screen 50"
+                "description": "All levels, reported rooms \u00b7 screen 50"
               }
             }
           },
@@ -10532,7 +10527,7 @@
         },
         {
           "widget": {
-            "name": "kpi_050",
+            "name": "kpi_047",
             "queries": [
               {
                 "name": "main_query",
@@ -10565,7 +10560,7 @@
                 "showTitle": true,
                 "title": "Learners per teacher",
                 "showDescription": true,
-                "description": "Chosen level · ES 35, JHS 36, SHS 26.7"
+                "description": "Chosen level \u00b7 ES 35, JHS 36, SHS 26.7"
               }
             }
           },
@@ -10578,7 +10573,7 @@
         },
         {
           "widget": {
-            "name": "kpi_051",
+            "name": "kpi_048",
             "queries": [
               {
                 "name": "main_query",
@@ -10624,7 +10619,7 @@
         },
         {
           "widget": {
-            "name": "kpi_052",
+            "name": "kpi_049",
             "queries": [
               {
                 "name": "main_query",
@@ -10670,7 +10665,7 @@
         },
         {
           "widget": {
-            "name": "scatter_053",
+            "name": "scatter_050",
             "queries": [
               {
                 "name": "main_query",
@@ -10797,7 +10792,7 @@
         },
         {
           "widget": {
-            "name": "table_054",
+            "name": "table_051",
             "queries": [
               {
                 "name": "main_query",
@@ -10857,7 +10852,7 @@
         },
         {
           "widget": {
-            "name": "line_055",
+            "name": "line_052",
             "queries": [
               {
                 "name": "main_query",
@@ -10969,7 +10964,7 @@
         },
         {
           "widget": {
-            "name": "table_056",
+            "name": "table_053",
             "queries": [
               {
                 "name": "main_query",
@@ -11061,7 +11056,7 @@
         },
         {
           "widget": {
-            "name": "filter_057",
+            "name": "filter_054",
             "queries": [
               {
                 "name": "opt_opt_status",
@@ -11135,7 +11130,7 @@
         },
         {
           "widget": {
-            "name": "filter_058",
+            "name": "filter_055",
             "queries": [
               {
                 "name": "opt_opt_barangay_school",
@@ -11209,7 +11204,7 @@
         },
         {
           "widget": {
-            "name": "table_059",
+            "name": "table_056",
             "queries": [
               {
                 "name": "main_query",
@@ -11317,7 +11312,7 @@
         },
         {
           "widget": {
-            "name": "text_060",
+            "name": "text_057",
             "multilineTextboxSpec": {
               "lines": [
                 "Confirm flagged figures with the Schools Division Office before using them for planning. The dashboard prioritizes validation; it does not prescribe how many classrooms, teachers, or schools to add."
@@ -11331,17 +11326,17 @@
             "height": 1
           }
         }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
+      ]
     },
     {
       "name": "data_and_method",
       "displayName": "Data & Method",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
-            "name": "text_061",
+            "name": "text_058",
             "multilineTextboxSpec": {
               "lines": [
                 "# How reliable are the results?\n",
@@ -11359,7 +11354,7 @@
         },
         {
           "widget": {
-            "name": "note_062",
+            "name": "note_059",
             "queries": [
               {
                 "name": "main_query",
@@ -11405,7 +11400,7 @@
         },
         {
           "widget": {
-            "name": "kpi_063",
+            "name": "kpi_060",
             "queries": [
               {
                 "name": "main_query",
@@ -11451,7 +11446,7 @@
         },
         {
           "widget": {
-            "name": "kpi_064",
+            "name": "kpi_061",
             "queries": [
               {
                 "name": "main_query",
@@ -11497,7 +11492,7 @@
         },
         {
           "widget": {
-            "name": "kpi_065",
+            "name": "kpi_062",
             "queries": [
               {
                 "name": "main_query",
@@ -11543,7 +11538,7 @@
         },
         {
           "widget": {
-            "name": "kpi_066",
+            "name": "kpi_063",
             "queries": [
               {
                 "name": "main_query",
@@ -11589,7 +11584,7 @@
         },
         {
           "widget": {
-            "name": "note_067",
+            "name": "note_064",
             "queries": [
               {
                 "name": "main_query",
@@ -11635,7 +11630,7 @@
         },
         {
           "widget": {
-            "name": "table_068",
+            "name": "table_065",
             "queries": [
               {
                 "name": "main_query",
@@ -11703,7 +11698,7 @@
         },
         {
           "widget": {
-            "name": "table_069",
+            "name": "table_066",
             "queries": [
               {
                 "name": "main_query",
@@ -11771,7 +11766,7 @@
         },
         {
           "widget": {
-            "name": "filter_070",
+            "name": "filter_067",
             "queries": [
               {
                 "name": "opt_opt_measure",
@@ -11862,7 +11857,7 @@
         },
         {
           "widget": {
-            "name": "text_071",
+            "name": "text_068",
             "multilineTextboxSpec": {
               "lines": [
                 "The Measure filter changes **Data coverage by measure** and **Why some LGUs cannot be fully assessed** only."
@@ -11878,7 +11873,7 @@
         },
         {
           "widget": {
-            "name": "bar_072",
+            "name": "bar_069",
             "queries": [
               {
                 "name": "main_query",
@@ -11929,9 +11924,9 @@
                       "orderedValues": [
                         "Public schools",
                         "Classrooms",
-                        "Teachers · Elementary",
-                        "Teachers · Junior high",
-                        "Teachers · Senior high"
+                        "Teachers \u00b7 Elementary",
+                        "Teachers \u00b7 Junior high",
+                        "Teachers \u00b7 Senior high"
                       ]
                     }
                   },
@@ -11976,7 +11971,7 @@
         },
         {
           "widget": {
-            "name": "bar_073",
+            "name": "bar_070",
             "queries": [
               {
                 "name": "main_query",
@@ -12057,7 +12052,7 @@
         },
         {
           "widget": {
-            "name": "bar_074",
+            "name": "bar_071",
             "queries": [
               {
                 "name": "main_query",
@@ -12121,7 +12116,7 @@
         },
         {
           "widget": {
-            "name": "bar_075",
+            "name": "bar_072",
             "queries": [
               {
                 "name": "main_query",
@@ -12187,7 +12182,7 @@
         },
         {
           "widget": {
-            "name": "bar_076",
+            "name": "bar_073",
             "queries": [
               {
                 "name": "main_query",
@@ -12283,7 +12278,7 @@
         },
         {
           "widget": {
-            "name": "heatmap_077",
+            "name": "heatmap_074",
             "queries": [
               {
                 "name": "main_query",
@@ -12357,15 +12352,13 @@
         },
         {
           "widget": {
-            "name": "text_078",
+            "name": "text_075",
             "multilineTextboxSpec": {
               "lines": [
-                "## What this dashboard cannot tell you\n",
-                "\n",
+                "## What this dashboard cannot tell you\n\n",
                 "- **How many resources to add.** The review order is not an official shortage, staffing entitlement, construction need or funding allocation.\n",
                 "- **Room condition or use.** Reported rooms do not show condition, shifts or utilization.\n",
-                "- **Travel or access.** Enrollment is counted at the school, not where learners live.\n",
-                "\n",
+                "- **Travel or access.** Enrollment is counted at the school, not where learners live.\n\n",
                 "Full methodology: the dashboards README in the project repository."
               ]
             }
@@ -12379,7 +12372,7 @@
         },
         {
           "widget": {
-            "name": "note_079",
+            "name": "note_076",
             "queries": [
               {
                 "name": "main_query",
@@ -12425,7 +12418,7 @@
         },
         {
           "widget": {
-            "name": "text_080",
+            "name": "text_077",
             "multilineTextboxSpec": {
               "lines": [
                 "**Technical metadata** (for reviewers): planning status follows rule D-061 in the Analytics table lgu_priority_matrix. Measure codes: AP1 school network context, AP2 classroom pressure, AP3 teacher pressure, AP4 enrollment direction."
@@ -12439,17 +12432,17 @@
             "height": 1
           }
         }
-      ],
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1"
+      ]
     },
     {
       "name": "global_filters",
       "displayName": "Global filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
-            "name": "filter_081",
+            "name": "filter_078",
             "queries": [
               {
                 "name": "opt_opt_region",
@@ -13169,7 +13162,7 @@
         },
         {
           "widget": {
-            "name": "filter_082",
+            "name": "filter_079",
             "queries": [
               {
                 "name": "opt_opt_province",
@@ -13872,7 +13865,7 @@
         },
         {
           "widget": {
-            "name": "filter_083",
+            "name": "filter_080",
             "queries": [
               {
                 "name": "opt_opt_type",
@@ -14571,9 +14564,7 @@
             "height": 2
           }
         }
-      ],
-      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
-      "layoutVersion": "GRID_V1"
+      ]
     }
   ],
   "uiSettings": {
@@ -14607,12 +14598,7 @@
         "#8A96A3",
         "#2F6F8F"
       ],
-      "widgetHeaderAlignment": "LEFT",
       "fontFamily": "Inter",
-      "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP",
-      "widgetPadding": 16,
-      "widgetMargin": 8,
-      "widgetCornerRadius": 8,
       "fontSettings": {
         "base": {
           "fontFamily": "Inter"
@@ -14620,7 +14606,12 @@
         "widgetTitle": {
           "fontSize": 16
         }
-      }
+      },
+      "widgetHeaderAlignment": "LEFT",
+      "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP",
+      "widgetPadding": 16,
+      "widgetMargin": 8,
+      "widgetCornerRadius": 8
     },
     "applyModeEnabled": false
   }

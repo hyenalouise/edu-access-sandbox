@@ -198,10 +198,11 @@ def heatmap(b, dataset, title, x, x_label, x_order, y, y_label, y_order, fn, val
 
 def choropleth(b, dataset, title, value, value_label, extra, ramp, desc=None):
     """One shape per row, coloured on a quantitative ramp (start, end). The shape is the dataset's `boundary` geometry
-    drawn as GeoJSON; a `geometry` region, not a `custom` one, which Databricks reads as a named built-in map."""
-    shape = "boundary_geojson"
-    fields = [(shape, "ST_ASGEOJSON(`boundary`)")] + [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])]
-    encodings = {"region": {"regionType": "geometry", "geometry": {"fieldName": shape}},
+    as GeoJSON in a field named geo(boundary), the name Databricks gives a geometry field; a custom region pointing at
+    any other name, or at an aggregated shape, draws a built-in map instead (the export showed Japan)."""
+    shape = "geo(boundary)"
+    fields = [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])] + [(shape, "ST_ASGEOJSON(`boundary`)")]
+    encodings = {"region": {"regionType": "custom", "fieldName": shape},
                  "color": {"fieldName": value, "displayName": value_label,
                            "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential",
                                                                            "colors": {"start": ramp[0], "end": ramp[1]}}}},

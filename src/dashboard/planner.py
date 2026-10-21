@@ -1073,7 +1073,6 @@ def overview(b):
     coverage = param_filter(b, "coverage", "Data readiness", targets,
                             "Separate assessed LGUs from LGUs with insufficient data.")
     p.columns([(8, [(intro, 2)]), (4, [(queue, 1), (coverage, 1)])], 2)
-    p.row([(scope_line(b), 12)], 1)
     p.row([(kpi(b, "ov_kpi", "Priority 1 LGUs", "joint_kpi", None, desc="Immediate joint review · share of assessed",
                 style=KPI_STYLE), 3),
            (kpi(b, "ov_kpi", "LGUs with any pressure", "any_kpi", None, desc="Priority 1 to 3, of assessed LGUs",
@@ -1091,7 +1090,7 @@ def overview(b):
     top = table(b, "ov_top", "Top LGUs to review", [
         ("rank_in_view", "#", None), ("lgu_label", "City or municipality", None), ("queue_status", "Review status", None)],
         "The first ten LGUs in view, in the published review order.")
-    p.columns([(8, [(queue_map, 11), (map_note, 1)]), (4, [(top, 12)])], 12)
+    p.columns([(8, [(queue_map, 10), (map_note, 1)]), (4, [(top, 11)])], 11)
     p.row([(heatmap(b, "ov_region", "Review status by region", "queue_status", "Review status", QUEUE,
                     "region_short", "Region", None, "max", "share_of_region", "Share of the region's LGUs",
                     "Each row is one region's LGUs split by review status, so regions of different sizes compare."), 6),
@@ -1116,7 +1115,7 @@ def overview(b):
            (heatmap(b, "ov_demand", "Enrollment direction by review status", "growth_signal",
                     "Public enrollment, SY 2020-21 to SY 2025-26", GROWTH, "queue_status", "Review status",
                     QUEUE, "count", "city_mun_psgc_code", "LGUs",
-                    "Counts LGUs by review status and public-enrollment direction. Context for the status."), 6)], 6)
+                    "Counts LGUs by review status and public-enrollment direction. Context for the status."), 6)], 8)
     p.row([(text(b, "**Next:** open **LGU Profile** and choose a city or municipality from the queue.\n", "\n",
                  "Before acting, validate flagged schools against actual classroom counts, building condition, shifts, "
                  "enrollment projections and planned projects. The queue prioritizes validation, not allocation."), 12)], 2)
@@ -1131,7 +1130,6 @@ def lgu_profile(b):
                  "barangays and schools to validate first.")
     place = param_filter(b, "lgu", "City or municipality", profile, "Choose the LGU you want to review.")
     p.columns([(8, [(intro, 2)]), (4, [(place, 2)])], 2)
-    p.row([(scope_line(b), 12)], 1)
     p.row([(kpi(b, "pr_card", "Selected city or municipality", "city_mun_name", None,
                 desc="Change it with City or municipality above", style=TITLE_STYLE, heading=True, align="left"), 12)], 1)
     p.row([(kpi(b, "pr_card", "LGU details", "details", None,
@@ -1221,7 +1219,6 @@ def school_action(b):
                          "Its own choice: picking an LGU on LGU Profile does not change it.",
                          options=("opt_lgu", "lgu_option"))
     p.columns([(8, [(intro, 2)]), (4, [(place, 2)])], 2)
-    p.row([(scope_line(b), 12)], 1)
     school = param_filter(b, "school", "School", targets, "Type to search. Defaults to the first school to verify.")
     level = param_filter(b, "level", "Education level", targets)
     p.row([(school, 6), (level, 6)], 1)

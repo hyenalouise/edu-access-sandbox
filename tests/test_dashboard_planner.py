@@ -163,21 +163,23 @@ def test_every_planning_status_has_a_plain_label_and_basis():
         assert label in text and basis in text
 
 
-def test_the_map_draws_geometry_not_a_named_built_in_map():
-    # review of the 2026-10-21 export: a `custom` region exported as a map of Japan
+def test_the_map_draws_each_lgu_boundary_not_a_built_in_map():
+    # 2026-10-21: an aggregated geo_first(boundary) field exported as a map of Japan, and a geometry region did not
+    # draw; a custom region on an unaggregated field named geo(boundary) draws the Philippines (3af8ee1)
     maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
     assert maps
     for widget in maps:
-        region = widget["spec"]["encodings"]["region"]
-        assert region["regionType"] == "geometry", region
-        fields = {f["name"]: f["expression"] for f in widget["queries"][0]["query"]["fields"]}
-        assert fields[region["geometry"]["fieldName"]] == "ST_ASGEOJSON(`boundary`)"
+        assert widget["spec"]["encodings"]["region"] == {"regionType": "custom", "fieldName": "geo(boundary)"}
+        query = widget["queries"][0]["query"]
+        assert query["disaggregated"]
+        assert {f["name"]: f["expression"] for f in query["fields"]}["geo(boundary)"] == "ST_ASGEOJSON(`boundary`)"
 
 
-def test_every_view_shows_the_scope_line():
-    for page in load()["pages"][:4]:
-        assert any(q["query"]["datasetName"] == "scope" for w in widgets(page) for q in w.get("queries", [])
-                   if "fields" in q["query"]), page["name"]
+def test_data_and_method_shows_the_scope_line():
+    # the scope line was taken off the other three views in the editor (3af8ee1)
+    shown = {p["name"] for p in load()["pages"] for w in widgets(p) for q in w.get("queries", [])
+             if "fields" in q["query"] and q["query"]["datasetName"] == "scope"}
+    assert shown == {"data_and_method"}
 
 
 def test_barangay_and_measure_filters_sit_with_what_they_change():
