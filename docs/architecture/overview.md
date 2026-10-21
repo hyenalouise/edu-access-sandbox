@@ -4,7 +4,7 @@ How the pipeline is built and run. What it answers and for whom is in the [root 
 
 ## Overview
 
-One Databricks job, `edu_access_pipeline`, loads eight approved DepEd, PSA, and HDX sources from a Unity Catalog volume, cleans each source on its own, matches the sources to PSGC geography, builds Gold dimensions and facts, and publishes the AP1 to AP4 outputs and the LGU priority table. Every table from Silver on is written as a candidate and published only after its own validation gate passes, and every check is recorded in `01-control`. The same job runs locally on DuckDB (`python -m src.job.local_run`), so it can be checked without Databricks compute.
+One Databricks job, `edu_access_pipeline`, loads nine approved DepEd, PSA, and HDX sources from a Unity Catalog volume, cleans each source on its own, matches the sources to PSGC geography, builds Gold dimensions and facts, and publishes the AP1 to AP4 outputs and the LGU priority table. Every table from Silver on is written as a candidate and published only after its own validation gate passes, and every check is recorded in `01-control`. The same job runs locally on DuckDB (`python -m src.job.local_run`), so it can be checked without Databricks compute.
 
 ## Pipeline stages
 
@@ -23,7 +23,7 @@ The stage numbers follow one rule: a stage number matches its `etl/` folder and 
 ## File naming and layout
 
 - Each `etl/` stage README lists the files in that stage.
-- SQL files in each `etl/` folder are named `NN_<verb>_<object>.sql` and run in number order.
+- SQL files in each `etl/` folder are named `NN_<verb>_<object>.sql`. `NN` sorts the files; it is not the run order. The job runs each file when the tasks it depends on in `databricks.yml` have finished, so files with different numbers can run in parallel.
 - Each layer's checks are in `90_validate_<object>.sql`.
 - `config/` holds non-secret settings, including the source registry.
 

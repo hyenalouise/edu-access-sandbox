@@ -22,6 +22,7 @@ flowchart LR
 | `deped_facilities.json` | `zip_csv` | `deped/` | 1: SY 2023-24 | 1 |
 | `deped_personnel.json` | `zip_csv` | `deped/` | 1: SY 2023-24 | 1 |
 | `deped_enrollment_psgc.json` | `xlsx_report` | `deped/` | 1: SY 2023-24 (EMISD) | 1 |
+| `deped_psgc_coordinates.json` | `xlsx_report` | `deped/` | 1: SY 2023-24, public schools only | 1 |
 | `psa_psgc.json` | `xlsx_table` | `psa/` | 1: 2026-Q2 | 1 |
 | `psa_poverty_stat.json` | `xlsx_sheet` | `psa/` | 1: estimates 2018, 2021, 2023 | 1 |
 | `psa_school_age_population.json` | `xlsx_census` | `psa/` | 2: censuses 2020 and 2024 | 2 |

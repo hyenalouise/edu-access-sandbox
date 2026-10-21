@@ -121,7 +121,7 @@ def test_documentation_index_reaches_every_canonical_document(repo_root):
     docs = repo_root / "docs"
     index = local_link_targets(docs / "README.md")
     unlisted = []
-    for path in sorted(docs.glob("*/*.md")):
+    for path in sorted(docs.rglob("*.md")):
         if path.name == "README.md":
             continue
         folder_index = path.parent / "README.md"

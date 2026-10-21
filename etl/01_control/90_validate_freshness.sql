@@ -15,6 +15,7 @@
 --   hdx_boundaries               395 days  Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)
 --   deped_enrollment_psgc        400 days  One school year (SY 2023-24), sent by DepEd EMISD on request (2026-10-14); no publication schedule is known, so the DepEd annual limit is used. A WARN means it is time to ask EMISD for a newer file
 --   psa_school_age_population   1856 days  Census years only (2020 CPH, 2024 POPCEN), received from PSA on request (2026-10-15); PSA counts the population about every five years, so five years plus a month
+--   deped_psgc_coordinates       400 days  One school year (SY 2023-24), requested from PSA (phcd.staff@psa.gov.ph); no publication schedule is known, so the DepEd annual limit is used
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id           the job run
@@ -42,7 +43,8 @@ FROM (VALUES ('deped_enrollment', 400, INTERVAL '400' DAY),
        ('psa_poverty_stat', 1125, INTERVAL '1125' DAY),
        ('hdx_boundaries', 395, INTERVAL '395' DAY),
        ('deped_enrollment_psgc', 400, INTERVAL '400' DAY),
-       ('psa_school_age_population', 1856, INTERVAL '1856' DAY)) AS l(source_id, max_age_days, max_age)
+       ('psa_school_age_population', 1856, INTERVAL '1856' DAY),
+       ('deped_psgc_coordinates', 400, INTERVAL '400' DAY)) AS l(source_id, max_age_days, max_age)
 LEFT JOIN (
   SELECT source_id, MAX(succeeded_at_utc) AS last_succeeded_at_utc
   FROM edu_access.`01-control`.current_batches

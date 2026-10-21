@@ -74,6 +74,8 @@ Unstated originating project-management records -> BPDA monitoring workbook -> p
 
 ## Known quality problems
 
+Summary only; evidence lives in [profile.md](profile.md).
+
 - **Observed:** the downloaded file contains only 16 Basilan projects and therefore is not evidence of BARMM-wide project coverage.
 - **Observed:** all 16 barangay cells are blank.
 - **Observed:** `Repair of Tipo-Tipo ES 6CL` and `REPAIR OF TIPO-TIPO ES3CL` name the same school with the same program, funding year, status, and monitoring date. They may be one project entered twice, so the file holds 16 records but possibly 15 projects.

@@ -44,6 +44,7 @@ def test_known_source_table_names_are_registered(repo_root):
         "hdx_boundaries",
         "deped_enrollment_psgc",
         "psa_school_age_population",
+        "deped_psgc_coordinates",
     ]
 
     for number, source in enumerate(sources, start=1):
@@ -72,9 +73,9 @@ def test_known_source_table_names_are_registered(repo_root):
             assert (repo_root / "etl" / "03_silver" / silver["clean_file"]).is_file()
 
 
-def test_integration_registry_is_explicitly_draft(repo_root):
+def test_draft_integration_tables_are_well_formed(repo_root):
     registry = yaml.safe_load((repo_root / "config" / "tables.yml").read_text())
-    assert registry["draft_integration_tables"]
+    assert isinstance(registry["draft_integration_tables"], list)
     assert registry["deferred_layers"] == []
     for candidate in registry["draft_integration_tables"]:
         assert candidate["table"].endswith("_map")

@@ -12,7 +12,7 @@ flowchart LR
 
 | Folder | Holds | Records |
 |---|---|---|
-| [`pipeline-runs/`](pipeline-runs/README.md) | Loads, reruns, blocked files, gates, alerts, and whole-job runs, on Databricks `dev` or locally, grouped by layer | 35 |
+| [`pipeline-runs/`](pipeline-runs/README.md) | Loads, reruns, blocked files, gates, alerts, and whole-job runs, on Databricks `dev` or locally, grouped by layer | 37 |
 | [`reconciliation/`](reconciliation/README.md) | Counts and totals compared from one layer to the next, grouped by layer | 15 |
 
 Records that a changed or unapproved file is blocked before Bronze are under *Source to Bronze* in [`pipeline-runs/`](pipeline-runs/README.md#source-to-bronze); the gates' own results are in `` edu_access.`01-control`.data_quality_results ``, not in files. Totals compared from source file to Gold, across layers, are in [validation](../docs/operations/validation.md).

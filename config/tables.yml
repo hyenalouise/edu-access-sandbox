@@ -148,14 +148,37 @@ source_tables:
       clean_file: 08_clean_psa_school_age_population.sql
       validate_file: 90_validate_psa_school_age_population_clean.sql
 
+  - source_id: deped_psgc_coordinates
+    dataset: DepEd school-level enrollment with PSGC and coordinates, public schools only
+    scope:
+      school_years: [2023-24]
+      workbook: xlsx (Public only), requested from PSA
+      sheet: DB
+      note: >-
+        One workbook of 47,818 public schools with PSGC codes and coordinates. Bronze keeps every row as
+        received (D-015). Silver is a disabled placeholder until its rules are reviewed.
+    bronze:
+      table: deped_psgc_coordinates_raw
+      create_file: 09_create_deped_psgc_coordinates_raw.sql
+      validate_file: 90_validate_deped_psgc_coordinates_raw.sql
+    silver:
+      table: deped_psgc_coordinates_clean
+      quarantine_table: deped_psgc_coordinates_quarantine
+      candidate_table: deped_psgc_coordinates_clean_candidate
+      candidate_quarantine_table: deped_psgc_coordinates_quarantine_candidate
+      clean_file: 09_clean_deped_psgc_coordinates.sql
+      validate_file: 90_validate_deped_psgc_coordinates_clean.sql
+
 # Candidates only. Keep them out of executable ETL until their keys, review
-# workflow, and grains are approved.
-draft_integration_tables:
-  - table: hdx_adm3_psgc_map
-    candidate_file: 03_map_hdx_adm3_psgc.sql
-    purpose: Reviewed mapping from HDX ADM3 features to PSGC cities and municipalities.
+# workflow, and grains are approved. Every map is implemented today.
+draft_integration_tables: []
 
 integration_tables:
+  - table: hdx_adm3_psgc_map
+    build_file: 03_map_hdx_adm3_psgc.sql
+    validate_file: 90_validate_hdx_adm3_psgc_map.sql
+    grain: One row per hdx_adm3_clean record (HDX feature and release).
+    purpose: HDX ADM3 features matched to PSGC cities and municipalities in the master quarter, overrides in config (D-052).
   - table: deped_annex_mother_map
     build_file: 04_map_deped_annex_mother.sql
     validate_file: 90_validate_deped_annex_mother_map.sql

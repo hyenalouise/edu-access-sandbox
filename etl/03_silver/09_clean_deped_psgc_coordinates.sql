@@ -1,0 +1,2 @@
+-- PLACEHOLDER: build deped_psgc_coordinates_clean and deped_psgc_coordinates_quarantine.
+-- Implement the reviewed cleaning rules (public scope, PSGC codes, coordinates) before activating this task.

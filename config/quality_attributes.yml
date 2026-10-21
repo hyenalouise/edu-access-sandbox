@@ -246,6 +246,7 @@ checks:
     - dq_psgc_barangay_na
     - dq_psgc_city_municipality_na
     - dq_psgc_region_9_digits
+    - dq_sector_not_public
     - dq_urban_rural_dash
     - known_issue_lower_limit_zero_or_negative
     - known_issue_place_label_footnote_marker

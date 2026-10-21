@@ -11,3 +11,4 @@ One data dictionary per Silver table, generated from the source's Bronze contrac
 | `deped_facilities` | `deped_facilities_clean` | `deped_facilities_quarantine` | [deped-facilities-clean.md](deped-facilities-clean.md) |
 | `hdx_boundaries` | `hdx_adm3_clean` | `hdx_adm3_quarantine` | [hdx-adm3-clean.md](hdx-adm3-clean.md) |
 | `psa_school_age_population` | `psa_school_age_population_clean` | `psa_school_age_population_quarantine` | [psa-school-age-population-clean.md](psa-school-age-population-clean.md) |
+| `deped_enrollment_psgc` | `deped_enrollment_psgc_clean` | `deped_enrollment_psgc_quarantine` | [deped-enrollment-psgc-clean.md](deped-enrollment-psgc-clean.md) |

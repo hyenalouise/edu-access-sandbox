@@ -63,11 +63,19 @@ Several files under `etl/`, `docs/data/silver/`, and `dashboards/` are generated
 
 ## Setup
 
-Set up a laptop once with [terminal setup](docs/getting-started/terminal-setup.md), then:
+Set up a laptop once with [terminal setup](docs/getting-started/terminal-setup.md), then, on macOS or Linux:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+```
+
+On Windows, in PowerShell:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 ```
 
@@ -78,7 +86,7 @@ Raw files are never committed. Locally they sit in `raw-data/` beside the reposi
 | What | Command |
 |---|---|
 | Tests and policy checks (what CI runs) | `python -m pytest tests -q` |
-| The whole job, locally on DuckDB | `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run` |
+| The whole job, locally on DuckDB | macOS or Linux: `RAW_DATA_DIR=~/Projects/reached-hq/raw-data python -m src.job.local_run`. Windows PowerShell: `$env:RAW_DATA_DIR = "$HOME\Projects\reached-hq\raw-data"; python -m src.job.local_run` |
 | Deploy the job to `dev` | `databricks bundle deploy --target dev --profile reached-hq` |
 | Run the job on `dev` | `databricks bundle run edu_access_pipeline --target dev --profile reached-hq` |
 

@@ -675,6 +675,75 @@ resources:
               source: GIT
             warehouse_id: ${var.warehouse_id}
 
+        # 09 - DepEd school-level enrollment with PSGC and coordinates, public schools only: a separate workbook from 07's.
+        # Bronze is live; Silver is a placeholder, disabled until its rules are reviewed.
+        - task_key: 09_create_deped_psgc_coordinates_raw
+          depends_on:
+            - task_key: 05_create_current_batches
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/09_create_deped_psgc_coordinates_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: bronze_deped_psgc_coordinates
+          depends_on:
+            - task_key: 09_create_deped_psgc_coordinates_raw
+          run_if: ALL_SUCCESS
+          environment_key: ingestion
+          spark_python_task:
+            python_file: src/ingestion/cli.py
+            source: GIT
+            parameters:
+              - ingest
+              - --no-gate
+              - --no-setup
+              - --backend
+              - spark
+              - --source
+              - deped_psgc_coordinates
+              - --landing
+              - /Volumes/edu_access/00-source/raw
+              - --environment
+              - ${bundle.target}
+              - --code-revision
+              - "{{job.parameters.code_revision}}"
+              - --job-run-id
+              - "{{job.parameters.run_id}}"
+
+        - task_key: 90_validate_deped_psgc_coordinates_raw
+          depends_on:
+            - task_key: bronze_deped_psgc_coordinates
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/02_bronze/90_validate_deped_psgc_coordinates_raw.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 09_clean_deped_psgc_coordinates
+          disabled: true
+          depends_on:
+            - task_key: 90_validate_deped_psgc_coordinates_raw
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/03_silver/09_clean_deped_psgc_coordinates.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
+        - task_key: 90_validate_deped_psgc_coordinates_clean
+          disabled: true
+          depends_on:
+            - task_key: 09_clean_deped_psgc_coordinates
+          run_if: ALL_SUCCESS
+          sql_task:
+            file:
+              path: etl/03_silver/90_validate_deped_psgc_coordinates_clean.sql
+              source: GIT
+            warehouse_id: ${var.warehouse_id}
+
         # Source-lane fan-in, an audit (D-051): after every Silver gate has finished, passed or not, it
         # records each Silver lane that is switched on and fails if any did not succeed, so the job run
         # shows as failed. Only freshness follows it; no Integration, Gold, or Analytics task waits for it.
@@ -689,6 +758,7 @@ resources:
             - task_key: 90_validate_hdx_adm3_clean
             - task_key: 90_validate_deped_enrollment_psgc_clean
             - task_key: 90_validate_psa_school_age_population_clean
+            - task_key: 90_validate_deped_psgc_coordinates_clean
           run_if: ALL_DONE
           sql_task:
             file:

@@ -12,6 +12,7 @@ flowchart LR
 |---|---|---|
 | `deped_enrollment`, `deped_facilities` | `profile_deped.py` | `dictionary_deped.py` |
 | `deped_enrollment_psgc` | `profile_deped_enrollment_psgc.py` | `dictionary_deped_enrollment_psgc.py` |
+| `deped_psgc_coordinates` | `profile_deped_psgc_coordinates.py` | `dictionary_deped_psgc_coordinates.py` |
 | `deped_personnel` | `profile_deped_personnel.py` | Same script |
 | `deped_ellna` | `profile_deped_ellna.py` | Same script |
 | `deped_nat_gr6` | `profile_deped_nat_gr6.py` | Same script |

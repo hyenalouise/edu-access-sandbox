@@ -34,7 +34,7 @@ flowchart LR
 
 | Layer | Files |
 |---|---|
-| Ingestion | `test_ingestion_validate.py` (what a DepEd delivery must pass), `test_ingestion_pipeline.py` (idempotency, incremental loads, revisions, crash recovery), and one per source: `_facilities`, `_personnel`, `_psa`, `_psgc`, `_report` (EMISD), `_school_age`, `_boundaries` |
+| Ingestion | `test_ingestion_validate.py` (what a DepEd delivery must pass), `test_ingestion_pipeline.py` (idempotency, incremental loads, revisions, crash recovery), and one per source: `_facilities`, `_personnel`, `_psa`, `_psgc`, `_report` (EMISD), `_psgc_coordinates`, `_school_age`, `_boundaries` |
 | Silver | `test_silver.py` (DepEd enrollment), `test_silver_facilities.py`, `_personnel`, `_psa`, `_psgc`, `_hdx`, `_school_age`, `_deped_enrollment_psgc` |
 | Integration | `test_integration_deped_school_psgc.py`, `test_deped_school_psgc_rule.py` (the rule on made-up units), `test_integration_poverty.py`, `_hdx`, `_school_age`, `_annex` |
 | Gold | `test_gold_dim_barangay.py`, `test_gold_dim_city_municipality.py`, `test_gold_dim_city_poverty.py`, `test_gold_fact_school_enrollment.py`, `test_gold_fact_city_population.py`, `test_gold_fact_city_school_age_population.py` |

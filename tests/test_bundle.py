@@ -157,6 +157,7 @@ SILVER_GATES = {
     "90_validate_deped_enrollment_clean", "90_validate_deped_facilities_clean", "90_validate_deped_personnel_clean",
     "90_validate_psa_psgc_clean", "90_validate_psa_poverty_stat_clean", "90_validate_hdx_adm3_clean",
     "90_validate_deped_enrollment_psgc_clean", "90_validate_psa_school_age_population_clean",
+    "90_validate_deped_psgc_coordinates_clean",
 }
 
 # Each downstream task and the gates it reads (D-051). A task waits for these and nothing else.
@@ -245,6 +246,7 @@ APS_STOPPED_BY = {
     "90_validate_deped_personnel_clean": {"ap3"},
     "90_validate_psa_school_age_population_clean": {"ap1"},
     "90_validate_psa_poverty_stat_clean": set(),
+    "90_validate_deped_psgc_coordinates_clean": set(),   # a placeholder no AP reads yet
 }
 
 

@@ -41,6 +41,8 @@ Each load runs twice; the second must insert nothing. Changed or unapproved file
 | 2026-10-09 | DepEd personnel | [Deped_personnel: Databricks dev load, rerun, and DAG gate confirmation, 2026-10-09](2026-10-09-deped-personnel-databricks-idempotency.md) |
 | 2026-10-16 | DepEd EMISD | [The real EMISD workbook loads into Bronze locally once, and a second run inserts nothing](2026-10-16-deped-enrollment-psgc-local-idempotency.md) |
 | 2026-10-16 | DepEd EMISD | [The EMISD workbook loads into Bronze on Databricks `dev` once, and a second run inserts nothing](2026-10-16-deped-enrollment-psgc-databricks-idempotency.md) |
+| 2026-10-21 | DepEd PSGC coordinates | [The public-only DepEd PSGC and coordinates workbook loads into Bronze locally once, every check passes, and a second run inserts nothing](2026-10-21-deped-psgc-coordinates-local-idempotency.md) |
+| 2026-10-21 | DepEd PSGC coordinates | [On Databricks `dev` the public-only workbook loads into Bronze, and a missing workbook fails the load instead of passing empty; the second-run skip is still to record](2026-10-21-deped-psgc-coordinates-databricks.md) |
 | 2026-10-07 | PSA PSGC | [The real PSGC 2Q 2026 workbook loads into Bronze locally once, and a second run inserts nothing](2026-10-07-psa-psgc-local-idempotency.md) |
 | 2026-10-08 | PSA PSGC | [PSGC 2Q 2026 loads into Bronze on Databricks once, and a second run inserts nothing](2026-10-08-psa-psgc-databricks-idempotency.md) |
 | 2026-10-07 | PSA poverty | [PSA Poverty Stat ingestion is idempotent and incremental (local: made-up workbooks and the real workbook)](2026-10-07-psa-poverty-stat-local-idempotency.md) |

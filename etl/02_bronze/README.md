@@ -28,8 +28,10 @@ What each source's rows carry, beyond the publisher's columns as text:
 | `psa_poverty_stat` | `xlsx_sheet` | The workbook's SHA-256 and the Excel row number | `source_sheet`, `source_row_kind`; title, header, and footer rows kept |
 | `deped_enrollment_psgc` | `xlsx_report` | The workbook's SHA-256 and the Excel row number | `school_year`, `source_sheet`, `source_row_kind`; blank rows kept |
 | `psa_school_age_population` | `xlsx_census` | The workbook's SHA-256, the sheet, and the Excel row number | `logical_dataset`, `census_year`, `source_row_kind`; both sheets loaded |
+| `deped_psgc_coordinates` | `xlsx_report` | The workbook's SHA-256 and the Excel row number | Its own table; the file name and the `SECTOR: PUBLIC ONLY` title cell tell it apart from the all-sector workbook |
 | `hdx_boundaries` | `geojson_features` | The file's SHA-256 and the feature's position | Geometry as raw GeoJSON text |
-[ETL table registry](../../docs/standards/tables.md).
+
+Final names for these and the known sources still awaiting ingestion contracts are in the [ETL table registry](../../docs/standards/tables.md).
 
 ## Files
 
@@ -43,6 +45,7 @@ What each source's rows carry, beyond the publisher's columns as text:
 | `hdx_boundaries` | `hdx_adm3_raw` | `06_create_hdx_adm3_raw.sql` | `90_validate_hdx_adm3_raw.sql` |
 | `deped_enrollment_psgc` | `deped_enrollment_psgc_raw` | `07_create_deped_enrollment_psgc_raw.sql` | `90_validate_deped_enrollment_psgc_raw.sql` |
 | `psa_school_age_population` | `psa_school_age_population_raw` | `08_create_psa_school_age_population_raw.sql` | `90_validate_psa_school_age_population_raw.sql` |
+| `deped_psgc_coordinates` | `deped_psgc_coordinates_raw` | `09_create_deped_psgc_coordinates_raw.sql` | `90_validate_deped_psgc_coordinates_raw.sql` |
 
 Loading is Python (`src/ingestion/`), because the files arrive as zips with a declared encoding, as workbooks whose cells must be kept exactly as stored, or as one GeoJSON file with polygons of several megabytes. The rules:
 

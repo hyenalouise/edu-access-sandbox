@@ -48,6 +48,7 @@ Implemented. Regenerate any of them with `--source <source_id>`; grain and colum
 | `hdx_boundaries` | `hdx_adm3_clean` | `06_clean_hdx_adm3.sql` | `90_validate_hdx_adm3_clean.sql` | [hdx-adm3-clean](../../docs/data/silver/hdx-adm3-clean.md) | D-040 | `hdx_adm3_psgc_map`, `dim_city_municipality` |
 | `deped_enrollment_psgc` | `deped_enrollment_psgc_clean` | `07_clean_deped_enrollment_psgc.sql` | `90_validate_deped_enrollment_psgc_clean.sql` | [deped-enrollment-psgc-clean](../../docs/data/silver/deped-enrollment-psgc-clean.md) | D-049 | `deped_school_psgc_map` |
 | `psa_school_age_population` | `psa_school_age_population_clean` | `08_clean_psa_school_age_population.sql` | `90_validate_psa_school_age_population_clean.sql` | [psa-school-age-population-clean](../../docs/data/silver/psa-school-age-population-clean.md) | D-053 | `psa_school_age_population_psgc_map`, `fact_city_school_age_population` |
+| `deped_psgc_coordinates` | `deped_psgc_coordinates_clean` | `09_clean_deped_psgc_coordinates.sql` | `90_validate_deped_psgc_coordinates_clean.sql` | Not written yet | None yet | Nothing yet: both files are placeholders until the cleaning rules are reviewed (#217) |
 
 Each clean table has a `_quarantine` table beside it.
 

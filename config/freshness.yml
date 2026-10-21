@@ -33,6 +33,9 @@ sources:
   deped_enrollment_psgc:
     max_age_days: 400
     basis: One school year (SY 2023-24), sent by DepEd EMISD on request (2026-10-14); no publication schedule is known, so the DepEd annual limit is used. A WARN means it is time to ask EMISD for a newer file
+  deped_psgc_coordinates:
+    max_age_days: 400
+    basis: One school year (SY 2023-24), requested from PSA (phcd.staff@psa.gov.ph); no publication schedule is known, so the DepEd annual limit is used
   hdx_boundaries:
     max_age_days: 395
     basis: Every year (HDX expected update frequency); HDX lists the dataset past its 2025-04-01 due date, and the 2026-05 files keep the 2018 boundaries (version 03, reviewed 2024-04-01)
