@@ -17,6 +17,7 @@
 --   hdx_boundaries (90_validate_hdx_adm3_clean)
 --   deped_enrollment_psgc (90_validate_deped_enrollment_psgc_clean)
 --   psa_school_age_population (90_validate_psa_school_age_population_clean)
+--   deped_psgc_coordinates (90_validate_deped_psgc_coordinates_clean)
 --
 -- Parameters, supplied by the job (or src/job/local_run.py):
 --   :run_id         the job run
@@ -31,7 +32,7 @@ INSERT INTO edu_access.`01-control`.data_quality_results
 SELECT :run_id, CAST(NULL AS STRING), l.source_id, 'control', 'edu_access.01-control.pipeline_runs', 'silver_lane_succeeded',
        CASE WHEN r.status = 'succeeded' THEN 'PASS' ELSE 'FAIL' END,
        'succeeded', COALESCE(r.status, 'not run'), current_timestamp(), :code_revision
-FROM (VALUES ('deped_enrollment'), ('deped_facilities'), ('deped_personnel'), ('psa_psgc'), ('psa_poverty_stat'), ('hdx_boundaries'), ('deped_enrollment_psgc'), ('psa_school_age_population')) AS l(source_id)
+FROM (VALUES ('deped_enrollment'), ('deped_facilities'), ('deped_personnel'), ('psa_psgc'), ('psa_poverty_stat'), ('hdx_boundaries'), ('deped_enrollment_psgc'), ('psa_school_age_population'), ('deped_psgc_coordinates')) AS l(source_id)
 LEFT JOIN edu_access.`01-control`.pipeline_runs AS r
   ON r.source_id = l.source_id AND r.pipeline_name = 'silver_build' AND r.run_id = :run_id;
 

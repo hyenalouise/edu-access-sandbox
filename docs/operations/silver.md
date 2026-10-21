@@ -934,3 +934,86 @@ What only Databricks can show for school-age: Spark's running-sum windows and th
 - Places are names only. Match `city_municipality` rows to PSGC 2Q 2026 in Integration (`05_map_psa_school_age_population_psgc`, #159) by `place_name` with `province_name` or `region_name`, using the shared matching rules and reviewed aliases; `old_name` can help but is not a PSGC name.
 - 2020 has 17 regions and 2024 has 18 (the Negros Island Region): compare years at city or municipality level through PSGC, never by region name.
 - A zero count (Kalayaan) is a real count, not missing.
+
+## DepEd public-school locations
+
+`deped_psgc_coordinates` (#217) reads the public-only DepEd workbook's Bronze rows and keeps each school's location: its four PSGC codes and its published coordinates, one row per school. Its build and gate are the crosswalk's generator (`src/silver/deped_enrollment_psgc.py`, D-049) given a **scope**, and `src/silver/deped_psgc_coordinates.py` writes its dictionary. Rules: [config/mappings/deped_psgc_coordinates.json](../../config/mappings/deped_psgc_coordinates.json); columns: [data dictionary](../data/silver/deped-psgc-coordinates-clean.md).
+
+**Status:** tested locally on made-up workbooks (`tests/test_silver_deped_psgc_coordinates.py`), and run locally on the real SY 2023-24 batch: 47,818 clean rows, 0 quarantined, 36 of 36 checks PASS, identical on a rebuild ([evidence](../../evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)). Not yet run by the job on Databricks.
+
+### The flow (public-school locations)
+
+```
+09_create_deped_psgc_coordinates_raw        SQL: Bronze DDL
+bronze_deped_psgc_coordinates               Python: check and load the workbook (fails if it is missing)
+90_validate_deped_psgc_coordinates_raw      SQL: the Bronze gate
+   │  only if it passed
+   ▼
+09_clean_deped_psgc_coordinates             SQL: from current_batches, rows of kind unit only:
+   │                                             deped_psgc_coordinates_clean_candidate       one row per public school
+   │                                             deped_psgc_coordinates_quarantine_candidate  rows not carried, with reasons
+   ▼
+90_validate_deped_psgc_coordinates_clean    SQL: 36 checks; any FAIL: 'failed', stop, nothing published;
+                                                 else publish quarantine, then clean, then 'succeeded'
+```
+
+Nothing downstream reads it yet. Its gate joins the fan-in (`90_validate_control`), so a failure fails the run, but it stops no Integration, Gold, or Analytics task.
+
+### What Silver keeps, and what it does not
+
+The workbook repeats `deped_enrollment` for its schools. This was checked school by school on 2026-10-21, and all 47,818 schools are in `deped_enrollment` SY 2023-24:
+
+- The 58 enrollment counts are equal for every school.
+- Names and place names are the same apart from spacing, case, and quote marks.
+- `school_subclassification`, `school_type` and `modified_coc` relabel `school_management`, `annex_status` and the three `offers_*` flags.
+
+So of the 88 workbook columns Silver carries 7 (`school_id`, the four codes, `longitude`, `latitude`), plus 5 derived from them (`school_year`, `psgc_recoded`, `psgc_null_reason`, `barangay_outside_city`, `coordinate_flag`) and lineage: 12 value columns. The other 81 stay in Bronze, and so does the exact text of every value (`#N/A` included): no code or number column in Silver holds `#N/A`. The [data dictionary](../data/silver/deped-psgc-coordinates-clean.md#not-carried-from-bronze) lists every column not carried, with its reason. They all stay in Bronze.
+
+### Cleaning rules (public-school locations)
+
+| Rule | Action | Why | Real batch (2026-10-21) |
+|---|---|---|---|
+| Bronze rows of kind `unit` only | transform | Blank and `no_identifier` rows stay in Bronze | 47,818 read; 0 others |
+| `school_year` not `2023-24` | quarantine `school_year_out_of_scope` | Scope: SY 2023-24 only | 0 |
+| `sector` not `Public` | quarantine `sector_not_public` | Scope: public schools only. The file says so in A6, and Bronze warns on another sector | 0 |
+| `school_id` not 6 digits; repeated `school_id` | quarantine, as the crosswalk | D-049 | 0 |
+| PSGC codes stored as 9 or 10 digits | left-pad to 10, as text | Profile O-3 | 28,811 |
+| `#N/A` or blank code | NULL, with one `psgc_null_reason` per row (`source_na` or `not_in_workbook`); any other value **fails**, and so do codes NULL for different reasons in one row (`null_reasons_agree`) | Profile O-3; D-023 | 204 / 0 |
+| Province code `19066…` (Sulu, Q4 2024) | recoded to `09066…`, region to `0900000000`; `psgc_recoded` | D-049 | 446 |
+| Coordinates | typed `DOUBLE`; `#N/A` and blank to NULL; `coordinate_flag`. The exact text stays in Bronze only, as `psa_psgc` leaves its unpadded IDs there; the gate recomputes every number from Bronze | Profile O-4; never corrected | missing 679, zero 5, outside 54 |
+
+More than 1% of unit rows in quarantine fails the gate, so a file that is no longer public-only, or another year delivered under this contract, cannot pass unseen. `rows_in_scope` fails if any clean row is outside the scope.
+
+### Coordinates: the school's own point
+
+The coordinates are each school's published point from the National School Building Inventory (NSBI, as of 2025-07-07), not a municipality centre:
+- Of the 47,080 unflagged points, only 126 pairs are shared by more than one school (254 schools).
+- 40,046 of the 47,080 in-box points are within 10 km of the median point of their own city or municipality, and 260 are over 100 km from it (profile O-6).
+
+Silver keeps them and flags them; it never corrects, geocodes, or infers them. Distances and the boundary test (S-1) belong after Silver.
+
+### PSGC codes against the reference
+
+Silver does not join to `psa_psgc`; that join is Integration's (D-049). On the real batch, every non-NULL code was checked against the PSGC 2Q 2026 master (43,768 codes, none repeated): all 47,614 barangay codes and all 47,614 city or municipality codes are in it, including the 446 recoded Sulu schools. The join kept 47,818 rows ([evidence](../../evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)).
+
+### Running locally (public-school locations)
+
+Load Bronze, then run the build and the gate with `run_id`, `code_revision` and `environment`, as for the crosswalk:
+
+```bash
+python -m src.ingestion.cli ingest --source deped_psgc_coordinates --db <scratch>/lane.duckdb
+```
+
+The whole job runs it too: `python -m src.job.local_run`. To regenerate after a rule change:
+
+```bash
+python -m src.silver.cli sql        --source deped_psgc_coordinates > etl/03_silver/09_clean_deped_psgc_coordinates.sql
+python -m src.silver.cli gate       --source deped_psgc_coordinates > etl/03_silver/90_validate_deped_psgc_coordinates_clean.sql
+python -m src.silver.cli dictionary --source deped_psgc_coordinates > docs/data/silver/deped-psgc-coordinates-clean.md
+```
+
+### Handoff (public-school locations)
+
+- Read only a `succeeded` run's rows. Join on `school_id` and `school_year`; there is one row per school.
+- Use the codes as Integration uses the crosswalk's, and the coordinates only where `coordinate_flag IS NULL`. Do not use them for distances until the boundary test (S-1).
+- Which coordinates Gold uses (this table's or the crosswalk's) is a team decision, not yet made. The PSGC codes are identical in both for every shared public school; the crosswalk's points appear in this table at other schools for 38,471 of 38,688 (PC-3, [evidence](../../evidence/reconciliation/2026-10-21-deped-psgc-coordinates-bronze-to-silver.md)), which supports this table's.

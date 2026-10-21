@@ -1,0 +1,99 @@
+{
+  "source_id": "deped_psgc_coordinates",
+  "generator": "deped_psgc_coordinates",
+  "owner": "@catweyine",
+  "silver_table": "deped_psgc_coordinates_clean",
+  "quarantine_table": "deped_psgc_coordinates_quarantine",
+  "row_kind": "unit",
+  "identifier": {
+    "column": "school_id",
+    "pattern": "^[0-9]{6}$"
+  },
+  "codes": {
+    "columns": [
+      "psgc_region",
+      "psgc_province",
+      "psgc_city_municipality",
+      "psgc_barangay"
+    ],
+    "stored_pattern": "^[0-9]{9,10}$",
+    "length": 10,
+    "null_markers": {
+      "#N/A": "source_na",
+      "": "not_in_workbook"
+    },
+    "evidence": "Profile O-3: stored as numbers, regions I to IX lost their leading zero (28,811 codes at every level); #N/A on 204 schools; never blank"
+  },
+  "recode": {
+    "province_prefix": "19066",
+    "to_prefix": "09066",
+    "from_region": "1900000000",
+    "region": "0900000000",
+    "evidence": "446 schools carry Sulu's Q4 2024 codes under BARMM (province 1906600000), as in deped_enrollment_psgc (D-049): in PSGC 2Q 2026 Sulu is 0906600000 under Region IX"
+  },
+  "coordinates": {
+    "longitude": "longitude",
+    "latitude": "latitude",
+    "number_pattern": "^-?[0-9]+([.][0-9]+)?([eE]-?[0-9]+)?$",
+    "missing_markers": [
+      "#N/A",
+      ""
+    ],
+    "box": {
+      "longitude_min": 116,
+      "longitude_max": 127,
+      "latitude_min": 4,
+      "latitude_max": 21.5
+    },
+    "evidence": "Profile O-4 (679 #N/A, 5 at (0, 0), 54 outside the box) and O-6; values are kept and flagged, never corrected (D-023, D-049)"
+  },
+  "scope": [
+    {
+      "column": "school_year",
+      "values": [
+        "2023-24"
+      ],
+      "reason": "school_year_out_of_scope"
+    },
+    {
+      "column": "sector",
+      "values": [
+        "Public"
+      ],
+      "reason": "sector_not_public"
+    }
+  ],
+  "published_text": [],
+  "combined_null_reason": true,
+  "keep_published_coordinates": false,
+  "quarantine_max_percent": 1,
+  "profiled": {
+    "bronze_unit_rows": 47818,
+    "bronze_other_rows": 0,
+    "barangay_codes_padded": 28811,
+    "city_source_na": 204,
+    "city_not_in_workbook": 0,
+    "barangay_source_na": 204,
+    "barangay_not_in_workbook": 0,
+    "recoded": 446,
+    "barangay_outside_city": 2,
+    "coordinate_missing": 679,
+    "coordinate_zero": 5,
+    "coordinate_outside_philippines": 54,
+    "quarantine_school_id_malformed": 0,
+    "quarantine_school_id_duplicated": 0,
+    "quarantine_school_id_identical_copy": 0,
+    "quarantine_school_year_out_of_scope": 0,
+    "quarantine_sector_not_public": 0
+  },
+  "rules": {
+    "rows": "Only Bronze rows of kind unit are read; the workbook has no other kind (profile O-1).",
+    "scope": "SY 2023-24 public schools only. A row of another school year or with a sector other than Public is quarantined with school_year_out_of_scope or sector_not_public, never dropped; above 1% of unit rows in quarantine fails the gate. The gate also fails if any clean row is out of scope (rows_in_scope).",
+    "grain": "One row per school_id and school_year, as deped_enrollment_psgc (D-049): an identical repeat keeps its first copy and quarantines the rest; differing repeats are all quarantined.",
+    "identifier": "A school_id that is not 6 digits is quarantined as school_id_malformed. It is kept as text, so leading zeros are never lost.",
+    "codes": "A code stored as 9 or 10 digits is left-padded to 10. #N/A and blank become NULL, with one psgc_null_reason for the row (source_na or not_in_workbook); any other value fails the gate. The gate also fails if the city and barangay codes are both NULL for different reasons (null_reasons_agree), so the single column never hides one.",
+    "recode": "Sulu's Q4 2024 codes (province 19066...) take the prefix 09066, and region 1900000000 becomes 0900000000, as in deped_enrollment_psgc (D-049).",
+    "coordinates": "Longitude and latitude are typed as DOUBLE; '#N/A' and blank become NULL with coordinate_flag missing. The exact text stays in Bronze only (as psa_psgc leaves its unpadded IDs there); the gate recomputes every number from its Bronze row and fails on any difference. coordinate_flag is missing, zero, outside_philippines, or NULL. No coordinate is corrected, geocoded, or inferred; distances and the boundary test (S-1) are not Silver's.",
+    "not_in_silver": "The 58 enrollment counts (equal to deped_enrollment for every school), the names, sector, management, annex and offering columns (restated by deped_enrollment), the PSGC names, urban/rural and income class (from psa_psgc through the code), and urp and implementing_unit (unused). All stay in Bronze; the data dictionary lists each with its reason."
+  }
+}

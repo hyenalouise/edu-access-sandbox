@@ -156,7 +156,8 @@ source_tables:
       sheet: DB
       note: >-
         One workbook of 47,818 public schools with PSGC codes and coordinates. Bronze keeps every row as
-        received (D-015). Silver is a disabled placeholder until its rules are reviewed.
+        received (D-015). Silver keeps each school's PSGC codes and coordinates only, in scope SY 2023-24 and
+        Public (#217).
     bronze:
       table: deped_psgc_coordinates_raw
       create_file: 09_create_deped_psgc_coordinates_raw.sql
