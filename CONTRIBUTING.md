@@ -1,65 +1,67 @@
 # Contributing
 
-The rules in short. For the full walkthrough see [docs/operations/workflow.md](docs/operations/workflow.md); for laptop setup see [docs/getting-started/terminal-setup.md](docs/getting-started/terminal-setup.md).
+How to make a change safely. Laptop setup is in [terminal setup](docs/getting-started/terminal-setup.md), how to run the pipeline is in the [README](README.md#run-it), and the full walkthrough of issues, branches, and reviews is in [workflow](docs/operations/workflow.md).
 
-## Workflow
+## How a change gets in
 
+```mermaid
+flowchart LR
+    issue[Issue] --> branch[Branch off main] --> change[Change and test] --> pr[Pull request] --> review[One approval] --> merge[Merge into main]
+    merge -.->|when it should run| deploy[Deploy: dev any branch, prod only from main]
 ```
-ISSUE → BRANCH → CHANGE → VALIDATE → COMMIT → PUSH → PULL REQUEST → REVIEW → MERGE
-```
 
-1. **Start from an issue.** Every change has a reason, and the issue records it.
-2. **Branch off `main`.** Name the branch `<type>/<issue-number>-<short-description>`:
-   - `feat/14-ingest-psgc`
-   - `fix/22-duplicate-school-ids`
-   - `docs/9-source-card-deped-enrollment`
-   - `chore/3-ci-setup`
-3. **Validate before you commit.** Run `python -m pytest tests -q`. For data changes, also check row counts, duplicates, and rerun safety.
-4. **Open a pull request.** Fill in the template and link the issue: keep the default `Part of #14` while work remains; use `Closes #14` only if this PR finishes one leaf issue. Never close a parent issue from a PR ([Linking the issue](docs/operations/workflow.md#linking-the-issue)). CI fails if no issue is linked, if merging would close a parent or more than one issue, if the PR has no milestone (it is copied from the linked issue when the issue has one), or if the **AI help** section is not filled in (see [Using AI](#using-ai)).
-5. **Review.** At least one teammate who is not the author approves the PR.
-6. **Merge.** Merge with a merge commit (the only method turned on), then delete the branch.
+1. **Start from an issue.** It records why the change is needed.
+2. **Branch off `main`**, named `<type>/<issue-number>-<short-description>`, for example `feat/14-ingest-psgc`, `fix/22-duplicate-school-ids`, or `docs/9-source-card-deped-enrollment`.
+3. **Make the change and test it** (checklist below).
+4. **Open a pull request** with the template filled in. Write `Part of #14` while work on the issue remains, and `Closes #14` only when this pull request finishes it ([linking the issue](docs/operations/workflow.md#linking-the-issue)).
+5. **Get one approval** from a teammate who is not the author. Two reviewers are requested for you.
+6. **Merge with a merge commit**, then delete the branch.
+
+## Before you open a pull request
+
+- [ ] `python -m pytest tests -q` passes. It is what CI runs, on made-up data only.
+- [ ] Every generated file you touched is regenerated. Each stage README gives the command, and a test fails if a committed file differs from its generator.
+- [ ] For a pipeline change, the whole job runs locally: `RAW_DATA_DIR=... python -m src.job.local_run` exits 0.
+- [ ] For a data change, row counts, duplicates, and a rerun are checked, and a claim about the data has an [evidence record](evidence/README.md#writing-a-record).
+- [ ] The document that explains the behavior is updated in the same pull request. [The docs index](docs/README.md#source-of-truth) says which document owns which topic.
+
+## What CI checks
+
+| Check | Fails when |
+|---|---|
+| Repository checks | Any test fails, including the data, secret, naming, and documentation checks |
+| PR links an issue | No open issue is linked, or merging would close a parent issue or more than one issue |
+| PR has a milestone | The pull request has no milestone (it is copied from the linked issue when the issue has one) |
+| PR declares AI help | The [AI help](#using-ai) section is not filled in correctly |
 
 ## Commit messages
 
-- Use the imperative mood: "Add PSGC source card", not "added stuff".
-- Make one meaningful checkpoint per commit.
+- Imperative mood, saying what changed: "Add PSGC source card", not "added stuff".
+- One meaningful step per commit, so a reviewer can follow the change and a revert stays small.
 
 ## Repository rules
 
-These are enforced by `tests/test_repo_policy.py` where possible.
+`tests/test_repo_policy.py` enforces these where it can.
 
-- **Never commit data.** Raw, interim, and processed datasets live in the agreed storage, not in git. The only exception is small, made-up samples under `tests/data/`.
-- **Never commit secrets.** Use `.env` locally; it is git-ignored. Only `.env.example`, with variable names and no values, is committed.
-- **Save notebooks in `.py` source format,** not `.ipynb`.
-- **Never modify raw files.** Every transformation writes a new layer.
+- **Never commit data.** Raw, interim, and processed files live in raw storage or the Databricks volume. The only exception is small, made-up files under [`tests/data/`](tests/data/README.md).
+- **Never commit secrets.** Use `.env` locally; it is git-ignored. Only `.env.example`, with names and no values, is committed.
+- **Never modify a raw file.** Every transformation writes a new layer, and a revised delivery is approved as a new version.
 - **Don't hard-code paths or dates.** Put them in `config/` or pass them as parameters.
-- **Use fully qualified table names** (`catalog.schema.table`) in all SQL.
-- **Don't clean data silently.** Every cleaning rule is documented, with the number of records it affects.
+- **Use fully qualified table names** (`` edu_access.`03-silver`.table ``) in all SQL.
+- **Don't clean data silently.** Every cleaning rule is in a reviewed mapping file and records how many rows it affects.
+- **Keep scripts as `.py` files,** with `# %%` cells if you want notebook-style runs, never `.ipynb`.
 
 ## Using AI
 
-AI tools are allowed for any work in this project: code, SQL, documentation, issues, pull requests, and review comments. The person who submits the work is its author and answers for it, whether or not AI helped.
+AI tools may be used for any part of the work. The person who opens the pull request is its author and answers for it, whether or not AI helped. AI help means any tool that writes or rewrites content for you, including chat assistants, code completion, and AI rewriting of text; spell-check alone does not count.
 
-**What counts as AI help:** any tool that writes or rewrites content for you, including chat assistants, code completion, and AI rewriting of text. Spell-check alone does not count.
-
-Every pull request states whether AI helped with the work in it. If it did, the work must pass four gates before you open the pull request:
+Every pull request ticks either **No AI help** or **AI helped**. If AI helped, the work must pass all four gates, and the pull request says which tool did what:
 
 | Gate | The rule |
 |---|---|
 | **Data** | Give AI tools only public or made-up data. Never share keys, tokens, passwords, workspace credentials, or personal information. |
-| **AI claims** | Anything the AI states as fact must be checked against a source you can link: official documentation, the publisher, the lectures, or our own output. Nothing enters the project on the AI's word alone. |
+| **AI claims** | Anything the AI states as fact is checked against a source you can link: official documentation, the publisher, or our own output. |
 | **Output** | You checked the result yourself. Where there is something to run, it works, it is safe to rerun, and every result can be traced to its source. |
-| **Accountability** | You can explain every part of the work without the AI, and you answer for it. |
+| **Accountability** | You can explain every part of the work without the AI. |
 
-State what the AI did: which tool, and which parts of the work. CI fails a pull request that does not tick exactly one option, or that ticks **AI helped** without all four gates and a note on what the AI did. CI can only see the ticks, so reviewers still send back work that does not really pass the gates.
-
-This applies to pull requests opened after this rule was merged. Open pull requests add the block the next time they are edited. See D-010 in [docs/governance/decisions.md](docs/governance/decisions.md).
-
-## Running the checks locally
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-python -m pytest tests -q
-```
+CI can only see the ticks, so reviewers still send back work that does not really pass the gates.
