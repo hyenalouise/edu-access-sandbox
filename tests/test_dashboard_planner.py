@@ -1,4 +1,5 @@
-"""The LGU planner dashboard: its JSON matches the generator, and its pages, filters and layout follow the plan."""
+"""The LGU planner dashboard: its JSON matches the generator, its pages, filters and layout follow the plan, and it
+shows D-060's classroom review queue as the Analytics tables publish it."""
 
 import json
 import re
@@ -7,6 +8,7 @@ from pathlib import Path
 import yaml
 
 from src.dashboard import planner
+from test_analytics_priority import add_public_school, run_all, store  # noqa: F401  (store is that file's made-up Gold fixture)
 
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
@@ -106,5 +108,35 @@ def test_wording_never_states_a_need_or_shortage_as_a_finding():
 def test_the_bundle_deploys_this_dashboard():
     bundle = yaml.safe_load((ROOT / "databricks.yml").read_text(encoding="utf-8"))
     dashboard = bundle["resources"]["dashboards"]["reached_planner"]
-    assert dashboard["file_path"] == "./dashboards/reached_planner.lvdash.json"
+    assert dashboard["file_path"] == "dashboards/reached_planner.lvdash.json"
     assert dashboard["warehouse_id"] == "${var.warehouse_id}"
+
+
+def _rows(store, name):
+    """Run one planner dataset on DuckDB with its default filter values."""
+    dataset = next(d for d in planner.build()["datasets"] if d["name"] == name)
+    sql = "".join(dataset["queryLines"])
+    params = {p["keyword"]: p["defaultSelection"]["values"]["values"][0]["value"] for p in dataset["parameters"]}
+    return store.records(sql, {k: v for k, v in params.items() if re.search(rf":{k}\b", sql)})
+
+
+def test_the_planner_shows_the_d060_review_queue_as_published(store):
+    # Town One gains a school with 300 learners in 4 reported rooms (75 per room), above the screen of 50
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    run_all(store)
+    kpi = _rows(store, "ov_kpi")[0]
+    assert (kpi["queue_lgus"], kpi["screened_schools"], kpi["screened_learners"], kpi["data_review_lgus"]) == (1, 1, 300, 0)
+    assert _rows(store, "dm_kpi")[0]["queue_lgus"] == 1
+    # LGU Profile opens on the top of the queue, and its evidence restates the published screen
+    card = _rows(store, "pr_card")[0]
+    assert card["city_mun_name"] == "Town One" and card["queue_status"] == planner.QUEUE[0]
+    assert "rank 1 of 1" in card["details"]
+    screen = _rows(store, "pr_evidence")[0]
+    assert screen["this_place"] == "1 of 2 schools, 300 learners" and screen["status"] == planner.QUEUE[0]
+    assert {r["share_band"] for r in _rows(store, "dm_share")} <= set(planner.SHARE_BANDS)
+
+
+def test_no_d057_tier_or_check_table_is_read():
+    text = DASHBOARD.read_text(encoding="utf-8")
+    for retired in ("lgu_priority_checks", "lgu_priority_outlier_schools", "order_in_tier", "is_stable", "_percentile"):
+        assert retired not in text, retired
