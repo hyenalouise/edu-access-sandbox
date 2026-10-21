@@ -24,6 +24,17 @@
       "owner": "maeveylain"
     },
     {
+      "source_id": "deped_psgc_coordinates",
+      "name": "DepEd school-level enrollment with PSGC and coordinates, public schools only",
+      "publisher": "Department of Education (DepEd)",
+      "status": "profiled",
+      "source_system": "Learner Information System (LIS); coordinates from NSBI",
+      "acquisition": "Requested data from phcd.staff@psa.gov.ph",
+      "format": "xlsx (one sheet)",
+      "school_years_acquired": ["2023-24"],
+      "owner": "catweyine"
+    },
+    {
       "source_id": "deped_facilities",
       "name": "DepEd school facilities",
       "publisher": "Department of Education (DepEd)",
