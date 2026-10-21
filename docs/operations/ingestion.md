@@ -354,7 +354,7 @@ Status after run 1: items 1, 3 (after handing the tables to the group), and 4 ar
 
 Also to watch: `createDataFrame` of about 60,000 rows per year on serverless (Spark Connect), whether the job can clone the public repository without a Git credential, and whether the explicit Delta protocol versions in the Bronze DDL are accepted alongside the workspace's default table features.
 
-Unity Catalog makes whoever creates a table its owner, and a `dev` job runs as whoever deployed it, so each object is handed to the team group right after it is created; `tests/test_bundle.py` checks every `CREATE` in `etl/`. Locally the ownership statements are skipped (DuckDB has no owners).
+Unity Catalog makes whoever creates a table its owner, and a job runs as whoever deployed it (on `dev` and `prod` alike), so each object is handed to the team group right after it is created; `tests/test_bundle.py` checks every `CREATE` in `etl/`. Locally the ownership statements are skipped (DuckDB has no owners).
 
 Three runtime differences are imitated locally in `tests/test_databricks_runtime.py`, because each would otherwise surface only on Databricks: a job's Python file runs with `exec` and no `__file__`; it runs inside IPython, which reports even `SystemExit(0)` as a failure, so the command line exits only on failure; and `spark.sql()` runs a `SELECT` only when collected, so the Spark store collects every statement (otherwise the Bronze gate's final check would never run).
 
@@ -427,9 +427,9 @@ Run the job twice. The attempts query shows `load` then `skip` with `rows_insert
 |---|---|---|
 | Should the latest version of a school year always be current, or do revisions need review first? | Latest succeeded version | D-015 |
 | Are per-publisher raw folders enough, given #10 asked for one folder per source? | First downloads flat in `raw/deped/`, later ones in dated subfolders | D-016 |
-| When is a `prod` target added, and how is its data kept apart from `dev`? There is one workspace and one catalog, and `edu_access` is hardcoded in the SQL and `store.py` | `dev` only | Before #47 |
+| When is a `prod` target added, and how is its data kept apart from `dev`? | Answered by D-063: `prod` is its own workspace with the same catalog and names, so the hardcoded `edu_access` needs no change | D-063 |
 | How long are superseded versions kept in Bronze and Source? | Forever | Not yet logged |
-| Who can approve a delivery, and does `deped_enrollment` move to `accepted` before a `prod` target exists? | Any reviewer; stays `profiled` | Team |
+| Who can approve a delivery, and who moves a source to `accepted` so it can load into `prod`? | Any reviewer; every source stays `profiled`, so a `prod` run loads nothing yet | Team, before the first `prod` run (D-063) |
 | Should a blank `school_id` fail the whole year, or be quarantined in Silver? | Fail the batch (none observed) | Profile O-1 |
 | Does DepEd publish the promised school ID mapping file, and should it be a delivery member? | Unexpected members fail the batch | Source card |
 

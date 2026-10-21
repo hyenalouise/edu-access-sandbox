@@ -1,6 +1,6 @@
 # Pipeline-run evidence
 
-Records of the pipeline doing what it claims: loading once, rebuilding identically, stopping on a failed gate, alerting. Each names its job run IDs and commit, and says whether it ran on Databricks `dev` or on local DuckDB. How to write one: [evidence](../README.md#writing-a-record).
+Records of the pipeline doing what it claims: loading once, rebuilding identically, stopping on a failed gate, alerting. Each names its job run IDs and commit, and says whether it ran on Databricks `dev`, Databricks `prod`, or local DuckDB. How to write one: [evidence](../README.md#writing-a-record).
 
 ```mermaid
 flowchart LR

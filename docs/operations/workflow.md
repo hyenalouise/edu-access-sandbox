@@ -250,8 +250,8 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 
 | What | Where |
 |---|---|
-| Workspace | https://dbc-2b6bf1c5-7bc3.cloud.databricks.com (details in [architecture.md](../architecture/overview.md#workspace)) |
-| Catalog | `edu_access`, owned by the `reached-hq` group |
+| Workspace | `dev`: https://dbc-2b6bf1c5-7bc3.cloud.databricks.com, where you work; `prod`: https://dbc-76bcfddb-1669.cloud.databricks.com, deployed only from `main` (details in [architecture.md](../architecture/overview.md#workspace), D-063) |
+| Catalog | `edu_access` in each workspace, owned by the `reached-hq` group |
 | Schemas so far | `` `00-source` ``, `` `01-control` ``, `` `02-bronze` ``; later stages are created when they start |
 | Raw files | `/Volumes/edu_access/00-source/raw/<publisher>/` |
 
@@ -283,7 +283,7 @@ Local is not identical to Databricks: DuckDB SQL differs from Databricks SQL in 
 | BOSY | Beginning of School Year: when DepEd's official enrollment is counted |
 | Bronze / Silver / Gold | Raw as received / cleaned and standardized / business-ready |
 | Idempotent | Running it twice gives the same result as running it once |
-| Profile (Databricks CLI) | A saved login for one workspace. Always name it |
+| Profile (Databricks CLI) | A saved login for one workspace: `reached-hq-dev` or `reached-hq-prod`. Always name it, and match it to the target |
 
 ---
 
