@@ -44,6 +44,8 @@ jobs:
   # Uses the "ci-validate" environment, never "production": a pull request can
   # change this workflow, so its token must only be able to validate.
   # Skipped for pull requests from forks, which cannot read environment secrets.
+  # deployment: false reads the environment without recording a deployment, so
+  # pull requests do not show ci-validate as deployed.
   bundle-validate:
     name: Databricks bundle validates
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -51,6 +53,7 @@ jobs:
     timeout-minutes: 5
     environment:
       name: ci-validate
+      deployment: false
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
