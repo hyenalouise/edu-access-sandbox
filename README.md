@@ -18,7 +18,7 @@ The pipeline turns official DepEd, PSA, and HDX files into city- and municipalit
 
 - **Users:** LGU Local School Boards, which decide how the Special Education Fund is spent (D-057).
 - **Scope:** public basic education, Kinder to Grade 12, in every Philippine city and municipality (D-003).
-- **Outputs:** one table per analytical question (AP1 to AP4) and `lgu_priority_matrix`, which shows AP1 to AP4 side by side and ranks the LGUs with reported classroom congestion into a review queue (D-060).
+- **Outputs:** one table per analytical question (AP1 to AP4) and `lgu_priority_matrix`, which shows AP1 to AP4 side by side and ranks the LGUs with reported classroom congestion into a review queue (D-060). Every column is in [analytics outputs](docs/data/analytics-outputs.md).
 
 The wording, the four analytical questions, and their limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
 

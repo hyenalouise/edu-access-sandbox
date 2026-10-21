@@ -25,6 +25,8 @@ flowchart LR
 | `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Enrollment trend and census-year population context |
 | `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-060 evidence table and classroom review queue; no composite score, percentile tier, or teacher rank |
 
+Every column of these outputs is in [analytics outputs](../../docs/data/analytics-outputs.md).
+
 ## D-060 classroom review queue
 
 AP2 evaluates each usable school first. A school passes the illustrative screen when its complete all-level enrollment divided by its reported total NSBI instructional rooms is at least 50. The LGU row reports the number of screened schools, affected learners, and affected-learner share.
