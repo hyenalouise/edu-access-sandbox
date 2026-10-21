@@ -95,13 +95,13 @@ flowchart LR
     control[(01-control)] --> dm
 ```
 
-It shows D-061's planning priorities. A classroom-pressure signal, a teacher-pressure signal, and public-enrollment growth assign each LGU a planning status. The status and national review order come from [`lgu_priority_matrix`](../etl/06_analytics/README.md); the dashboard only filters, labels, and presents them.
+It shows D-061's planning priorities. A classroom-pressure signal, a teacher-pressure signal, and public-enrollment growth assign each LGU a review status: Priority 1, Priority 2, Priority 3, Monitor, No current pressure identified, or Data review. Every legend, axis, filter and table column uses the review status; the planning status (Immediate joint review and so on) is shown beside it as the plain-language reading. The status and national review order come from [`lgu_priority_matrix`](../etl/06_analytics/README.md); the dashboard only filters, labels, and presents them.
 
 ### Plain language
 
-User-facing text never shows a rule or measure code. The codes appear only in the **Technical metadata** line on Data & Method, for reviewers. The database values stay unchanged: each dataset adds a display label and a plain-language basis, so the wording can change without touching the Analytics contract.
+User-facing text never shows a rule or measure code. The codes appear only in the **Technical metadata** line on Data & Method, for reviewers. The database values stay unchanged: each dataset adds the planning status and a plain-language basis, so the wording can change without touching the Analytics contract.
 
-| Published value | Shown as | Basis shown beside it |
+| Review status | Planning status | Basis |
 |---|---|---|
 | Priority 1 | Immediate joint review | Classroom and teacher pressure are present, and enrollment is growing |
 | Priority 2 | High-priority review | Both pressure signals are present, or one pressure signal is present with growing enrollment |
@@ -123,24 +123,24 @@ Missing values are words, never `null`: **Not reported** for a missing source va
 
 | View | Question | Main content |
 |---|---|---|
-| **National Overview** | Where should the Local School Board review first? | Planning priority map, top ten LGUs to review, planning status by region (heatmap of row shares), what is driving priority (the two pressure signals, how many also grow, and the status that results), the LGU review queue, LGUs with insufficient data and why, enrollment direction by planning status |
-| **LGU Profile** | What is driving the planning status in this LGU? | The LGU, its status and basis, national review order out of all LGUs (and within the current scope when filtered), data readiness; four signal KPIs; a facts strip; why this LGU has this status; measures beside their comparison points; learners per reported teacher by level against the comparison point; enrollment over time; school-age population change; resident children and local enrollment; school locations and barangay access; schools to validate first; data coverage and checks |
+| **National Overview** | Where should the Local School Board review first? | Planning priority map, top ten LGUs to review, review status by region (heatmap of row shares), what is driving priority (the two pressure signals, how many also grow, and the review status that results), the LGU review queue, data review LGUs and why, enrollment direction by review status |
+| **LGU Profile** | What is driving the planning status in this LGU? | The LGU, its review status, planning status and basis, national review order out of all LGUs (and within the current scope when filtered), data readiness; four signal KPIs; a facts strip; why this LGU has this status; measures beside their comparison points; learners per reported teacher by level against the comparison point; enrollment over time; school-age population change; resident children and local enrollment; school locations and barangay access; schools to validate first; data coverage and checks |
 | **School Action** | Which schools should be validated first? | The selected school, what to verify first, four KPIs, classroom and teacher pressure among schools in the LGU, what should be verified (one row per flag with a next step), enrollment at the school, reported rooms and teachers, the school validation list |
-| **Data & Method** | How reliable are the results? | Coverage and freshness KPIs, the data review alert, how the planning status is assigned, published comparison points, data coverage by measure, why some LGUs cannot be fully assessed, enrollment trend availability, how concentrated classroom pressure is, teacher-pressure assessment by level, available school years by source, limitations, publication status, technical metadata |
+| **Data & Method** | How reliable are the results? | Coverage and freshness KPIs, the data review alert, how the review status is assigned, published comparison points, data coverage by measure, why some LGUs cannot be fully assessed, enrollment trend availability, how concentrated classroom pressure is, teacher-pressure assessment by level, available school years by source, limitations, publication status, technical metadata |
 
 ### KPIs
 
-Every count has a denominator or share. Cards are neutral; colour is kept for status.
+Each KPI shows a short value, a number with its share or denominator (`219 (13.5%)`, `1,380 of 1,626`); what it means is in the card's subtitle. The value is written whole in the dataset SQL, so Databricks never abbreviates a count to `1.38K`. Cards are neutral; colour is kept for status.
 
-| View | KPI | Definition |
+| View | KPI | Value |
 |---|---|---|
-| National Overview | Immediate joint review | LGUs with both pressure signals and growing enrollment, with their share of assessed LGUs |
-| | LGUs with any pressure signal | LGUs with classroom or teacher pressure, of assessed LGUs |
-| | Learners in schools above the classroom screen | `ap2_affected_learners`, with their share of public learners and the number of schools, SY 2023-24 |
-| | LGUs with insufficient data | LGUs in data review, of all LGUs in view |
-| LGU Profile | Schools above the classroom screen, Teacher levels above comparison point, Public enrollment direction, Data readiness | The selected LGU; Not assessed or Not comparable instead of zero when a rule prevents a result |
-| School Action | Classroom pressure, Teacher pressure, Enrollment direction, Data completeness | The selected school's learners per reported room and per reported teacher (at the chosen level), its public-enrollment change, and its number of figures to verify |
-| Data & Method | Classroom assessment coverage, Teacher assessment coverage, Comparable enrollment trends, Data freshness | LGUs passing each coverage or comparability rule, over Region, Province, and LGU type; the latest successful pipeline run |
+| National Overview | Priority 1 LGUs | Count (share of assessed LGUs) |
+| | LGUs with any pressure | Priority 1 to 3, of assessed LGUs |
+| | Learners above classroom screen | `ap2_affected_learners`, millions shortened (share of public learners), SY 2023-24 |
+| | Data review LGUs | Count of all LGUs in view |
+| LGU Profile | Schools above classroom screen, Teacher levels above comparison, Public enrollment change, Lowest data coverage | `84 of 411`, `1 of 3`, `+13.0%`, `99%`; Not assessed, Not comparable or Data review instead of zero |
+| School Action | Learners per room, Learners per teacher, Enrollment change, Figures to verify | `352.5`, `88.1` (at the chosen level), `+1.5%`, `2 to verify`; Not assessable, Incomplete or No flag when missing |
+| Data & Method | Classrooms assessed, Teachers assessed, Comparable enrollment trends, Last refresh | LGUs passing each coverage or comparability rule, of LGUs in view; the date of the latest successful pipeline run |
 
 The LGU Profile's facts strip (public schools, reported rooms, reported teachers, public learners) describes scale; it is not a KPI. A filter that leaves nothing shows **No matching LGUs** or **No matching schools** in the scope and map lines.
 
@@ -151,7 +151,7 @@ Every filter is a query parameter applied after the published values are read, s
 | Filter | Where it applies |
 |---|---|
 | Region, Province, LGU type (global) | Every view. Province options follow Region. A scope line on every view states the current scope and LGU count |
-| Planning status, Data readiness (National Overview) | Every National Overview widget |
+| Review status, Data readiness (National Overview) | Every National Overview widget |
 | City or municipality (LGU Profile; School Action) | A page filter on each of the two views. Both default to the top of the queue in the scope; a choice outside the scope falls back to that LGU and says so |
 | Barangay (LGU Profile) | The school map, its coverage line and the barangay table only |
 | School, Education level (School Action) | Every School Action widget. School is searchable |
@@ -162,7 +162,7 @@ Databricks dashboards cannot open another page from a click or share a page filt
 
 ### Maps
 
-The National Overview map draws each LGU's HDX boundary as GeoJSON (`regionType: geometry`), coloured from 5 (immediate joint review) to 1 (no current pressure); insufficient-data LGUs have no status colour. A line under the map states how many LGUs in view were drawn. LGUs without a published boundary stay in the review queue and are never read as no pressure.
+The National Overview map draws each LGU's HDX boundary as GeoJSON (`regionType: geometry`), coloured from 5 (Priority 1) to 1 (No current pressure identified); Data review LGUs have no status colour. A line under the map states how many LGUs in view were drawn. LGUs without a published boundary stay in the review queue and are never read as no pressure.
 
 The LGU Profile's **School locations and barangay access** map plots public schools from Gold `dim_school_location` with `boundary_status = 'inside'` only (SY 2023-24 published NSBI coordinates, tested against the city or municipality boundary). The line under it states `Mapped N of M public schools in view` and counts schools outside the boundary, with no usable coordinates, or with a boundary not validated. Points are grey, with schools needing verification in one accent colour. The map locates schools and supports discussion with the Schools Division Office; it does not show catchment areas, travel time, road access or nearest-school assignment. No barangay polygon is drawn: the repository has no reviewed barangay-boundary source yet, so barangays are filters and tooltip attributes.
 
