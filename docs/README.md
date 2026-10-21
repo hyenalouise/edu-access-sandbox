@@ -36,6 +36,7 @@ flowchart LR
 | Review joinability and coverage evidence | [Cross-source analysis](data/cross-source/README.md) |
 | Look up a Silver column | [Silver tables](data/silver/README.md) |
 | Set up a workstation | [Terminal setup](getting-started/terminal-setup.md) |
+| Get the raw files the job loads | [Raw files the job needs](getting-started/raw-data.md) |
 | Understand ingestion behavior | [Ingestion](operations/ingestion.md) |
 | Understand Silver cleaning, quarantine, and checks | [Silver](operations/silver.md) |
 | Understand the PSGC mapping tables | [Integration](operations/integration.md) |

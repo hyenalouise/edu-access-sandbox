@@ -79,7 +79,7 @@ py -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-Raw files are never committed. Locally they sit in `raw-data/` beside the repository ([terminal setup, Part 8](docs/getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)); on Databricks they are in `` edu_access.`00-source`.raw ``. Each source contract in `config/ingestion/` names the approved files by SHA-256, and each [source card](docs/data/source-inventory/README.md) records where to download them.
+Raw files are never committed. Locally they sit in `raw-data/` beside the repository ([terminal setup, Part 8](docs/getting-started/terminal-setup.md#part-8-raw-data-and-raw_data_dir)); on Databricks they are in `` edu_access.`00-source`.raw ``. The job loads 15 files from 9 sources: [raw files the job needs](docs/getting-started/raw-data.md) lists each one with its SHA-256 and where to get it, including the 4 that were sent by email and are not published.
 
 ## Run it
 

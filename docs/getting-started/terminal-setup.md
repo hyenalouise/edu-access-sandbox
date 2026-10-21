@@ -314,7 +314,7 @@ Set the variable for the current terminal:
 
 ### Check
 
-With the DepEd files downloaded into `raw-data/deped/original/` (links in `docs/data/source-inventory/deped_enrollment/README.md`):
+To run the whole job, you need all 15 files in [raw files the job needs](raw-data.md). For this check, the DepEd files downloaded into `raw-data/deped/original/` are enough (links in `docs/data/source-inventory/deped_enrollment/README.md`):
 
 ```
 python analysis/profiling/profile_deped.py
