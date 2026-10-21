@@ -1,10 +1,9 @@
--- ap1 school provision under the BP and AP metrics and the priority rule D-057.
--- grain: one regular city or municipality for SY 2023-24 (D-057's result year).
--- ranked measure (D-057): learners per public school, complete public enrollment / active public schools with
--- complete all-level enrollment. context, never ranked: 2024 school-age population (5-17) per active public school.
--- coverage gate (D-057): at least 90% of active public schools have complete all-level enrollment. a school that
+-- ap1 descriptive school-provision context.
+-- grain: one regular city or municipality for SY 2023-24.
+-- measures: learners per public school and 2024 school-age population (5-17) per active public school.
+-- neither measure is a new-school need or priority score: establishment needs distance, demand and feasibility data.
+-- coverage gate: at least 90% of active public schools have complete all-level enrollment. a school that
 -- offers a level but has every offered count blank is not active, but it is missing data, so it joins the denominator.
--- percentiles: PERCENT_RANK within LGU type (the tier) and nationally (the Stable flag), among LGUs that pass the gate.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -70,23 +69,12 @@ WITH lgus AS (
               WHEN coverage_pct < 90 THEN 'coverage below 90%'
          END AS not_assessed_reason
   FROM ratios
-), ranked AS (
-  SELECT city_mun_psgc_code,
-         PERCENT_RANK() OVER (PARTITION BY lgu_type ORDER BY learners_per_public_school) AS within_type_percentile,
-         PERCENT_RANK() OVER (ORDER BY learners_per_public_school) AS national_percentile
-  FROM gated
-  WHERE not_assessed_reason IS NULL
 )
 SELECT g.*,
        g.not_assessed_reason IS NULL AS is_assessed,
-       r.within_type_percentile,
-       r.national_percentile,
-       COALESCE(r.within_type_percentile >= 0.9, FALSE) AS is_high,
-       COALESCE(r.national_percentile >= 0.9, FALSE) AS is_high_nationally,
-       'learners per public school (including annexes), ranked within LGU type (D-057)' AS ranked_measure,
+       'descriptive learners per public school, not a school-establishment or priority measure' AS measure_label,
        :code_revision AS code_revision
-FROM gated AS g
-LEFT JOIN ranked AS r USING (city_mun_psgc_code);
+FROM gated AS g;
 
 COMMENT ON TABLE edu_access.`06-analytics`.ap1_school_provision_candidate IS 'Unpublished AP1 build. Do not read: use ap1_school_provision.';
 ALTER TABLE edu_access.`06-analytics`.ap1_school_provision_candidate OWNER TO `reached-hq`;
