@@ -1362,7 +1362,7 @@ targets:
       warehouse_id: 71d3ccb9cea611c0
       # Settings > Notifications > Notification destinations in the prod
       # workspace. deploy_prod refuses while this is blank.
-      team_notification_destination_id: ""
+      team_notification_destination_id: 5f90d2b5-e67a-4341-8a04-0d3a63a05be0
     permissions:
       - group_name: reached-hq
         level: CAN_MANAGE
