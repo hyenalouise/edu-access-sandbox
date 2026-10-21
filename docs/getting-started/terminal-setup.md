@@ -277,13 +277,15 @@ Your prompt now starts with `(.venv)`. Activate it again in every new terminal b
 
 This installs `pytest` (tests) and `duckdb` (local profiling), pinned to the versions CI uses.
 
+The first time a test or the local job builds the HDX boundaries, DuckDB downloads its `spatial` extension from `extensions.duckdb.org` and keeps it under `~/.duckdb/extensions/`. Without internet access to that host (an offline laptop, or a proxy that blocks it), the HDX and school-boundary tests fail with `Failed to download extension "spatial"`, and so does the local job at `06_clean_hdx_adm3`.
+
 ### Check
 
 ```
 python -m pytest tests -q
 ```
 
-All tests pass in about a second. They are the same tests CI runs on every pull request.
+All tests pass in a few minutes. They are the same tests CI runs on every pull request.
 
 ---
 

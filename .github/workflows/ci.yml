@@ -25,7 +25,8 @@ jobs:
   repository-checks:
     name: Repository checks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The suite took 7 min 11 s on 2026-10-21 and grows with each lane.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 

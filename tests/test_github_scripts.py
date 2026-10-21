@@ -350,3 +350,16 @@ def test_every_meme_file_exists():
         assert path.is_file(), meme
         assert path.stat().st_size < 200_000, f"{meme} is large; resize it to about 360px wide"
         assert alt
+
+
+def test_the_prod_deploy_waits_for_the_same_tests_as_ci():
+    """D-064: deploy.yml tests the commit it deploys with CI's own test steps, and deploys only after them."""
+    import yaml
+
+    def jobs(name):
+        return yaml.safe_load((REPO_ROOT / ".github/workflows" / name).read_text(encoding="utf-8"))["jobs"]
+
+    ci, deploy = jobs("ci.yml")["repository-checks"], jobs("deploy.yml")
+    assert deploy["deploy"]["needs"] == "tests"
+    assert deploy["tests"]["steps"] == ci["steps"]
+    assert "environment" not in deploy["tests"], "the tests job must not read the prod token"

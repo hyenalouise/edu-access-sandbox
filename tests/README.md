@@ -1,6 +1,6 @@
 # Tests
 
-The pytest suite CI runs on every pull request: about 1,200 tests in 46 files, about 3 minutes. It uses **made-up data only** and no credentials, and it runs the real `src/` code and `etl/` SQL on DuckDB, so a test exercises what the job runs.
+The pytest suite CI runs on every pull request: about 1,300 tests in 50 files, about 7 minutes in CI. It uses **made-up data only** and no credentials, and it runs the real `src/` code and `etl/` SQL on DuckDB, so a test exercises what the job runs.
 
 ```mermaid
 flowchart LR
@@ -45,6 +45,8 @@ flowchart LR
 | Repository | `test_repo_policy.py` (no data or secrets, file size), `test_naming.py`, `test_config.py`, `test_documentation_structure.py`, `test_github_scripts.py`, `test_profiling_xlsx.py` |
 
 `conftest.py` provides two fixtures: `repo_root` and `repo_files` (every file git would commit).
+
+The HDX and school-boundary tests, and the whole-job tests that include them, need DuckDB's `spatial` extension, downloaded from `extensions.duckdb.org` on first use ([terminal setup, Part 7](../docs/getting-started/terminal-setup.md#part-7-python-environment)).
 
 ## Test inputs
 

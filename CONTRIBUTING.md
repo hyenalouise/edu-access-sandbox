@@ -35,7 +35,7 @@ flowchart LR
 | PR has a milestone | The pull request has no milestone (it is copied from the linked issue when the issue has one) |
 | PR declares AI help | The [AI help](#using-ai) section is not filled in correctly |
 
-After a merge to `main` that changes `databricks.yml`, `config/`, `dashboards/`, `etl/`, or `src/`, **CD - Deploy to Databricks prod** deploys the bundle to `prod`. It does not start a run ([workflows](.github/workflows/README.md)).
+After a merge to `main` that changes `databricks.yml`, `config/`, `dashboards/`, `etl/`, or `src/`, **CD - Deploy to Databricks prod** runs the tests on that commit and, only if they pass, deploys the bundle to `prod`. It does not start a run ([workflows](.github/workflows/README.md)).
 
 ## Commit messages
 

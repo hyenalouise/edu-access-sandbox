@@ -40,9 +40,8 @@ resources:
       name: edu_access_pipeline
       description: >-
         Validates and ingests nine approved education and geography sources
-        through Bronze; eight continue through Silver. Each Integration, Gold, and
-        Analytics task starts from the gates it reads (D-051); placeholders stay
-        visible but disabled.
+        through Bronze and Silver. Each Integration, Gold, and Analytics task
+        starts from the gates it reads (D-051).
 
       parameters:
         - name: code_revision

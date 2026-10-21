@@ -63,7 +63,8 @@ Each entry records **problem → decision → reason → consequence**. A **prov
 | D-059 | 2026-10-21 | Adopt literature-based AP2 and AP3 reference interpretations | Revised by D-060 | The values remain, but AP2 is an illustrative school-level screen and AP3 is context only |
 | D-060 | 2026-10-21 | Replace percentile tiers with a source-bounded classroom review queue | Superseded by D-061 | Kept as decision history; the matrix no longer ranks a classroom-only queue |
 | D-061 | 2026-10-21 | Replace the classroom-only queue with benchmarked current pressures and public-enrollment growth | Provisional | AP2 and AP3 are separate current-pressure flags; AP4 growth modifies urgency; AP1 and the population gap remain context |
-| D-063 | 2026-10-21 | `prod` is the first workspace (`dbc-76bcfddb-1669`), deployed by hand from a clean, pushed `main`; CLI profiles become `reached-hq-dev` and `reached-hq-prod` | Proposed | Same catalog and table names in both targets; the nine loaded sources are `accepted`; `prod` emails everyone through a workspace notification destination |
+| D-063 | 2026-10-21 | `prod` is the first workspace (`dbc-76bcfddb-1669`), deployed by hand from a clean, pushed `main`; CLI profiles become `reached-hq-dev` and `reached-hq-prod` | Proposed; revised by D-064 | Same catalog and table names in both targets; the nine loaded sources are `accepted`; `prod` emails everyone through a workspace notification destination |
+| D-064 | 2026-10-21 | `prod` is deployed by GitHub Actions after a merge to `main`, only once the tests pass on that commit | Proposed | The prod token lives in the `production` GitHub environment (`main` only); a merge whose tests fail or are cancelled deploys nothing |
 
 ---
 
@@ -738,3 +739,15 @@ Each entry records **problem → decision → reason → consequence**. A **prov
   - Every teammate renames their profiles or logs in again ([terminal setup, Part 12](../getting-started/terminal-setup.md#part-12-logging-in-to-databricks)).
 
   Proposed by @hyenalouise on 2026-10-21 in #99.
+
+## D-064: prod deploys from GitHub Actions, after the tests pass
+
+- **Problem:** #233 added `.github/workflows/deploy.yml`, which deploys `prod` on every push to `main` that changes what the job runs. That revises D-063's "There is no CD workflow, so no Databricks token is stored in GitHub". The deploy also ran independently of CI on `main`: on 2026-10-21 the deploy of `51dff76` succeeded while that commit's CI run was cancelled. Branch protection checks a pull request's head, not the commit that lands on `main`.
+- **Decision:**
+  - `prod` is deployed by `deploy.yml`, which runs `python -m src.job.deploy_prod`, so D-063's checks (clean `main`, equal to `origin/main`, team notification destination set) still apply. Deploying from a laptop with the same script stays possible.
+  - The prod token is the `DATABRICKS_TOKEN` secret of the `production` GitHub environment, whose deployment branches are `main` only. The `ci-validate` environment holds a separate `dev` token that can only validate.
+  - `deploy.yml` first runs the full test suite on the same commit (job "Tests pass on this commit"), and the deploy job needs it, so a commit whose tests fail or are cancelled is never deployed.
+- **Reason:** Keeps the "only from `main`" rule of D-063 while removing the manual step, without letting `prod` receive a commit the tests did not pass. Re-running the tests inside `deploy.yml` is simpler and more robust than chaining it to the CI workflow, whose checkout would not be on `main`.
+- **Consequence:** A deploy takes the test time (about 7 minutes) longer. A deploy still never starts a run; starting a `prod` run is agreed with the team, after the same commit has run on `dev` ([runbook, Deploying to prod](../operations/runbook.md#deploying-to-prod)). Deploys share one concurrency group that is never cancelled, and GitHub keeps only one pending run per group, so a second quick merge replaces the first's pending deploy. That is safe because the newer commit includes the older one, but if the newer commit's tests fail, `prod` stays on the commit before both until a fix merges. `tests/test_github_scripts.py` checks that the deploy needs the tests and that they are CI's own test steps. D-063's statements about a manual deploy and no token in GitHub are revised by this decision; its other parts stand.
+
+  Proposed by @saraevcldn on 2026-10-21 in #99.

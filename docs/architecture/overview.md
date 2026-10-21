@@ -189,10 +189,10 @@ Two bundle targets, each in its own Free Edition workspace (D-063). They are dep
 | Workspace | `dbc-2b6bf1c5-7bc3` | `dbc-76bcfddb-1669` (the team's first workspace, D-009) |
 | CLI profile | `reached-hq-dev` | `reached-hq-prod` |
 | Mode | `development`: each deployer gets their own `[dev <name>]` job, alert schedules paused | `production`: one shared job, `edu_access_pipeline`, under `/Workspace/Shared/.bundle/`; alert schedules run |
-| Deployed from | Any branch, to test it | Only a clean `main` equal to `origin/main`, with `python -m src.job.deploy_prod` ([runbook](../operations/runbook.md#deploying-to-prod)) |
+| Deployed from | Any branch, to test it | Only a clean `main` equal to `origin/main`, with `python -m src.job.deploy_prod`: automatically by [`deploy.yml`](../../.github/workflows/deploy.yml) after a merge, once the tests pass, or by hand ([runbook](../operations/runbook.md#deploying-to-prod)) |
 | `environment` on every row | `dev` | `prod` |
 
 - The catalog, schemas, and table names are the same in both. Being in separate workspaces is what keeps one from writing over the other, so no SQL changes between targets.
-- No CD workflow: the deploy is a manual step whose script checks the checkout first. It uses the deployer's own `reached-hq-prod` login, so no token is stored in GitHub or in the repository (D-004).
+- CD workflow (D-064): after a merge to `main` that changes what the job runs, [`deploy.yml`](../../.github/workflows/deploy.yml) runs the tests on that commit and, only if they pass, `python -m src.job.deploy_prod`. Its token is the `DATABRICKS_TOKEN` secret of the `production` GitHub environment (deployment branches: `main` only); no token is stored in the repository (D-004). A deploy never starts a run.
 - The job runs the commit it was deployed from (`git_source.git_commit: ${bundle.git.commit}`), and records the same value as `code_revision` on every row it writes. New code needs a deploy from a clean, pushed `main`.
 - Only `accepted` sources may load into `prod`; `profiled` sources load into `local` and `dev` only.

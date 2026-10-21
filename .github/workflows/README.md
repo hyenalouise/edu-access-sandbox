@@ -5,7 +5,7 @@ GitHub Actions for this repository. CI proves the code and repository behave; th
 | Workflow | Runs on | Jobs |
 |---|---|---|
 | [`ci.yml`](ci.yml) | Every pull request, every push to `main` | Repository checks (`python -m pytest tests -q`); Databricks bundle validates (`databricks bundle validate --target dev`); PR links an existing open issue and closes no parent; PR declares AI help; PR has a milestone |
-| [`deploy.yml`](deploy.yml) | Push to `main` that changes `databricks.yml`, `config/`, `dashboards/`, `etl/`, or `src/`; or by hand | Deploys the bundle to `prod` with `python -m src.job.deploy_prod`; never starts a run |
+| [`deploy.yml`](deploy.yml) | Push to `main` that changes `databricks.yml`, `config/`, `dashboards/`, `etl/`, or `src/`; or by hand | Runs the tests on the same commit, then, only if they pass, deploys the bundle to `prod` with `python -m src.job.deploy_prod`; never starts a run (D-064) |
 | [`triage.yml`](triage.yml) | Issue opened or edited; PR opened, reopened, or ready for review | Labels an issue from its `[TAG]`; assigns the PR author; requests the author's two reviewers and posts a reviewer comment |
 | [`issue-hygiene.yml`](issue-hygiene.yml) | Mondays 09:00 Manila, or by hand | Reports issues whose state disagrees with their sub-issues or the project board |
 
@@ -16,7 +16,7 @@ flowchart LR
     issue[Issue] --> triage
     cron[Monday schedule] --> hygiene[issue-hygiene.yml]
     ci -->|must pass| merge[Merge into main]
-    merge --> deploy[deploy.yml<br/>deploy to prod]
+    merge --> deploy[deploy.yml<br/>tests, then deploy to prod]
     deploy -.->|run agreed with the team| run[Job run on prod]
 ```
 

@@ -48,6 +48,22 @@ It brings together official DepEd, PSA, and HDX files, matches every school to t
 
 The question wording and its limits are in [business and analytical questions](docs/business/business-analytics-problem.md); the formulas are in the [metric specification](docs/business/metric-specification.md).
 
+## How the planning priority is set
+
+Each city and municipality gets one of six categories from three signals: **classroom pressure** (AP2: a school with 50 or more learners per reported room, PIDS 2025-10), **teacher pressure** (AP3: an offered level above ES 35, JHS 36, or SHS 80/3 learners per teacher), and **growing enrollment** (AP4: more public-school learners in SY 2025-26 than in SY 2020-21). The signals are counted, not weighted, so every category traces back to its measures.
+
+| Category | Classroom or teacher pressure | Growing enrollment |
+|---|---|---|
+| **Priority 1** | Both | Yes |
+| **Priority 2** | Both | No |
+| **Priority 2** | One | Yes |
+| **Priority 3** | One | No |
+| **Monitor** | None | Yes |
+| **No current pressure identified** | None | No |
+| **Data review** | None shown | A coverage check failed, or growth could not be assessed |
+
+A pressure counts only where its measure passes a 90% coverage check, and a known pressure is never hidden by missing data. Within a category, places with more pressures and more affected learners come first. AP1 and the census gap are shown as context only. The list orders review; it does not estimate shortages, hiring, or funding. SQL: [`05_build_priority_matrix.sql`](etl/06_analytics/05_build_priority_matrix.sql); full rule: [D-061](docs/governance/decisions.md#d-061-current-pressures-and-public-enrollment-growth-set-planning-priority).
+
 ## Data sources
 
 Nine official sources are loaded. Fifteen more were profiled and kept as context or set aside, each with a [source card](docs/data/source-inventory/README.md) saying why.

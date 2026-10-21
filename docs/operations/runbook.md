@@ -98,6 +98,22 @@ databricks bundle run edu_access_pipeline --target prod --profile reached-hq-pro
 
 Record the deploy and run in [`evidence/pipeline-runs/`](../../evidence/pipeline-runs/), naming `prod` and the workspace. The CLI also refuses `--target prod` from a branch other than `main` (`git.branch` in `databricks.yml`), so skipping the script still cannot deploy a branch.
 
+### Roll back
+
+Use this when a run passed every gate but a published result is wrong, for example after a rule change. A gate stops a build that fails a check; it cannot stop one that passes and is still wrong.
+
+- **Code:** revert the pull request on `main` (**Revert** on GitHub, reviewed like any other change). The merge redeploys `prod` through [`deploy.yml`](../../.github/workflows/deploy.yml) once the tests pass; redeploy `dev` from the same `main` ([Redeploy a fix](#redeploy-a-fix)). Then start a new run, so every published table is rebuilt by the reverted code. Confirm `code_revision` equals the revert commit.
+- **One published table, until the fixed run:** every published table is Delta, so its earlier versions are kept. Find the last good version and restore it:
+
+  ```sql
+  DESCRIBE HISTORY edu_access.`06-analytics`.lgu_priority_matrix;
+  RESTORE TABLE edu_access.`06-analytics`.lgu_priority_matrix TO VERSION AS OF <version>;
+  ```
+
+  A restore works only while the old version's files are still kept (Delta's default retention is 7 days once a `VACUUM` runs); past that, rerun the reverted code instead. Restore a table together with the tables built from it, to the versions of the same run (for example all of `06-analytics`), or the restored table disagrees with them until the fixed run; say which tables you restored when you announce it.
+
+  A restore changes a published table outside the job, so announce it, record it in [`evidence/pipeline-runs/`](../../evidence/pipeline-runs/) with the table, the version, and why, and follow it with a new run of the fixed code. Never restore a Bronze or control table: they are append-only records.
+
 ## Verify recovery
 
 Recovery is complete only when all of the following are true:
