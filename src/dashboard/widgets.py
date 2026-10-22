@@ -211,42 +211,29 @@ def choropleth(b, dataset, title, value, value_label, extra, mappings, order, de
     return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, version=1)
 
 
-def point_map(b, dataset, title, latitude, longitude, color, color_label, mappings, order, extra, desc=None):
-    """One point per row at (latitude, longitude), one colour per category; `extra` fields show in the tooltip."""
-    columns = [latitude, longitude, color] + [c for c, _ in extra]
+def point_map(b, dataset, title, latitude, longitude, color, color_label, mappings, order, extra, desc=None, size=None,
+              size_label=None):
+    """One point per row at (latitude, longitude), one colour per category, sized by `size` when given (colour and size
+    are the only point-map settings Databricks documents); `extra` fields show in the tooltip."""
+    columns = [latitude, longitude, color] + ([size] if size else []) + [c for c, _ in extra]
     encodings = {"coordinates": {"latitude": {"fieldName": latitude}, "longitude": {"fieldName": longitude}},
                  "color": cat(color, color_label, order, mappings),
                  "extra": [{"fieldName": c, "displayName": label} for c, label in extra]}
+    if size:
+        encodings["size"] = quant(size, size_label)
     return chart(b, "symbol-map", dataset, title, encodings, [(c, bt(c)) for c in dict.fromkeys(columns)], desc,
                  disaggregated=True, mark={"opacity": 0.8}, version=2)
 
 
-def theme_color(position):
-    return {"themeColorType": "visualizationColors", "position": position}
-
-
-def badges(colors, text_position):
-    """Badge-style cells: each value in colors, (value, palette position), gets that background and the text colour at
-    text_position, both positions in the theme's visualizationColors. The style, rules, condition and foregroundColor
-    shapes are copied from a Databricks export; backgroundColor and the "=" operator follow the same shape but no
-    export has confirmed them yet, so a wrong name here shows as plain text, not an error elsewhere."""
-    return {"type": "basic", "rules": [
-        {"condition": {"operand": {"type": "data-value", "value": value}, "operator": "="},
-         "foregroundColor": theme_color(text_position), "backgroundColor": theme_color(position)}
-        for value, position in colors]}
-
-
 def table(b, dataset, title, columns, desc=None):
-    """columns: (field, header, format or None[, style]); a style is a badges() rule set."""
+    """columns: (field, header, format or None)."""
     spec_columns = []
-    for field, header, fmt, *style in columns:
+    for field, header, fmt in columns:
         column = {"fieldName": field, "displayName": header}
         if fmt:
             column["format"] = fmt
-        if style:
-            column["style"] = style[0]
         spec_columns.append(column)
-    return chart(b, "table", dataset, title, {"columns": spec_columns}, [(f, bt(f)) for f, *_ in columns], desc,
+    return chart(b, "table", dataset, title, {"columns": spec_columns}, [(f, bt(f)) for f, _, _ in columns], desc,
                  disaggregated=True, version=2)
 
 
