@@ -164,7 +164,7 @@ def test_every_planning_status_has_a_plain_label_and_basis():
 
 
 def test_the_map_colours_each_lgu_by_its_priority_category():
-    # the reference map: one boundary per LGU from geo_first(boundary), a Priority category legend in the published
+    # the reference map: one boundary per LGU from geo_first(boundary), a Priority status legend in the published
     # order, and City or municipality, Review status and Learners in screened schools in the tooltip
     maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
     assert len(maps) == 1
@@ -173,18 +173,35 @@ def test_the_map_colours_each_lgu_by_its_priority_category():
     assert {f["name"]: f["expression"] for f in query["fields"]}["geo_first(boundary)"] == "ST_ASGEOJSON(FIRST(`boundary`))"
     assert not query["disaggregated"]
     color = encodings["color"]
-    assert (color["fieldName"], color["displayName"]) == ("queue_status", "Priority category")
+    assert (color["fieldName"], color["displayName"]) == ("queue_status", "Priority status")
     assert color["scale"]["sort"]["orderedValues"] == planner.QUEUE
     assert [m["value"] for m in color["scale"]["mappings"]] == planner.QUEUE
     assert [e["displayName"] for e in encodings["extra"]] == [
         "City or municipality", "Review status", "Learners in screened schools"]
 
 
-def test_data_and_method_shows_the_scope_line():
-    # the scope line was taken off the other three views in the editor (3af8ee1)
-    shown = {p["name"] for p in load()["pages"] for w in widgets(p) for q in w.get("queries", [])
-             if "fields" in q["query"] and q["query"]["datasetName"] == "scope"}
-    assert shown == {"data_and_method"}
+def test_tables_show_counts_written_with_separators():
+    # review of the 2026-10-22 export: table counts showed as 171855; every table cell is text from the SQL instead
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            if widget.get("spec", {}).get("widgetType") == "table":
+                for column in widget["spec"]["encodings"]["columns"]:
+                    assert "format" not in column, (page["name"], column["displayName"])
+
+
+def test_reasons_are_complete_capitalised_labels():
+    assert all(label[0].isupper() for label in planner.REASONS.values())
+    assert planner.REASONS["boundary changed 2020-2024"] == "Geographic boundaries changed"
+
+
+def test_region_rows_keep_the_order_the_sql_gives_them():
+    # sorted by the share of Priority 1 and 2 LGUs: the chart draws the rows unaggregated, in natural order
+    chart = next(w for p in load()["pages"] for w in widgets(p) if w.get("queries")
+                 and w["queries"][0]["query"]["datasetName"] == "ov_region")
+    assert chart["queries"][0]["query"]["disaggregated"]
+    assert chart["spec"]["encodings"]["y"]["scale"]["sort"] == {"by": "natural-order"}
+    sql = "".join(next(d for d in load()["datasets"] if d["name"] == "ov_region")["queryLines"])
+    assert "ORDER BY high_share DESC" in sql
 
 
 def test_barangay_and_measure_filters_sit_with_what_they_change():
@@ -295,9 +312,12 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
     assert ratio["Junior high"]["X1"] is None
     shown = {r["school_id"]: r for r in _rows(store, "sa_list", level="Junior high", lgu="Town One, Province")}
     assert shown["X1"]["per_teacher_txt"] == "Not assessable"  # a word, never null
-    # the comparison chart leaves it out at JHS rather than plotting the all-level ratio
-    assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS, lgu="Town One, Province")}
-    assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="Junior high", lgu="Town One, Province")}
+    # the bullet chart says so at JHS rather than plotting the all-level ratio, and names only JHS's comparison point
+    bullets = _rows(store, "sa_bullet", level="Junior high", lgu="Town One, Province", school="X1 · X1")
+    assert [(r["figure"], r["share_of_reference"]) for r in bullets] == [
+        ("Learners per reported room · 85.0 vs 50", 1.7), ("Learners per junior high teacher · not assessable", None)]
+    school = _rows(store, "sa_school", level="Elementary", lgu="Town One, Province", school="X1 · X1")[0]
+    assert school["teacher_kpi"] == "30.0 vs 35"
 
 
 def test_every_listed_school_says_why_and_what_to_verify(store):
