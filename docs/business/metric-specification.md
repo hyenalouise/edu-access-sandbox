@@ -343,6 +343,16 @@ AP1, the population-enrollment gap, poverty, Similar LGUs, and national distribu
 
 Before acting, users validate passing schools against actual K–12 classroom counts, building condition, shifts and utilization, enrolment projections, accessibility, and planned or funded projects. Those data are not all present in the current project.
 
+### Outlier sensitivity (D-065)
+
+The published planning priority keeps every otherwise valid school. A sensitivity check shows whether it depends on extreme school figures.
+
+1. **Fence.** For the classroom ratio within LGU type, and for the teacher ratio within LGU type and level, compute `Q1`, `Q3` and `IQR = Q3 − Q1` over the public schools in the ratio in SY 2023-24. The outer fences are `Q1 − 3 × IQR` and `Q3 + 3 × IQR`. A group of fewer than 10 schools has no fence.
+2. **Flag.** A classroom ratio above the upper fence is a suspected extreme outlier. A teacher ratio above the upper or below the lower fence is one. The flag is a quality result: nothing is deleted, capped, or corrected.
+3. **Scenario B.** Recalculate AP2 and AP3 without the flagged schools, removing each from both the numerator and the denominator of that ratio, keeping every enrolled learner in the coverage denominator, and apply the D-061 category and ordering again.
+4. **Status.** Priority-sensitive (category changes), Classification-sensitive (a pressure flag changes), Coverage-sensitive (a coverage gate no longer passes), Magnitude-sensitive (priority affected learners change by more than 10%), Stable, or No suspected outliers, the first that applies.
+5. **Use.** The published category stays the review status. An outlier-sensitive LGU needs its flagged schools verified before planning action.
+
 ## Candidate resource-gap calculations — blocked
 
 The following equations are arithmetically coherent but **not validated for dashboard use**:
