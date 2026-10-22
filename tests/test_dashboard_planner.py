@@ -128,9 +128,10 @@ def test_legends_axes_and_filters_use_the_review_status():
 
 def test_kpis_use_the_production_language():
     titles = {w["spec"]["frame"]["title"] for p in load()["pages"][:4] for w in kpis(p)}
-    assert {"LGUs requiring immediate joint review", "LGUs with a current pressure signal", "LGUs requiring data review",
-            "Verification items"} <= titles
-    assert not titles & {"Priority 1 LGUs", "LGUs with any pressure", "Data review LGUs", "Figures to verify"}
+    # the team's wording from the editor (975f004)
+    assert {"LGUs for immediate joint review", "LGUs with a current pressure signal", "LGUs needing data review",
+            "Figures to verify"} <= titles
+    assert not titles & {"Priority 1 LGUs", "LGUs with any pressure", "Data review LGUs"}
 
 
 def test_no_table_cell_is_coloured():

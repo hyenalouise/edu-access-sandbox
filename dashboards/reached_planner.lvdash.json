@@ -7789,9 +7789,9 @@
             "name": "text_001",
             "multilineTextboxSpec": {
               "lines": [
-                "# Where should the Local School Board review first?\n",
+                "# National Education Planning Overview\n",
                 "\n",
-                "Prioritizes cities and municipalities for validation using classroom pressure, teacher pressure, enrollment direction, and data completeness. It does not prescribe staffing, construction, or funding."
+                "Compares cities and municipalities using reported classroom pressure, teacher pressure, public-school enrollment growth, and data coverage."
               ]
             }
           },
@@ -8280,7 +8280,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "joint_kpi",
-                  "displayName": "LGUs requiring immediate joint review",
+                  "displayName": "LGUs for immediate joint review",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8289,9 +8289,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs requiring immediate joint review",
+                "title": "LGUs for immediate joint review",
                 "showDescription": true,
-                "description": "Priority 1, of all LGUs in view"
+                "description": "Classroom + teacher pressure, with growth"
               }
             }
           },
@@ -8337,7 +8337,7 @@
                 "showTitle": true,
                 "title": "LGUs with a current pressure signal",
                 "showDescription": true,
-                "description": "Priority 1 to 3, of all LGUs in view"
+                "description": "At least one current pressure signal"
               }
             }
           },
@@ -8372,7 +8372,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "learners_kpi",
-                  "displayName": "Learners above classroom screen",
+                  "displayName": "Learners above room reference",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8381,7 +8381,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Learners above classroom screen",
+                "title": "Learners above room reference",
                 "showDescription": true,
                 "description": "Share of public learners, SY 2023-24"
               }
@@ -8418,7 +8418,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "data_review_kpi",
-                  "displayName": "LGUs requiring data review",
+                  "displayName": "LGUs needing data review",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -8427,9 +8427,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs requiring data review",
+                "title": "LGUs needing data review",
                 "showDescription": true,
-                "description": "Insufficient data to assess, of all LGUs in view"
+                "description": "Insufficient data for assessment"
               }
             }
           },
@@ -8544,7 +8544,7 @@
                 "showTitle": true,
                 "title": "Planning priority across the Philippines",
                 "showDescription": true,
-                "description": "Each LGU is coloured by its priority category. A missing area has no published boundary, not no pressure."
+                "description": "Each city or municipality is colored by its current review status. An unshaded area may have no published boundary and should not be interpreted as having no pressure signal."
               }
             }
           },
@@ -8648,9 +8648,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Top LGUs to review",
+                "title": "LGUs for priority review",
                 "showDescription": true,
-                "description": "The first ten LGUs in view, in the published review order."
+                "description": "Shows the first ten LGUs in the current review order and the number of learners enrolled in flagged schools or education levels. Open LGU Profile to review the evidence for a selected LGU."
               }
             }
           },
@@ -8767,7 +8767,7 @@
                 "showTitle": true,
                 "title": "Review status by region",
                 "showDescription": true,
-                "description": "Each region's LGUs by review status, regions with the most Priority 1 and 2 first."
+                "description": "Shows how LGUs in each region are distributed across the review statuses. Regions with the most LGUs requiring immediate or high-priority review appear first."
               },
               "mark": {
                 "layout": "stack"
@@ -8844,9 +8844,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "What is driving priority?",
+                "title": "How review status is assigned?",
                 "showDescription": true,
-                "description": "LGUs by the two pressure signals, how many also have growing public enrollment, and the review status that results."
+                "description": "Combines classroom pressure, teacher pressure, and public-school enrollment growth. A pressure signal supports further review but does not establish an official shortage."
               }
             }
           },
@@ -8952,9 +8952,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGU review queue",
+                "title": "LGU review list",
                 "showDescription": true,
-                "description": "Orders LGUs for validation using classroom pressure, teacher pressure, enrollment direction, affected learners, and data readiness. A review order, not a performance rank, shortage, or allocation. Open LGU Profile and choose an LGU to see its evidence."
+                "description": "Lists cities and municipalities in the recommended review order using current pressure signals, enrollment growth, learners in flagged schools or levels, and data coverage. "
               }
             }
           },
@@ -9012,9 +9012,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "LGUs requiring data review",
+                "title": "LGUs needing data review",
                 "showDescription": true,
-                "description": "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked."
+                "description": "Lists LGUs without enough information for a complete assessment. The reason column identifies the figures that require confirmation or completion."
               }
             }
           },
@@ -9135,7 +9135,7 @@
                 "showTitle": true,
                 "title": "Review status by LGU type",
                 "showDescription": true,
-                "description": "Share of cities and of municipalities in each review status."
+                "description": "Compares the share of cities and municipalities in each review status. Use this view to see whether the distribution differs by LGU type."
               },
               "mark": {
                 "layout": "stack"
@@ -9184,15 +9184,7 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "People",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    },
-                    "abbreviation": "compact"
-                  }
+                  "displayName": "People"
                 },
                 "y": {
                   "fieldName": "region_short",
@@ -9236,7 +9228,7 @@
                 "showTitle": true,
                 "title": "Resident children and local enrollment by region",
                 "showDescription": true,
-                "description": "Resident children ages 5-17 (2024) beside learners enrolled in local schools in all sectors (SY 2024-25), largest region first, from the LGUs left after the filters. Children are counted where they live and learners where they attend, so the two differ; the difference is not a count of out-of-school children or of schools needed."
+                "description": "Compares resident children ages 5-17 in 2024 with learners enrolled in local schools in SY 2024-25. Population is counted where children live, while enrollment is counted where learners attend, so the difference is not a count of children out of school."
               },
               "mark": {
                 "layout": "group"
@@ -9772,7 +9764,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "classroom_kpi",
-                  "displayName": "Schools above classroom screen",
+                  "displayName": "Schools above room reference",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -9781,9 +9773,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Schools above classroom screen",
+                "title": "Schools above room reference",
                 "showDescription": true,
-                "description": "Of schools assessed, at 50+ learners per room"
+                "description": "At least 50 learners per reported room"
               }
             }
           },
@@ -9818,7 +9810,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Levels above teacher comparison",
+                  "displayName": "Levels above teacher reference",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -9827,9 +9819,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Levels above teacher comparison",
+                "title": "Levels above teacher reference",
                 "showDescription": true,
-                "description": "Of education levels assessed; named in the panel below"
+                "description": "Of education levels assessed"
               }
             }
           },
@@ -9921,7 +9913,7 @@
                 "showTitle": true,
                 "title": "Lowest learner coverage",
                 "showDescription": true,
-                "description": "Classrooms and offered teacher levels"
+                "description": "Across classroom and teacher measures"
               }
             }
           },
@@ -10029,7 +10021,7 @@
                 "showTitle": true,
                 "title": "Why this LGU has this status",
                 "showDescription": true,
-                "description": "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the review status they produce."
+                "description": "Shows whether classroom pressure, teacher pressure, and public-school enrollment growth are present. These results combine to produce the selected LGU\u2019s review status."
               }
             }
           },
@@ -10103,9 +10095,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Measures and comparison points",
+                "title": "Key measures and references",
                 "showDescription": true,
-                "description": "Each measure beside its published comparison point, SY 2023-24. Teacher ratios to one decimal."
+                "description": "Places the selected LGU\u2019s reported measures beside the references used by the dashboard. The references support comparison and review; they do not define staffing or construction requirements."
               }
             }
           },
@@ -10204,7 +10196,7 @@
                 "showTitle": true,
                 "title": "Learners per reported teacher by level",
                 "showDescription": true,
-                "description": "Each offered level's learners per reported teacher against its published comparison point, on one scale; past the line is above it. Not a staffing entitlement."
+                "description": "Compares learners per reported teacher with the reference for each education level. A value above the line indicates a teacher pressure signal for that level, not the number of teachers that should be added."
               },
               "annotations": [
                 {
@@ -10285,15 +10277,7 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Learners",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    },
-                    "abbreviation": "compact"
-                  }
+                  "displayName": "Learners"
                 },
                 "color": {
                   "fieldName": "scope",
@@ -10322,9 +10306,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Enrollment over time",
+                "title": "Enrollment by school year",
                 "showDescription": true,
-                "description": "Public-school and all-sector enrollment by school year. Public is part of all sectors, so the lines are not added."
+                "description": "Shows public-school enrollment and enrollment across all school sectors for each available school year. Public-school enrollment forms part of the all-sector total, so the two series should not be added together."
               }
             }
           },
@@ -10427,7 +10411,7 @@
                 "showTitle": true,
                 "title": "Change in school-age population, 2020\u20132024",
                 "showDescription": true,
-                "description": "Percentage change in resident children by the school level matching their age."
+                "description": "Shows the percentage change in resident children from 2020 to 2024 for the age group associated with each education level. Positive and negative values indicate population growth or decline."
               },
               "annotations": [
                 {
@@ -10504,15 +10488,7 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "People",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    },
-                    "abbreviation": "compact"
-                  }
+                  "displayName": "People"
                 },
                 "color": {
                   "fieldName": "series",
@@ -10546,7 +10522,7 @@
                 "showTitle": true,
                 "title": "Resident children and local enrollment",
                 "showDescription": true,
-                "description": "Children are counted where they live, learners where they attend school. A school hub can enroll more learners than its resident children; the gap is not a count of children out of school."
+                "description": "Compares resident children ages 5-17 with learners enrolled in schools located in the LGU. Learners may attend schools outside their home LGU, so the difference is not a count of children out of school."
               },
               "mark": {
                 "layout": "group"
@@ -10595,14 +10571,7 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Affected learners",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  }
+                  "displayName": "Affected learners"
                 },
                 "y": {
                   "fieldName": "lgu",
@@ -10666,7 +10635,7 @@
                 "showTitle": true,
                 "title": "Where does this LGU stand in its province?",
                 "showDescription": true,
-                "description": "The LGUs of the selected LGU's province, or its region for an independent city, ranked by affected learners and coloured by review status; the selected LGU is marked (selected). Affected learners: the larger of the learners in schools above the classroom screen and the learners at levels above the teacher comparison point."
+                "description": "Compares the selected LGU with others in its province, or with its region when the selected LGU is an independent city. Ordering uses the number of learners enrolled in flagged schools or education levels."
               }
             }
           },
@@ -10899,9 +10868,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "School locations and barangay access",
+                "title": "Public-school locations",
                 "showDescription": true,
-                "description": "Public schools with validated coordinates in the selected LGU, coloured by school status and sized by public learners, SY 2023-24 published locations. Not catchment areas, routes or walking distance."
+                "description": "Shows public schools with usable coordinates, colored by validation status and sized by enrollment. Markers represent reported locations and do not show catchment areas, travel routes, or walking distance."
               },
               "mark": {
                 "opacity": 0.8
@@ -11126,7 +11095,7 @@
                 "showTitle": true,
                 "title": "Barangays without a matched public elementary school",
                 "showDescription": true,
-                "description": "Only barangays where the available records match no public elementary school. A school in a nearby barangay may still serve learners across barangay boundaries. Empty when every barangay has one."
+                "description": "Lists barangays where the available records do not match a public elementary school. A school in a nearby barangay may still serve learners across barangay boundaries."
               }
             }
           },
@@ -11200,9 +11169,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Schools to validate first",
+                "title": "Schools to verify first",
                 "showDescription": true,
-                "description": "Schools with a figure to verify first, then the highest classroom pressure. Full list on School Action."
+                "description": "Shows schools with figures requiring confirmation first, followed by schools with the highest reported classroom pressure. The complete list is available on School Review and Action."
               }
             }
           },
@@ -11270,7 +11239,7 @@
                 "showTitle": true,
                 "title": "Data coverage and checks",
                 "showDescription": true,
-                "description": "Whether enough data were reported for each measure, and schools left out for a missing or zero count."
+                "description": "Shows the share of learner enrollment covered by each measure. It also identifies schools excluded from assessment because of missing or zero reported room or teacher counts."
               }
             }
           },
@@ -12143,7 +12112,7 @@
                 "showTitle": true,
                 "title": "Learners per teacher",
                 "showDescription": true,
-                "description": "At the chosen level, vs its comparison point"
+                "description": "Selected level \u00b7 Compared with reference"
               }
             }
           },
@@ -12224,7 +12193,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "verify_kpi",
-                  "displayName": "Verification items",
+                  "displayName": "Figures to verify",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -12233,9 +12202,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Verification items",
+                "title": "Figures to verify",
                 "showDescription": true,
-                "description": "A flag means verify, not incorrect"
+                "description": "A flag means confirm the figure"
               }
             }
           },
@@ -12342,7 +12311,7 @@
                 "showTitle": true,
                 "title": "Classroom and teacher figures against their references",
                 "showDescription": true,
-                "description": "Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's teacher comparison point. Past the line is beyond the reference. Every level has its own row; a level the school does not offer has no bar. Exact figures are in the table below."
+                "description": "Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's teacher comparison point. Past the line is beyond the reference."
               },
               "annotations": [
                 {
@@ -12417,9 +12386,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "What should be verified?",
+                "title": "What needs to be verified?",
                 "showDescription": true,
-                "description": "Each flag turned into a step with the school or the Schools Division Office."
+                "description": "Explains why each figure was flagged and identifies what the school or Schools Division Office should confirm. A flagged figure requires validation and is not automatically incorrect."
               }
             }
           },
@@ -12539,7 +12508,7 @@
                 "showTitle": true,
                 "title": "Classroom and teacher pressure among schools in this LGU",
                 "showDescription": true,
-                "description": "Each dot is a public school offering the chosen level, sized by learners and coloured by the pressure it shows: classroom pressure at 50 or more learners per reported room (past the line), teacher pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior high 26.7). Schools with no rooms or teachers reported cannot be placed and are listed below."
+                "description": "Each dot is a public school offering the chosen level, sized by learners and coloured by the pressure it shows: classroom pressure at 50 or more learners per reported room (past the line), teacher pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior high 26.7). "
               },
               "annotations": [
                 {
@@ -12687,9 +12656,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "School location",
+                "title": "Nearby public schools",
                 "showDescription": true,
-                "description": "The selected school and public schools within about 3 km, coloured by school type (secondary is junior and/or senior high) and sized by learners. Empty when the school has no validated location; no barangay boundary is drawn."
+                "description": "Shows the selected school and public schools within approximately three kilometers, colored by school type and sized by enrollment. Proximity is based on straight-line distance and does not represent a route or travel time."
               },
               "mark": {
                 "opacity": 0.8
@@ -12756,14 +12725,7 @@
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Learners",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
-                  }
+                  "displayName": "Learners"
                 },
                 "color": {
                   "fieldName": "series",
@@ -12804,7 +12766,7 @@
                 "showTitle": true,
                 "title": "How has enrollment changed in this school?",
                 "showDescription": true,
-                "description": "Total enrollment, and each offered level when there is more than one. A missing year leaves a gap. Shows whether pressure is persistent, rising or falling."
+                "description": "Shows total enrollment and enrollment by offered education level for each available school year. A gap indicates that no comparable figure is available for that year."
               }
             }
           },
@@ -12896,7 +12858,7 @@
                 "showTitle": true,
                 "title": "Reported rooms and teachers",
                 "showDescription": true,
-                "description": "SY 2023-24. Teachers are counted by level; rooms only for the whole school."
+                "description": "Shows enrollment and reported teachers by education level, together with instructional rooms for the whole school. Temporary and makeshift rooms appear separately where reported."
               }
             }
           },
@@ -13152,7 +13114,7 @@
                 "showTitle": true,
                 "title": "School validation list",
                 "showDescription": true,
-                "description": "Schools with a figure to verify first, then the highest classroom pressure. Levels: ES elementary, JHS junior high, SHS senior high; the download spells them out and adds the school ID, main or annex, enrollment change, temporary or makeshift rooms and locally funded teachers."
+                "description": "Lists schools with figures requiring confirmation first, followed by schools with the highest reported classroom pressure. Use the reason and suggested verification columns to prepare follow-up with the school or Schools Division Office."
               }
             }
           },
@@ -13229,7 +13191,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "classroom_kpi",
-                  "displayName": "Classrooms assessed",
+                  "displayName": "Classroom data coverage",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -13238,9 +13200,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Classrooms assessed",
+                "title": "Classroom data coverage",
                 "showDescription": true,
-                "description": "LGUs with 90%+ learners in schools with a room count"
+                "description": "LGUs with at least 90% coverage"
               }
             }
           },
@@ -13275,7 +13237,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Teachers assessed",
+                  "displayName": "Teacher data coverage",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -13284,9 +13246,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Teachers assessed",
+                "title": "Teacher data coverage",
                 "showDescription": true,
-                "description": "LGUs where every offered level has 90%+ coverage"
+                "description": "LGUs with at least 90% coverage"
               }
             }
           },
@@ -13332,7 +13294,7 @@
                 "showTitle": true,
                 "title": "Comparable enrollment trends",
                 "showDescription": true,
-                "description": "LGUs with complete years and unchanged boundaries"
+                "description": "Complete years and stable boundaries"
               }
             }
           },
@@ -13367,7 +13329,7 @@
               "encodings": {
                 "value": {
                   "fieldName": "updated",
-                  "displayName": "Last refresh",
+                  "displayName": "Last data update",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
@@ -13376,9 +13338,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Last refresh",
+                "title": "Last data update",
                 "showDescription": true,
-                "description": "Latest successful pipeline run"
+                "description": "Latest successful refresh"
               }
             }
           },
@@ -13492,7 +13454,7 @@
                 "showTitle": true,
                 "title": "How the review status is assigned",
                 "showDescription": true,
-                "description": "Two current pressure signals, classroom and teacher, and public-enrollment growth produce each status. A known pressure always counts; where growth cannot be checked, the LGU is placed as if it were not growing."
+                "description": "Shows how classroom pressure, teacher pressure, and public-school enrollment growth combine to produce each review status. A known pressure signal remains part of the result when another measure cannot be fully assessed."
               }
             }
           },
@@ -13560,7 +13522,7 @@
                 "showTitle": true,
                 "title": "Published comparison points",
                 "showDescription": true,
-                "description": "The values the Analytics SQL writes. A comparison, never a staffing or construction entitlement."
+                "description": "Lists the references used to identify classroom and teacher pressure signals. These values support consistent comparison across LGUs and are not official staffing ratios, construction standards, or funding entitlements."
               }
             }
           },
@@ -13776,7 +13738,7 @@
                 "showTitle": true,
                 "title": "Data coverage by measure",
                 "showDescription": true,
-                "description": "Assessed, incomplete, and unavailable shares of LGUs for each measure."
+                "description": "Shows the share of LGUs with sufficient, incomplete, or unavailable information for each measure. Sufficient coverage means that the required learner-coverage rule has been met."
               },
               "mark": {
                 "layout": "stack"
@@ -13886,7 +13848,7 @@
                 "showTitle": true,
                 "title": "Teacher-pressure assessment by level",
                 "showDescription": true,
-                "description": "Above, at or below, or not assessed against the comparison point."
+                "description": "Shows how LGUs compare with the teacher reference for elementary, junior high, and senior high school. LGUs without enough reported data appear as insufficient data."
               },
               "mark": {
                 "layout": "stack"
@@ -13981,7 +13943,7 @@
                 "showTitle": true,
                 "title": "Why some LGUs need data review",
                 "showDescription": true,
-                "description": "The Data review LGUs by the input that could not be checked. One LGU may have more than one reason."
+                "description": "Shows which required inputs could not be assessed for LGUs needing additional data review. One LGU may have more than one reason and may therefore appear in several categories."
               },
               "mark": {
                 "layout": "stack"
@@ -14077,7 +14039,7 @@
                 "showTitle": true,
                 "title": "Enrollment trend availability",
                 "showDescription": true,
-                "description": "Complete and comparable, an incomplete school year, or changed boundaries."
+                "description": "Shows whether each LGU has a complete and comparable enrollment trend. Incomplete school years or geographic-boundary changes may prevent a reliable comparison over time."
               }
             }
           },
@@ -14141,9 +14103,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "How concentrated classroom pressure is",
+                "title": "Share of learners above room reference",
                 "showDescription": true,
-                "description": "Assessed LGUs by the share of their learners in schools above the classroom screen."
+                "description": "Groups assessed LGUs by the share of public-school learners enrolled in schools at or above 50 learners per reported instructional room. This shows how concentrated the classroom signal is within each LGU."
               }
             }
           },
@@ -14235,7 +14197,7 @@
                 "showTitle": true,
                 "title": "Available school years by source",
                 "showDescription": true,
-                "description": "Enrollment spans several years; classroom and teacher data exist only for SY 2023-24."
+                "description": "Shows which school years are available for enrollment, classroom, and teacher measures. Enrollment spans several years, while comparable classroom and teacher figures are currently available only for SY 2023-24."
               }
             }
           },
@@ -14252,10 +14214,10 @@
             "multilineTextboxSpec": {
               "lines": [
                 "## What this dashboard cannot tell you\n\n",
+                "Summarizes decisions that still require local evidence, including the number of resources to add, room condition and use, learner travel, and the appropriate intervention. Confirm these conditions before using the results for planning.\n\n",
                 "- **How many resources to add.** The review order is not an official shortage, staffing entitlement, construction need or funding allocation.\n",
                 "- **Room condition or use.** Reported rooms do not show condition, shifts or utilization.\n",
-                "- **Travel or access.** Enrollment is counted at the school, not where learners live.\n\n",
-                "Full methodology: the dashboards README in the project repository."
+                "- **Travel or access.** Enrollment is counted at the school, not where learners live."
               ]
             }
           },

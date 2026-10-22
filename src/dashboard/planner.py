@@ -1297,65 +1297,68 @@ def status_share_bar(b, dataset, title, category, label, value, order, desc, raw
 def overview(b):
     p = Page("overview", "National Overview")
     targets = [n for n in b.params if n.startswith("ov_")]
-    intro = text(b, "# Where should the Local School Board review first?\n", "\n",
-                 "Prioritizes cities and municipalities for validation using classroom pressure, teacher pressure, "
-                 "enrollment direction, and data completeness. It does not prescribe staffing, construction, or funding.")
+    intro = text(b, "# National Education Planning Overview\n", "\n",
+                 "Compares cities and municipalities using reported classroom pressure, teacher pressure, public-school "
+                 "enrollment growth, and data coverage.")
     queue = param_filter(b, "queue", "Review status", targets, "Show LGUs with the selected review status.")
     coverage = param_filter(b, "coverage", "Data readiness", targets,
                             "Separate assessed LGUs from LGUs with insufficient data.")
     p.columns([(8, [(intro, 2)]), (4, [(queue, 1), (coverage, 1)])], 2)
-    p.row([(kpi(b, "ov_kpi", "LGUs requiring immediate joint review", "joint_kpi", None, desc="Priority 1, of all LGUs in view",
+    p.row([(kpi(b, "ov_kpi", "LGUs for immediate joint review", "joint_kpi", None, desc="Classroom + teacher pressure, with growth",
                 style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "LGUs with a current pressure signal", "any_kpi", None, desc="Priority 1 to 3, of all LGUs in view",
+           (kpi(b, "ov_kpi", "LGUs with a current pressure signal", "any_kpi", None, desc="At least one current pressure signal",
                 style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "Learners above classroom screen", "learners_kpi", None,
+           (kpi(b, "ov_kpi", "Learners above room reference", "learners_kpi", None,
                 desc="Share of public learners, SY 2023-24", style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "LGUs requiring data review", "data_review_kpi", None, desc="Insufficient data to assess, of all LGUs in view",
+           (kpi(b, "ov_kpi", "LGUs needing data review", "data_review_kpi", None, desc="Insufficient data for assessment",
                 style=KPI_STYLE), 3)], 3)
     queue_map = choropleth(
         b, "ov_map", "Planning priority across the Philippines", "queue_status", "Review status",
         [("lgu_label", "City or municipality"), ("queue_status", "Review status"),
          ("ap2_affected_learners", "Learners in screened schools")], QUEUE_COLORS, QUEUE,
-        "Each LGU is coloured by its priority category. A missing area has no published boundary, not no pressure.",
+        "Each city or municipality is colored by its current review status. An unshaded area may have no "
+        "published boundary and should not be interpreted as having no pressure signal.",
         legend=LEGEND_BOTTOM)
     map_note = note(b, "ov_map_note", "Map coverage", "map_line", style=LINE_STYLE, show_title=False)
-    top = table(b, "ov_top", "Top LGUs to review", [
+    top = table(b, "ov_top", "LGUs for priority review", [
         ("rank_in_view", "#", None), ("city_mun_name", "City or municipality", None),
         ("affected_txt", "Affected learners", None)],
-        "The first ten LGUs in view, in the published review order.")
+        "Shows the first ten LGUs in the current review order and the number of learners enrolled in flagged "
+        "schools or education levels. Open LGU Profile to review the evidence for a selected LGU.")
     p.columns([(8, [(queue_map, 10), (map_note, 1)]), (4, [(top, 11)])], 11)
     p.row([(status_share_bar(b, "ov_region", "Review status by region", "region_short", "Region", "share_of_region",
-                             None, "Each region's LGUs by review status, regions with the most Priority 1 and 2 first.",
+                             None, "Shows how LGUs in each region are distributed across the review statuses. Regions with the most LGUs "
+                                   "requiring immediate or high-priority review appear first.",
                              raw=True), 6),
-           (table(b, "ov_signals", "What is driving priority?", [
+           (table(b, "ov_signals", "How review status is assigned?", [
                ("classroom_signal", "Classroom pressure", None), ("teacher_signal", "Teacher pressure", None),
                ("lgus", "LGUs", None), ("growing", "Growing enrollment", None),
                ("resulting_status", "Review status", None)],
-               "LGUs by the two pressure signals, how many also have growing public enrollment, and the review status "
-               "that results."), 6)], 8)
-    p.row([(table(b, "ov_lgu", "LGU review queue", [
+               "Combines classroom pressure, teacher pressure, and public-school enrollment growth. A pressure "
+               "signal supports further review but does not establish an official shortage."), 6)], 8)
+    p.row([(table(b, "ov_lgu", "LGU review list", [
         ("rank_in_view", "#", None), ("city_mun_name", "City or municipality", None),
         ("province_label", "Province", None), ("region_short", "Region", None),
         ("queue_status", "Review status", None), ("status_label", "Planning status", None),
         ("pressure_signals", "Pressure signals", None), ("affected_txt", "Affected learners", None),
         ("data_readiness", "Data readiness", None)],
-        "Orders LGUs for validation using classroom pressure, teacher pressure, enrollment direction, affected "
-        "learners, and data readiness. A review order, not a performance rank, shortage, or allocation. Open LGU "
-        "Profile and choose an LGU to see its evidence."), 12)], 8)
-    p.row([(table(b, "ov_insufficient", "LGUs requiring data review", [
+        "Lists cities and municipalities in the recommended review order using current pressure signals, "
+        "enrollment growth, learners in flagged schools or levels, and data coverage. "), 12)], 8)
+    p.row([(table(b, "ov_insufficient", "LGUs needing data review", [
                ("city_mun_name", "City or municipality", None), ("region_short", "Region", None),
                ("not_assessed_reason_txt", "Reason data could not be assessed", None)],
-               "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked."), 6),
+               "Lists LGUs without enough information for a complete assessment. The reason column identifies the "
+               "figures that require confirmation or completion."), 6),
            (status_share_bar(b, "ov_type", "Review status by LGU type", "lgu_type_label", "LGU type", "share_of_type",
                              ["City", "Municipality"],
-                             "Share of cities and of municipalities in each review status."), 6)], 7)
+                             "Compares the share of cities and municipalities in each review status. Use this view to see whether "
+                             "the distribution differs by LGU type."), 6)], 7)
     p.row([(bar(b, "ov_region_pairs", "Resident children and local enrollment by region", "region_short", "Region", "sum",
                 "people", "People", color="series", color_label="", mappings=REGION_COLORS, color_order=REGION_SERIES,
-                fmt=num(1, True), layout="group", legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
-                desc="Resident children ages 5-17 (2024) beside learners enrolled in local schools in all sectors "
-                     "(SY 2024-25), largest region first, from the LGUs left after the filters. Children are counted where "
-                     "they live and learners where they attend, so the two differ; the difference is not a count of "
-                     "out-of-school children or of schools needed."), 12)], 11)
+                layout="group", legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
+                desc="Compares resident children ages 5-17 in 2024 with learners enrolled in local schools in SY 2024-25. "
+                     "Population is counted where children live, while enrollment is counted where learners attend, so the "
+                     "difference is not a count of children out of school."), 12)], 11)
     p.row([(text(b, "**Next:** open **LGU Profile** and choose a city or municipality from the queue.\n", "\n",
                  "Before acting, validate flagged schools against actual classroom counts, building condition, shifts, "
                  "enrollment projections and planned projects. The queue prioritizes validation, not allocation."), 12)], 2)
@@ -1376,86 +1379,94 @@ def lgu_profile(b):
                 desc="Type · province or region · national review order · data readiness",
                 style=DETAIL_STYLE, heading=True, align="left"), 7)], 1)
     p.row([(note(b, "pr_card", "Facts", "facts", style=LINE_STYLE, show_title=False), 12)], 1)
-    p.row([(kpi(b, "pr_card", "Schools above classroom screen", "classroom_kpi", None,
-                desc=f"Of schools assessed, at {SCREEN}+ learners per room", style=KPI_STYLE), 3),
-           (kpi(b, "pr_card", "Levels above teacher comparison", "teacher_kpi", None,
-                desc="Of education levels assessed; named in the panel below", style=KPI_STYLE), 3),
+    p.row([(kpi(b, "pr_card", "Schools above room reference", "classroom_kpi", None,
+                desc="At least 50 learners per reported room", style=KPI_STYLE), 3),
+           (kpi(b, "pr_card", "Levels above teacher reference", "teacher_kpi", None,
+                desc="Of education levels assessed", style=KPI_STYLE), 3),
            (kpi(b, "pr_card", "Public enrollment change", "enrollment_kpi", None,
                 desc="SY 2020-21 to SY 2025-26", style=KPI_STYLE), 3),
            (kpi(b, "pr_card", "Lowest learner coverage", "readiness_kpi", None,
-                desc="Classrooms and offered teacher levels", style=KPI_STYLE), 3)], 3)
+                desc="Across classroom and teacher measures", style=KPI_STYLE), 3)], 3)
     p.row([(kpi(b, "pr_card", "Review status", "status_line", None, desc="Review status · planning status: basis",
                 style=STATUS_STYLE, heading=True, align="left"), 12)], 1)
     p.row([(table(b, "pr_decision", "Why this LGU has this status", [
                 ("signal", "Signal", None), ("result", "Result", None), ("basis", "Basis", None)],
-                "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the review status "
-                "they produce."), 6),
-           (table(b, "pr_evidence", "Measures and comparison points", [
+                "Shows whether classroom pressure, teacher pressure, and public-school enrollment growth are present. "
+                "These results combine to produce the selected LGU’s review status."), 6),
+           (table(b, "pr_evidence", "Key measures and references", [
                 ("measure", "Measure", None), ("this_lgu", "This LGU", None), ("comparison", "Comparison point", None),
                 ("status", "Status", None), ("coverage", "Coverage", None)],
-                "Each measure beside its published comparison point, SY 2023-24. Teacher ratios to one decimal."), 6)], 5)
+                "Places the selected LGU’s reported measures beside the references used by the dashboard. The "
+                "references support comparison and review; they do not define staffing or construction requirements."), 6)], 5)
     p.row([(bar(b, "pr_teachers", "Learners per reported teacher by level", "level_axis", "Level",
                 "max", "share_of_comparison", "Share of the comparison point", fmt=pct(0), color="status",
                 color_label="Against the comparison point", mappings=LEVEL_COLORS, color_order=LEVEL_STATUS,
                 legend=LEGEND_BOTTOM, annotations=[ref_line("x", 1, "Comparison point")],
-                desc="Each offered level's learners per reported teacher against its published comparison point, on one "
-                     "scale; past the line is above it. Not a staffing entitlement."), 6),
-           (line(b, "pr_enrollment", "Enrollment over time", "school_year_label", "School year", "sum", "learners",
-                 "Learners", num(1, True), color="scope", color_label="Scope",
+                desc="Compares learners per reported teacher with the reference for each education level. A value above "
+                     "the line indicates a teacher pressure signal for that level, not the number of teachers that should "
+                     "be added."), 6),
+           (line(b, "pr_enrollment", "Enrollment by school year", "school_year_label", "School year", "sum", "learners",
+                 "Learners", color="scope", color_label="Scope",
                  mappings=[{"value": ENROLLMENT_SERIES[0], "color": "#C9A227"},
                            {"value": ENROLLMENT_SERIES[1], "color": "#5B6B7A"}],
                  color_order=ENROLLMENT_SERIES, x_order=SCHOOL_YEARS,
-                 desc="Public-school and all-sector enrollment by school year. Public is part of all sectors, so the "
-                      "lines are not added."), 6)], 7)
+                 desc="Shows public-school enrollment and enrollment across all school sectors for each available school "
+                      "year. Public-school enrollment forms part of the all-sector total, so the two series should not be "
+                      "added together."), 6)], 7)
     p.row([(bar(b, "pr_cohorts", "Change in school-age population, 2020–2024", "age_band", "Age group", "max",
                 "change", "Change, 2020 to 2024", order=BANDS, fmt=pct(1), color="direction", color_label="Direction",
                 mappings=CHANGE_COLORS, color_order=[c["value"] for c in CHANGE_COLORS], legend=LEGEND_BOTTOM,
                 annotations=[ref_line("x", 0, "No change")],
-                desc="Percentage change in resident children by the school level matching their age."), 6),
+                desc="Shows the percentage change in resident children from 2020 to 2024 for the age group associated with "
+                     "each education level. Positive and negative values indicate population growth or decline."), 6),
            (bar(b, "pr_census", "Resident children and local enrollment", "period", "Census", "sum", "people", "People",
                 horizontal=False, color="series", color_label="Series",
                 mappings=[{"value": CENSUS_SERIES[0], "color": "#5B6B7A"}, {"value": CENSUS_SERIES[1], "color": "#C9A227"}],
-                order=CENSUS_YEARS, color_order=CENSUS_SERIES, layout="group", fmt=num(1, True), legend=LEGEND_BOTTOM,
-                desc="Children are counted where they live, learners where they attend school. A school hub can enroll "
-                     "more learners than its resident children; the gap is not a count of children out of school."), 6)], 7)
+                order=CENSUS_YEARS, color_order=CENSUS_SERIES, layout="group", legend=LEGEND_BOTTOM,
+                desc="Compares resident children ages 5-17 with learners enrolled in schools located in the LGU. Learners "
+                     "may attend schools outside their home LGU, so the difference is not a count of children out of "
+                     "school."), 6)], 7)
     peers = bar(
         b, "pr_peers", "Where does this LGU stand in its province?", "lgu", "City or municipality", "sum",
         "affected_learners", "Affected learners", color="queue_status", color_label="Review status",
-        mappings=QUEUE_COLORS, color_order=QUEUE, fmt=num(), legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
-        desc="The LGUs of the selected LGU's province, or its region for an independent city, ranked by affected learners "
-             "and coloured by review status; the selected LGU is marked (selected). Affected learners: the larger of the "
-             "learners in schools above the classroom screen and the learners at levels above the teacher comparison point.")
+        mappings=QUEUE_COLORS, color_order=QUEUE, legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
+        desc="Compares the selected LGU with others in its province, or with its region when the selected LGU is "
+             "an independent city. Ordering uses the number of learners enrolled in flagged schools or education "
+             "levels.")
     peer_note = note(b, "pr_peer_note", "Selected LGU", "peer_line", style=LINE_STYLE, show_title=False)
     p.columns([(12, [(peers, 10), (peer_note, 1)])], 11)
     barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_map", "pr_map_note"],
                             "Narrows the school map and barangay table only.", options=("opt_barangay", "barangay_option"))
     school_map = point_map(
-        b, "pr_map", "School locations and barangay access", "latitude", "longitude", "map_series", "School status",
+        b, "pr_map", "Public-school locations", "latitude", "longitude", "map_series", "School status",
         MAP_COLORS, [c["value"] for c in MAP_COLORS],
         [("school_name", "School"), ("school_id", "School ID"), ("barangay_name", "Barangay"), ("school_kind", "Main or annex"),
          ("levels_offered_full", "Levels offered"), ("learners_txt", "Public learners, SY 2023-24"),
          ("per_room_txt", "Learners per reported room"), ("per_teacher_txt", "Learners per reported teacher"),
          ("verification_status", "Verification status"), ("why_listed", "Why listed"),
          ("location_status", "Coordinate validation")],
-        "Public schools with validated coordinates in the selected LGU, coloured by school status and sized by public "
-        "learners, SY 2023-24 published locations. Not catchment areas, routes or walking distance.", size="learners",
+        "Shows public schools with usable coordinates, colored by validation status and sized by enrollment. "
+        "Markers represent reported locations and do not show catchment areas, travel routes, or walking "
+        "distance.", size="learners",
         size_label="Public learners")
     map_note = note(b, "pr_map_note", "School map coverage", "map_line", style=LINE_STYLE, show_title=False)
     barangays = table(b, "pr_barangays", "Barangays without a matched public elementary school", [
         ("barangay_name", "Barangay", None), ("urban_rural", "Urban or rural", None),
         ("public_schools_txt", "Public schools at other levels", None), ("learners_txt", "Public learners", None)],
-        "Only barangays where the available records match no public elementary school. A school in a nearby barangay "
-        "may still serve learners across barangay boundaries. Empty when every barangay has one.")
+        "Lists barangays where the available records do not match a public elementary school. A school in a "
+        "nearby barangay may still serve learners across barangay boundaries.")
     p.columns([(7, [(school_map, 9), (map_note, 1)]), (5, [(barangay, 1), (barangays, 9)])], 10)
-    p.row([(table(b, "pr_teaser", "Schools to validate first", [
+    p.row([(table(b, "pr_teaser", "Schools to verify first", [
                ("school_name", "School", None), ("barangay_name", "Barangay", None),
                ("per_room_txt", "Learners per room", None), ("why_listed", "Why listed", None),
                ("next_step", "Next step", None)],
-               "Schools with a figure to verify first, then the highest classroom pressure. Full list on School Action."), 7),
+               "Shows schools with figures requiring confirmation first, followed by schools with the highest "
+               "reported classroom pressure. The complete list is available on School Review and Action."), 7),
            (table(b, "pr_reliability", "Data coverage and checks", [
                ("measure", "Measure", None), ("coverage", "Learner coverage", None), ("assessed", "Status", None),
                ("unusual_schools", "Unusual figures", None)],
-               "Whether enough data were reported for each measure, and schools left out for a missing or zero count."),
+               "Shows the share of learner enrollment covered by each measure. It also identifies schools excluded "
+               "from assessment because of missing or zero reported room or teacher counts."),
             5)], 5)
     return p
 
@@ -1484,51 +1495,52 @@ def school_action(b):
     p.row([(kpi(b, "sa_school", "Learners per room", "room_kpi", None,
                 desc=f"All levels, reported rooms · screen {SCREEN}", style=KPI_STYLE), 3),
            (kpi(b, "sa_school", "Learners per teacher", "teacher_kpi", None,
-                desc="At the chosen level, vs its comparison point", style=KPI_STYLE), 3),
+                desc="Selected level · Compared with reference", style=KPI_STYLE), 3),
            (kpi(b, "sa_school", "Enrollment change", "change_kpi", None,
                 desc="SY 2020-21 to SY 2025-26", style=KPI_STYLE), 3),
-           (kpi(b, "sa_school", "Verification items", "verify_kpi", None,
-                desc="A flag means verify, not incorrect", style=KPI_STYLE), 3)], 3)
+           (kpi(b, "sa_school", "Figures to verify", "verify_kpi", None,
+                desc="A flag means confirm the figure", style=KPI_STYLE), 3)], 3)
     p.row([(bar(b, "sa_bullet", "Classroom and teacher figures against their references", "figure", "Figure", "sum",
                 "share_of_reference", "Share of the reference", fmt=pct(0), color="status", color_label="Against the reference",
                 mappings=BULLET_COLORS, color_order=BULLET_STATUS, legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
                 annotations=[ref_line("x", 1, "Reference")],
-                desc=f"Each figure on one scale, where the line is its reference: the {SCREEN}-learner room screen or "
-                     "the level's teacher comparison point. Past the line is beyond the reference. Every level has its "
-                     "own row; a level the school does not offer has no bar. Exact figures are in the table below."), 6),
-           (table(b, "sa_verify", "What should be verified?", [
+                desc="Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's "
+                     "teacher comparison point. Past the line is beyond the reference."), 6),
+           (table(b, "sa_verify", "What needs to be verified?", [
                ("item", "Figure", None), ("why", "Why", None), ("next_step", "Next step", None)],
-               "Each flag turned into a step with the school or the Schools Division Office."), 6)], 5)
+               "Explains why each figure was flagged and identifies what the school or Schools Division Office "
+               "should confirm. A flagged figure requires validation and is not automatically incorrect."), 6)], 5)
     p.row([(scatter(b, "sa_peers", "Classroom and teacher pressure among schools in this LGU", "learners_per_room",
                     "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series",
                     "Pressure at this school", SCHOOL_PRESSURE_COLORS, SCHOOL_PRESSURE, "learners", "Learners",
                     "school_name",
-                    "Each dot is a public school offering the chosen level, sized by learners and coloured by the pressure "
-                    "it shows: classroom pressure at 50 or more learners per reported room (past the line), teacher "
-                    "pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior "
-                    "high 26.7). Schools with no rooms or teachers reported cannot be placed and are listed below.",
+                    "Each dot is a public school offering the chosen level, sized by learners and coloured by the "
+                    "pressure it shows: classroom pressure at 50 or more learners per reported room (past the line), "
+                    "teacher pressure where an offered level is above its comparison point (elementary 35, junior high "
+                    "36, senior high 26.7). ",
                     annotations=[ref_line("x", SCREEN, "Classroom screen")]), 8),
-           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "School type",
+           (point_map(b, "sa_location", "Nearby public schools", "latitude", "longitude", "series", "School type",
                       SCHOOL_TYPE_COLORS, SCHOOL_TYPE,
                       [("school_name", "School"), ("levels_offered_full", "Levels offered"),
                        ("learners_txt", "Public learners"), ("verification_status", "Verification status")],
-                      "The selected school and public schools within about 3 km, coloured by school type (secondary is "
-                      "junior and/or senior high) and "
-                      "sized by learners. Empty when the school has no validated location; no barangay boundary is drawn.",
+                      "Shows the selected school and public schools within approximately three kilometers, colored by "
+                      "school type and sized by enrollment. Proximity is based on straight-line distance and does not "
+                      "represent a route or travel time.",
                       size="learners",
                       size_label="Public learners"), 4)], 8)
     p.row([(line(b, "sa_trend", "How has enrollment changed in this school?", "school_year_label", "School year", "sum",
-                 "learners", "Learners", num(), color="series", color_label="Series", x_order=SCHOOL_YEARS,
+                 "learners", "Learners", color="series", color_label="Series", x_order=SCHOOL_YEARS,
                  mappings=[{"value": "All levels", "color": "#712B13"}, {"value": LEVELS[0], "color": "#A9B4BF"},
                            {"value": LEVELS[1], "color": "#5B6B7A"}, {"value": LEVELS[2], "color": "#C9A227"}],
                  color_order=["All levels"] + LEVELS,
-                 desc="Total enrollment, and each offered level when there is more than one. A missing year leaves a "
-                      "gap. Shows whether pressure is persistent, rising or falling."), 6),
+                 desc="Shows total enrollment and enrollment by offered education level for each available school year. A "
+                      "gap indicates that no comparable figure is available for that year."), 6),
            (table(b, "sa_rooms", "Reported rooms and teachers", [
                ("level", "Level", None), ("learners", "Learners", None), ("teachers", "Reported teachers", None),
                ("learners_per_teacher", "Learners per teacher", None), ("classrooms", "Instructional rooms", None),
                ("temporary_rooms", "Temporary", None), ("makeshift_rooms", "Makeshift", None)],
-               "SY 2023-24. Teachers are counted by level; rooms only for the whole school."), 6)], 6)
+               "Shows enrollment and reported teachers by education level, together with instructional rooms for the "
+               "whole school. Temporary and makeshift rooms appear separately where reported."), 6)], 6)
     status = param_filter(b, "school_status", "School status", ["sa_list"], "Changes the list below only.")
     barangay = param_filter(b, "barangay", "Barangay", ["sa_list"], "Optional: narrows the list below to one barangay.",
                             options=("opt_barangay_school", "barangay_option"))
@@ -1538,9 +1550,9 @@ def school_action(b):
         ("levels_offered", "Levels", None), ("per_room_txt", "Learners per room", None),
         ("per_teacher_txt", "Learners per teacher", None), ("verification_status", "Verification status", None),
         ("why_listed", "Why listed", None), ("next_step", "Next step", None)],
-        "Schools with a figure to verify first, then the highest classroom pressure. Levels: ES elementary, JHS junior "
-        "high, SHS senior high; the download spells them out and adds the school ID, main or annex, enrollment change, "
-        "temporary or makeshift rooms and locally funded teachers."), 12)], 10)
+        "Lists schools with figures requiring confirmation first, followed by schools with the highest "
+        "reported classroom pressure. Use the reason and suggested verification columns to prepare follow-up "
+        "with the school or Schools Division Office."), 12)], 10)
     p.row([(text(b, "Confirm flagged figures with the Schools Division Office before using them for planning. The "
                  "dashboard prioritizes validation; it does not prescribe how many classrooms, teachers, or schools to "
                  "add."), 12)], 1)
@@ -1552,26 +1564,28 @@ def data_and_method(b):
     p.row([(text(b, "# How reliable are the results?\n", "\n",
                  "Explains the planning rule, source coverage, comparison points, freshness, and known limitations in "
                  "plain language."), 12)], 2)
-    p.row([(kpi(b, "dm_kpi", "Classrooms assessed", "classroom_kpi", None,
-                desc="LGUs with 90%+ learners in schools with a room count", style=KPI_STYLE), 3),
-           (kpi(b, "dm_kpi", "Teachers assessed", "teacher_kpi", None,
-                desc="LGUs where every offered level has 90%+ coverage", style=KPI_STYLE), 3),
+    p.row([(kpi(b, "dm_kpi", "Classroom data coverage", "classroom_kpi", None,
+                desc="LGUs with at least 90% coverage", style=KPI_STYLE), 3),
+           (kpi(b, "dm_kpi", "Teacher data coverage", "teacher_kpi", None,
+                desc="LGUs with at least 90% coverage", style=KPI_STYLE), 3),
            (kpi(b, "dm_kpi", "Comparable enrollment trends", "trend_kpi", None,
-                desc="LGUs with complete years and unchanged boundaries", style=KPI_STYLE), 3),
-           (kpi(b, "freshness", "Last refresh", "updated", None, desc="Latest successful pipeline run",
+                desc="Complete years and stable boundaries", style=KPI_STYLE), 3),
+           (kpi(b, "freshness", "Last data update", "updated", None, desc="Latest successful refresh",
                 style=KPI_STYLE), 3)], 3)
     p.row([(note(b, "dm_kpi", "Data review alert", "alert_line", style=STATUS_STYLE, show_title=False), 12)], 1)
     p.row([(table(b, "dm_rules", "How the review status is assigned", [
                ("review_status", "Review status", None), ("planning_status", "Planning status", None),
                ("pressure_signals", "Pressure signals present", None),
                ("enrollment_growing", "Public enrollment growing", None)],
-               "Two current pressure signals, classroom and teacher, and public-enrollment growth produce each status. A "
-               "known pressure always counts; where growth cannot be checked, the LGU is placed as if it were not "
-               "growing."), 12)], 5)
+               "Shows how classroom pressure, teacher pressure, and public-school enrollment growth combine to "
+               "produce each review status. A known pressure signal remains part of the result when another measure "
+               "cannot be fully assessed."), 12)], 5)
     p.row([(table(b, "dm_refs", "Published comparison points", [
                ("measure", "Measure", None), ("comparison_point", "Comparison point", None), ("basis", "Basis", None),
                ("use_in_dashboard", "Use", None)],
-               "The values the Analytics SQL writes. A comparison, never a staffing or construction entitlement."), 12)], 4)
+               "Lists the references used to identify classroom and teacher pressure signals. These values support "
+               "consistent comparison across LGUs and are not official staffing ratios, construction standards, or "
+               "funding entitlements."), 12)], 4)
     measure = param_filter(b, "measure", "Measure", ["dm_coverage", "dm_reasons"],
                            "Applies to the two panels below it only.")
     p.row([(measure, 4), (text(b, "The Measure filter changes **Data coverage by measure** and **Why some LGUs need data "
@@ -1579,33 +1593,42 @@ def data_and_method(b):
     p.row([(bar(b, "dm_coverage", "Data coverage by measure", "measure", "Measure", "sum", "share", "Share of LGUs",
                 color="coverage_status", color_label="Coverage", layout="stack", color_order=COVERAGE_STATUS,
                 mappings=COVERAGE_COLORS, order=COVERAGE_MEASURES, fmt=pct(0), legend=LEGEND_BOTTOM,
-                desc="Assessed, incomplete, and unavailable shares of LGUs for each measure."), 6),
+                desc="Shows the share of LGUs with sufficient, incomplete, or unavailable information for each measure. "
+                     "Sufficient coverage means that the required learner-coverage rule has been met."), 6),
            (bar(b, "dm_teacher_levels", "Teacher-pressure assessment by level", "level", "Level", "sum", "share",
                 "Share of LGUs offering the level", color="status", color_label="Learners per teacher", layout="stack",
                 order=LEVELS, color_order=LEVEL_STATUS, mappings=LEVEL_COLORS, fmt=pct(0), legend=LEGEND_BOTTOM,
-                desc="Above, at or below, or not assessed against the comparison point."), 6)], 7)
+                desc="Shows how LGUs compare with the teacher reference for elementary, junior high, and senior high "
+                     "school. LGUs without enough reported data appear as insufficient data."), 6)], 7)
     p.row([(bar(b, "dm_reasons", "Why some LGUs need data review", "reason", "", "sum", "lgus",
                 "Data review LGUs", color="measure", color_label="Input", color_order=REASON_MEASURES,
                 mappings=REASON_COLORS, layout="stack", legend=LEGEND_BOTTOM,
-                desc="The Data review LGUs by the input that could not be checked. One LGU may have more than one "
-                     "reason."), 12)], 6)
+                desc="Shows which required inputs could not be assessed for LGUs needing additional data review. One LGU "
+                     "may have more than one reason and may therefore appear in several categories."), 12)], 6)
     p.row([(bar(b, "dm_ap4", "Enrollment trend availability", "ap4_status", "Status", "sum", "lgus",
                 "Cities and municipalities", order=AP4_STATUS, color="ap4_status", color_label="Status",
                 mappings=AP4_COLORS, color_order=AP4_STATUS,
-                desc="Complete and comparable, an incomplete school year, or changed boundaries."), 6),
-           (bar(b, "dm_share", "How concentrated classroom pressure is", "share_band",
+                desc="Shows whether each LGU has a complete and comparable enrollment trend. Incomplete school years or "
+                     "geographic-boundary changes may prevent a reliable comparison over time."), 6),
+           (bar(b, "dm_share", "Share of learners above room reference", "share_band",
                 "Share of learners above the screen", "sum", "lgus", "Assessed cities and municipalities",
                 order=SHARE_BANDS,
-                desc="Assessed LGUs by the share of their learners in schools above the classroom screen."), 6)], 7)
+                desc="Groups assessed LGUs by the share of public-school learners enrolled in schools at or above 50 "
+                     "learners per reported instructional room. This shows how concentrated the classroom signal is within "
+                     "each LGU."), 6)], 7)
     p.row([(table(b, "dm_sources", "Available school years by source", [("source", "Source", None)] + [
                (f"sy_{y.replace('-', '_')}", f"SY {y}", None) for y in SOURCE_YEARS],
-               "Enrollment spans several years; classroom and teacher data exist only for SY 2023-24."), 6),
+               "Shows which school years are available for enrollment, classroom, and teacher measures. Enrollment "
+               "spans several years, while comparable classroom and teacher figures are currently available only for "
+               "SY 2023-24."), 6),
            (text(b, "## What this dashboard cannot tell you\n\n",
+                 "Summarizes decisions that still require local evidence, including the number of resources to add, room "
+                 "condition and use, learner travel, and the appropriate intervention. Confirm these conditions before "
+                 "using the results for planning.\n\n",
                  "- **How many resources to add.** The review order is not an official shortage, staffing entitlement, "
                  "construction need or funding allocation.\n",
                  "- **Room condition or use.** Reported rooms do not show condition, shifts or utilization.\n",
-                 "- **Travel or access.** Enrollment is counted at the school, not where learners live.\n\n",
-                 "Full methodology: the dashboards README in the project repository."), 6)], 5)
+                 "- **Travel or access.** Enrollment is counted at the school, not where learners live."), 6)], 5)
     p.row([(note(b, "freshness", "Technical data health", "health_line", style=LINE_STYLE, show_title=False), 12)], 1)
     return p
 
