@@ -177,13 +177,15 @@ def line(b, dataset, title, x, x_label, fn, value, value_label, fmt=None, color=
 
 
 def scatter(b, dataset, title, x, x_label, y, y_label, color, color_label, mappings=None, order=None, size=None,
-            size_label=None, tip=None, desc=None, annotations=None):
-    columns = [x, y, color] + ([size] if size else []) + ([tip] if tip else [])
+            size_label=None, tip=None, desc=None, annotations=None, extra=None):
+    """tip names each point; extra is the whole tooltip as (field, label) pairs instead."""
+    tips = extra or ([(tip, "Name")] if tip else [])
+    columns = [x, y, color] + ([size] if size else []) + [c for c, _ in tips]
     encodings = {"x": quant(x, x_label), "y": quant(y, y_label), "color": cat(color, color_label, order, mappings)}
     if size:
         encodings["size"] = quant(size, size_label)
-    if tip:
-        encodings["extra"] = [{"fieldName": tip, "displayName": "Name"}]
+    if tips:
+        encodings["extra"] = [{"fieldName": c, "displayName": label} for c, label in tips]
     return chart(b, "scatter", dataset, title, encodings, [(c, bt(c)) for c in dict.fromkeys(columns)], desc,
                  disaggregated=True, annotations=annotations)
 
