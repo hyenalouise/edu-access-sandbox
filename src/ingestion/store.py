@@ -56,6 +56,7 @@ def to_duckdb(statement):
     statement = re.sub(r"\bregexp_replace\(", "regexp_replace_all(", statement)
     statement = re.sub(r"\bsha2\(([^,]+),\s*256\)", r"sha256(CAST(\1 AS VARCHAR))", statement)
     statement = re.sub(r"\barray_join\(", "array_to_string(", statement)  # NULL, not '', for an empty list
+    statement = re.sub(r"\*\s+EXCEPT\s*\(", "* EXCLUDE (", statement)  # SELECT * EXCEPT (columns)
     statement = re.sub(r"\bsession\.([A-Za-z_]\w*)", r"getvariable('\1')", statement)  # session variables
     statement = re.sub(r"\bcurrent_timestamp\(\)", "(current_timestamp AT TIME ZONE 'UTC')", statement)
     statement = re.sub(r"\bSTRING\b", "VARCHAR", statement)

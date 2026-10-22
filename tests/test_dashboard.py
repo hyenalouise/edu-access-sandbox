@@ -439,7 +439,7 @@ def test_every_check_a_local_job_run_writes_is_classified_and_every_dataset_runs
         # a match rate from each PSGC map.
         gold = {r["table_name"].split(".")[-1].removesuffix("_candidate") for r in current
                 if r["layer"] in ("gold", "analytics")}
-        assert {"dim_school", "fact_school_enrollment", "lgu_priority_matrix"} <= gold and len(gold) == 20   # 7 dimensions (dim_school_location, #217), 6 facts, 7 Analytics tables (outlier flags and sensitivity, D-065)
+        assert {"dim_school", "fact_school_enrollment", "lgu_priority_matrix"} <= gold and len(gold) == 21   # 7 dimensions (dim_school_location, #217), 6 facts, 8 Analytics tables (outlier flags, sensitivity and scenarios, D-065)
         assert all(r["layer"] == "gold" for r in current if r["check_name"].startswith("upstream_run_"))
         assert {r["table_name"].split(".")[-1].removesuffix("_candidate") for r in current
                 if r["check_name"].startswith("match_rate")} == {

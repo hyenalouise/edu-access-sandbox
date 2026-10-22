@@ -8,12 +8,19 @@ from pathlib import Path
 import yaml
 
 from src.dashboard import planner
-from test_analytics_priority import GOLD, add_public_school, run_all, store  # noqa: F401  (store is that file's made-up Gold fixture)
+import test_analytics_priority as priority
+from test_analytics_outliers import OUTLIER_STEPS, add_ordinary_schools
+from test_analytics_priority import GOLD, add_public_school, store  # noqa: F401  (store is that file's made-up Gold fixture)
 
 ROOT = Path(__file__).parents[1]
 DASHBOARD = ROOT / "dashboards" / "reached_planner.lvdash.json"
 PAGES = ["overview", "lgu_profile", "school_action", "data_and_method"]
 INTERNAL_CODE = re.compile(r"\bD-0\d\d\b|\bAP ?[1-4]\b")
+
+
+def run_all(store):
+    """The Analytics job up to the outlier sensitivity the planner reads."""
+    priority.run_all(store, OUTLIER_STEPS)
 
 
 def load():
@@ -430,3 +437,42 @@ def test_no_retired_tier_or_check_table_is_read():
     text = DASHBOARD.read_text(encoding="utf-8")
     for retired in ("lgu_priority_checks", "lgu_priority_outlier_schools", "order_in_tier", "is_stable", "_percentile"):
         assert retired not in text, retired
+
+
+def test_without_suspected_outliers_every_figure_is_recalculated_and_the_published_view_is_unchanged(store):
+    # X: 400 learners in one room, far above the municipal outer fence. It is Town Two's only school at or above the
+    # screen, so without it Town Two loses its classroom signal and its coverage falls below 90%: Data review
+    add_ordinary_schools(store)
+    add_public_school(store, "X", "M2", 400, 1, 4)
+    run_all(store)
+    without = {"outliers": planner.OUTLIER_OPTIONS[1]}
+    matrix = {r["city_mun_psgc_code"]: r for r in store.records(
+        "SELECT * FROM edu_access.`06-analytics`.lgu_priority_sensitivity")}
+    published = {r["city_mun_psgc_code"]: r for r in _rows(store, "ov_lgu")}
+    excluded = {r["city_mun_psgc_code"]: r for r in _rows(store, "ov_lgu", **without)}
+    for code, row in matrix.items():
+        assert (published[code]["queue_status"], published[code]["national_order"]) == (
+            row["priority_category"], row["priority_order"])
+        assert (excluded[code]["queue_status"], excluded[code]["national_order"]) == (
+            row["priority_category_without_suspected_outliers"], row["priority_order_without_suspected_outliers"])
+    assert published["M2"]["queue_status"] != "Data review" and excluded["M2"]["queue_status"] == "Data review"
+    assert published["M2"]["outlier_check"] == excluded["M2"]["outlier_check"] == "Review status changes"
+    assert published["C1"]["outlier_check"] == "No suspected outliers"
+    # the LGU Profile says which result it shows, and its classroom figures leave X out
+    card = _rows(store, "pr_card", lgu="Town Two, Province")[0]
+    card_without = _rows(store, "pr_card", lgu="Town Two, Province", **without)[0]
+    assert "Outlier check: Review status changes" in card["details"]
+    assert "without suspected outliers" not in card["details"] and "Shown without suspected outliers" in card_without["details"]
+    screen = {r["measure"]: r for r in _rows(store, "pr_evidence", lgu="Town Two, Province", **without)}
+    assert screen["Classroom pressure · school screen"]["status"] != "Signal present"
+    kpi, kpi_without = _rows(store, "ov_kpi")[0], _rows(store, "ov_kpi", **without)[0]
+    assert kpi_without["learners_above"] == kpi["learners_above"] - 400
+    # School Action keeps X in the list, as a figure to verify; the comparison scatter leaves it out when excluded
+    add_school_detail(store, {"B2": ("Poblacion", "M2", ["X", "N1"])})
+    listed = {r["school_id"]: r for r in _rows(store, "sa_list", lgu="Town Two, Province", **without)}
+    assert "Suspected extreme figure" in listed["X"]["why_listed"]
+    assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town Two, Province", school="X · X")] == [
+        "Classroom pressure", "Suspected extreme figure"]
+    scatter = {r["school_name"] for r in _rows(store, "sa_peers", lgu="Town Two, Province", school="N1 · N1", **without)}
+    assert "X" not in scatter and "N1" in scatter
+    assert "X" in {r["school_name"] for r in _rows(store, "sa_peers", lgu="Town Two, Province", school="N1 · N1")}
