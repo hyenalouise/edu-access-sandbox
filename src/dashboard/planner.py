@@ -17,7 +17,7 @@ import json
 import sys
 from pathlib import Path
 
-from src.dashboard.widgets import (Builder, Page, bar, choropleth, kpi, line, note, num, param_filter, pct,
+from src.dashboard.widgets import (Builder, Page, badges, bar, choropleth, kpi, line, note, num, param_filter, pct,
                                    point_map, ref_line, scatter, table, text)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,6 +60,16 @@ MEASURES = ["Public schools", "Classrooms", "Teachers"]
 REASON_MEASURES = [MEASURES[1], MEASURES[2], "Enrollment trend"]  # the inputs that can send an LGU to data review
 SIGNALS = ["Present", "Not identified", "Not assessed"]
 GROWTH = ["Growing", "Not growing", "Not comparable"]
+# the review status each combination of the two pressure signals leads to (What is driving priority?)
+SIGNAL_RESULTS = [f"{QUEUE[0]} if growing, else {QUEUE[1]}", f"{QUEUE[1]} if growing, else {QUEUE[2]}",
+                  f"{QUEUE[3]} if growing, else no current pressure", QUEUE[5]]
+# theme palette positions (uiSettings visualizationColors) for the badge cells, with white text at WHITE
+PALETTE = ["#712B13", "#5B6B7A", "#C9A227", "#D85A30", "#A9B4BF", "#8A96A3", "#2F6F8F", "#FFFFFF"]
+WHITE = PALETTE.index("#FFFFFF")
+SIGNAL_BADGES = [(SIGNALS[0], PALETTE.index("#D85A30")), (SIGNALS[1], PALETTE.index("#5B6B7A")),
+                 (SIGNALS[2], PALETTE.index("#8A96A3"))]
+RESULT_BADGES = [(SIGNAL_RESULTS[0], PALETTE.index("#712B13")), (SIGNAL_RESULTS[1], PALETTE.index("#D85A30")),
+                 (SIGNAL_RESULTS[2], PALETTE.index("#2F6F8F")), (SIGNAL_RESULTS[3], PALETTE.index("#8A96A3"))]
 STATUS_ORDER = ["Above classroom screen", "Missing figure", "Zero rooms or teachers", "No verification flag"]
 VERIFY = ["Verification needed", "No verification flag"]
 KPI_STYLE = {"fontStyle": "normal", "fontWeight": 700}  # every view's four KPIs, on neutral cards
@@ -304,13 +314,10 @@ FROM k"""
 SIGNAL_SORT = "CASE {c} " + " ".join(f"WHEN '{s}' THEN {i}" for i, s in enumerate(SIGNALS)) + " END"
 OV_SIGNALS = f"""SELECT classroom_signal, teacher_signal, format_number(COUNT(*), 0) AS lgus,
        format_number(COUNT_IF(growth_signal = '{GROWTH[0]}'), 0) AS growing,
-       CASE WHEN classroom_signal = '{SIGNALS[0]}' AND teacher_signal = '{SIGNALS[0]}'
-              THEN '{QUEUE[0]} if growing, else {QUEUE[1]}'
-            WHEN classroom_signal = '{SIGNALS[0]}' OR teacher_signal = '{SIGNALS[0]}'
-              THEN '{QUEUE[1]} if growing, else {QUEUE[2]}'
-            WHEN classroom_signal = '{SIGNALS[1]}' AND teacher_signal = '{SIGNALS[1]}'
-              THEN '{QUEUE[3]} if growing, else no current pressure'
-            ELSE '{QUEUE[5]}' END AS resulting_status
+       CASE WHEN classroom_signal = '{SIGNALS[0]}' AND teacher_signal = '{SIGNALS[0]}' THEN '{SIGNAL_RESULTS[0]}'
+            WHEN classroom_signal = '{SIGNALS[0]}' OR teacher_signal = '{SIGNALS[0]}' THEN '{SIGNAL_RESULTS[1]}'
+            WHEN classroom_signal = '{SIGNALS[1]}' AND teacher_signal = '{SIGNALS[1]}' THEN '{SIGNAL_RESULTS[2]}'
+            ELSE '{SIGNAL_RESULTS[3]}' END AS resulting_status
 FROM ({OV_ROWS}) AS r
 GROUP BY classroom_signal, teacher_signal
 ORDER BY {SIGNAL_SORT.format(c='classroom_signal')}, {SIGNAL_SORT.format(c='teacher_signal')}"""
@@ -1377,9 +1384,10 @@ def overview(b):
                              None, "Each region's LGUs by review status, regions with the most Priority 1 and 2 first.",
                              raw=True), 6),
            (table(b, "ov_signals", "What is driving priority?", [
-               ("classroom_signal", "Classroom pressure", None), ("teacher_signal", "Teacher pressure", None),
+               ("classroom_signal", "Classroom pressure", None, badges(SIGNAL_BADGES, WHITE)),
+               ("teacher_signal", "Teacher pressure", None, badges(SIGNAL_BADGES, WHITE)),
                ("lgus", "LGUs", None), ("growing", "Growing enrollment", None),
-               ("resulting_status", "Review status", None)],
+               ("resulting_status", "Review status", None, badges(RESULT_BADGES, WHITE))],
                "LGUs by the two pressure signals, how many also have growing public enrollment, and the review status "
                "that results."), 6)], 8)
     p.row([(table(b, "ov_lgu", "LGU review queue", [
@@ -1693,7 +1701,7 @@ def build():
             "widgetBorderColor": {"light": "#E4DFD8", "dark": "#2A343B"},
             "fontColor": {"light": "#14212B", "dark": "#E8ECF0"},
             "selectionColor": {"light": "#712B13", "dark": "#F0997B"},
-            "visualizationColors": ["#712B13", "#5B6B7A", "#C9A227", "#D85A30", "#A9B4BF", "#8A96A3", "#2F6F8F"],
+            "visualizationColors": PALETTE,
             "fontFamily": "Inter", "fontSettings": {"base": {"fontFamily": "Inter"}, "widgetTitle": {"fontSize": 16}},
             "widgetHeaderAlignment": "LEFT", "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP", "widgetPadding": 16, "widgetMargin": 8, "widgetCornerRadius": 8},
             "applyModeEnabled": False},

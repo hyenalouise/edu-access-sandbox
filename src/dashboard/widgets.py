@@ -221,15 +221,32 @@ def point_map(b, dataset, title, latitude, longitude, color, color_label, mappin
                  disaggregated=True, mark={"opacity": 0.8}, version=2)
 
 
+def theme_color(position):
+    return {"themeColorType": "visualizationColors", "position": position}
+
+
+def badges(colors, text_position):
+    """Badge-style cells: each value in colors, (value, palette position), gets that background and the text colour at
+    text_position, both positions in the theme's visualizationColors. The style, rules, condition and foregroundColor
+    shapes are copied from a Databricks export; backgroundColor and the "=" operator follow the same shape but no
+    export has confirmed them yet, so a wrong name here shows as plain text, not an error elsewhere."""
+    return {"type": "basic", "rules": [
+        {"condition": {"operand": {"type": "data-value", "value": value}, "operator": "="},
+         "foregroundColor": theme_color(text_position), "backgroundColor": theme_color(position)}
+        for value, position in colors]}
+
+
 def table(b, dataset, title, columns, desc=None):
-    """columns: (field, header, format or None)."""
+    """columns: (field, header, format or None[, style]); a style is a badges() rule set."""
     spec_columns = []
-    for field, header, fmt in columns:
+    for field, header, fmt, *style in columns:
         column = {"fieldName": field, "displayName": header}
         if fmt:
             column["format"] = fmt
+        if style:
+            column["style"] = style[0]
         spec_columns.append(column)
-    return chart(b, "table", dataset, title, {"columns": spec_columns}, [(f, bt(f)) for f, _, _ in columns], desc,
+    return chart(b, "table", dataset, title, {"columns": spec_columns}, [(f, bt(f)) for f, *_ in columns], desc,
                  disaggregated=True, version=2)
 
 

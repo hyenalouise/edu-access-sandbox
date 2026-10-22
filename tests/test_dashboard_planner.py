@@ -163,6 +163,21 @@ def test_the_selected_lgu_stays_in_its_comparison_area_with_its_values(store):
     assert note.startswith("Town One: ") and "active public schools (SY 2023-24)" in note
 
 
+def test_what_is_driving_priority_shows_badges_for_every_signal_and_status():
+    widget = next(w for p in load()["pages"] for w in widgets(p) if w.get("queries")
+                  and w["queries"][0]["query"]["datasetName"] == "ov_signals")
+    styled = {c["fieldName"]: c["style"] for c in widget["spec"]["encodings"]["columns"] if "style" in c}
+    assert set(styled) == {"classroom_signal", "teacher_signal", "resulting_status"}
+    for field, values in (("classroom_signal", planner.SIGNALS), ("resulting_status", planner.SIGNAL_RESULTS)):
+        rules = styled[field]["rules"]
+        assert [r["condition"]["operand"]["value"] for r in rules] == values
+        for rule in rules:  # every colour is a slot in the theme palette, and the text is white
+            assert planner.PALETTE[rule["foregroundColor"]["position"]] == "#FFFFFF"
+            assert rule["backgroundColor"]["position"] < len(planner.PALETTE)
+    sql = "".join(next(d for d in load()["datasets"] if d["name"] == "ov_signals")["queryLines"])
+    assert all(f"'{value}'" in sql for value in planner.SIGNAL_RESULTS)
+
+
 def test_no_title_renders_markdown():
     # review of the 2026-10-21 export: asterisks in chart titles rendered literally
     for page in load()["pages"]:

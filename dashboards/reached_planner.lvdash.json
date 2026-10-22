@@ -848,12 +848,9 @@
       "queryLines": [
         "SELECT classroom_signal, teacher_signal, format_number(COUNT(*), 0) AS lgus,\n",
         "       format_number(COUNT_IF(growth_signal = 'Growing'), 0) AS growing,\n",
-        "       CASE WHEN classroom_signal = 'Present' AND teacher_signal = 'Present'\n",
-        "              THEN 'Priority 1 if growing, else Priority 2'\n",
-        "            WHEN classroom_signal = 'Present' OR teacher_signal = 'Present'\n",
-        "              THEN 'Priority 2 if growing, else Priority 3'\n",
-        "            WHEN classroom_signal = 'Not identified' AND teacher_signal = 'Not identified'\n",
-        "              THEN 'Monitor if growing, else no current pressure'\n",
+        "       CASE WHEN classroom_signal = 'Present' AND teacher_signal = 'Present' THEN 'Priority 1 if growing, else Priority 2'\n",
+        "            WHEN classroom_signal = 'Present' OR teacher_signal = 'Present' THEN 'Priority 2 if growing, else Priority 3'\n",
+        "            WHEN classroom_signal = 'Not identified' AND teacher_signal = 'Not identified' THEN 'Monitor if growing, else no current pressure'\n",
         "            ELSE 'Data review' END AS resulting_status\n",
         "FROM (WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
@@ -8879,11 +8876,123 @@
                 "columns": [
                   {
                     "fieldName": "classroom_signal",
-                    "displayName": "Classroom pressure"
+                    "displayName": "Classroom pressure",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Present"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 3
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Not identified"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 1
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Not assessed"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 5
+                          }
+                        }
+                      ]
+                    }
                   },
                   {
                     "fieldName": "teacher_signal",
-                    "displayName": "Teacher pressure"
+                    "displayName": "Teacher pressure",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Present"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 3
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Not identified"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 1
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Not assessed"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 5
+                          }
+                        }
+                      ]
+                    }
                   },
                   {
                     "fieldName": "lgus",
@@ -8895,7 +9004,80 @@
                   },
                   {
                     "fieldName": "resulting_status",
-                    "displayName": "Review status"
+                    "displayName": "Review status",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Priority 1 if growing, else Priority 2"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 0
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Priority 2 if growing, else Priority 3"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 3
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Monitor if growing, else no current pressure"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 6
+                          }
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "Data review"
+                            },
+                            "operator": "="
+                          },
+                          "foregroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 7
+                          },
+                          "backgroundColor": {
+                            "themeColorType": "visualizationColors",
+                            "position": 5
+                          }
+                        }
+                      ]
+                    }
                   }
                 ]
               },
@@ -16901,7 +17083,8 @@
         "#D85A30",
         "#A9B4BF",
         "#8A96A3",
-        "#2F6F8F"
+        "#2F6F8F",
+        "#FFFFFF"
       ],
       "fontFamily": "Inter",
       "fontSettings": {
