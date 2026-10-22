@@ -1,8 +1,8 @@
 # Analytics outputs
 
-Every column of the five tables in `` edu_access.`06-analytics` ``, the tables planners and the dashboard read. Why each measure exists and its limits are in the [metric specification](../business/metric-specification.md); how the classroom queue is ranked is in [`etl/06_analytics/`](../../etl/06_analytics/README.md). The Gold tables they read are in the [data model](../architecture/data-model.md).
+Every column of the seven tables in `` edu_access.`06-analytics` ``, the tables planners and the dashboard read. Why each measure exists and its limits are in the [metric specification](../business/metric-specification.md); how the classroom queue is ranked is in [`etl/06_analytics/`](../../etl/06_analytics/README.md). The Gold tables they read are in the [data model](../architecture/data-model.md).
 
-`tests/test_analytics_priority.py` builds each table and fails if its columns differ from this page.
+`tests/test_analytics_priority.py` and `tests/test_analytics_outliers.py` build each table and fail if its columns differ from this page.
 
 | Table | Grain | Answers |
 |---|---|---|
@@ -11,6 +11,8 @@ Every column of the five tables in `` edu_access.`06-analytics` ``, the tables p
 | [`ap3_teacher_pressure`](#ap3_teacher_pressure) | One regular city or municipality, SY 2023-24, with ES, JHS and SHS side by side | AP3 · Teachers: context only, not ranked |
 | [`ap4_enrollment_trend`](#ap4_enrollment_trend) | One city or municipality member and school year, SY 2020-21 to 2025-26 | AP4 · Population and enrollment: context only |
 | [`lgu_priority_matrix`](#lgu_priority_matrix) | One regular city or municipality | AP1 to AP4 side by side and the D-061 planning-priority category |
+| [`school_outlier_flags`](#school_outlier_flags) | One public school and measure in that measure's ratio, SY 2023-24 | Which school ratios are suspected extreme outliers (D-065) |
+| [`lgu_priority_sensitivity`](#lgu_priority_sensitivity) | One regular city or municipality | Whether the planning priority depends on suspected extreme schools (D-065) |
 
 ## Reading the columns
 
@@ -202,4 +204,69 @@ Built by `05_build_priority_matrix.sql` from the published AP1 to AP4 tables. St
 | `priority_category` | STRING | D-061 category: `Priority 1`, `Priority 2`, `Priority 3`, `Monitor`, `No current pressure identified`, or `Data review`. Unassessed growth never raises a category: an LGU with a known pressure is placed as if it were not growing |
 | `priority_order` | BIGINT | Deterministic national planning order across the D-061 categories and evidence fields |
 | `rule_version` | STRING | `D-061` |
+| `code_revision` | STRING | Commit that built the row |
+
+## `school_outlier_flags`
+
+| Column | Type | Meaning |
+|---|---|---|
+| `school_id` | STRING | DepEd school ID |
+| `city_mun_psgc_code` | STRING | The school's regular city or municipality |
+| `lgu_type` | STRING | `city` or `municipality`: the group the fence is computed within |
+| `school_year` | STRING | Always `2023-24` |
+| `measure` | STRING | `classroom` (learners per reported instructional room) or `teacher` (learners per included teacher) |
+| `education_level_code` | STRING | `ALL` for the classroom ratio; `ES`, `JHS` or `SHS` for the teacher ratio |
+| `learners` | BIGINT | The ratio's numerator: the school's complete enrollment (classroom) or the level's learners (teacher) |
+| `denominator` | BIGINT | Reported instructional rooms, or included teachers at the level |
+| `ratio` | DOUBLE | `learners / denominator` |
+| `fence_group_size` | BIGINT | Schools in the comparison group (same measure, level and LGU type) |
+| `q1` | DOUBLE | First quartile of the group's ratios (`percentile_cont(0.25)`) |
+| `q3` | DOUBLE | Third quartile of the group's ratios (`percentile_cont(0.75)`) |
+| `iqr` | DOUBLE | `q3 - q1` |
+| `lower_outer_fence` | DOUBLE | `q1 - 3 × iqr`; NULL when the group has fewer than 10 schools |
+| `upper_outer_fence` | DOUBLE | `q3 + 3 × iqr`; NULL when the group has fewer than 10 schools |
+| `is_above_upper_fence` | BOOLEAN | `ratio > upper_outer_fence` |
+| `is_below_lower_fence` | BOOLEAN | `ratio < lower_outer_fence` |
+| `is_suspected_outlier` | BOOLEAN | Above the upper fence (classroom), or above the upper or below the lower fence (teacher). A quality flag: the school stays in every published measure |
+| `code_revision` | STRING | Commit that built the row |
+
+## `lgu_priority_sensitivity`
+
+Scenario A is the published `lgu_priority_matrix`; scenario B (`_without_suspected_outliers`) repeats AP2, AP3 and the D-061 rule without the flagged schools.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `city_mun_psgc_code` | STRING | Key: the city or municipality's PSGC code |
+| `city_mun_name` | STRING | PSGC name |
+| `lgu_type` | STRING | `city` or `municipality` |
+| `province_name` | STRING | Parent province name |
+| `region_name` | STRING | Parent region name |
+| `school_year` | STRING | Always `2023-24` |
+| `outlier_school_count` | BIGINT | Schools with at least one suspected extreme ratio |
+| `outlier_learner_count` | BIGINT | Learners in the flagged ratios, each school once: its total for a classroom flag, else its flagged levels |
+| `classroom_outlier_school_count` | BIGINT | Schools with a suspected extreme classroom ratio |
+| `teacher_outlier_level_count` | BIGINT | School levels with a suspected extreme teacher ratio |
+| `priority_category` | STRING | Scenario A: the published D-061 category |
+| `priority_category_without_suspected_outliers` | STRING | Scenario B category |
+| `priority_order` | BIGINT | Scenario A: the published national order |
+| `priority_order_without_suspected_outliers` | BIGINT | Scenario B national order |
+| `classroom_pressure_flag` | INT | Scenario A classroom-pressure flag |
+| `classroom_pressure_flag_without_suspected_outliers` | INT | Scenario B classroom-pressure flag |
+| `teacher_pressure_flag` | INT | Scenario A teacher-pressure flag |
+| `teacher_pressure_flag_without_suspected_outliers` | INT | Scenario B teacher-pressure flag |
+| `priority_affected_learners` | BIGINT | Scenario A: greater of AP2 and AP3 affected learners |
+| `priority_affected_learners_without_suspected_outliers` | BIGINT | Scenario B affected learners |
+| `ap2_learner_coverage_pct` | DOUBLE | Scenario A classroom learner coverage |
+| `ap2_learner_coverage_pct_without_suspected_outliers` | DOUBLE | Scenario B classroom learner coverage: every enrolled learner stays in the denominator |
+| `ap3_lowest_learner_coverage_pct` | DOUBLE | Scenario A: lowest learner coverage among offered teacher levels |
+| `ap3_lowest_learner_coverage_pct_without_suspected_outliers` | DOUBLE | Scenario B lowest teacher learner coverage |
+| `ap2_assessed_without_suspected_outliers` | BOOLEAN | Scenario B: AP2 passes its 90% coverage gate |
+| `ap3_assessed_without_suspected_outliers` | BOOLEAN | Scenario B: every offered AP3 level passes its 90% coverage gate |
+| `classroom_flag_changed` | BOOLEAN | The classroom-pressure flag differs between scenarios |
+| `teacher_flag_changed` | BOOLEAN | The teacher-pressure flag differs between scenarios |
+| `priority_category_changed` | BOOLEAN | The category differs between scenarios |
+| `coverage_gate_changed` | BOOLEAN | An AP2 or AP3 coverage gate passes in scenario A and fails in scenario B |
+| `affected_learners_changed` | BOOLEAN | Priority affected learners change by more than 10% (or from none to some) |
+| `outlier_sensitivity_status` | STRING | The first that applies: `Priority-sensitive`, `Classification-sensitive`, `Coverage-sensitive`, `Magnitude-sensitive`, `Stable`, or `No suspected outliers` |
+| `rule_version` | STRING | `D-065` |
 | `code_revision` | STRING | Commit that built the row |

@@ -2,7 +2,7 @@
 
 This layer publishes one dataset per analytical question and an evidence-based LGU planning table. The metrics follow the [metric specification](../../docs/business/metric-specification.md). Gold remains reusable and contains no prioritization rule.
 
-AP1 to AP3 and the planning table have one row per regular city or municipality. AP4 has one row per city member and school year. Each build writes a candidate table, its paired `90_validate_*` gate independently recomputes the result from Gold, and only a passing candidate replaces the published table.
+AP1 to AP3, the planning table and the sensitivity table have one row per regular city or municipality; the outlier flags have one row per school and measure. AP4 has one row per city member and school year. Each build writes a candidate table, its paired `90_validate_*` gate independently recomputes the result from Gold, and only a passing candidate replaces the published table.
 
 ```mermaid
 flowchart LR
@@ -15,6 +15,8 @@ flowchart LR
     ap2[ap2_classroom_pressure] --> matrix
     ap3[ap3_teacher_pressure] --> matrix
     ap4[ap4_enrollment_trend] -->|public enrollment growth| matrix[lgu_priority_matrix]
+    enroll & rooms & teachers --> flags[school_outlier_flags]
+    flags & matrix & ap2 & ap3 --> sens[lgu_priority_sensitivity]
 ```
 
 | Build | Gate | Output | Approved use |
@@ -24,6 +26,8 @@ flowchart LR
 | `03_answer_ap3.sql` | `90_validate_ap3.sql` | `ap3_teacher_pressure` | ES, JHS and SHS learner-per-teacher pressure references; not an official shortage estimate |
 | `04_answer_ap4.sql` | `90_validate_ap4.sql` | `ap4_enrollment_trend` | Public-school enrollment growth for priority; all-sector trend and census gap as context |
 | `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-061 priority categories from separate AP2 and AP3 pressure flags and AP4 public-enrollment growth |
+| `06_flag_school_outliers.sql` | `90_validate_school_outlier_flags.sql` | `school_outlier_flags` | Every AP2 and AP3 school ratio with its Tukey outer fences and suspected-outlier flag (D-065); a quality result, never a correction |
+| `07_build_priority_sensitivity.sql` | `90_validate_priority_sensitivity.sql` | `lgu_priority_sensitivity` | The published D-061 priority beside the same priority without suspected extreme schools, with an outlier-sensitivity status (D-065) |
 
 ## D-061 planning-priority method
 
@@ -40,6 +44,12 @@ AP3 flags teacher pressure when any adequately covered offered level exceeds its
 `priority_order` sorts the categories in that order, then uses current pressure count, affected learners, classroom-affected learners, pressured teacher levels, absolute growth, percentage growth, and PSGC code. Classroom and teacher affected learners remain separate; `priority_affected_learners` uses their larger value rather than adding potentially overlapping learners.
 
 The PIDS paper defines its 1:50 line for illustration and analyzes congestion at school and education-level grain. The current Gold facilities data provide a broader all-level NSBI instructional-room total, including room types outside a K–12-classroom-only denominator. The implementation is therefore labelled **PIDS-style illustrative reported-room screen** and does not claim to reproduce the paper or DepEd's official classroom–learner indicator.
+
+## D-065 outlier sensitivity
+
+`school_outlier_flags` compares each school's classroom ratio with the other schools of its LGU type, and each teacher ratio with the same level and LGU type. A ratio beyond Tukey's outer fence (3 × IQR beyond the quartiles; above it only, for the classroom ratio) is a suspected extreme outlier. Every school stays in the published measures.
+
+`lgu_priority_sensitivity` repeats AP2, AP3 and the D-061 rule without the flagged schools (scenario B) and compares it with the published matrix (scenario A). Its gate fails unless scenario A is the published matrix and every LGU without a flagged school is identical in both. `outlier_sensitivity_status` names the most serious change: Priority-sensitive, Classification-sensitive, Coverage-sensitive, Magnitude-sensitive, Stable, or No suspected outliers. The published category stays the review status; the status tells planners which LGUs to verify first.
 
 ## Teacher-pressure interpretation
 
