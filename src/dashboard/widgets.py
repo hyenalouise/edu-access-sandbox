@@ -150,8 +150,9 @@ def note(b, dataset, title, column, desc=None, style=None, show_title=True, labe
 
 def bar(b, dataset, title, x, x_label, fn, value, value_label, horizontal=True, color=None, color_label=None,
         mappings=None, order=None, color_order=None, fmt=None, layout=None, desc=None, sort_by=None, annotations=None,
-        categories_shown=None, legend=None):
-    name, expression = agg(fn, value)
+        categories_shown=None, legend=None, raw=False):
+    """raw draws the dataset's rows as they are, unaggregated, so a natural-order sort keeps the SQL's ORDER BY."""
+    name, expression = (value, bt(value)) if raw else agg(fn, value)
     fields = [(x, bt(x)), (name, expression)] + ([(color, bt(color))] if color and color != x else [])
     category = cat(x, x_label, order, None, sort_by, categories_shown)
     measure = quant(name, value_label, fmt)
@@ -159,7 +160,7 @@ def bar(b, dataset, title, x, x_label, fn, value, value_label, horizontal=True, 
     if color:
         encodings["color"] = cat(color, color_label, color_order, mappings, legend=legend)
     return chart(b, "bar", dataset, title, encodings, fields, desc, mark={"layout": layout} if layout else None,
-                 annotations=annotations)
+                 annotations=annotations, disaggregated=raw)
 
 
 def line(b, dataset, title, x, x_label, fn, value, value_label, fmt=None, color=None, color_label=None, desc=None,
@@ -196,14 +197,14 @@ def heatmap(b, dataset, title, x, x_label, x_order, y, y_label, y_order, fn, val
     return chart(b, "heatmap", dataset, title, encodings, [(x, bt(x)), (y, bt(y)), (name, expression)], desc)
 
 
-def choropleth(b, dataset, title, value, value_label, extra, mappings, order, desc=None):
+def choropleth(b, dataset, title, value, value_label, extra, mappings, order, desc=None, legend=None):
     """One colour per category (`mappings`), one shape per place: the boundary is taken once per value and extra, as
     GeoJSON in a field named geo_first(boundary) that a custom region points at."""
     shape = "geo_first(boundary)"
     fields = [(c, bt(c)) for c in dict.fromkeys([value] + [c for c, _ in extra])]
     fields.append((shape, "ST_ASGEOJSON(FIRST(`boundary`))"))
     encodings = {"region": {"regionType": "custom", "fieldName": shape},
-                 "color": cat(value, value_label, order, mappings),
+                 "color": cat(value, value_label, order, mappings, legend=legend),
                  "extra": [{"fieldName": c, "displayName": label} for c, label in extra]}
     return chart(b, "choropleth-map", dataset, title, encodings, fields, desc, version=1)
 
