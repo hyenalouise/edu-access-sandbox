@@ -17,7 +17,7 @@ import json
 import sys
 from pathlib import Path
 
-from src.dashboard.widgets import (Builder, Page, badges, bar, choropleth, kpi, line, note, num, param_filter, pct,
+from src.dashboard.widgets import (Builder, Page, bar, choropleth, kpi, line, note, num, param_filter, pct,
                                    point_map, ref_line, scatter, table, text)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -63,13 +63,7 @@ GROWTH = ["Growing", "Not growing", "Not comparable"]
 # the review status each combination of the two pressure signals leads to (What is driving priority?)
 SIGNAL_RESULTS = [f"{QUEUE[0]} if growing, else {QUEUE[1]}", f"{QUEUE[1]} if growing, else {QUEUE[2]}",
                   f"{QUEUE[3]} if growing, else no current pressure", QUEUE[5]]
-# theme palette positions (uiSettings visualizationColors) for the badge cells, with white text at WHITE
-PALETTE = ["#712B13", "#5B6B7A", "#C9A227", "#D85A30", "#A9B4BF", "#8A96A3", "#2F6F8F", "#FFFFFF"]
-WHITE = PALETTE.index("#FFFFFF")
-SIGNAL_BADGES = [(SIGNALS[0], PALETTE.index("#D85A30")), (SIGNALS[1], PALETTE.index("#5B6B7A")),
-                 (SIGNALS[2], PALETTE.index("#8A96A3"))]
-RESULT_BADGES = [(SIGNAL_RESULTS[0], PALETTE.index("#712B13")), (SIGNAL_RESULTS[1], PALETTE.index("#D85A30")),
-                 (SIGNAL_RESULTS[2], PALETTE.index("#2F6F8F")), (SIGNAL_RESULTS[3], PALETTE.index("#8A96A3"))]
+SELECTED = "#1F5A8A"  # the selected school or LGU, the same strong blue on every chart
 STATUS_ORDER = ["Above classroom screen", "Missing figure", "Zero rooms or teachers", "No verification flag"]
 VERIFY = ["Verification needed", "No verification flag"]
 KPI_STYLE = {"fontStyle": "normal", "fontWeight": 700}  # every view's four KPIs, on neutral cards
@@ -80,23 +74,26 @@ LINE_STYLE = {"fontSize": 14, "fontStyle": "normal", "fontWeight": 400}  # facts
 LEGEND_BOTTOM = {"position": "bottom"}
 POINT_COLORS = [{"value": "Selected school", "color": "#712B13"}, {"value": VERIFY[0], "color": "#E3A008"},
                 {"value": "Other schools", "color": "#A9B4BF"}]
-MAP_COLORS = [{"value": VERIFY[0], "color": "#E3A008"}, {"value": "Other schools", "color": "#8A96A3"}]
+MAP_COLORS = [{"value": VERIFY[0], "color": "#E3A008"}, {"value": "Other schools", "color": "#7F8C99"}]
 CHANGE_COLORS = [{"value": "Increase", "color": "#2F6F8F"}, {"value": "Decrease", "color": "#C9A227"}]  # not good or bad
 REGION_SERIES = ["Increased", "Decreased", "Not fully comparable", "Equal counts — context only"]
 REGION_COLORS = [{"value": REGION_SERIES[0], "color": "#2F6F8F"}, {"value": REGION_SERIES[1], "color": "#D85A30"},
                  {"value": REGION_SERIES[2], "color": "#A9B4BF"}, {"value": REGION_SERIES[3], "color": "#5B6B7A"}]
-PEER_SERIES = ["Selected LGU", "Other LGUs in the comparison area", "Not comparable", "Equal counts — context only"]
-PEER_COLORS = [{"value": PEER_SERIES[0], "color": "#712B13"}, {"value": PEER_SERIES[1], "color": "#D9DEE3"},
-               {"value": PEER_SERIES[2], "color": "#8A96A3"}, {"value": PEER_SERIES[3], "color": "#5B6B7A"}]
+PEER_SERIES = ["Selected LGU", "Other LGUs in the same province or region", "Population not comparable",
+               "Equal counts — context only"]
+PEER_COLORS = [{"value": PEER_SERIES[0], "color": SELECTED}, {"value": PEER_SERIES[1], "color": "#C9D1D9"},
+               {"value": PEER_SERIES[2], "color": "#E8D9B5"}, {"value": PEER_SERIES[3], "color": "#5B6B7A"}]
 # amber means beyond a reference everywhere; brown is kept for the priority categories
 LEVEL_STATUS = ["Above comparison point", "At or below comparison point", "Not assessed"]
 LEVEL_COLORS = [{"value": LEVEL_STATUS[0], "color": "#E3A008"}, {"value": LEVEL_STATUS[1], "color": "#A9B4BF"},
                 {"value": LEVEL_STATUS[2], "color": "#D9DEE3"}]
 SCHOOL_SERIES = ["Selected school", "Above classroom screen", VERIFY[0], "Within screen", f"{SCREEN} learners per room"]
-SCHOOL_COLORS = [{"value": SCHOOL_SERIES[0], "color": "#14212B"}, {"value": SCHOOL_SERIES[1], "color": "#A32D2D"},
-                 {"value": SCHOOL_SERIES[2], "color": "#E3A008"}, {"value": SCHOOL_SERIES[3], "color": "#A9B4BF"},
+SCHOOL_COLORS = [{"value": SCHOOL_SERIES[0], "color": SELECTED}, {"value": SCHOOL_SERIES[1], "color": "#C2452D"},
+                 {"value": SCHOOL_SERIES[2], "color": "#E3A008"}, {"value": SCHOOL_SERIES[3], "color": "#D3D9DF"},
                  {"value": SCHOOL_SERIES[4], "color": "#5B6B7A"}]
-LOCATION_COLORS = [{"value": "Selected school", "color": "#712B13"}, {"value": "Nearby public schools", "color": "#A9B4BF"}]
+LOCATION_SERIES = ["Selected school", f"Nearby: {VERIFY[0].lower()}", "Nearby: no verification flag"]
+LOCATION_COLORS = [{"value": LOCATION_SERIES[0], "color": SELECTED}, {"value": LOCATION_SERIES[1], "color": "#E3A008"},
+                   {"value": LOCATION_SERIES[2], "color": "#A9B4BF"}]
 
 # ------------------------------------------------------------------------------------------ shared SQL
 
@@ -362,16 +359,17 @@ def change_txt(new, old):
 
 
 def equal_line(points, columns):
-    """A dotted Y = X line as 41 points from 0 to 110% of the largest x or y, so every bubble fits with room to spare;
-    a scatter has no diagonal line. columns: the points' other columns, filled with NULL (size 0)."""
+    """A Y = X line as LINE_POINTS points from 0 to 110% of the largest x or y, close enough to read as a line, so every
+    bubble fits with room to spare; a scatter has no diagonal line. columns: the points' other columns, NULL (size 0)."""
     nulls = ", ".join("0" if c == "size" else f"CAST(NULL AS STRING) AS {c}" for c in columns)
-    return (f"SELECT '{EQUAL_COUNTS}' AS label, g.i * m.top / 40.0 AS x, g.i * m.top / 40.0 AS y, "
+    return (f"SELECT '{EQUAL_COUNTS}' AS label, g.i * m.top / {LINE_POINTS - 1}.0 AS x, g.i * m.top / {LINE_POINTS - 1}.0 AS y, "
             f"'{EQUAL_COUNTS}' AS series, {nulls}\n"
             f"FROM (SELECT 1.1 * GREATEST(MAX(x), MAX(y)) AS top FROM {points}) AS m CROSS JOIN (VALUES {LINE_STEPS}) AS g(i)\n"
             f"WHERE m.top IS NOT NULL")
 
 
-LINE_STEPS = ", ".join(f"({i})" for i in range(41))
+LINE_POINTS = 201
+LINE_STEPS = ", ".join(f"({i})" for i in range(LINE_POINTS))
 REGION_TIPS = ["lgus_txt", "population_2020_txt", "population_2024_txt", "population_change_txt", "enrolled_2020_txt",
                "enrolled_2024_txt", "enrollment_change_txt", "public_2024_txt", "size", "schools_txt", "school_year_txt",
                "comparable_txt", "review_txt"]
@@ -858,6 +856,7 @@ PR_MAP = f"""WITH {school_base(level_param=False)},
 {LOCATIONS}
 SELECT school_name, school_id, barangay_name, school_kind, levels_offered_full, learners_txt, per_room_txt, per_teacher_txt,
        verification_status, why_listed, 'Inside the LGU boundary' AS location_status, latitude, longitude,
+       COALESCE(learners, 0) AS learners,
        CASE WHEN to_check THEN '{VERIFY[0]}' ELSE 'Other schools' END AS map_series
 FROM loc
 WHERE boundary_status = 'inside'"""
@@ -923,11 +922,17 @@ pts AS (
   FROM schools AS s
   WHERE s.offers_level = 1 AND s.learners IS NOT NULL AND s.rooms IS NOT NULL
 )
-SELECT * FROM pts
-UNION ALL
-SELECT '{SCHOOL_SERIES[4]}', g.i * m.top / 40.0, g.i * m.top / 40.0 / {SCREEN}, 0, '{SCHOOL_SERIES[4]}'
-FROM (SELECT MAX(learners) AS top FROM pts) AS m CROSS JOIN (VALUES {LINE_STEPS}) AS g(i)
-WHERE m.top IS NOT NULL"""
+-- the line first and the selected school last, so the selected school is drawn on top of the others
+SELECT school_name, learners, rooms, teachers, series FROM (
+  SELECT '{SCHOOL_SERIES[4]}' AS school_name, g.i * m.top / {LINE_POINTS - 1}.0 AS learners,
+         g.i * m.top / {LINE_POINTS - 1}.0 / {SCREEN} AS rooms, 0 AS teachers, '{SCHOOL_SERIES[4]}' AS series, 0 AS draw_order
+  FROM (SELECT 1.05 * MAX(learners) AS top FROM pts) AS m CROSS JOIN (VALUES {LINE_STEPS}) AS g(i)
+  WHERE m.top IS NOT NULL
+  UNION ALL
+  SELECT school_name, learners, rooms, teachers, series,
+         CASE WHEN series = '{SCHOOL_SERIES[0]}' THEN 2 ELSE 1 END FROM pts
+) AS d
+ORDER BY draw_order"""
 
 # the selected school's room and teacher figures against their references, on one scale (100% = the reference)
 SA_BULLET = f"""WITH {school_base()},
@@ -941,20 +946,21 @@ lv AS (
 ),
 lt AS (
   SELECT r.ord, {LEVEL_LABEL.format(c='lv.code')} AS level, r.reference,
-         lv.learners / NULLIF(CAST(lv.teachers AS DOUBLE), 0) AS ratio
+         lv.learners / NULLIF(CAST(lv.teachers AS DOUBLE), 0) AS ratio, lv.offered
   FROM lv JOIN refs AS r ON r.code = lv.code
-  WHERE lv.offered = 1 AND ((SELECT level_code FROM lvl) IS NULL OR lv.code = (SELECT level_code FROM lvl))
 )
-SELECT 0 AS ord, 'Learners per reported room · ' || {measure('learners_per_room', 1, f' vs {SCREEN}', 'not assessable')} AS figure,
+-- every level is listed, offered or not; the value is in the label, the reference is the line
+SELECT 0 AS ord, 'Learners per reported room · ' || {measure('learners_per_room', 1, '', 'not assessable')} AS figure,
        learners_per_room / {SCREEN}.0 AS share_of_reference,
        CASE WHEN learners_per_room IS NULL THEN '{LEVEL_STATUS[2]}' WHEN learners_per_room >= {SCREEN} THEN '{LEVEL_STATUS[0]}'
             ELSE '{LEVEL_STATUS[1]}' END AS status
 FROM s
 UNION ALL
 SELECT ord, 'Learners per ' || lower(level) || ' teacher · '
-         || CASE WHEN ratio IS NULL THEN 'not assessable' ELSE format_number(ratio, 1) || ' vs ' || format_number(reference, 1) END,
-       ratio / reference,
-       CASE WHEN ratio IS NULL THEN '{LEVEL_STATUS[2]}' WHEN ratio > reference THEN '{LEVEL_STATUS[0]}' ELSE '{LEVEL_STATUS[1]}' END
+         || CASE WHEN offered = 0 THEN 'not offered' WHEN ratio IS NULL THEN 'not assessable' ELSE format_number(ratio, 1) END,
+       CASE WHEN offered = 1 THEN ratio / reference END,
+       CASE WHEN offered = 0 OR ratio IS NULL THEN '{LEVEL_STATUS[2]}' WHEN ratio > reference THEN '{LEVEL_STATUS[0]}'
+            ELSE '{LEVEL_STATUS[1]}' END
 FROM lt
 ORDER BY ord"""
 
@@ -965,12 +971,15 @@ here AS (
   SELECT l.latitude, l.longitude FROM pick JOIN {G}.dim_school_location AS l ON l.school_id = pick.school_id
   WHERE l.boundary_status = 'inside'
 )
-SELECT s.school_name, s.levels_offered_full, l.latitude, l.longitude,
-       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school' ELSE 'Nearby public schools' END AS series
+SELECT s.school_name, s.levels_offered_full, s.learners_txt, s.verification_status, l.latitude, l.longitude,
+       COALESCE(s.learners, 0) AS learners,
+       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{LOCATION_SERIES[0]}'
+            WHEN s.to_check THEN '{LOCATION_SERIES[1]}' ELSE '{LOCATION_SERIES[2]}' END AS series
 FROM schools AS s
 JOIN {G}.dim_school_location AS l ON l.school_id = s.school_id
 CROSS JOIN here
-WHERE l.boundary_status = 'inside' AND abs(l.latitude - here.latitude) <= 0.03 AND abs(l.longitude - here.longitude) <= 0.03"""
+WHERE l.boundary_status = 'inside' AND abs(l.latitude - here.latitude) <= 0.03 AND abs(l.longitude - here.longitude) <= 0.03
+ORDER BY CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 1 ELSE 0 END"""
 
 SA_TREND = f"""WITH {school_base()},
 {PICK},
@@ -1384,10 +1393,9 @@ def overview(b):
                              None, "Each region's LGUs by review status, regions with the most Priority 1 and 2 first.",
                              raw=True), 6),
            (table(b, "ov_signals", "What is driving priority?", [
-               ("classroom_signal", "Classroom pressure", None, badges(SIGNAL_BADGES, WHITE)),
-               ("teacher_signal", "Teacher pressure", None, badges(SIGNAL_BADGES, WHITE)),
+               ("classroom_signal", "Classroom pressure", None), ("teacher_signal", "Teacher pressure", None),
                ("lgus", "LGUs", None), ("growing", "Growing enrollment", None),
-               ("resulting_status", "Review status", None, badges(RESULT_BADGES, WHITE))],
+               ("resulting_status", "Review status", None)],
                "LGUs by the two pressure signals, how many also have growing public enrollment, and the review status "
                "that results."), 6)], 8)
     p.row([(table(b, "ov_lgu", "LGU review queue", [
@@ -1518,8 +1526,8 @@ def lgu_profile(b):
          ("per_room_txt", "Learners per reported room"), ("per_teacher_txt", "Learners per reported teacher"),
          ("verification_status", "Verification status"), ("why_listed", "Why listed"),
          ("location_status", "Coordinate validation")],
-        "Public schools with validated coordinates in the selected LGU, SY 2023-24 published locations. Not catchment "
-        "areas, routes or walking distance.")
+        "Public schools with validated coordinates in the selected LGU, sized by public learners, SY 2023-24 published "
+        "locations. Not catchment areas, routes or walking distance.", size="learners", size_label="Public learners")
     map_note = note(b, "pr_map_note", "School map coverage", "map_line", style=LINE_STYLE, show_title=False)
     barangays = table(b, "pr_barangays", "Barangays without a matched public elementary school", [
         ("barangay_name", "Barangay", None), ("public_es", "Matched public elementary", None),
@@ -1573,8 +1581,9 @@ def school_action(b):
                 "share_of_reference", "Share of the reference", fmt=pct(0), color="status", color_label="Against the reference",
                 mappings=LEVEL_COLORS, color_order=LEVEL_STATUS, legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
                 annotations=[ref_line("x", 1, "Reference")],
-                desc=f"Each figure on one scale, where the line is its reference: the {SCREEN}-learner room screen or the "
-                     "level's teacher comparison point. Past the line is beyond the reference."), 6),
+                desc=f"Each figure on one scale, where the line is its reference: the {SCREEN}-learner room screen or "
+                     "the level's teacher comparison point. Past the line is beyond the reference. Every level is listed; "
+                     "a level the school does not offer has no bar."), 6),
            (table(b, "sa_verify", "What should be verified?", [
                ("item", "Figure", None), ("why", "Why", None), ("next_step", "Next step", None)],
                "Each flag turned into a step with the school or the Schools Division Office."), 6)], 5)
@@ -1585,9 +1594,11 @@ def school_action(b):
                     f"the dotted {SCREEN}-learners-per-room line are above the classroom screen."), 8),
            (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Schools",
                       LOCATION_COLORS, [c["value"] for c in LOCATION_COLORS],
-                      [("school_name", "School"), ("levels_offered_full", "Levels offered")],
-                      "The selected school and public schools within about 3 km. Empty when the school has no validated "
-                      "location; no barangay boundary is drawn."), 4)], 8)
+                      [("school_name", "School"), ("levels_offered_full", "Levels offered"),
+                       ("learners_txt", "Public learners"), ("verification_status", "Verification status")],
+                      "The selected school and public schools within about 3 km, sized by learners. Empty when the school "
+                      "has no validated location; no barangay boundary is drawn.", size="learners",
+                      size_label="Public learners"), 4)], 8)
     p.row([(line(b, "sa_trend", "How has enrollment changed in this school?", "school_year_label", "School year", "sum",
                  "learners", "Learners", num(), color="series", color_label="Series", x_order=SCHOOL_YEARS,
                  mappings=[{"value": "All levels", "color": "#712B13"}, {"value": LEVELS[0], "color": "#A9B4BF"},
@@ -1701,7 +1712,7 @@ def build():
             "widgetBorderColor": {"light": "#E4DFD8", "dark": "#2A343B"},
             "fontColor": {"light": "#14212B", "dark": "#E8ECF0"},
             "selectionColor": {"light": "#712B13", "dark": "#F0997B"},
-            "visualizationColors": PALETTE,
+            "visualizationColors": ["#712B13", "#5B6B7A", "#C9A227", "#D85A30", "#A9B4BF", "#8A96A3", "#2F6F8F"],
             "fontFamily": "Inter", "fontSettings": {"base": {"fontFamily": "Inter"}, "widgetTitle": {"fontSize": 16}},
             "widgetHeaderAlignment": "LEFT", "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP", "widgetPadding": 16, "widgetMargin": 8, "widgetCornerRadius": 8},
             "applyModeEnabled": False},

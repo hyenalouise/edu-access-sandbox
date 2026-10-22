@@ -158,24 +158,17 @@ def test_the_selected_lgu_stays_in_its_comparison_area_with_its_values(store):
     line = [r for r in rows if r["series"] == planner.EQUAL_COUNTS]
     selected = [r for r in points if r["label"] == "Town One, Province"]
     assert len(selected) == 1 and selected[0]["series"] == planner.PEER_SERIES[0]
-    assert len(line) == 41 and max(r["x"] for r in line) >= 1.1 * max(max(r["x"], r["y"]) for r in points) - 1e-9
+    assert len(line) == planner.LINE_POINTS and max(r["x"] for r in line) >= 1.1 * max(max(r["x"], r["y"]) for r in points) - 1e-9
     note = _rows(store, "pr_peer_note", lgu="Town One, Province")[0]["peer_line"]
     assert note.startswith("Town One: ") and "active public schools (SY 2023-24)" in note
 
 
-def test_what_is_driving_priority_shows_badges_for_every_signal_and_status():
-    widget = next(w for p in load()["pages"] for w in widgets(p) if w.get("queries")
-                  and w["queries"][0]["query"]["datasetName"] == "ov_signals")
-    styled = {c["fieldName"]: c["style"] for c in widget["spec"]["encodings"]["columns"] if "style" in c}
-    assert set(styled) == {"classroom_signal", "teacher_signal", "resulting_status"}
-    for field, values in (("classroom_signal", planner.SIGNALS), ("resulting_status", planner.SIGNAL_RESULTS)):
-        rules = styled[field]["rules"]
-        assert [r["condition"]["operand"]["value"] for r in rules] == values
-        for rule in rules:  # every colour is a slot in the theme palette, and the text is white
-            assert planner.PALETTE[rule["foregroundColor"]["position"]] == "#FFFFFF"
-            assert rule["backgroundColor"]["position"] < len(planner.PALETTE)
-    sql = "".join(next(d for d in load()["datasets"] if d["name"] == "ov_signals")["queryLines"])
-    assert all(f"'{value}'" in sql for value in planner.SIGNAL_RESULTS)
+def test_no_table_cell_is_coloured():
+    # badges were tried on 2026-10-22 and were unreadable: tables stay plain
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            if widget.get("spec", {}).get("widgetType") == "table":
+                assert not any("style" in c for c in widget["spec"]["encodings"]["columns"]), widget["name"]
 
 
 def test_no_title_renders_markdown():
@@ -364,10 +357,11 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
     assert ratio["Junior high"]["X1"] is None
     shown = {r["school_id"]: r for r in _rows(store, "sa_list", level="Junior high", lgu="Town One, Province")}
     assert shown["X1"]["per_teacher_txt"] == "Not assessable"  # a word, never null
-    # the bullet chart says so at JHS rather than plotting the all-level ratio, and names only JHS's comparison point
+    # the bullet chart lists every level, says why one has no bar, and never writes the comparison value
     bullets = _rows(store, "sa_bullet", level="Junior high", lgu="Town One, Province", school="X1 · X1")
     assert [(r["figure"], r["share_of_reference"]) for r in bullets] == [
-        ("Learners per reported room · 85.0 vs 50", 1.7), ("Learners per junior high teacher · not assessable", None)]
+        ("Learners per reported room · 85.0", 1.7), ("Learners per elementary teacher · 30.0", 30 / 35),
+        ("Learners per junior high teacher · not assessable", None), ("Learners per senior high teacher · not offered", None)]
     school = _rows(store, "sa_school", level="Elementary", lgu="Town One, Province", school="X1 · X1")[0]
     assert school["teacher_kpi"] == "30.0 vs 35"
 
