@@ -72,25 +72,18 @@ DETAIL_STYLE = {"fontSize": 16, "fontStyle": "normal", "fontWeight": 400}  # the
 STATUS_STYLE = {"fontSize": 18, "fontStyle": "normal", "fontWeight": 700}  # the status and its basis
 LINE_STYLE = {"fontSize": 14, "fontStyle": "normal", "fontWeight": 400}  # facts, coverage and status lines
 LEGEND_BOTTOM = {"position": "bottom"}
-POINT_COLORS = [{"value": "Selected school", "color": "#712B13"}, {"value": VERIFY[0], "color": "#E3A008"},
-                {"value": "Other schools", "color": "#A9B4BF"}]
+POINT_COLORS = [{"value": "Selected school", "color": SELECTED}, {"value": VERIFY[0], "color": "#E3A008"},
+                {"value": "Other schools", "color": "#C9D1D9"}]
 MAP_COLORS = [{"value": VERIFY[0], "color": "#E3A008"}, {"value": "Other schools", "color": "#7F8C99"}]
 CHANGE_COLORS = [{"value": "Increase", "color": "#2F6F8F"}, {"value": "Decrease", "color": "#C9A227"}]  # not good or bad
-REGION_SERIES = ["Increased", "Decreased", "Not fully comparable", "Equal counts — context only"]
-REGION_COLORS = [{"value": REGION_SERIES[0], "color": "#2F6F8F"}, {"value": REGION_SERIES[1], "color": "#D85A30"},
-                 {"value": REGION_SERIES[2], "color": "#A9B4BF"}, {"value": REGION_SERIES[3], "color": "#5B6B7A"}]
-PEER_SERIES = ["Selected LGU", "Other LGUs in the same province or region", "Population not comparable",
-               "Equal counts — context only"]
-PEER_COLORS = [{"value": PEER_SERIES[0], "color": SELECTED}, {"value": PEER_SERIES[1], "color": "#C9D1D9"},
-               {"value": PEER_SERIES[2], "color": "#E8D9B5"}, {"value": PEER_SERIES[3], "color": "#5B6B7A"}]
+REGION_SERIES = ["Resident children aged 5-17, 2024", "All-sector enrollment in local schools, SY 2024-25"]
+REGION_COLORS = [{"value": REGION_SERIES[0], "color": "#5B6B7A"}, {"value": REGION_SERIES[1], "color": "#C9A227"}]
+PEER_SERIES = ["Selected LGU", "Other LGUs in the same province or region"]
+PEER_COLORS = [{"value": PEER_SERIES[0], "color": SELECTED}, {"value": PEER_SERIES[1], "color": "#C9D1D9"}]
 # amber means beyond a reference everywhere; brown is kept for the priority categories
 LEVEL_STATUS = ["Above comparison point", "At or below comparison point", "Not assessed"]
 LEVEL_COLORS = [{"value": LEVEL_STATUS[0], "color": "#E3A008"}, {"value": LEVEL_STATUS[1], "color": "#A9B4BF"},
                 {"value": LEVEL_STATUS[2], "color": "#D9DEE3"}]
-SCHOOL_SERIES = ["Selected school", "Above classroom screen", VERIFY[0], "Within screen", f"{SCREEN} learners per room"]
-SCHOOL_COLORS = [{"value": SCHOOL_SERIES[0], "color": SELECTED}, {"value": SCHOOL_SERIES[1], "color": "#C2452D"},
-                 {"value": SCHOOL_SERIES[2], "color": "#E3A008"}, {"value": SCHOOL_SERIES[3], "color": "#D3D9DF"},
-                 {"value": SCHOOL_SERIES[4], "color": "#5B6B7A"}]
 LOCATION_SERIES = ["Selected school", f"Nearby: {VERIFY[0].lower()}", "Nearby: no verification flag"]
 LOCATION_COLORS = [{"value": LOCATION_SERIES[0], "color": SELECTED}, {"value": LOCATION_SERIES[1], "color": "#E3A008"},
                    {"value": LOCATION_SERIES[2], "color": "#A9B4BF"}]
@@ -350,65 +343,29 @@ POP_CTE = f"""pop AS (
   WHERE census_year IS NOT NULL
   GROUP BY city_mun_psgc_code
 )"""
-EQUAL_COUNTS = "Equal counts — context only"
 SCHOOL_COUNT_YEAR = "SY 2023-24"  # the year of AP1's active public-school count
 
-
-def change_txt(new, old):
-    return f"CASE WHEN {old} > 0 AND {new} IS NOT NULL THEN {signed(f'({new} - {old}) / CAST({old} AS DOUBLE)')} ELSE 'Not comparable' END"
-
-
-def equal_line(points, columns):
-    """A Y = X line as LINE_POINTS points from 0 to 110% of the largest x or y, close enough to read as a line, so every
-    bubble fits with room to spare; a scatter has no diagonal line. columns: the points' other columns, NULL (size 0)."""
-    nulls = ", ".join("0" if c == "size" else f"CAST(NULL AS STRING) AS {c}" for c in columns)
-    return (f"SELECT '{EQUAL_COUNTS}' AS label, g.i * m.top / {LINE_POINTS - 1}.0 AS x, g.i * m.top / {LINE_POINTS - 1}.0 AS y, "
-            f"'{EQUAL_COUNTS}' AS series, {nulls}\n"
-            f"FROM (SELECT 1.1 * GREATEST(MAX(x), MAX(y)) AS top FROM {points}) AS m CROSS JOIN (VALUES {LINE_STEPS}) AS g(i)\n"
-            f"WHERE m.top IS NOT NULL")
-
-
-LINE_POINTS = 201
-LINE_STEPS = ", ".join(f"({i})" for i in range(LINE_POINTS))
-REGION_TIPS = ["lgus_txt", "population_2020_txt", "population_2024_txt", "population_change_txt", "enrolled_2020_txt",
-               "enrolled_2024_txt", "enrollment_change_txt", "public_2024_txt", "size", "schools_txt", "school_year_txt",
-               "comparable_txt", "review_txt"]
-# one bubble per region, summed over the LGUs left after every filter; population change from comparable LGUs only
-OV_REGION_BUBBLE = f"""WITH {PRI},
+# resident children and all-sector enrollment per region, summed over the LGUs left after the filters, largest region
+# first (the chart keeps this order); no gap is calculated
+OV_REGION_PAIRS = f"""WITH {PRI},
 {POP_CTE},
 f AS (
-  SELECT pri.region_short, pri.queue_status, pri.active_public_school_count, pop.*
+  SELECT pri.region_short, pop.population_2024, pop.enrolled_2024
   FROM pri LEFT JOIN pop ON pop.city_mun_psgc_code = pri.city_mun_psgc_code
   WHERE {OV_FILTER}
 ),
 r AS (
-  SELECT region_short, COUNT(*) AS lgus, SUM(population_2024) AS population_2024, SUM(population_2020) AS population_2020,
-         SUM(CASE WHEN comparable = 1 AND population_2020 > 0 THEN population_2024 END) AS comparable_2024,
-         SUM(CASE WHEN comparable = 1 AND population_2020 > 0 THEN population_2020 END) AS comparable_2020,
-         COUNT_IF(COALESCE(comparable = 1 AND population_2020 > 0, FALSE)) AS comparable_lgus,
-         SUM(enrolled_2020) AS enrolled_2020, SUM(enrolled_2024) AS enrolled_2024, SUM(public_2024) AS public_2024,
-         SUM(active_public_school_count) AS schools, COUNT_IF(queue_status = '{QUEUE[5]}') AS review_lgus
+  SELECT region_short, SUM(population_2024) AS population, SUM(enrolled_2024) AS enrolled
   FROM f GROUP BY region_short
-),
-pts AS (
-  SELECT region_short AS label, CAST(population_2024 AS DOUBLE) AS x, CAST(enrolled_2024 AS DOUBLE) AS y,
-         CASE WHEN comparable_lgus < lgus THEN 'Not fully comparable'
-              WHEN comparable_2024 >= comparable_2020 THEN 'Increased' ELSE 'Decreased' END AS series,
-         format_number(lgus, 0) AS lgus_txt, {r0('population_2020')} AS population_2020_txt,
-         {r0('population_2024')} AS population_2024_txt,
-         CASE WHEN comparable_2020 > 0 THEN {change_txt('comparable_2024', 'comparable_2020')} || ' (comparable LGUs only)'
-              ELSE 'Not comparable' END AS population_change_txt,
-         {r0('enrolled_2020')} AS enrolled_2020_txt, {r0('enrolled_2024')} AS enrolled_2024_txt,
-         {change_txt('enrolled_2024', 'enrolled_2020')} AS enrollment_change_txt, {r0('public_2024')} AS public_2024_txt,
-         schools AS size, {r0('schools')} AS schools_txt, '{SCHOOL_COUNT_YEAR}' AS school_year_txt,
-         format_number(comparable_lgus, 0) || ' of ' || format_number(lgus, 0) AS comparable_txt,
-         format_number(review_lgus, 0) AS review_txt
-  FROM r
-  WHERE population_2024 IS NOT NULL AND enrolled_2024 IS NOT NULL
 )
-SELECT label, x, y, series, {", ".join(REGION_TIPS)} FROM pts
-UNION ALL
-{equal_line("pts", REGION_TIPS)}"""
+SELECT region_short, series, people FROM (
+  SELECT region_short, population AS size_order, 1 AS series_order, '{REGION_SERIES[0]}' AS series, population AS people FROM r
+  UNION ALL
+  SELECT region_short, population, 2, '{REGION_SERIES[1]}', enrolled FROM r
+) AS t
+WHERE size_order IS NOT NULL
+ORDER BY size_order DESC, region_short, series_order"""
+
 
 # ============================================================ 2 LGU Profile
 SEL = f"""sel AS (
@@ -615,10 +572,6 @@ UNION ALL SELECT period, '{CENSUS_SERIES[1]}', enrollment_all_sectors FROM c"""
 
 # the selected LGU among the other LGUs of its comparison area: its province, or its region for an independent or highly
 # urbanized city (no province). Region, Province and LGU type narrow the area; the selected LGU always stays.
-PEER_TIPS = ["province_label", "region_short", "queue_status", "population_2020_txt", "population_2024_txt",
-             "population_change_txt", "enrolled_2020_txt", "enrolled_2024_txt", "enrollment_change_txt", "public_2024_txt",
-             "size", "schools_txt", "learners_per_school_txt", "children_per_school_txt", "barangays_txt",
-             "match_txt", "comparability_txt"]
 PEER_AREA = f"""{PRI},
 {SEL},
 {POP_CTE},
@@ -632,55 +585,21 @@ area AS (
              ELSE pri.province_label = me.province_label END
     AND ({GEO_PRI} OR pri.city_mun_psgc_code = me.city_mun_psgc_code)
 )"""
-PR_PEERS = f"""WITH {PEER_AREA},
-es AS (
-  SELECT DISTINCT e.barangay_psgc_code FROM {G}.fact_school_enrollment AS e JOIN area USING (city_mun_psgc_code)
-  WHERE e.sector = 'Public' AND e.psgc_match_status = 'matched' AND e.school_year = '2023-24'
-    AND e.education_level_code = 'ES' AND e.is_offered AND e.learner_count > 0
-),
-bgy AS (
-  SELECT b.city_mun_psgc_code, COUNT(*) AS barangays, COUNT_IF(es.barangay_psgc_code IS NULL) AS without_es
-  FROM {G}.dim_barangay AS b JOIN area USING (city_mun_psgc_code)
-  LEFT JOIN es ON es.barangay_psgc_code = b.barangay_psgc_code
-  WHERE b.member_type = 'regular' GROUP BY b.city_mun_psgc_code
-),
-mc AS (
-  SELECT e.city_mun_psgc_code, COUNT(DISTINCT e.school_id) AS schools,
-         COUNT(DISTINCT CASE WHEN e.barangay_psgc_code IS NOT NULL THEN e.school_id END) AS matched
-  FROM {G}.fact_school_enrollment AS e JOIN area USING (city_mun_psgc_code)
-  WHERE e.sector = 'Public' AND e.psgc_match_status = 'matched' AND e.school_year = '2023-24'
-  GROUP BY e.city_mun_psgc_code
-),
-pts AS (
-  SELECT a.lgu_label AS label, CAST(a.population_2024 AS DOUBLE) AS x, CAST(a.enrolled_2024 AS DOUBLE) AS y,
-         CASE WHEN a.is_selected THEN '{PEER_SERIES[0]}'
-              WHEN a.comparable = 0 OR a.population_2020 IS NULL THEN '{PEER_SERIES[2]}' ELSE '{PEER_SERIES[1]}' END AS series,
-         a.province_label, a.region_short, a.queue_status,
-         {r0('a.population_2020')} AS population_2020_txt, {r0('a.population_2024')} AS population_2024_txt,
-         CASE WHEN a.comparable = 0 THEN 'Not comparable' ELSE {change_txt('a.population_2024', 'a.population_2020')} END
-           AS population_change_txt,
-         {r0('a.enrolled_2020')} AS enrolled_2020_txt, {r0('a.enrolled_2024')} AS enrolled_2024_txt,
-         {change_txt('a.enrolled_2024', 'a.enrolled_2020')} AS enrollment_change_txt, {r0('a.public_2024')} AS public_2024_txt,
-         a.active_public_school_count AS size, {r0('a.active_public_school_count')} AS schools_txt,
-         {r0('a.ap1_learners_per_public_school')} AS learners_per_school_txt,
-         {r0('a.ap1_school_age_population_per_public_school')} AS children_per_school_txt,
-         CASE WHEN bgy.barangays IS NULL THEN 'Not reported'
-              ELSE format_number(bgy.without_es, 0) || ' of ' || format_number(bgy.barangays, 0) END AS barangays_txt,
-         {cov('100.0 * mc.matched / NULLIF(mc.schools, 0)')} AS match_txt,
-         CASE WHEN a.comparable = 1 AND a.population_2020 IS NOT NULL THEN 'Comparable 2020 to 2024'
-              ELSE 'Not comparable: boundaries changed or a census year is missing' END AS comparability_txt
-  FROM area AS a
-  LEFT JOIN bgy ON bgy.city_mun_psgc_code = a.city_mun_psgc_code
-  LEFT JOIN mc ON mc.city_mun_psgc_code = a.city_mun_psgc_code
-  WHERE a.population_2024 IS NOT NULL AND a.enrolled_2024 IS NOT NULL
-)
-SELECT label, x, y, series, {", ".join(PEER_TIPS)} FROM pts
-UNION ALL
-{equal_line("pts", PEER_TIPS)}"""
+# ranked bars of the published school-age children per public school, highest first (the chart keeps this order); the
+# province is added to each name when the area is a whole region, so two towns with one name stay apart
+PR_PEERS = f"""WITH {PEER_AREA}
+SELECT CASE WHEN me.province_label = 'Independent cities (no province)' AND a.province_label <> me.province_label
+            THEN a.city_mun_name || ', ' || a.province_label ELSE a.city_mun_name END AS lgu,
+       a.ap1_school_age_population_per_public_school AS children_per_school,
+       CASE WHEN a.is_selected THEN '{PEER_SERIES[0]}' ELSE '{PEER_SERIES[1]}' END AS series
+FROM area AS a CROSS JOIN me
+WHERE a.ap1_school_age_population_per_public_school IS NOT NULL
+ORDER BY children_per_school DESC, lgu"""
 
-# the direct label the chart cannot draw: the selected LGU's three values, abbreviated
+# the selected LGU's own figures under the ranked bars, abbreviated
 PR_PEER_NOTE = f"""WITH {PEER_AREA}
-SELECT city_mun_name || ': ' || COALESCE({abbrev('population_2024')} || ' resident children', 'resident children not reported')
+SELECT city_mun_name || ': ' || {measure('ap1_school_age_population_per_public_school', 0, ' school-age children per public school', 'children per public school not reported')}
+       || ' · ' || COALESCE({abbrev('population_2024')} || ' resident children', 'resident children not reported')
        || ' · ' || COALESCE({abbrev('enrolled_2024')} || ' learners enrolled locally', 'enrollment not reported')
        || ' · ' || format_number(COALESCE(active_public_school_count, 0), 0) || ' active public schools ({SCHOOL_COUNT_YEAR})'
          AS peer_line
@@ -911,26 +830,16 @@ FROM schools AS s
 JOIN pick USING (school_id)
 CROSS JOIN (SELECT pri.queue_status FROM pri JOIN sel USING (city_mun_psgc_code)) AS st"""
 
-# learners against reported rooms; a dotted line of points marks 50 learners per room (a scatter has no diagonal)
+# learners per reported room against learners per teacher; the selected school is drawn last so it sits on top
 SA_PEERS = f"""WITH {school_base()},
-{PICK},
-pts AS (
-  SELECT s.school_name, CAST(s.learners AS DOUBLE) AS learners, CAST(s.rooms AS DOUBLE) AS rooms, s.teachers,
-         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{SCHOOL_SERIES[0]}'
-              WHEN s.f_above = 1 THEN '{SCHOOL_SERIES[1]}' WHEN s.to_check THEN '{SCHOOL_SERIES[2]}'
-              ELSE '{SCHOOL_SERIES[3]}' END AS series
+{PICK}
+SELECT school_name, learners, learners_per_room, teacher_ratio, series FROM (
+  SELECT s.school_name, s.learners, s.learners_per_room, s.teacher_ratio,
+         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'
+              WHEN s.to_check THEN '{VERIFY[0]}' ELSE 'Other schools' END AS series,
+         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 1 ELSE 0 END AS draw_order
   FROM schools AS s
-  WHERE s.offers_level = 1 AND s.learners IS NOT NULL AND s.rooms IS NOT NULL
-)
--- the line first and the selected school last, so the selected school is drawn on top of the others
-SELECT school_name, learners, rooms, teachers, series FROM (
-  SELECT '{SCHOOL_SERIES[4]}' AS school_name, g.i * m.top / {LINE_POINTS - 1}.0 AS learners,
-         g.i * m.top / {LINE_POINTS - 1}.0 / {SCREEN} AS rooms, 0 AS teachers, '{SCHOOL_SERIES[4]}' AS series, 0 AS draw_order
-  FROM (SELECT 1.05 * MAX(learners) AS top FROM pts) AS m CROSS JOIN (VALUES {LINE_STEPS}) AS g(i)
-  WHERE m.top IS NOT NULL
-  UNION ALL
-  SELECT school_name, learners, rooms, teachers, series,
-         CASE WHEN series = '{SCHOOL_SERIES[0]}' THEN 2 ELSE 1 END FROM pts
+  WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL AND s.teacher_ratio IS NOT NULL
 ) AS d
 ORDER BY draw_order"""
 
@@ -1299,7 +1208,7 @@ def datasets(b):
     b.dataset("ov_signals", "Overview: what drives priority", OV_SIGNALS, OV_P)
     b.dataset("ov_region", "Overview: review status by region", OV_REGION, OV_P)
     b.dataset("ov_type", "Overview: review status by LGU type", OV_TYPE, OV_P)
-    b.dataset("ov_region_bubble", "Overview: children, enrollment and schools by region", OV_REGION_BUBBLE, OV_P)
+    b.dataset("ov_region_pairs", "Overview: resident children and local enrollment by region", OV_REGION_PAIRS, OV_P)
     b.dataset("ov_insufficient", "Overview: data review LGUs", OV_INSUFFICIENT, OV_P)
     b.dataset("pr_card", "LGU Profile: selected LGU", PR_CARD, LGU_P)
     b.dataset("pr_decision", "LGU Profile: why this LGU has this status", PR_DECISION, LGU_P)
@@ -1414,26 +1323,13 @@ def overview(b):
            (status_share_bar(b, "ov_type", "Review status by LGU type", "lgu_type_label", "LGU type", "share_of_type",
                              ["City", "Municipality"],
                              "Share of cities and of municipalities in each review status."), 6)], 7)
-    p.row([(scatter(b, "ov_region_bubble", "Resident children, local enrollment and public schools by region", "x",
-                    "School-age population, ages 5-17, 2024", "y", "All-sector enrollment in local schools, SY 2024-25",
-                    "series", "School-age population change, 2020-2024", REGION_COLORS, REGION_SERIES, "size",
-                    f"Active public schools, {SCHOOL_COUNT_YEAR}",
-                    desc="Each circle represents a region. Position compares resident children ages 5-17 with learners "
-                         "enrolled in local schools; circle size represents active public schools. Enrollment is counted "
-                         "where learners attend, while population is counted where children live. The dotted line marks "
-                         "equal counts, for context only. The chart does not measure out-of-school children or determine "
-                         "how many schools are needed.",
-                    extra=[("label", "Region"), ("lgus_txt", "Cities and municipalities in view"),
-                           ("population_2020_txt", "School-age population, 2020"),
-                           ("population_2024_txt", "School-age population, 2024"),
-                           ("population_change_txt", "Population change, 2020-2024"),
-                           ("enrolled_2020_txt", "All-sector enrollment, SY 2020-21"),
-                           ("enrolled_2024_txt", "All-sector enrollment, SY 2024-25"),
-                           ("enrollment_change_txt", "Enrollment change"),
-                           ("public_2024_txt", "Public-school enrollment, SY 2024-25"),
-                           ("schools_txt", "Active public schools"), ("school_year_txt", "School-count year"),
-                           ("comparable_txt", "LGUs with comparable population data"),
-                           ("review_txt", "LGUs requiring data review")]), 12)], 9)
+    p.row([(bar(b, "ov_region_pairs", "Resident children and local enrollment by region", "region_short", "Region", "sum",
+                "people", "People", color="series", color_label="", mappings=REGION_COLORS, color_order=REGION_SERIES,
+                fmt=num(1, True), layout="group", legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
+                desc="Resident children ages 5-17 (2024) beside learners enrolled in local schools in all sectors "
+                     "(SY 2024-25), largest region first, from the LGUs left after the filters. Children are counted where "
+                     "they live and learners where they attend, so the two differ; the difference is not a count of "
+                     "out-of-school children or of schools needed."), 12)], 10)
     p.row([(text(b, "**Next:** open **LGU Profile** and choose a city or municipality from the queue.\n", "\n",
                  "Before acting, validate flagged schools against actual classroom counts, building condition, shifts, "
                  "enrollment projections and planned projects. The queue prioritizes validation, not allocation."), 12)], 2)
@@ -1496,26 +1392,15 @@ def lgu_profile(b):
                 order=CENSUS_YEARS, color_order=CENSUS_SERIES, layout="group", fmt=num(1, True), legend=LEGEND_BOTTOM,
                 desc="Children are counted where they live, learners where they attend school. A school hub can enroll "
                      "more learners than its resident children; the gap is not a count of children out of school."), 6)], 7)
-    peers = scatter(
-        b, "pr_peers", "How does this LGU compare with other LGUs in the area?", "x",
-        "School-age population, ages 5-17, 2024", "y", "All-sector enrollment in local schools, SY 2024-25", "series",
-        "Comparison area", PEER_COLORS, PEER_SERIES, "size", f"Active public schools, {SCHOOL_COUNT_YEAR}",
-        desc="The selected LGU is compared with other LGUs in its province, or its region for an independent city. Moving "
-             "right means more resident children; moving up means more learners enrolled locally; larger circles represent "
-             "more active public schools. Differences can reflect cross-boundary attendance, school offerings and data "
-             "coverage. They are not counts of out-of-school children. The dotted line marks equal counts, for context only.",
-        extra=[("label", "City or municipality"), ("province_label", "Province"), ("region_short", "Region"),
-               ("queue_status", "Review status"), ("population_2020_txt", "School-age population, 2020"),
-               ("population_2024_txt", "School-age population, 2024"), ("population_change_txt", "Population change"),
-               ("enrolled_2020_txt", "All-sector enrollment, SY 2020-21"),
-               ("enrolled_2024_txt", "All-sector enrollment, SY 2024-25"), ("enrollment_change_txt", "Enrollment change"),
-               ("public_2024_txt", "Public-school enrollment"), ("schools_txt", "Active public schools"),
-               ("learners_per_school_txt", "Learners per public school"),
-               ("children_per_school_txt", "School-age children per public school"),
-               ("barangays_txt", "Barangays without a matched public elementary school"),
-               ("match_txt", "School-to-barangay match coverage"), ("comparability_txt", "Population comparability status")])
+    peers = bar(
+        b, "pr_peers", "School-age children per public school in the comparison area", "lgu", "City or municipality",
+        "sum", "children_per_school", "School-age children per public school", color="series", color_label="",
+        mappings=PEER_COLORS, color_order=PEER_SERIES, fmt=num(), legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
+        desc="The selected LGU among the other LGUs of its province, or its region for an independent city, highest "
+             "first. Resident children aged 5-17 (2024) per active public school (SY 2023-24): context on the size of the "
+             "school network, not a need for new schools.")
     peer_note = note(b, "pr_peer_note", "Selected LGU", "peer_line", style=LINE_STYLE, show_title=False)
-    p.columns([(12, [(peers, 8), (peer_note, 1)])], 9)
+    p.columns([(12, [(peers, 10), (peer_note, 1)])], 11)
     barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_map", "pr_map_note"],
                             "Narrows the school map and barangay table only.", options=("opt_barangay", "barangay_option"))
     school_map = point_map(
@@ -1587,11 +1472,12 @@ def school_action(b):
            (table(b, "sa_verify", "What should be verified?", [
                ("item", "Figure", None), ("why", "Why", None), ("next_step", "Next step", None)],
                "Each flag turned into a step with the school or the Schools Division Office."), 6)], 5)
-    p.row([(scatter(b, "sa_peers", "How does this school compare with other schools in the LGU?", "learners",
-                    "Learners", "rooms", "Reported instructional rooms", "series", "School", SCHOOL_COLORS, SCHOOL_SERIES,
-                    "teachers", "Reported teachers", "school_name",
-                    f"Each bubble is a public school offering the chosen level, sized by reported teachers. Schools below "
-                    f"the dotted {SCREEN}-learners-per-room line are above the classroom screen."), 8),
+    p.row([(scatter(b, "sa_peers", "Classroom and teacher pressure among schools in this LGU", "learners_per_room",
+                    "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series", "School",
+                    POINT_COLORS, [c["value"] for c in POINT_COLORS], "learners", "Learners", "school_name",
+                    "Each dot is a public school offering the chosen level, sized by learners; past the line is above the "
+                    "classroom screen. Schools with no rooms or teachers reported cannot be placed and are listed below.",
+                    annotations=[ref_line("x", SCREEN, "Classroom screen")]), 8),
            (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Schools",
                       LOCATION_COLORS, [c["value"] for c in LOCATION_COLORS],
                       [("school_name", "School"), ("levels_offered_full", "Levels offered"),

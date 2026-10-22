@@ -1352,8 +1352,8 @@
       ]
     },
     {
-      "name": "ov_region_bubble",
-      "displayName": "Overview: children, enrollment and schools by region",
+      "name": "ov_region_pairs",
+      "displayName": "Overview: resident children and local enrollment by region",
       "queryLines": [
         "WITH lgu AS (\n",
         "  SELECT d.city_mun_psgc_code, d.city_mun_name,\n",
@@ -1440,40 +1440,21 @@
         "  GROUP BY city_mun_psgc_code\n",
         "),\n",
         "f AS (\n",
-        "  SELECT pri.region_short, pri.queue_status, pri.active_public_school_count, pop.*\n",
+        "  SELECT pri.region_short, pop.population_2024, pop.enrolled_2024\n",
         "  FROM pri LEFT JOIN pop ON pop.city_mun_psgc_code = pri.city_mun_psgc_code\n",
         "  WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type) AND (:queue = 'All review statuses' OR queue_status = :queue) AND (:coverage = 'All LGUs' OR (:coverage = 'Assessed' AND queue_status <> 'Data review') OR (:coverage = 'Insufficient data' AND queue_status = 'Data review'))\n",
         "),\n",
         "r AS (\n",
-        "  SELECT region_short, COUNT(*) AS lgus, SUM(population_2024) AS population_2024, SUM(population_2020) AS population_2020,\n",
-        "         SUM(CASE WHEN comparable = 1 AND population_2020 > 0 THEN population_2024 END) AS comparable_2024,\n",
-        "         SUM(CASE WHEN comparable = 1 AND population_2020 > 0 THEN population_2020 END) AS comparable_2020,\n",
-        "         COUNT_IF(COALESCE(comparable = 1 AND population_2020 > 0, FALSE)) AS comparable_lgus,\n",
-        "         SUM(enrolled_2020) AS enrolled_2020, SUM(enrolled_2024) AS enrolled_2024, SUM(public_2024) AS public_2024,\n",
-        "         SUM(active_public_school_count) AS schools, COUNT_IF(queue_status = 'Data review') AS review_lgus\n",
+        "  SELECT region_short, SUM(population_2024) AS population, SUM(enrolled_2024) AS enrolled\n",
         "  FROM f GROUP BY region_short\n",
-        "),\n",
-        "pts AS (\n",
-        "  SELECT region_short AS label, CAST(population_2024 AS DOUBLE) AS x, CAST(enrolled_2024 AS DOUBLE) AS y,\n",
-        "         CASE WHEN comparable_lgus < lgus THEN 'Not fully comparable'\n",
-        "              WHEN comparable_2024 >= comparable_2020 THEN 'Increased' ELSE 'Decreased' END AS series,\n",
-        "         format_number(lgus, 0) AS lgus_txt, COALESCE(format_number(population_2020, 0), 'Not reported') AS population_2020_txt,\n",
-        "         COALESCE(format_number(population_2024, 0), 'Not reported') AS population_2024_txt,\n",
-        "         CASE WHEN comparable_2020 > 0 THEN CASE WHEN comparable_2020 > 0 AND comparable_2024 IS NOT NULL THEN CASE WHEN (comparable_2024 - comparable_2020) / CAST(comparable_2020 AS DOUBLE) >= 0 THEN '+' ELSE '' END || format_number(100 * (comparable_2024 - comparable_2020) / CAST(comparable_2020 AS DOUBLE), 1) || '%' ELSE 'Not comparable' END || ' (comparable LGUs only)'\n",
-        "              ELSE 'Not comparable' END AS population_change_txt,\n",
-        "         COALESCE(format_number(enrolled_2020, 0), 'Not reported') AS enrolled_2020_txt, COALESCE(format_number(enrolled_2024, 0), 'Not reported') AS enrolled_2024_txt,\n",
-        "         CASE WHEN enrolled_2020 > 0 AND enrolled_2024 IS NOT NULL THEN CASE WHEN (enrolled_2024 - enrolled_2020) / CAST(enrolled_2020 AS DOUBLE) >= 0 THEN '+' ELSE '' END || format_number(100 * (enrolled_2024 - enrolled_2020) / CAST(enrolled_2020 AS DOUBLE), 1) || '%' ELSE 'Not comparable' END AS enrollment_change_txt, COALESCE(format_number(public_2024, 0), 'Not reported') AS public_2024_txt,\n",
-        "         schools AS size, COALESCE(format_number(schools, 0), 'Not reported') AS schools_txt, 'SY 2023-24' AS school_year_txt,\n",
-        "         format_number(comparable_lgus, 0) || ' of ' || format_number(lgus, 0) AS comparable_txt,\n",
-        "         format_number(review_lgus, 0) AS review_txt\n",
-        "  FROM r\n",
-        "  WHERE population_2024 IS NOT NULL AND enrolled_2024 IS NOT NULL\n",
         ")\n",
-        "SELECT label, x, y, series, lgus_txt, population_2020_txt, population_2024_txt, population_change_txt, enrolled_2020_txt, enrolled_2024_txt, enrollment_change_txt, public_2024_txt, size, schools_txt, school_year_txt, comparable_txt, review_txt FROM pts\n",
-        "UNION ALL\n",
-        "SELECT 'Equal counts \u2014 context only' AS label, g.i * m.top / 200.0 AS x, g.i * m.top / 200.0 AS y, 'Equal counts \u2014 context only' AS series, CAST(NULL AS STRING) AS lgus_txt, CAST(NULL AS STRING) AS population_2020_txt, CAST(NULL AS STRING) AS population_2024_txt, CAST(NULL AS STRING) AS population_change_txt, CAST(NULL AS STRING) AS enrolled_2020_txt, CAST(NULL AS STRING) AS enrolled_2024_txt, CAST(NULL AS STRING) AS enrollment_change_txt, CAST(NULL AS STRING) AS public_2024_txt, 0, CAST(NULL AS STRING) AS schools_txt, CAST(NULL AS STRING) AS school_year_txt, CAST(NULL AS STRING) AS comparable_txt, CAST(NULL AS STRING) AS review_txt\n",
-        "FROM (SELECT 1.1 * GREATEST(MAX(x), MAX(y)) AS top FROM pts) AS m CROSS JOIN (VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12), (13), (14), (15), (16), (17), (18), (19), (20), (21), (22), (23), (24), (25), (26), (27), (28), (29), (30), (31), (32), (33), (34), (35), (36), (37), (38), (39), (40), (41), (42), (43), (44), (45), (46), (47), (48), (49), (50), (51), (52), (53), (54), (55), (56), (57), (58), (59), (60), (61), (62), (63), (64), (65), (66), (67), (68), (69), (70), (71), (72), (73), (74), (75), (76), (77), (78), (79), (80), (81), (82), (83), (84), (85), (86), (87), (88), (89), (90), (91), (92), (93), (94), (95), (96), (97), (98), (99), (100), (101), (102), (103), (104), (105), (106), (107), (108), (109), (110), (111), (112), (113), (114), (115), (116), (117), (118), (119), (120), (121), (122), (123), (124), (125), (126), (127), (128), (129), (130), (131), (132), (133), (134), (135), (136), (137), (138), (139), (140), (141), (142), (143), (144), (145), (146), (147), (148), (149), (150), (151), (152), (153), (154), (155), (156), (157), (158), (159), (160), (161), (162), (163), (164), (165), (166), (167), (168), (169), (170), (171), (172), (173), (174), (175), (176), (177), (178), (179), (180), (181), (182), (183), (184), (185), (186), (187), (188), (189), (190), (191), (192), (193), (194), (195), (196), (197), (198), (199), (200)) AS g(i)\n",
-        "WHERE m.top IS NOT NULL"
+        "SELECT region_short, series, people FROM (\n",
+        "  SELECT region_short, population AS size_order, 1 AS series_order, 'Resident children aged 5-17, 2024' AS series, population AS people FROM r\n",
+        "  UNION ALL\n",
+        "  SELECT region_short, population, 2, 'All-sector enrollment in local schools, SY 2024-25', enrolled FROM r\n",
+        ") AS t\n",
+        "WHERE size_order IS NOT NULL\n",
+        "ORDER BY size_order DESC, region_short, series_order"
       ],
       "parameters": [
         {
@@ -2940,53 +2921,14 @@
         "  WHERE CASE WHEN me.province_label = 'Independent cities (no province)' THEN pri.region_name = me.region_name\n",
         "             ELSE pri.province_label = me.province_label END\n",
         "    AND ((:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type) OR pri.city_mun_psgc_code = me.city_mun_psgc_code)\n",
-        "),\n",
-        "es AS (\n",
-        "  SELECT DISTINCT e.barangay_psgc_code FROM edu_access.`05-gold`.fact_school_enrollment AS e JOIN area USING (city_mun_psgc_code)\n",
-        "  WHERE e.sector = 'Public' AND e.psgc_match_status = 'matched' AND e.school_year = '2023-24'\n",
-        "    AND e.education_level_code = 'ES' AND e.is_offered AND e.learner_count > 0\n",
-        "),\n",
-        "bgy AS (\n",
-        "  SELECT b.city_mun_psgc_code, COUNT(*) AS barangays, COUNT_IF(es.barangay_psgc_code IS NULL) AS without_es\n",
-        "  FROM edu_access.`05-gold`.dim_barangay AS b JOIN area USING (city_mun_psgc_code)\n",
-        "  LEFT JOIN es ON es.barangay_psgc_code = b.barangay_psgc_code\n",
-        "  WHERE b.member_type = 'regular' GROUP BY b.city_mun_psgc_code\n",
-        "),\n",
-        "mc AS (\n",
-        "  SELECT e.city_mun_psgc_code, COUNT(DISTINCT e.school_id) AS schools,\n",
-        "         COUNT(DISTINCT CASE WHEN e.barangay_psgc_code IS NOT NULL THEN e.school_id END) AS matched\n",
-        "  FROM edu_access.`05-gold`.fact_school_enrollment AS e JOIN area USING (city_mun_psgc_code)\n",
-        "  WHERE e.sector = 'Public' AND e.psgc_match_status = 'matched' AND e.school_year = '2023-24'\n",
-        "  GROUP BY e.city_mun_psgc_code\n",
-        "),\n",
-        "pts AS (\n",
-        "  SELECT a.lgu_label AS label, CAST(a.population_2024 AS DOUBLE) AS x, CAST(a.enrolled_2024 AS DOUBLE) AS y,\n",
-        "         CASE WHEN a.is_selected THEN 'Selected LGU'\n",
-        "              WHEN a.comparable = 0 OR a.population_2020 IS NULL THEN 'Population not comparable' ELSE 'Other LGUs in the same province or region' END AS series,\n",
-        "         a.province_label, a.region_short, a.queue_status,\n",
-        "         COALESCE(format_number(a.population_2020, 0), 'Not reported') AS population_2020_txt, COALESCE(format_number(a.population_2024, 0), 'Not reported') AS population_2024_txt,\n",
-        "         CASE WHEN a.comparable = 0 THEN 'Not comparable' ELSE CASE WHEN a.population_2020 > 0 AND a.population_2024 IS NOT NULL THEN CASE WHEN (a.population_2024 - a.population_2020) / CAST(a.population_2020 AS DOUBLE) >= 0 THEN '+' ELSE '' END || format_number(100 * (a.population_2024 - a.population_2020) / CAST(a.population_2020 AS DOUBLE), 1) || '%' ELSE 'Not comparable' END END\n",
-        "           AS population_change_txt,\n",
-        "         COALESCE(format_number(a.enrolled_2020, 0), 'Not reported') AS enrolled_2020_txt, COALESCE(format_number(a.enrolled_2024, 0), 'Not reported') AS enrolled_2024_txt,\n",
-        "         CASE WHEN a.enrolled_2020 > 0 AND a.enrolled_2024 IS NOT NULL THEN CASE WHEN (a.enrolled_2024 - a.enrolled_2020) / CAST(a.enrolled_2020 AS DOUBLE) >= 0 THEN '+' ELSE '' END || format_number(100 * (a.enrolled_2024 - a.enrolled_2020) / CAST(a.enrolled_2020 AS DOUBLE), 1) || '%' ELSE 'Not comparable' END AS enrollment_change_txt, COALESCE(format_number(a.public_2024, 0), 'Not reported') AS public_2024_txt,\n",
-        "         a.active_public_school_count AS size, COALESCE(format_number(a.active_public_school_count, 0), 'Not reported') AS schools_txt,\n",
-        "         COALESCE(format_number(a.ap1_learners_per_public_school, 0), 'Not reported') AS learners_per_school_txt,\n",
-        "         COALESCE(format_number(a.ap1_school_age_population_per_public_school, 0), 'Not reported') AS children_per_school_txt,\n",
-        "         CASE WHEN bgy.barangays IS NULL THEN 'Not reported'\n",
-        "              ELSE format_number(bgy.without_es, 0) || ' of ' || format_number(bgy.barangays, 0) END AS barangays_txt,\n",
-        "         COALESCE(format_number(100.0 * mc.matched / NULLIF(mc.schools, 0), 0) || '%', 'Not available') AS match_txt,\n",
-        "         CASE WHEN a.comparable = 1 AND a.population_2020 IS NOT NULL THEN 'Comparable 2020 to 2024'\n",
-        "              ELSE 'Not comparable: boundaries changed or a census year is missing' END AS comparability_txt\n",
-        "  FROM area AS a\n",
-        "  LEFT JOIN bgy ON bgy.city_mun_psgc_code = a.city_mun_psgc_code\n",
-        "  LEFT JOIN mc ON mc.city_mun_psgc_code = a.city_mun_psgc_code\n",
-        "  WHERE a.population_2024 IS NOT NULL AND a.enrolled_2024 IS NOT NULL\n",
         ")\n",
-        "SELECT label, x, y, series, province_label, region_short, queue_status, population_2020_txt, population_2024_txt, population_change_txt, enrolled_2020_txt, enrolled_2024_txt, enrollment_change_txt, public_2024_txt, size, schools_txt, learners_per_school_txt, children_per_school_txt, barangays_txt, match_txt, comparability_txt FROM pts\n",
-        "UNION ALL\n",
-        "SELECT 'Equal counts \u2014 context only' AS label, g.i * m.top / 200.0 AS x, g.i * m.top / 200.0 AS y, 'Equal counts \u2014 context only' AS series, CAST(NULL AS STRING) AS province_label, CAST(NULL AS STRING) AS region_short, CAST(NULL AS STRING) AS queue_status, CAST(NULL AS STRING) AS population_2020_txt, CAST(NULL AS STRING) AS population_2024_txt, CAST(NULL AS STRING) AS population_change_txt, CAST(NULL AS STRING) AS enrolled_2020_txt, CAST(NULL AS STRING) AS enrolled_2024_txt, CAST(NULL AS STRING) AS enrollment_change_txt, CAST(NULL AS STRING) AS public_2024_txt, 0, CAST(NULL AS STRING) AS schools_txt, CAST(NULL AS STRING) AS learners_per_school_txt, CAST(NULL AS STRING) AS children_per_school_txt, CAST(NULL AS STRING) AS barangays_txt, CAST(NULL AS STRING) AS match_txt, CAST(NULL AS STRING) AS comparability_txt\n",
-        "FROM (SELECT 1.1 * GREATEST(MAX(x), MAX(y)) AS top FROM pts) AS m CROSS JOIN (VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12), (13), (14), (15), (16), (17), (18), (19), (20), (21), (22), (23), (24), (25), (26), (27), (28), (29), (30), (31), (32), (33), (34), (35), (36), (37), (38), (39), (40), (41), (42), (43), (44), (45), (46), (47), (48), (49), (50), (51), (52), (53), (54), (55), (56), (57), (58), (59), (60), (61), (62), (63), (64), (65), (66), (67), (68), (69), (70), (71), (72), (73), (74), (75), (76), (77), (78), (79), (80), (81), (82), (83), (84), (85), (86), (87), (88), (89), (90), (91), (92), (93), (94), (95), (96), (97), (98), (99), (100), (101), (102), (103), (104), (105), (106), (107), (108), (109), (110), (111), (112), (113), (114), (115), (116), (117), (118), (119), (120), (121), (122), (123), (124), (125), (126), (127), (128), (129), (130), (131), (132), (133), (134), (135), (136), (137), (138), (139), (140), (141), (142), (143), (144), (145), (146), (147), (148), (149), (150), (151), (152), (153), (154), (155), (156), (157), (158), (159), (160), (161), (162), (163), (164), (165), (166), (167), (168), (169), (170), (171), (172), (173), (174), (175), (176), (177), (178), (179), (180), (181), (182), (183), (184), (185), (186), (187), (188), (189), (190), (191), (192), (193), (194), (195), (196), (197), (198), (199), (200)) AS g(i)\n",
-        "WHERE m.top IS NOT NULL"
+        "SELECT CASE WHEN me.province_label = 'Independent cities (no province)' AND a.province_label <> me.province_label\n",
+        "            THEN a.city_mun_name || ', ' || a.province_label ELSE a.city_mun_name END AS lgu,\n",
+        "       a.ap1_school_age_population_per_public_school AS children_per_school,\n",
+        "       CASE WHEN a.is_selected THEN 'Selected LGU' ELSE 'Other LGUs in the same province or region' END AS series\n",
+        "FROM area AS a CROSS JOIN me\n",
+        "WHERE a.ap1_school_age_population_per_public_school IS NOT NULL\n",
+        "ORDER BY children_per_school DESC, lgu"
       ],
       "parameters": [
         {
@@ -3157,7 +3099,8 @@
         "             ELSE pri.province_label = me.province_label END\n",
         "    AND ((:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type) OR pri.city_mun_psgc_code = me.city_mun_psgc_code)\n",
         ")\n",
-        "SELECT city_mun_name || ': ' || COALESCE(CASE WHEN population_2024 >= 1000000 THEN format_number(population_2024 / 1000000.0, 1) || 'M' WHEN population_2024 >= 1000 THEN format_number(population_2024 / 1000.0, 0) || 'K' ELSE format_number(population_2024, 0) END || ' resident children', 'resident children not reported')\n",
+        "SELECT city_mun_name || ': ' || CASE WHEN ap1_school_age_population_per_public_school IS NULL THEN 'children per public school not reported' ELSE format_number(ap1_school_age_population_per_public_school, 0) || ' school-age children per public school' END\n",
+        "       || ' \u00b7 ' || COALESCE(CASE WHEN population_2024 >= 1000000 THEN format_number(population_2024 / 1000000.0, 1) || 'M' WHEN population_2024 >= 1000 THEN format_number(population_2024 / 1000.0, 0) || 'K' ELSE format_number(population_2024, 0) END || ' resident children', 'resident children not reported')\n",
         "       || ' \u00b7 ' || COALESCE(CASE WHEN enrolled_2024 >= 1000000 THEN format_number(enrolled_2024 / 1000000.0, 1) || 'M' WHEN enrolled_2024 >= 1000 THEN format_number(enrolled_2024 / 1000.0, 0) || 'K' ELSE format_number(enrolled_2024, 0) END || ' learners enrolled locally', 'enrollment not reported')\n",
         "       || ' \u00b7 ' || format_number(COALESCE(active_public_school_count, 0), 0) || ' active public schools (SY 2023-24)'\n",
         "         AS peer_line\n",
@@ -4936,24 +4879,14 @@
         "  WHERE offers_level = 1\n",
         "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
-        "),\n",
-        "pts AS (\n",
-        "  SELECT s.school_name, CAST(s.learners AS DOUBLE) AS learners, CAST(s.rooms AS DOUBLE) AS rooms, s.teachers,\n",
-        "         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'\n",
-        "              WHEN s.f_above = 1 THEN 'Above classroom screen' WHEN s.to_check THEN 'Verification needed'\n",
-        "              ELSE 'Within screen' END AS series\n",
-        "  FROM schools AS s\n",
-        "  WHERE s.offers_level = 1 AND s.learners IS NOT NULL AND s.rooms IS NOT NULL\n",
         ")\n",
-        "-- the line first and the selected school last, so the selected school is drawn on top of the others\n",
-        "SELECT school_name, learners, rooms, teachers, series FROM (\n",
-        "  SELECT '50 learners per room' AS school_name, g.i * m.top / 200.0 AS learners,\n",
-        "         g.i * m.top / 200.0 / 50 AS rooms, 0 AS teachers, '50 learners per room' AS series, 0 AS draw_order\n",
-        "  FROM (SELECT 1.05 * MAX(learners) AS top FROM pts) AS m CROSS JOIN (VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12), (13), (14), (15), (16), (17), (18), (19), (20), (21), (22), (23), (24), (25), (26), (27), (28), (29), (30), (31), (32), (33), (34), (35), (36), (37), (38), (39), (40), (41), (42), (43), (44), (45), (46), (47), (48), (49), (50), (51), (52), (53), (54), (55), (56), (57), (58), (59), (60), (61), (62), (63), (64), (65), (66), (67), (68), (69), (70), (71), (72), (73), (74), (75), (76), (77), (78), (79), (80), (81), (82), (83), (84), (85), (86), (87), (88), (89), (90), (91), (92), (93), (94), (95), (96), (97), (98), (99), (100), (101), (102), (103), (104), (105), (106), (107), (108), (109), (110), (111), (112), (113), (114), (115), (116), (117), (118), (119), (120), (121), (122), (123), (124), (125), (126), (127), (128), (129), (130), (131), (132), (133), (134), (135), (136), (137), (138), (139), (140), (141), (142), (143), (144), (145), (146), (147), (148), (149), (150), (151), (152), (153), (154), (155), (156), (157), (158), (159), (160), (161), (162), (163), (164), (165), (166), (167), (168), (169), (170), (171), (172), (173), (174), (175), (176), (177), (178), (179), (180), (181), (182), (183), (184), (185), (186), (187), (188), (189), (190), (191), (192), (193), (194), (195), (196), (197), (198), (199), (200)) AS g(i)\n",
-        "  WHERE m.top IS NOT NULL\n",
-        "  UNION ALL\n",
-        "  SELECT school_name, learners, rooms, teachers, series,\n",
-        "         CASE WHEN series = 'Selected school' THEN 2 ELSE 1 END FROM pts\n",
+        "SELECT school_name, learners, learners_per_room, teacher_ratio, series FROM (\n",
+        "  SELECT s.school_name, s.learners, s.learners_per_room, s.teacher_ratio,\n",
+        "         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'\n",
+        "              WHEN s.to_check THEN 'Verification needed' ELSE 'Other schools' END AS series,\n",
+        "         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 1 ELSE 0 END AS draw_order\n",
+        "  FROM schools AS s\n",
+        "  WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL AND s.teacher_ratio IS NOT NULL\n",
         ") AS d\n",
         "ORDER BY draw_order"
       ],
@@ -7989,9 +7922,9 @@
                 }
               },
               {
-                "name": "param_ov_region_bubble_queue",
+                "name": "param_ov_region_pairs_queue",
                 "query": {
-                  "datasetName": "ov_region_bubble",
+                  "datasetName": "ov_region_pairs",
                   "parameters": [
                     {
                       "name": "queue",
@@ -8059,7 +7992,7 @@
                   },
                   {
                     "parameterName": "queue",
-                    "queryName": "param_ov_region_bubble_queue"
+                    "queryName": "param_ov_region_pairs_queue"
                   },
                   {
                     "parameterName": "queue",
@@ -8216,9 +8149,9 @@
                 }
               },
               {
-                "name": "param_ov_region_bubble_coverage",
+                "name": "param_ov_region_pairs_coverage",
                 "query": {
-                  "datasetName": "ov_region_bubble",
+                  "datasetName": "ov_region_pairs",
                   "parameters": [
                     {
                       "name": "coverage",
@@ -8286,7 +8219,7 @@
                   },
                   {
                     "parameterName": "coverage",
-                    "queryName": "param_ov_region_bubble_coverage"
+                    "queryName": "param_ov_region_pairs_coverage"
                   },
                   {
                     "parameterName": "coverage",
@@ -9216,80 +9149,24 @@
         },
         {
           "widget": {
-            "name": "scatter_016",
+            "name": "bar_016",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ov_region_bubble",
+                  "datasetName": "ov_region_pairs",
                   "fields": [
                     {
-                      "name": "x",
-                      "expression": "`x`"
+                      "name": "region_short",
+                      "expression": "`region_short`"
                     },
                     {
-                      "name": "y",
-                      "expression": "`y`"
+                      "name": "people",
+                      "expression": "`people`"
                     },
                     {
                       "name": "series",
                       "expression": "`series`"
-                    },
-                    {
-                      "name": "size",
-                      "expression": "`size`"
-                    },
-                    {
-                      "name": "label",
-                      "expression": "`label`"
-                    },
-                    {
-                      "name": "lgus_txt",
-                      "expression": "`lgus_txt`"
-                    },
-                    {
-                      "name": "population_2020_txt",
-                      "expression": "`population_2020_txt`"
-                    },
-                    {
-                      "name": "population_2024_txt",
-                      "expression": "`population_2024_txt`"
-                    },
-                    {
-                      "name": "population_change_txt",
-                      "expression": "`population_change_txt`"
-                    },
-                    {
-                      "name": "enrolled_2020_txt",
-                      "expression": "`enrolled_2020_txt`"
-                    },
-                    {
-                      "name": "enrolled_2024_txt",
-                      "expression": "`enrolled_2024_txt`"
-                    },
-                    {
-                      "name": "enrollment_change_txt",
-                      "expression": "`enrollment_change_txt`"
-                    },
-                    {
-                      "name": "public_2024_txt",
-                      "expression": "`public_2024_txt`"
-                    },
-                    {
-                      "name": "schools_txt",
-                      "expression": "`schools_txt`"
-                    },
-                    {
-                      "name": "school_year_txt",
-                      "expression": "`school_year_txt`"
-                    },
-                    {
-                      "name": "comparable_txt",
-                      "expression": "`comparable_txt`"
-                    },
-                    {
-                      "name": "review_txt",
-                      "expression": "`review_txt`"
                     }
                   ],
                   "disaggregated": true
@@ -9298,21 +9175,32 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "scatter",
+              "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "x",
+                  "fieldName": "people",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "School-age population, ages 5-17, 2024"
+                  "displayName": "People",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    },
+                    "abbreviation": "compact"
+                  }
                 },
                 "y": {
-                  "fieldName": "y",
+                  "fieldName": "region_short",
                   "scale": {
-                    "type": "quantitative"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
                   },
-                  "displayName": "All-sector enrollment in local schools, SY 2024-25"
+                  "displayName": "Region"
                 },
                 "color": {
                   "fieldName": "series",
@@ -9321,100 +9209,35 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Increased",
-                        "Decreased",
-                        "Not fully comparable",
-                        "Equal counts \u2014 context only"
+                        "Resident children aged 5-17, 2024",
+                        "All-sector enrollment in local schools, SY 2024-25"
                       ]
                     },
                     "mappings": [
                       {
-                        "value": "Increased",
-                        "color": "#2F6F8F"
-                      },
-                      {
-                        "value": "Decreased",
-                        "color": "#D85A30"
-                      },
-                      {
-                        "value": "Not fully comparable",
-                        "color": "#A9B4BF"
-                      },
-                      {
-                        "value": "Equal counts \u2014 context only",
+                        "value": "Resident children aged 5-17, 2024",
                         "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "All-sector enrollment in local schools, SY 2024-25",
+                        "color": "#C9A227"
                       }
                     ]
                   },
-                  "displayName": "School-age population change, 2020-2024"
-                },
-                "size": {
-                  "fieldName": "size",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Active public schools, SY 2023-24"
-                },
-                "extra": [
-                  {
-                    "fieldName": "label",
-                    "displayName": "Region"
-                  },
-                  {
-                    "fieldName": "lgus_txt",
-                    "displayName": "Cities and municipalities in view"
-                  },
-                  {
-                    "fieldName": "population_2020_txt",
-                    "displayName": "School-age population, 2020"
-                  },
-                  {
-                    "fieldName": "population_2024_txt",
-                    "displayName": "School-age population, 2024"
-                  },
-                  {
-                    "fieldName": "population_change_txt",
-                    "displayName": "Population change, 2020-2024"
-                  },
-                  {
-                    "fieldName": "enrolled_2020_txt",
-                    "displayName": "All-sector enrollment, SY 2020-21"
-                  },
-                  {
-                    "fieldName": "enrolled_2024_txt",
-                    "displayName": "All-sector enrollment, SY 2024-25"
-                  },
-                  {
-                    "fieldName": "enrollment_change_txt",
-                    "displayName": "Enrollment change"
-                  },
-                  {
-                    "fieldName": "public_2024_txt",
-                    "displayName": "Public-school enrollment, SY 2024-25"
-                  },
-                  {
-                    "fieldName": "schools_txt",
-                    "displayName": "Active public schools"
-                  },
-                  {
-                    "fieldName": "school_year_txt",
-                    "displayName": "School-count year"
-                  },
-                  {
-                    "fieldName": "comparable_txt",
-                    "displayName": "LGUs with comparable population data"
-                  },
-                  {
-                    "fieldName": "review_txt",
-                    "displayName": "LGUs requiring data review"
+                  "displayName": "",
+                  "legend": {
+                    "position": "bottom"
                   }
-                ]
+                }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Resident children, local enrollment and public schools by region",
+                "title": "Resident children and local enrollment by region",
                 "showDescription": true,
-                "description": "Each circle represents a region. Position compares resident children ages 5-17 with learners enrolled in local schools; circle size represents active public schools. Enrollment is counted where learners attend, while population is counted where children live. The dotted line marks equal counts, for context only. The chart does not measure out-of-school children or determine how many schools are needed."
+                "description": "Resident children ages 5-17 (2024) beside learners enrolled in local schools in all sectors (SY 2024-25), largest region first, from the LGUs left after the filters. Children are counted where they live and learners where they attend, so the two differ; the difference is not a count of out-of-school children or of schools needed."
+              },
+              "mark": {
+                "layout": "group"
               }
             }
           },
@@ -9422,7 +9245,7 @@
             "x": 0,
             "y": 42,
             "width": 12,
-            "height": 9
+            "height": 10
           }
         },
         {
@@ -9438,7 +9261,7 @@
           },
           "position": {
             "x": 0,
-            "y": 51,
+            "y": 52,
             "width": 12,
             "height": 2
           }
@@ -10737,7 +10560,7 @@
         },
         {
           "widget": {
-            "name": "scatter_034",
+            "name": "bar_034",
             "queries": [
               {
                 "name": "main_query",
@@ -10745,88 +10568,16 @@
                   "datasetName": "pr_peers",
                   "fields": [
                     {
-                      "name": "x",
-                      "expression": "`x`"
+                      "name": "lgu",
+                      "expression": "`lgu`"
                     },
                     {
-                      "name": "y",
-                      "expression": "`y`"
+                      "name": "children_per_school",
+                      "expression": "`children_per_school`"
                     },
                     {
                       "name": "series",
                       "expression": "`series`"
-                    },
-                    {
-                      "name": "size",
-                      "expression": "`size`"
-                    },
-                    {
-                      "name": "label",
-                      "expression": "`label`"
-                    },
-                    {
-                      "name": "province_label",
-                      "expression": "`province_label`"
-                    },
-                    {
-                      "name": "region_short",
-                      "expression": "`region_short`"
-                    },
-                    {
-                      "name": "queue_status",
-                      "expression": "`queue_status`"
-                    },
-                    {
-                      "name": "population_2020_txt",
-                      "expression": "`population_2020_txt`"
-                    },
-                    {
-                      "name": "population_2024_txt",
-                      "expression": "`population_2024_txt`"
-                    },
-                    {
-                      "name": "population_change_txt",
-                      "expression": "`population_change_txt`"
-                    },
-                    {
-                      "name": "enrolled_2020_txt",
-                      "expression": "`enrolled_2020_txt`"
-                    },
-                    {
-                      "name": "enrolled_2024_txt",
-                      "expression": "`enrolled_2024_txt`"
-                    },
-                    {
-                      "name": "enrollment_change_txt",
-                      "expression": "`enrollment_change_txt`"
-                    },
-                    {
-                      "name": "public_2024_txt",
-                      "expression": "`public_2024_txt`"
-                    },
-                    {
-                      "name": "schools_txt",
-                      "expression": "`schools_txt`"
-                    },
-                    {
-                      "name": "learners_per_school_txt",
-                      "expression": "`learners_per_school_txt`"
-                    },
-                    {
-                      "name": "children_per_school_txt",
-                      "expression": "`children_per_school_txt`"
-                    },
-                    {
-                      "name": "barangays_txt",
-                      "expression": "`barangays_txt`"
-                    },
-                    {
-                      "name": "match_txt",
-                      "expression": "`match_txt`"
-                    },
-                    {
-                      "name": "comparability_txt",
-                      "expression": "`comparability_txt`"
                     }
                   ],
                   "disaggregated": true
@@ -10835,21 +10586,31 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "scatter",
+              "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "x",
+                  "fieldName": "children_per_school",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "School-age population, ages 5-17, 2024"
+                  "displayName": "School-age children per public school",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
                 },
                 "y": {
-                  "fieldName": "y",
+                  "fieldName": "lgu",
                   "scale": {
-                    "type": "quantitative"
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
                   },
-                  "displayName": "All-sector enrollment in local schools, SY 2024-25"
+                  "displayName": "City or municipality"
                 },
                 "color": {
                   "fieldName": "series",
@@ -10859,9 +10620,7 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Selected LGU",
-                        "Other LGUs in the same province or region",
-                        "Population not comparable",
-                        "Equal counts \u2014 context only"
+                        "Other LGUs in the same province or region"
                       ]
                     },
                     "mappings": [
@@ -10872,102 +10631,20 @@
                       {
                         "value": "Other LGUs in the same province or region",
                         "color": "#C9D1D9"
-                      },
-                      {
-                        "value": "Population not comparable",
-                        "color": "#E8D9B5"
-                      },
-                      {
-                        "value": "Equal counts \u2014 context only",
-                        "color": "#5B6B7A"
                       }
                     ]
                   },
-                  "displayName": "Comparison area"
-                },
-                "size": {
-                  "fieldName": "size",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Active public schools, SY 2023-24"
-                },
-                "extra": [
-                  {
-                    "fieldName": "label",
-                    "displayName": "City or municipality"
-                  },
-                  {
-                    "fieldName": "province_label",
-                    "displayName": "Province"
-                  },
-                  {
-                    "fieldName": "region_short",
-                    "displayName": "Region"
-                  },
-                  {
-                    "fieldName": "queue_status",
-                    "displayName": "Review status"
-                  },
-                  {
-                    "fieldName": "population_2020_txt",
-                    "displayName": "School-age population, 2020"
-                  },
-                  {
-                    "fieldName": "population_2024_txt",
-                    "displayName": "School-age population, 2024"
-                  },
-                  {
-                    "fieldName": "population_change_txt",
-                    "displayName": "Population change"
-                  },
-                  {
-                    "fieldName": "enrolled_2020_txt",
-                    "displayName": "All-sector enrollment, SY 2020-21"
-                  },
-                  {
-                    "fieldName": "enrolled_2024_txt",
-                    "displayName": "All-sector enrollment, SY 2024-25"
-                  },
-                  {
-                    "fieldName": "enrollment_change_txt",
-                    "displayName": "Enrollment change"
-                  },
-                  {
-                    "fieldName": "public_2024_txt",
-                    "displayName": "Public-school enrollment"
-                  },
-                  {
-                    "fieldName": "schools_txt",
-                    "displayName": "Active public schools"
-                  },
-                  {
-                    "fieldName": "learners_per_school_txt",
-                    "displayName": "Learners per public school"
-                  },
-                  {
-                    "fieldName": "children_per_school_txt",
-                    "displayName": "School-age children per public school"
-                  },
-                  {
-                    "fieldName": "barangays_txt",
-                    "displayName": "Barangays without a matched public elementary school"
-                  },
-                  {
-                    "fieldName": "match_txt",
-                    "displayName": "School-to-barangay match coverage"
-                  },
-                  {
-                    "fieldName": "comparability_txt",
-                    "displayName": "Population comparability status"
+                  "displayName": "",
+                  "legend": {
+                    "position": "bottom"
                   }
-                ]
+                }
               },
               "frame": {
                 "showTitle": true,
-                "title": "How does this LGU compare with other LGUs in the area?",
+                "title": "School-age children per public school in the comparison area",
                 "showDescription": true,
-                "description": "The selected LGU is compared with other LGUs in its province, or its region for an independent city. Moving right means more resident children; moving up means more learners enrolled locally; larger circles represent more active public schools. Differences can reflect cross-boundary attendance, school offerings and data coverage. They are not counts of out-of-school children. The dotted line marks equal counts, for context only."
+                "description": "The selected LGU among the other LGUs of its province, or its region for an independent city, highest first. Resident children aged 5-17 (2024) per active public school (SY 2023-24): context on the size of the school network, not a need for new schools."
               }
             }
           },
@@ -10975,7 +10652,7 @@
             "x": 0,
             "y": 27,
             "width": 12,
-            "height": 8
+            "height": 10
           }
         },
         {
@@ -11019,7 +10696,7 @@
           },
           "position": {
             "x": 0,
-            "y": 35,
+            "y": 37,
             "width": 12,
             "height": 1
           }
@@ -11201,7 +10878,7 @@
           },
           "position": {
             "x": 0,
-            "y": 36,
+            "y": 38,
             "width": 7,
             "height": 9
           }
@@ -11247,7 +10924,7 @@
           },
           "position": {
             "x": 0,
-            "y": 45,
+            "y": 47,
             "width": 7,
             "height": 1
           }
@@ -11355,7 +11032,7 @@
           },
           "position": {
             "x": 7,
-            "y": 36,
+            "y": 38,
             "width": 5,
             "height": 1
           }
@@ -11431,7 +11108,7 @@
           },
           "position": {
             "x": 7,
-            "y": 37,
+            "y": 39,
             "width": 5,
             "height": 9
           }
@@ -11507,7 +11184,7 @@
           },
           "position": {
             "x": 0,
-            "y": 46,
+            "y": 48,
             "width": 7,
             "height": 5
           }
@@ -11575,7 +11252,7 @@
           },
           "position": {
             "x": 7,
-            "y": 46,
+            "y": 48,
             "width": 5,
             "height": 5
           }
@@ -12734,20 +12411,20 @@
                   "datasetName": "sa_peers",
                   "fields": [
                     {
-                      "name": "learners",
-                      "expression": "`learners`"
+                      "name": "learners_per_room",
+                      "expression": "`learners_per_room`"
                     },
                     {
-                      "name": "rooms",
-                      "expression": "`rooms`"
+                      "name": "teacher_ratio",
+                      "expression": "`teacher_ratio`"
                     },
                     {
                       "name": "series",
                       "expression": "`series`"
                     },
                     {
-                      "name": "teachers",
-                      "expression": "`teachers`"
+                      "name": "learners",
+                      "expression": "`learners`"
                     },
                     {
                       "name": "school_name",
@@ -12763,18 +12440,18 @@
               "widgetType": "scatter",
               "encodings": {
                 "x": {
-                  "fieldName": "learners",
+                  "fieldName": "learners_per_room",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Learners"
+                  "displayName": "Learners per reported room"
                 },
                 "y": {
-                  "fieldName": "rooms",
+                  "fieldName": "teacher_ratio",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Reported instructional rooms"
+                  "displayName": "Learners per reported teacher"
                 },
                 "color": {
                   "fieldName": "series",
@@ -12784,10 +12461,8 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Selected school",
-                        "Above classroom screen",
                         "Verification needed",
-                        "Within screen",
-                        "50 learners per room"
+                        "Other schools"
                       ]
                     },
                     "mappings": [
@@ -12796,31 +12471,23 @@
                         "color": "#1F5A8A"
                       },
                       {
-                        "value": "Above classroom screen",
-                        "color": "#C2452D"
-                      },
-                      {
                         "value": "Verification needed",
                         "color": "#E3A008"
                       },
                       {
-                        "value": "Within screen",
-                        "color": "#D3D9DF"
-                      },
-                      {
-                        "value": "50 learners per room",
-                        "color": "#5B6B7A"
+                        "value": "Other schools",
+                        "color": "#C9D1D9"
                       }
                     ]
                   },
                   "displayName": "School"
                 },
                 "size": {
-                  "fieldName": "teachers",
+                  "fieldName": "learners",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Reported teachers"
+                  "displayName": "Learners"
                 },
                 "extra": [
                   {
@@ -12831,10 +12498,27 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "How does this school compare with other schools in the LGU?",
+                "title": "Classroom and teacher pressure among schools in this LGU",
                 "showDescription": true,
-                "description": "Each bubble is a public school offering the chosen level, sized by reported teachers. Schools below the dotted 50-learners-per-room line are above the classroom screen."
-              }
+                "description": "Each dot is a public school offering the chosen level, sized by learners; past the line is above the classroom screen. Schools with no rooms or teachers reported cannot be placed and are listed below."
+              },
+              "annotations": [
+                {
+                  "type": "vertical-line",
+                  "encodings": {
+                    "x": {
+                      "dataValue": "50",
+                      "dataType": "DOUBLE"
+                    },
+                    "label": {
+                      "value": "Classroom screen"
+                    },
+                    "color": {
+                      "value": "#A32D2D"
+                    }
+                  }
+                }
+              ]
             }
           },
           "position": {
@@ -14714,9 +14398,9 @@
                 }
               },
               {
-                "name": "param_ov_region_bubble_region",
+                "name": "param_ov_region_pairs_region",
                 "query": {
-                  "datasetName": "ov_region_bubble",
+                  "datasetName": "ov_region_pairs",
                   "parameters": [
                     {
                       "name": "region",
@@ -15213,7 +14897,7 @@
                   },
                   {
                     "parameterName": "region",
-                    "queryName": "param_ov_region_bubble_region"
+                    "queryName": "param_ov_region_pairs_region"
                   },
                   {
                     "parameterName": "region",
@@ -15502,9 +15186,9 @@
                 }
               },
               {
-                "name": "param_ov_region_bubble_province",
+                "name": "param_ov_region_pairs_province",
                 "query": {
-                  "datasetName": "ov_region_bubble",
+                  "datasetName": "ov_region_pairs",
                   "parameters": [
                     {
                       "name": "province",
@@ -15988,7 +15672,7 @@
                   },
                   {
                     "parameterName": "province",
-                    "queryName": "param_ov_region_bubble_province"
+                    "queryName": "param_ov_region_pairs_province"
                   },
                   {
                     "parameterName": "province",
@@ -16273,9 +15957,9 @@
                 }
               },
               {
-                "name": "param_ov_region_bubble_lgu_type",
+                "name": "param_ov_region_pairs_lgu_type",
                 "query": {
-                  "datasetName": "ov_region_bubble",
+                  "datasetName": "ov_region_pairs",
                   "parameters": [
                     {
                       "name": "lgu_type",
@@ -16759,7 +16443,7 @@
                   },
                   {
                     "parameterName": "lgu_type",
-                    "queryName": "param_ov_region_bubble_lgu_type"
+                    "queryName": "param_ov_region_pairs_lgu_type"
                   },
                   {
                     "parameterName": "lgu_type",
