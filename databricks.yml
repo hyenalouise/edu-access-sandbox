@@ -1454,6 +1454,12 @@ targets:
     default: true
     workspace:
       host: https://dbc-2b6bf1c5-7bc3.cloud.databricks.com
+    # A dev run checks out the sandbox, where new work is pushed; the team repo has none of its commits.
+    resources:
+      jobs:
+        edu_access_pipeline:
+          git_source:
+            git_url: https://github.com/hyenalouise/edu-access-sandbox
 
   # The old team workspace, kept for prod since 2026-10-21 (D-063). Being a
   # separate workspace is what keeps prod apart from dev: the catalog and
