@@ -167,6 +167,15 @@ def test_the_selected_lgu_is_ranked_among_its_comparison_area(store):
     assert [r["series"] for r in pairs] == planner.REGION_SERIES
 
 
+def test_no_chart_legend_says_verification_needed():
+    # the review on 2026-10-22: schools are coloured by levels offered or school status, never by a data-check flag
+    for page in load()["pages"]:
+        for widget in widgets(page):
+            color = widget.get("spec", {}).get("encodings", {}).get("color", {})
+            values = [m["value"] for m in color.get("scale", {}).get("mappings", [])]
+            assert planner.VERIFY[0] not in values, widget["name"]
+
+
 def test_no_title_renders_markdown():
     # review of the 2026-10-21 export: asterisks in chart titles rendered literally
     for page in load()["pages"]:
@@ -312,7 +321,7 @@ def test_the_planner_shows_the_priority_as_published(store):
     assert (card["classroom_kpi"], card["teacher_kpi"], card["enrollment_kpi"], card["readiness_kpi"]) == (
         "1 of 2", "0 of 1", "+41.7%", "100%")
     assert (kpi["joint_kpi"], kpi["any_kpi"], kpi["learners_kpi"], kpi["data_review_kpi"]) == (
-        "0 (0.0%)", "1 of 4", "300 (24.0%)", "0 of 4")
+        "0 of 4", "1 of 4", "300 (24.0%)", "0 of 4")  # every count out of the same total
     screen = _rows(store, "pr_evidence", lgu="Town One, Province")[0]
     assert screen["this_lgu"] == "1 of 2 schools, 300 learners" and screen["status"] == "Signal present"
     decision = _rows(store, "pr_decision", lgu="Town One, Province")
@@ -353,11 +362,13 @@ def test_a_chosen_level_without_a_teacher_count_shows_no_ratio(store):
     assert ratio["Junior high"]["X1"] is None
     shown = {r["school_id"]: r for r in _rows(store, "sa_list", level="Junior high", lgu="Town One, Province")}
     assert shown["X1"]["per_teacher_txt"] == "Not assessable"  # a word, never null
-    # the bullet chart lists every level, says why one has no bar, and never writes the comparison value
+    # the bullet chart gives every level its own row and writes no number in a label
     bullets = _rows(store, "sa_bullet", level="Junior high", lgu="Town One, Province", school="X1 · X1")
-    assert [(r["figure"], r["share_of_reference"]) for r in bullets] == [
-        ("Learners per reported room · 85.0", 1.7), ("Learners per elementary teacher · 30.0", 30 / 35),
-        ("Learners per junior high teacher · not assessable", None), ("Learners per senior high teacher · not offered", None)]
+    assert [(r["figure"], r["share_of_reference"], r["status"]) for r in bullets] == [
+        ("Learners per reported room", 1.7, planner.LEVEL_STATUS[0]),
+        ("Learners per elementary teacher", 30 / 35, planner.LEVEL_STATUS[1]),
+        ("Learners per junior high teacher", None, planner.LEVEL_STATUS[2]),
+        ("Learners per senior high teacher", 0, planner.NOT_OFFERED)]
     # the comparison scatter leaves it out at JHS rather than plotting the all-level ratio
     assert "X1" in {r["school_name"] for r in _rows(store, "sa_peers", level=planner.ALL_LEVELS, lgu="Town One, Province")}
     assert "X1" not in {r["school_name"] for r in _rows(store, "sa_peers", level="Junior high", lgu="Town One, Province")}

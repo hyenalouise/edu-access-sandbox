@@ -72,9 +72,14 @@ DETAIL_STYLE = {"fontSize": 16, "fontStyle": "normal", "fontWeight": 400}  # the
 STATUS_STYLE = {"fontSize": 18, "fontStyle": "normal", "fontWeight": 700}  # the status and its basis
 LINE_STYLE = {"fontSize": 14, "fontStyle": "normal", "fontWeight": 400}  # facts, coverage and status lines
 LEGEND_BOTTOM = {"position": "bottom"}
-POINT_COLORS = [{"value": "Selected school", "color": SELECTED}, {"value": VERIFY[0], "color": "#E3A008"},
-                {"value": "Other schools", "color": "#C9D1D9"}]
-MAP_COLORS = [{"value": VERIFY[0], "color": "#E3A008"}, {"value": "Other schools", "color": "#7F8C99"}]
+# schools coloured by the levels they offer; the selected school has its own colour and is drawn on top
+LEVEL_MIX = ["Selected school", "Elementary", "Junior high", "Senior high", "Elementary + Junior high",
+             "Junior high + Senior high", "Elementary + Junior high + Senior high", "Elementary + Senior high"]
+LEVEL_MIX_COLORS = [{"value": v, "color": c} for v, c in zip(LEVEL_MIX, [
+    "#14212B", "#3C9D9B", "#C9A227", "#D85A30", "#8CC5C4", "#E3A97A", "#5B6B7A", "#A9B4BF"])]
+# schools on the LGU map by school status, from most to least pressing
+MAP_STATUS = ["Above classroom screen", "Missing figure", "Zero rooms or teachers", "Within classroom screen"]
+MAP_COLORS = [{"value": v, "color": c} for v, c in zip(MAP_STATUS, ["#C2452D", "#E3A008", "#9C6B3A", "#A9B4BF"])]
 CHANGE_COLORS = [{"value": "Increase", "color": "#2F6F8F"}, {"value": "Decrease", "color": "#C9A227"}]  # not good or bad
 REGION_SERIES = ["Resident children aged 5-17, 2024", "All-sector enrollment in local schools, SY 2024-25"]
 REGION_COLORS = [{"value": REGION_SERIES[0], "color": "#5B6B7A"}, {"value": REGION_SERIES[1], "color": "#C9A227"}]
@@ -84,9 +89,9 @@ PEER_COLORS = [{"value": PEER_SERIES[0], "color": SELECTED}, {"value": PEER_SERI
 LEVEL_STATUS = ["Above comparison point", "At or below comparison point", "Not assessed"]
 LEVEL_COLORS = [{"value": LEVEL_STATUS[0], "color": "#E3A008"}, {"value": LEVEL_STATUS[1], "color": "#A9B4BF"},
                 {"value": LEVEL_STATUS[2], "color": "#D9DEE3"}]
-LOCATION_SERIES = ["Selected school", f"Nearby: {VERIFY[0].lower()}", "Nearby: no verification flag"]
-LOCATION_COLORS = [{"value": LOCATION_SERIES[0], "color": SELECTED}, {"value": LOCATION_SERIES[1], "color": "#E3A008"},
-                   {"value": LOCATION_SERIES[2], "color": "#A9B4BF"}]
+NOT_OFFERED = "Level not offered"
+BULLET_STATUS = LEVEL_STATUS + [NOT_OFFERED]
+BULLET_COLORS = LEVEL_COLORS + [{"value": NOT_OFFERED, "color": "#EEF1F4"}]
 
 # ------------------------------------------------------------------------------------------ shared SQL
 
@@ -294,8 +299,9 @@ k AS (
 )
 -- each KPI is written whole here, so Databricks never abbreviates a count to 1.38K
 SELECT k.*,
-       format_number(joint_review, 0) || ' (' || {share('joint_review', 'assessed')} || ')' AS joint_kpi,
-       format_number(any_pressure, 0) || ' of ' || format_number(assessed, 0) AS any_kpi,
+       -- every count is out of the same total, all LGUs in view
+       format_number(joint_review, 0) || ' of ' || format_number(lgus, 0) AS joint_kpi,
+       format_number(any_pressure, 0) || ' of ' || format_number(lgus, 0) AS any_kpi,
        {compact('learners_above')} || ' (' || {share('learners_above', 'public_learners')} || ')' AS learners_kpi,
        format_number(data_review, 0) || ' of ' || format_number(lgus, 0) AS data_review_kpi
 FROM k"""
@@ -524,9 +530,7 @@ lv AS (
   UNION ALL SELECT city_mun_psgc_code, 3, 'SHS', shs_offered_school_count, shs_learners_per_teacher, shs_passes_gate,
          shs_benchmark_max_learners_per_teacher FROM {A}.ap3_teacher_pressure
 )
-SELECT ord, {LEVEL_LABEL.format(c='lvl')} || ' · '
-         || CASE WHEN ratio IS NULL OR NOT COALESCE(passes, FALSE) THEN 'not assessed'
-                 ELSE format_number(ratio, 1) || ' vs ' || format_number(reference, 1) END AS level_axis,
+SELECT ord, {LEVEL_LABEL.format(c='lvl')} AS level_axis,
        CASE WHEN ratio IS NOT NULL AND COALESCE(passes, FALSE) THEN ratio / NULLIF(reference, 0) END AS share_of_comparison,
        CASE WHEN ratio IS NULL OR NOT COALESCE(passes, FALSE) THEN '{LEVEL_STATUS[2]}'
             WHEN ratio > reference THEN '{LEVEL_STATUS[0]}' ELSE '{LEVEL_STATUS[1]}' END AS status
@@ -776,7 +780,8 @@ PR_MAP = f"""WITH {school_base(level_param=False)},
 SELECT school_name, school_id, barangay_name, school_kind, levels_offered_full, learners_txt, per_room_txt, per_teacher_txt,
        verification_status, why_listed, 'Inside the LGU boundary' AS location_status, latitude, longitude,
        COALESCE(learners, 0) AS learners,
-       CASE WHEN to_check THEN '{VERIFY[0]}' ELSE 'Other schools' END AS map_series
+       CASE status WHEN '{STATUS_ORDER[0]}' THEN '{MAP_STATUS[0]}' WHEN '{STATUS_ORDER[1]}' THEN '{MAP_STATUS[1]}'
+            WHEN '{STATUS_ORDER[2]}' THEN '{MAP_STATUS[2]}' ELSE '{MAP_STATUS[3]}' END AS map_series
 FROM loc
 WHERE boundary_status = 'inside'"""
 PR_MAP_NOTE = f"""WITH {school_base(level_param=False)},
@@ -835,8 +840,8 @@ SA_PEERS = f"""WITH {school_base()},
 {PICK}
 SELECT school_name, learners, learners_per_room, teacher_ratio, series FROM (
   SELECT s.school_name, s.learners, s.learners_per_room, s.teacher_ratio,
-         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'
-              WHEN s.to_check THEN '{VERIFY[0]}' ELSE 'Other schools' END AS series,
+         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{LEVEL_MIX[0]}'
+              ELSE COALESCE(NULLIF(s.levels_offered_full, ''), 'No level reported') END AS series,
          CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 1 ELSE 0 END AS draw_order
   FROM schools AS s
   WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL AND s.teacher_ratio IS NOT NULL
@@ -858,18 +863,17 @@ lt AS (
          lv.learners / NULLIF(CAST(lv.teachers AS DOUBLE), 0) AS ratio, lv.offered
   FROM lv JOIN refs AS r ON r.code = lv.code
 )
--- every level is listed, offered or not; the value is in the label, the reference is the line
-SELECT 0 AS ord, 'Learners per reported room · ' || {measure('learners_per_room', 1, '', 'not assessable')} AS figure,
+-- every level has its own row, offered or not (a level not offered has a zero-length bar); the reference is the line
+SELECT 0 AS ord, 'Learners per reported room' AS figure,
        learners_per_room / {SCREEN}.0 AS share_of_reference,
        CASE WHEN learners_per_room IS NULL THEN '{LEVEL_STATUS[2]}' WHEN learners_per_room >= {SCREEN} THEN '{LEVEL_STATUS[0]}'
             ELSE '{LEVEL_STATUS[1]}' END AS status
 FROM s
 UNION ALL
-SELECT ord, 'Learners per ' || lower(level) || ' teacher · '
-         || CASE WHEN offered = 0 THEN 'not offered' WHEN ratio IS NULL THEN 'not assessable' ELSE format_number(ratio, 1) END,
-       CASE WHEN offered = 1 THEN ratio / reference END,
-       CASE WHEN offered = 0 OR ratio IS NULL THEN '{LEVEL_STATUS[2]}' WHEN ratio > reference THEN '{LEVEL_STATUS[0]}'
-            ELSE '{LEVEL_STATUS[1]}' END
+SELECT ord, 'Learners per ' || lower(level) || ' teacher',
+       CASE WHEN offered = 1 THEN ratio / reference ELSE 0 END,
+       CASE WHEN offered = 0 THEN '{NOT_OFFERED}' WHEN ratio IS NULL THEN '{LEVEL_STATUS[2]}'
+            WHEN ratio > reference THEN '{LEVEL_STATUS[0]}' ELSE '{LEVEL_STATUS[1]}' END
 FROM lt
 ORDER BY ord"""
 
@@ -882,8 +886,8 @@ here AS (
 )
 SELECT s.school_name, s.levels_offered_full, s.learners_txt, s.verification_status, l.latitude, l.longitude,
        COALESCE(s.learners, 0) AS learners,
-       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{LOCATION_SERIES[0]}'
-            WHEN s.to_check THEN '{LOCATION_SERIES[1]}' ELSE '{LOCATION_SERIES[2]}' END AS series
+       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{LEVEL_MIX[0]}'
+            ELSE COALESCE(NULLIF(s.levels_offered_full, ''), 'No level reported') END AS series
 FROM schools AS s
 JOIN {G}.dim_school_location AS l ON l.school_id = s.school_id
 CROSS JOIN here
@@ -1000,7 +1004,7 @@ k AS (
 )
 SELECT k.*,
        format_number(classroom_assessed, 0) || ' of ' || format_number(lgus, 0) AS classroom_kpi,
-       format_number(teacher_assessed, 0) || ' of ' || format_number(offering, 0) AS teacher_kpi,
+       format_number(teacher_assessed, 0) || ' of ' || format_number(lgus, 0) AS teacher_kpi,
        format_number(trends_comparable, 0) || ' of ' || format_number(lgus, 0) AS trend_kpi,
        -- why this page's counts differ from the Overview's: an LGU keeps a review status when one measure is not
        -- fully assessed but another shows pressure
@@ -1278,13 +1282,13 @@ def overview(b):
     coverage = param_filter(b, "coverage", "Data readiness", targets,
                             "Separate assessed LGUs from LGUs with insufficient data.")
     p.columns([(8, [(intro, 3)]), (4, [(queue, 1), (coverage, 1)])], 3)
-    p.row([(kpi(b, "ov_kpi", "LGUs requiring immediate joint review", "joint_kpi", None, desc="Immediate joint review · of LGUs with a status",
+    p.row([(kpi(b, "ov_kpi", "LGUs requiring immediate joint review", "joint_kpi", None, desc="Priority 1, of all LGUs in view",
                 style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "LGUs with a current pressure signal", "any_kpi", None, desc="Priority 1 to 3, of LGUs with a status",
+           (kpi(b, "ov_kpi", "LGUs with a current pressure signal", "any_kpi", None, desc="Priority 1 to 3, of all LGUs in view",
                 style=KPI_STYLE), 3),
            (kpi(b, "ov_kpi", "Learners above classroom screen", "learners_kpi", None,
                 desc="Share of public learners, SY 2023-24", style=KPI_STYLE), 3),
-           (kpi(b, "ov_kpi", "LGUs requiring data review", "data_review_kpi", None, desc="Insufficient data to assess, of all LGUs",
+           (kpi(b, "ov_kpi", "LGUs requiring data review", "data_review_kpi", None, desc="Insufficient data to assess, of all LGUs in view",
                 style=KPI_STYLE), 3)], 3)
     queue_map = choropleth(
         b, "ov_map", "Planning priority across the Philippines", "queue_status", "Review status",
@@ -1368,7 +1372,7 @@ def lgu_profile(b):
                 ("measure", "Measure", None), ("this_lgu", "This LGU", None), ("comparison", "Comparison point", None),
                 ("status", "Status", None), ("coverage", "Coverage", None)],
                 "Each measure beside its published comparison point, SY 2023-24. Teacher ratios to one decimal."), 6)], 5)
-    p.row([(bar(b, "pr_teachers", "Learners per reported teacher by level", "level_axis", "Level · value vs comparison point",
+    p.row([(bar(b, "pr_teachers", "Learners per reported teacher by level", "level_axis", "Level",
                 "max", "share_of_comparison", "Share of the comparison point", fmt=pct(0), color="status",
                 color_label="Against the comparison point", mappings=LEVEL_COLORS, color_order=LEVEL_STATUS,
                 legend=LEGEND_BOTTOM, annotations=[ref_line("x", 1, "Comparison point")],
@@ -1404,15 +1408,16 @@ def lgu_profile(b):
     barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_map", "pr_map_note"],
                             "Narrows the school map and barangay table only.", options=("opt_barangay", "barangay_option"))
     school_map = point_map(
-        b, "pr_map", "School locations and barangay access", "latitude", "longitude", "map_series", "Schools",
+        b, "pr_map", "School locations and barangay access", "latitude", "longitude", "map_series", "School status",
         MAP_COLORS, [c["value"] for c in MAP_COLORS],
         [("school_name", "School"), ("school_id", "School ID"), ("barangay_name", "Barangay"), ("school_kind", "Main or annex"),
          ("levels_offered_full", "Levels offered"), ("learners_txt", "Public learners, SY 2023-24"),
          ("per_room_txt", "Learners per reported room"), ("per_teacher_txt", "Learners per reported teacher"),
          ("verification_status", "Verification status"), ("why_listed", "Why listed"),
          ("location_status", "Coordinate validation")],
-        "Public schools with validated coordinates in the selected LGU, sized by public learners, SY 2023-24 published "
-        "locations. Not catchment areas, routes or walking distance.", size="learners", size_label="Public learners")
+        "Public schools with validated coordinates in the selected LGU, coloured by school status and sized by public "
+        "learners, SY 2023-24 published locations. Not catchment areas, routes or walking distance.", size="learners",
+        size_label="Public learners")
     map_note = note(b, "pr_map_note", "School map coverage", "map_line", style=LINE_STYLE, show_title=False)
     barangays = table(b, "pr_barangays", "Barangays without a matched public elementary school", [
         ("barangay_name", "Barangay", None), ("public_es", "Matched public elementary", None),
@@ -1464,26 +1469,28 @@ def school_action(b):
                 desc="A flag means verify, not incorrect", style=KPI_STYLE), 3)], 3)
     p.row([(bar(b, "sa_bullet", "Classroom and teacher figures against their references", "figure", "Figure", "sum",
                 "share_of_reference", "Share of the reference", fmt=pct(0), color="status", color_label="Against the reference",
-                mappings=LEVEL_COLORS, color_order=LEVEL_STATUS, legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
+                mappings=BULLET_COLORS, color_order=BULLET_STATUS, legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
                 annotations=[ref_line("x", 1, "Reference")],
                 desc=f"Each figure on one scale, where the line is its reference: the {SCREEN}-learner room screen or "
-                     "the level's teacher comparison point. Past the line is beyond the reference. Every level is listed; "
-                     "a level the school does not offer has no bar."), 6),
+                     "the level's teacher comparison point. Past the line is beyond the reference. Every level has its "
+                     "own row; a level the school does not offer has no bar. Exact figures are in the table below."), 6),
            (table(b, "sa_verify", "What should be verified?", [
                ("item", "Figure", None), ("why", "Why", None), ("next_step", "Next step", None)],
                "Each flag turned into a step with the school or the Schools Division Office."), 6)], 5)
     p.row([(scatter(b, "sa_peers", "Classroom and teacher pressure among schools in this LGU", "learners_per_room",
                     "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series", "School",
-                    POINT_COLORS, [c["value"] for c in POINT_COLORS], "learners", "Learners", "school_name",
-                    "Each dot is a public school offering the chosen level, sized by learners; past the line is above the "
-                    "classroom screen. Schools with no rooms or teachers reported cannot be placed and are listed below.",
+                    LEVEL_MIX_COLORS, LEVEL_MIX, "learners", "Learners", "school_name",
+                    "Each dot is a public school offering the chosen level, coloured by the levels it offers and sized by "
+                    "learners; past the line is above the classroom screen. Schools with no rooms or teachers reported "
+                    "cannot be placed and are listed below.",
                     annotations=[ref_line("x", SCREEN, "Classroom screen")]), 8),
-           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Schools",
-                      LOCATION_COLORS, [c["value"] for c in LOCATION_COLORS],
+           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Levels offered",
+                      LEVEL_MIX_COLORS, LEVEL_MIX,
                       [("school_name", "School"), ("levels_offered_full", "Levels offered"),
                        ("learners_txt", "Public learners"), ("verification_status", "Verification status")],
-                      "The selected school and public schools within about 3 km, sized by learners. Empty when the school "
-                      "has no validated location; no barangay boundary is drawn.", size="learners",
+                      "The selected school and public schools within about 3 km, coloured by the levels they offer and "
+                      "sized by learners. Empty when the school has no validated location; no barangay boundary is drawn.",
+                      size="learners",
                       size_label="Public learners"), 4)], 8)
     p.row([(line(b, "sa_trend", "How has enrollment changed in this school?", "school_year_label", "School year", "sum",
                  "learners", "Learners", num(), color="series", color_label="Series", x_order=SCHOOL_YEARS,

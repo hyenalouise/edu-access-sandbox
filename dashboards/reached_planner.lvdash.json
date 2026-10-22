@@ -758,8 +758,9 @@
         ")\n",
         "-- each KPI is written whole here, so Databricks never abbreviates a count to 1.38K\n",
         "SELECT k.*,\n",
-        "       format_number(joint_review, 0) || ' (' || COALESCE(format_number(100.0 * joint_review / NULLIF(assessed, 0), 1) || '%', '\u2014') || ')' AS joint_kpi,\n",
-        "       format_number(any_pressure, 0) || ' of ' || format_number(assessed, 0) AS any_kpi,\n",
+        "       -- every count is out of the same total, all LGUs in view\n",
+        "       format_number(joint_review, 0) || ' of ' || format_number(lgus, 0) AS joint_kpi,\n",
+        "       format_number(any_pressure, 0) || ' of ' || format_number(lgus, 0) AS any_kpi,\n",
         "       CASE WHEN learners_above >= 1000000 THEN format_number(learners_above / 1000000.0, 2) || 'M' ELSE format_number(learners_above, 0) END || ' (' || COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '\u2014') || ')' AS learners_kpi,\n",
         "       format_number(data_review, 0) || ' of ' || format_number(lgus, 0) AS data_review_kpi\n",
         "FROM k"
@@ -2453,9 +2454,7 @@
         "  UNION ALL SELECT city_mun_psgc_code, 3, 'SHS', shs_offered_school_count, shs_learners_per_teacher, shs_passes_gate,\n",
         "         shs_benchmark_max_learners_per_teacher FROM edu_access.`06-analytics`.ap3_teacher_pressure\n",
         ")\n",
-        "SELECT ord, CASE lvl WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END || ' \u00b7 '\n",
-        "         || CASE WHEN ratio IS NULL OR NOT COALESCE(passes, FALSE) THEN 'not assessed'\n",
-        "                 ELSE format_number(ratio, 1) || ' vs ' || format_number(reference, 1) END AS level_axis,\n",
+        "SELECT ord, CASE lvl WHEN 'ES' THEN 'Elementary' WHEN 'JHS' THEN 'Junior high' ELSE 'Senior high' END AS level_axis,\n",
         "       CASE WHEN ratio IS NOT NULL AND COALESCE(passes, FALSE) THEN ratio / NULLIF(reference, 0) END AS share_of_comparison,\n",
         "       CASE WHEN ratio IS NULL OR NOT COALESCE(passes, FALSE) THEN 'Not assessed'\n",
         "            WHEN ratio > reference THEN 'Above comparison point' ELSE 'At or below comparison point' END AS status\n",
@@ -3575,7 +3574,8 @@
         "SELECT school_name, school_id, barangay_name, school_kind, levels_offered_full, learners_txt, per_room_txt, per_teacher_txt,\n",
         "       verification_status, why_listed, 'Inside the LGU boundary' AS location_status, latitude, longitude,\n",
         "       COALESCE(learners, 0) AS learners,\n",
-        "       CASE WHEN to_check THEN 'Verification needed' ELSE 'Other schools' END AS map_series\n",
+        "       CASE status WHEN 'Above classroom screen' THEN 'Above classroom screen' WHEN 'Missing figure' THEN 'Missing figure'\n",
+        "            WHEN 'Zero rooms or teachers' THEN 'Zero rooms or teachers' ELSE 'Within classroom screen' END AS map_series\n",
         "FROM loc\n",
         "WHERE boundary_status = 'inside'"
       ],
@@ -4616,18 +4616,17 @@
         "         lv.learners / NULLIF(CAST(lv.teachers AS DOUBLE), 0) AS ratio, lv.offered\n",
         "  FROM lv JOIN refs AS r ON r.code = lv.code\n",
         ")\n",
-        "-- every level is listed, offered or not; the value is in the label, the reference is the line\n",
-        "SELECT 0 AS ord, 'Learners per reported room \u00b7 ' || CASE WHEN learners_per_room IS NULL THEN 'not assessable' ELSE format_number(learners_per_room, 1) || '' END AS figure,\n",
+        "-- every level has its own row, offered or not (a level not offered has a zero-length bar); the reference is the line\n",
+        "SELECT 0 AS ord, 'Learners per reported room' AS figure,\n",
         "       learners_per_room / 50.0 AS share_of_reference,\n",
         "       CASE WHEN learners_per_room IS NULL THEN 'Not assessed' WHEN learners_per_room >= 50 THEN 'Above comparison point'\n",
         "            ELSE 'At or below comparison point' END AS status\n",
         "FROM s\n",
         "UNION ALL\n",
-        "SELECT ord, 'Learners per ' || lower(level) || ' teacher \u00b7 '\n",
-        "         || CASE WHEN offered = 0 THEN 'not offered' WHEN ratio IS NULL THEN 'not assessable' ELSE format_number(ratio, 1) END,\n",
-        "       CASE WHEN offered = 1 THEN ratio / reference END,\n",
-        "       CASE WHEN offered = 0 OR ratio IS NULL THEN 'Not assessed' WHEN ratio > reference THEN 'Above comparison point'\n",
-        "            ELSE 'At or below comparison point' END\n",
+        "SELECT ord, 'Learners per ' || lower(level) || ' teacher',\n",
+        "       CASE WHEN offered = 1 THEN ratio / reference ELSE 0 END,\n",
+        "       CASE WHEN offered = 0 THEN 'Level not offered' WHEN ratio IS NULL THEN 'Not assessed'\n",
+        "            WHEN ratio > reference THEN 'Above comparison point' ELSE 'At or below comparison point' END\n",
         "FROM lt\n",
         "ORDER BY ord"
       ],
@@ -4883,7 +4882,7 @@
         "SELECT school_name, learners, learners_per_room, teacher_ratio, series FROM (\n",
         "  SELECT s.school_name, s.learners, s.learners_per_room, s.teacher_ratio,\n",
         "         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'\n",
-        "              WHEN s.to_check THEN 'Verification needed' ELSE 'Other schools' END AS series,\n",
+        "              ELSE COALESCE(NULLIF(s.levels_offered_full, ''), 'No level reported') END AS series,\n",
         "         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 1 ELSE 0 END AS draw_order\n",
         "  FROM schools AS s\n",
         "  WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL AND s.teacher_ratio IS NOT NULL\n",
@@ -5146,7 +5145,7 @@
         "SELECT s.school_name, s.levels_offered_full, s.learners_txt, s.verification_status, l.latitude, l.longitude,\n",
         "       COALESCE(s.learners, 0) AS learners,\n",
         "       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'\n",
-        "            WHEN s.to_check THEN 'Nearby: verification needed' ELSE 'Nearby: no verification flag' END AS series\n",
+        "            ELSE COALESCE(NULLIF(s.levels_offered_full, ''), 'No level reported') END AS series\n",
         "FROM schools AS s\n",
         "JOIN edu_access.`05-gold`.dim_school_location AS l ON l.school_id = s.school_id\n",
         "CROSS JOIN here\n",
@@ -6430,7 +6429,7 @@
         ")\n",
         "SELECT k.*,\n",
         "       format_number(classroom_assessed, 0) || ' of ' || format_number(lgus, 0) AS classroom_kpi,\n",
-        "       format_number(teacher_assessed, 0) || ' of ' || format_number(offering, 0) AS teacher_kpi,\n",
+        "       format_number(teacher_assessed, 0) || ' of ' || format_number(lgus, 0) AS teacher_kpi,\n",
         "       format_number(trends_comparable, 0) || ' of ' || format_number(lgus, 0) AS trend_kpi,\n",
         "       -- why this page's counts differ from the Overview's: an LGU keeps a review status when one measure is not\n",
         "       -- fully assessed but another shows pressure\n",
@@ -8289,7 +8288,7 @@
                 "showTitle": true,
                 "title": "LGUs requiring immediate joint review",
                 "showDescription": true,
-                "description": "Immediate joint review \u00b7 of LGUs with a status"
+                "description": "Priority 1, of all LGUs in view"
               }
             }
           },
@@ -8335,7 +8334,7 @@
                 "showTitle": true,
                 "title": "LGUs with a current pressure signal",
                 "showDescription": true,
-                "description": "Priority 1 to 3, of LGUs with a status"
+                "description": "Priority 1 to 3, of all LGUs in view"
               }
             }
           },
@@ -8427,7 +8426,7 @@
                 "showTitle": true,
                 "title": "LGUs requiring data review",
                 "showDescription": true,
-                "description": "Insufficient data to assess, of all LGUs"
+                "description": "Insufficient data to assess, of all LGUs in view"
               }
             }
           },
@@ -10163,7 +10162,7 @@
                   "scale": {
                     "type": "categorical"
                   },
-                  "displayName": "Level \u00b7 value vs comparison point"
+                  "displayName": "Level"
                 },
                 "color": {
                   "fieldName": "status",
@@ -10794,22 +10793,32 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Verification needed",
-                        "Other schools"
+                        "Above classroom screen",
+                        "Missing figure",
+                        "Zero rooms or teachers",
+                        "Within classroom screen"
                       ]
                     },
                     "mappings": [
                       {
-                        "value": "Verification needed",
+                        "value": "Above classroom screen",
+                        "color": "#C2452D"
+                      },
+                      {
+                        "value": "Missing figure",
                         "color": "#E3A008"
                       },
                       {
-                        "value": "Other schools",
-                        "color": "#7F8C99"
+                        "value": "Zero rooms or teachers",
+                        "color": "#9C6B3A"
+                      },
+                      {
+                        "value": "Within classroom screen",
+                        "color": "#A9B4BF"
                       }
                     ]
                   },
-                  "displayName": "Schools"
+                  "displayName": "School status"
                 },
                 "extra": [
                   {
@@ -10869,7 +10878,7 @@
                 "showTitle": true,
                 "title": "School locations and barangay access",
                 "showDescription": true,
-                "description": "Public schools with validated coordinates in the selected LGU, sized by public learners, SY 2023-24 published locations. Not catchment areas, routes or walking distance."
+                "description": "Public schools with validated coordinates in the selected LGU, coloured by school status and sized by public learners, SY 2023-24 published locations. Not catchment areas, routes or walking distance."
               },
               "mark": {
                 "opacity": 0.8
@@ -12285,7 +12294,8 @@
                       "orderedValues": [
                         "Above comparison point",
                         "At or below comparison point",
-                        "Not assessed"
+                        "Not assessed",
+                        "Level not offered"
                       ]
                     },
                     "mappings": [
@@ -12300,6 +12310,10 @@
                       {
                         "value": "Not assessed",
                         "color": "#D9DEE3"
+                      },
+                      {
+                        "value": "Level not offered",
+                        "color": "#EEF1F4"
                       }
                     ]
                   },
@@ -12313,7 +12327,7 @@
                 "showTitle": true,
                 "title": "Classroom and teacher figures against their references",
                 "showDescription": true,
-                "description": "Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's teacher comparison point. Past the line is beyond the reference. Every level is listed; a level the school does not offer has no bar."
+                "description": "Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's teacher comparison point. Past the line is beyond the reference. Every level has its own row; a level the school does not offer has no bar. Exact figures are in the table below."
               },
               "annotations": [
                 {
@@ -12461,22 +12475,47 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Selected school",
-                        "Verification needed",
-                        "Other schools"
+                        "Elementary",
+                        "Junior high",
+                        "Senior high",
+                        "Elementary + Junior high",
+                        "Junior high + Senior high",
+                        "Elementary + Junior high + Senior high",
+                        "Elementary + Senior high"
                       ]
                     },
                     "mappings": [
                       {
                         "value": "Selected school",
-                        "color": "#1F5A8A"
+                        "color": "#14212B"
                       },
                       {
-                        "value": "Verification needed",
-                        "color": "#E3A008"
+                        "value": "Elementary",
+                        "color": "#3C9D9B"
                       },
                       {
-                        "value": "Other schools",
-                        "color": "#C9D1D9"
+                        "value": "Junior high",
+                        "color": "#C9A227"
+                      },
+                      {
+                        "value": "Senior high",
+                        "color": "#D85A30"
+                      },
+                      {
+                        "value": "Elementary + Junior high",
+                        "color": "#8CC5C4"
+                      },
+                      {
+                        "value": "Junior high + Senior high",
+                        "color": "#E3A97A"
+                      },
+                      {
+                        "value": "Elementary + Junior high + Senior high",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "Elementary + Senior high",
+                        "color": "#A9B4BF"
                       }
                     ]
                   },
@@ -12500,7 +12539,7 @@
                 "showTitle": true,
                 "title": "Classroom and teacher pressure among schools in this LGU",
                 "showDescription": true,
-                "description": "Each dot is a public school offering the chosen level, sized by learners; past the line is above the classroom screen. Schools with no rooms or teachers reported cannot be placed and are listed below."
+                "description": "Each dot is a public school offering the chosen level, coloured by the levels it offers and sized by learners; past the line is above the classroom screen. Schools with no rooms or teachers reported cannot be placed and are listed below."
               },
               "annotations": [
                 {
@@ -12594,26 +12633,51 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Selected school",
-                        "Nearby: verification needed",
-                        "Nearby: no verification flag"
+                        "Elementary",
+                        "Junior high",
+                        "Senior high",
+                        "Elementary + Junior high",
+                        "Junior high + Senior high",
+                        "Elementary + Junior high + Senior high",
+                        "Elementary + Senior high"
                       ]
                     },
                     "mappings": [
                       {
                         "value": "Selected school",
-                        "color": "#1F5A8A"
+                        "color": "#14212B"
                       },
                       {
-                        "value": "Nearby: verification needed",
-                        "color": "#E3A008"
+                        "value": "Elementary",
+                        "color": "#3C9D9B"
                       },
                       {
-                        "value": "Nearby: no verification flag",
+                        "value": "Junior high",
+                        "color": "#C9A227"
+                      },
+                      {
+                        "value": "Senior high",
+                        "color": "#D85A30"
+                      },
+                      {
+                        "value": "Elementary + Junior high",
+                        "color": "#8CC5C4"
+                      },
+                      {
+                        "value": "Junior high + Senior high",
+                        "color": "#E3A97A"
+                      },
+                      {
+                        "value": "Elementary + Junior high + Senior high",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "Elementary + Senior high",
                         "color": "#A9B4BF"
                       }
                     ]
                   },
-                  "displayName": "Schools"
+                  "displayName": "Levels offered"
                 },
                 "extra": [
                   {
@@ -12645,7 +12709,7 @@
                 "showTitle": true,
                 "title": "School location",
                 "showDescription": true,
-                "description": "The selected school and public schools within about 3 km, sized by learners. Empty when the school has no validated location; no barangay boundary is drawn."
+                "description": "The selected school and public schools within about 3 km, coloured by the levels they offer and sized by learners. Empty when the school has no validated location; no barangay boundary is drawn."
               },
               "mark": {
                 "opacity": 0.8
