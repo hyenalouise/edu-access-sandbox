@@ -126,6 +126,43 @@ def test_legends_axes_and_filters_use_the_review_status():
     assert all(f"('{q}')" in options for q in planner.QUEUE)
 
 
+def test_kpis_use_the_production_language():
+    titles = {w["spec"]["frame"]["title"] for p in load()["pages"][:4] for w in kpis(p)}
+    assert {"LGUs requiring immediate joint review", "LGUs with a current pressure signal", "LGUs requiring data review",
+            "Verification items"} <= titles
+    assert not titles & {"Priority 1 LGUs", "LGUs with any pressure", "Data review LGUs", "Figures to verify"}
+
+
+def test_population_bubbles_are_regions_and_the_comparison_area_with_an_equal_counts_line():
+    datasets = {d["name"]: "".join(d["queryLines"]) for d in load()["datasets"]}
+    assert "GROUP BY region_short" in datasets["ov_region_bubble"]
+    for name in ("ov_region_bubble", "pr_peers"):
+        assert planner.EQUAL_COUNTS in datasets[name] and "1.1 * GREATEST(MAX(x), MAX(y))" in datasets[name]
+    assert ":barangay" not in datasets["pr_peers"]  # population is not counted at barangay level here
+
+
+def test_a_region_without_comparable_population_is_grey(store):
+    # the fixture has no 2020 population, so no LGU is comparable: the region is grey, never Increased or Decreased
+    run_all(store)
+    region = [r for r in _rows(store, "ov_region_bubble") if r["series"] != planner.EQUAL_COUNTS]
+    assert [(r["series"], r["comparable_txt"], r["population_change_txt"]) for r in region] == [
+        ("Not fully comparable", "0 of 4", "Not comparable")]
+
+
+def test_the_selected_lgu_stays_in_its_comparison_area_with_its_values(store):
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    run_all(store)
+    add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
+    rows = _rows(store, "pr_peers", lgu="Town One, Province")
+    points = [r for r in rows if r["series"] != planner.EQUAL_COUNTS]
+    line = [r for r in rows if r["series"] == planner.EQUAL_COUNTS]
+    selected = [r for r in points if r["label"] == "Town One, Province"]
+    assert len(selected) == 1 and selected[0]["series"] == planner.PEER_SERIES[0]
+    assert len(line) == 41 and max(r["x"] for r in line) >= 1.1 * max(max(r["x"], r["y"]) for r in points) - 1e-9
+    note = _rows(store, "pr_peer_note", lgu="Town One, Province")[0]["peer_line"]
+    assert note.startswith("Town One: ") and "active public schools (SY 2023-24)" in note
+
+
 def test_no_title_renders_markdown():
     # review of the 2026-10-21 export: asterisks in chart titles rendered literally
     for page in load()["pages"]:
@@ -164,7 +201,7 @@ def test_every_planning_status_has_a_plain_label_and_basis():
 
 
 def test_the_map_colours_each_lgu_by_its_priority_category():
-    # the reference map: one boundary per LGU from geo_first(boundary), a Priority status legend in the published
+    # the reference map: one boundary per LGU from geo_first(boundary), a Review status legend in the published
     # order, and City or municipality, Review status and Learners in screened schools in the tooltip
     maps = [w for p in load()["pages"] for w in widgets(p) if w.get("spec", {}).get("widgetType") == "choropleth-map"]
     assert len(maps) == 1
@@ -173,7 +210,7 @@ def test_the_map_colours_each_lgu_by_its_priority_category():
     assert {f["name"]: f["expression"] for f in query["fields"]}["geo_first(boundary)"] == "ST_ASGEOJSON(FIRST(`boundary`))"
     assert not query["disaggregated"]
     color = encodings["color"]
-    assert (color["fieldName"], color["displayName"]) == ("queue_status", "Priority status")
+    assert (color["fieldName"], color["displayName"]) == ("queue_status", "Review status")
     assert color["scale"]["sort"]["orderedValues"] == planner.QUEUE
     assert [m["value"] for m in color["scale"]["mappings"]] == planner.QUEUE
     assert [e["displayName"] for e in encodings["extra"]] == [
@@ -330,7 +367,7 @@ def test_every_listed_school_says_why_and_what_to_verify(store):
     assert rows["X1"]["why_listed"] == "Above classroom screen" and rows["X1"]["verification_status"] == planner.VERIFY[0]
     assert rows["S4"]["why_listed"] == "Included by classroom-pressure order"
     school = _rows(store, "sa_school", lgu="Town One, Province")[0]
-    assert school["school_id"] == "X1" and school["verify_kpi"] == "1 to verify"
+    assert school["school_id"] == "X1" and school["verify_kpi"] == "1 verification item"
     assert (school["room_kpi"], school["teacher_kpi"], school["change_kpi"]) == ("75.0", "30.0", "Incomplete")
     assert school["verify_header"] == "Verify reported room count and enrollment"
     assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town One, Province")] == ["Classroom pressure"]
