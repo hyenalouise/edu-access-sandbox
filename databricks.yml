@@ -1380,7 +1380,7 @@ resources:
         - group_name: reached-hq
           level: CAN_RUN
     reached_planner:
-      display_name: ReachED Education Access Review Dashboard
+      display_name: "ReachED: Education Access Priority Dashboard"
       file_path: dashboards/reached_planner.lvdash.json
       warehouse_id: ${var.warehouse_id}
       permissions:
