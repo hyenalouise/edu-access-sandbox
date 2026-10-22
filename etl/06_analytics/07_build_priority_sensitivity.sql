@@ -9,6 +9,8 @@
 -- pressure flag), Coverage-sensitive (a coverage gate no longer passes), Magnitude-sensitive (affected learners change
 -- by more than 10%), Stable (nothing that matters changes), or No suspected outliers. The ranking position is not a
 -- status, because one LGU changing moves every LGU below it.
+-- scenario B also publishes the recalculated AP2 and AP3 figures (pooled ratios, counts, coverage and gates), so the
+-- planner dashboard can show every measure without the flagged schools when a user chooses to exclude them.
 
 CREATE SCHEMA IF NOT EXISTS edu_access.`06-analytics`;
 ALTER SCHEMA edu_access.`06-analytics` OWNER TO `reached-hq`;
@@ -36,7 +38,9 @@ WITH flags AS (
   GROUP BY f.city_mun_psgc_code
 ), classroom_b AS (
   SELECT city_mun_psgc_code,
+         COUNT_IF(NOT is_suspected_outlier) AS ratio_school_count,
          SUM(CASE WHEN NOT is_suspected_outlier THEN learners ELSE 0 END) AS eligible_learners,
+         SUM(CASE WHEN NOT is_suspected_outlier THEN denominator ELSE 0 END) AS reported_rooms,
          COUNT_IF(NOT is_suspected_outlier AND ratio >= 50) AS congested_school_count,
          SUM(CASE WHEN NOT is_suspected_outlier AND ratio >= 50 THEN learners ELSE 0 END) AS learners_in_congested_schools
   FROM flags WHERE measure = 'classroom'
@@ -46,8 +50,14 @@ WITH flags AS (
          CAST(100.0 * COALESCE(c.eligible_learners, 0) / NULLIF(a.public_school_enrollment, 0) AS DOUBLE) AS learner_coverage_pct,
          COALESCE(a.active_public_school_count > 0 AND COALESCE(c.eligible_learners, 0) > 0
                   AND 100.0 * COALESCE(c.eligible_learners, 0) / NULLIF(a.public_school_enrollment, 0) >= 90, FALSE) AS assessed,
+         COALESCE(c.ratio_school_count, 0) AS ratio_school_count,
+         CAST(COALESCE(c.eligible_learners, 0) AS BIGINT) AS eligible_learners,
+         CAST(COALESCE(c.reported_rooms, 0) AS BIGINT) AS reported_rooms,
+         CAST(c.eligible_learners AS DOUBLE) / NULLIF(c.reported_rooms, 0) AS learners_per_reported_room,
          COALESCE(c.congested_school_count, 0) AS congested_school_count,
-         CAST(COALESCE(c.learners_in_congested_schools, 0) AS BIGINT) AS affected_learners
+         CAST(COALESCE(c.learners_in_congested_schools, 0) AS BIGINT) AS affected_learners,
+         CAST(100.0 * COALESCE(c.learners_in_congested_schools, 0) / NULLIF(a.public_school_enrollment, 0) AS DOUBLE)
+           AS affected_learner_share_pct
   FROM edu_access.`06-analytics`.ap2_classroom_pressure AS a
   LEFT JOIN classroom_b AS c USING (city_mun_psgc_code)
 ), teacher_b AS (
@@ -71,6 +81,7 @@ WITH flags AS (
 ), levels_b AS (
   SELECT l.*,
          COALESCE(t.usable_learners, 0) + COALESCE(l.zero_teacher_annex_learners, 0) AS eligible_learners,
+         COALESCE(t.teacher_count, 0) AS teacher_count,
          CAST(COALESCE(t.usable_learners, 0) + COALESCE(l.zero_teacher_annex_learners, 0) AS DOUBLE)
            / NULLIF(COALESCE(t.teacher_count, 0), 0) AS learners_per_teacher,
          CAST(100.0 * (COALESCE(t.usable_learners, 0) + COALESCE(l.zero_teacher_annex_learners, 0))
@@ -89,6 +100,21 @@ WITH flags AS (
          COUNT_IF(passes_gate AND learners_per_teacher > reference) AS pressured_level_count,
          CAST(COALESCE(SUM(CASE WHEN passes_gate AND learners_per_teacher > reference THEN eligible_learners END), 0) AS BIGINT)
            AS affected_learners,
+         CAST(MAX(CASE WHEN education_level_code = 'ES' THEN eligible_learners END) AS BIGINT) AS es_eligible_learners,
+         CAST(MAX(CASE WHEN education_level_code = 'ES' THEN teacher_count END) AS BIGINT) AS es_teacher_count,
+         MAX(CASE WHEN education_level_code = 'ES' THEN learners_per_teacher END) AS es_learners_per_teacher,
+         MAX(CASE WHEN education_level_code = 'ES' THEN learner_coverage_pct_b END) AS es_learner_coverage_pct,
+         COALESCE(MAX(CASE WHEN education_level_code = 'ES' THEN passes_gate END), FALSE) AS es_passes_gate,
+         CAST(MAX(CASE WHEN education_level_code = 'JHS' THEN eligible_learners END) AS BIGINT) AS jhs_eligible_learners,
+         CAST(MAX(CASE WHEN education_level_code = 'JHS' THEN teacher_count END) AS BIGINT) AS jhs_teacher_count,
+         MAX(CASE WHEN education_level_code = 'JHS' THEN learners_per_teacher END) AS jhs_learners_per_teacher,
+         MAX(CASE WHEN education_level_code = 'JHS' THEN learner_coverage_pct_b END) AS jhs_learner_coverage_pct,
+         COALESCE(MAX(CASE WHEN education_level_code = 'JHS' THEN passes_gate END), FALSE) AS jhs_passes_gate,
+         CAST(MAX(CASE WHEN education_level_code = 'SHS' THEN eligible_learners END) AS BIGINT) AS shs_eligible_learners,
+         CAST(MAX(CASE WHEN education_level_code = 'SHS' THEN teacher_count END) AS BIGINT) AS shs_teacher_count,
+         MAX(CASE WHEN education_level_code = 'SHS' THEN learners_per_teacher END) AS shs_learners_per_teacher,
+         MAX(CASE WHEN education_level_code = 'SHS' THEN learner_coverage_pct_b END) AS shs_learner_coverage_pct,
+         COALESCE(MAX(CASE WHEN education_level_code = 'SHS' THEN passes_gate END), FALSE) AS shs_passes_gate,
          MIN(CASE WHEN offered_school_count > 0 THEN learner_coverage_pct END) AS lowest_learner_coverage_pct,
          MIN(CASE WHEN offered_school_count > 0 THEN learner_coverage_pct_b END) AS lowest_learner_coverage_pct_b
   FROM levels_gated
@@ -108,6 +134,27 @@ WITH flags AS (
          COALESCE(c.assessed, FALSE) AS ap2_assessed_without_suspected_outliers,
          COALESCE(t.assessed, FALSE) AS ap3_assessed_without_suspected_outliers,
          c.affected_learners AS ap2_affected_learners_b, t.affected_learners AS ap3_affected_learners_b,
+         c.ratio_school_count AS ap2_ratio_school_count_without_suspected_outliers,
+         c.eligible_learners AS ap2_eligible_learners_without_suspected_outliers,
+         c.reported_rooms AS ap2_reported_rooms_without_suspected_outliers,
+         c.learners_per_reported_room AS ap2_learners_per_reported_room_without_suspected_outliers,
+         c.congested_school_count AS ap2_affected_school_count_without_suspected_outliers,
+         c.affected_learner_share_pct AS ap2_affected_learner_share_pct_without_suspected_outliers,
+         t.es_eligible_learners AS ap3_es_eligible_learners_without_suspected_outliers,
+         t.es_teacher_count AS ap3_es_teacher_count_without_suspected_outliers,
+         t.es_learners_per_teacher AS ap3_es_learners_per_teacher_without_suspected_outliers,
+         t.es_learner_coverage_pct AS ap3_es_learner_coverage_pct_without_suspected_outliers,
+         COALESCE(t.es_passes_gate, FALSE) AS ap3_es_passes_gate_without_suspected_outliers,
+         t.jhs_eligible_learners AS ap3_jhs_eligible_learners_without_suspected_outliers,
+         t.jhs_teacher_count AS ap3_jhs_teacher_count_without_suspected_outliers,
+         t.jhs_learners_per_teacher AS ap3_jhs_learners_per_teacher_without_suspected_outliers,
+         t.jhs_learner_coverage_pct AS ap3_jhs_learner_coverage_pct_without_suspected_outliers,
+         COALESCE(t.jhs_passes_gate, FALSE) AS ap3_jhs_passes_gate_without_suspected_outliers,
+         t.shs_eligible_learners AS ap3_shs_eligible_learners_without_suspected_outliers,
+         t.shs_teacher_count AS ap3_shs_teacher_count_without_suspected_outliers,
+         t.shs_learners_per_teacher AS ap3_shs_learners_per_teacher_without_suspected_outliers,
+         t.shs_learner_coverage_pct AS ap3_shs_learner_coverage_pct_without_suspected_outliers,
+         COALESCE(t.shs_passes_gate, FALSE) AS ap3_shs_passes_gate_without_suspected_outliers,
          COALESCE(t.pressured_level_count, 0) AS ap3_pressured_level_count_b,
          CAST(CASE WHEN c.assessed AND c.congested_school_count > 0 THEN 1 ELSE 0 END AS INT)
            AS classroom_pressure_flag_without_suspected_outliers,
@@ -168,6 +215,31 @@ SELECT city_mun_psgc_code, city_mun_name, lgu_type, province_name, region_name, 
        ap2_learner_coverage_pct, ap2_learner_coverage_pct_without_suspected_outliers,
        ap3_lowest_learner_coverage_pct, ap3_lowest_learner_coverage_pct_without_suspected_outliers,
        ap2_assessed_without_suspected_outliers, ap3_assessed_without_suspected_outliers,
+       ap2_ratio_school_count_without_suspected_outliers,
+       ap2_eligible_learners_without_suspected_outliers,
+       ap2_reported_rooms_without_suspected_outliers,
+       ap2_learners_per_reported_room_without_suspected_outliers,
+       ap2_affected_school_count_without_suspected_outliers,
+       CAST(COALESCE(ap2_affected_learners_b, 0) AS BIGINT) AS ap2_affected_learners_without_suspected_outliers,
+       ap2_affected_learner_share_pct_without_suspected_outliers,
+       ap3_es_eligible_learners_without_suspected_outliers,
+       ap3_es_teacher_count_without_suspected_outliers,
+       ap3_es_learners_per_teacher_without_suspected_outliers,
+       ap3_es_learner_coverage_pct_without_suspected_outliers,
+       ap3_es_passes_gate_without_suspected_outliers,
+       ap3_jhs_eligible_learners_without_suspected_outliers,
+       ap3_jhs_teacher_count_without_suspected_outliers,
+       ap3_jhs_learners_per_teacher_without_suspected_outliers,
+       ap3_jhs_learner_coverage_pct_without_suspected_outliers,
+       ap3_jhs_passes_gate_without_suspected_outliers,
+       ap3_shs_eligible_learners_without_suspected_outliers,
+       ap3_shs_teacher_count_without_suspected_outliers,
+       ap3_shs_learners_per_teacher_without_suspected_outliers,
+       ap3_shs_learner_coverage_pct_without_suspected_outliers,
+       ap3_shs_passes_gate_without_suspected_outliers,
+       ap3_pressured_level_count_b AS ap3_pressured_level_count_without_suspected_outliers,
+       CAST(COALESCE(ap3_affected_learners_b, 0) AS BIGINT) AS ap3_affected_learners_without_suspected_outliers,
+       current_pressure_count_b AS current_pressure_count_without_suspected_outliers,
        classroom_flag_changed, teacher_flag_changed, priority_category_changed, coverage_gate_changed,
        affected_learners_changed,
        CASE WHEN outlier_school_count = 0 THEN 'No suspected outliers'

@@ -13,6 +13,7 @@ Every column of the seven tables in `` edu_access.`06-analytics` ``, the tables 
 | [`lgu_priority_matrix`](#lgu_priority_matrix) | One regular city or municipality | AP1 to AP4 side by side and the D-061 planning-priority category |
 | [`school_outlier_flags`](#school_outlier_flags) | One public school and measure in that measure's ratio, SY 2023-24 | Which school ratios are suspected extreme outliers (D-065) |
 | [`lgu_priority_sensitivity`](#lgu_priority_sensitivity) | One regular city or municipality | Whether the planning priority depends on suspected extreme schools (D-065) |
+| [`lgu_priority_scenarios`](#lgu_priority_scenarios) | One regular city or municipality and scenario | The priority and its AP2 and AP3 evidence, published and without suspected extreme schools, for the planner dashboard (D-065) |
 
 ## Reading the columns
 
@@ -262,11 +263,77 @@ Scenario A is the published `lgu_priority_matrix`; scenario B (`_without_suspect
 | `ap3_lowest_learner_coverage_pct_without_suspected_outliers` | DOUBLE | Scenario B lowest teacher learner coverage |
 | `ap2_assessed_without_suspected_outliers` | BOOLEAN | Scenario B: AP2 passes its 90% coverage gate |
 | `ap3_assessed_without_suspected_outliers` | BOOLEAN | Scenario B: every offered AP3 level passes its 90% coverage gate |
+| `ap2_ratio_school_count_without_suspected_outliers` | BIGINT | Scenario B: schools in the AP2 ratio |
+| `ap2_eligible_learners_without_suspected_outliers` | BIGINT | Scenario B: learners in those schools |
+| `ap2_reported_rooms_without_suspected_outliers` | BIGINT | Scenario B: reported instructional rooms in those schools |
+| `ap2_learners_per_reported_room_without_suspected_outliers` | DOUBLE | Scenario B pooled ratio: eligible learners / reported rooms; NULL when no room is left |
+| `ap2_affected_school_count_without_suspected_outliers` | BIGINT | Scenario B: schools at or above 50 learners per reported room |
+| `ap2_affected_learners_without_suspected_outliers` | BIGINT | Scenario B: learners in those schools |
+| `ap2_affected_learner_share_pct_without_suspected_outliers` | DOUBLE | Scenario B: 100 × affected learners / every public learner in active schools with complete enrollment |
+| `ap3_es_eligible_learners_without_suspected_outliers` | BIGINT | Scenario B: ES learners in teacher-usable schools left, plus zero-teacher annexes |
+| `ap3_es_teacher_count_without_suspected_outliers` | BIGINT | Scenario B: ES teachers in those schools |
+| `ap3_es_learners_per_teacher_without_suspected_outliers` | DOUBLE | Scenario B ES ratio; NULL when no teacher is left |
+| `ap3_es_learner_coverage_pct_without_suspected_outliers` | DOUBLE | Scenario B ES learner coverage: every ES learner stays in the denominator |
+| `ap3_es_passes_gate_without_suspected_outliers` | BOOLEAN | Scenario B: ES is offered, has a ratio, and coverage is at least 90 |
+| `ap3_jhs_eligible_learners_without_suspected_outliers` | BIGINT | Scenario B: JHS learners in teacher-usable schools left, plus zero-teacher annexes |
+| `ap3_jhs_teacher_count_without_suspected_outliers` | BIGINT | Scenario B: JHS teachers in those schools |
+| `ap3_jhs_learners_per_teacher_without_suspected_outliers` | DOUBLE | Scenario B JHS ratio; NULL when no teacher is left |
+| `ap3_jhs_learner_coverage_pct_without_suspected_outliers` | DOUBLE | Scenario B JHS learner coverage: every JHS learner stays in the denominator |
+| `ap3_jhs_passes_gate_without_suspected_outliers` | BOOLEAN | Scenario B: JHS is offered, has a ratio, and coverage is at least 90 |
+| `ap3_shs_eligible_learners_without_suspected_outliers` | BIGINT | Scenario B: SHS learners in teacher-usable schools left, plus zero-teacher annexes |
+| `ap3_shs_teacher_count_without_suspected_outliers` | BIGINT | Scenario B: SHS teachers in those schools |
+| `ap3_shs_learners_per_teacher_without_suspected_outliers` | DOUBLE | Scenario B SHS ratio; NULL when no teacher is left |
+| `ap3_shs_learner_coverage_pct_without_suspected_outliers` | DOUBLE | Scenario B SHS learner coverage: every SHS learner stays in the denominator |
+| `ap3_shs_passes_gate_without_suspected_outliers` | BOOLEAN | Scenario B: SHS is offered, has a ratio, and coverage is at least 90 |
+| `ap3_pressured_level_count_without_suspected_outliers` | BIGINT | Scenario B: levels that pass the gate and are above their reference |
+| `ap3_affected_learners_without_suspected_outliers` | BIGINT | Scenario B: learners in those levels |
+| `current_pressure_count_without_suspected_outliers` | INT | Scenario B: classroom plus teacher pressure flags |
 | `classroom_flag_changed` | BOOLEAN | The classroom-pressure flag differs between scenarios |
 | `teacher_flag_changed` | BOOLEAN | The teacher-pressure flag differs between scenarios |
 | `priority_category_changed` | BOOLEAN | The category differs between scenarios |
 | `coverage_gate_changed` | BOOLEAN | An AP2 or AP3 coverage gate passes in scenario A and fails in scenario B |
 | `affected_learners_changed` | BOOLEAN | Priority affected learners change by more than 10% (or from none to some) |
 | `outlier_sensitivity_status` | STRING | The first that applies: `Priority-sensitive`, `Classification-sensitive`, `Coverage-sensitive`, `Magnitude-sensitive`, `Stable`, or `No suspected outliers` |
+| `rule_version` | STRING | `D-065` |
+| `code_revision` | STRING | Commit that built the row |
+
+## `lgu_priority_scenarios`
+
+Built by `08_build_priority_scenarios.sql`. Two rows per regular city or municipality: `published` repeats `lgu_priority_matrix`, `ap2_classroom_pressure` and `ap3_teacher_pressure`; `without suspected outliers` repeats `lgu_priority_sensitivity`'s scenario B. Matrix columns keep their names; AP2 and AP3 table columns with no matrix equivalent get an `ap2_` or `ap3_` prefix. The planner dashboard's *Suspected outliers* filter reads one scenario in place of the published values. The gate fails unless the published rows equal the published tables, the other rows equal scenario B, and an LGU with no flagged school is identical in both.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `city_mun_psgc_code` | STRING | Key with `scenario`: the city or municipality's PSGC code |
+| `scenario` | STRING | `published` or `without suspected outliers` |
+| `priority_category` | STRING | The D-061 category in this scenario |
+| `priority_order` | BIGINT | The national planning order in this scenario |
+| `classroom_pressure_flag` | INT | Classroom-pressure flag |
+| `teacher_pressure_flag` | INT | Teacher-pressure flag |
+| `current_pressure_count` | INT | Sum of the two flags |
+| `priority_affected_learners` | BIGINT | Greater of AP2 and AP3 affected learners |
+| `ap2_learners_per_reported_room` | DOUBLE | Pooled AP2 ratio |
+| `ap2_learner_coverage_pct` | DOUBLE | AP2 learner coverage |
+| `ap2_assessed` | BOOLEAN | AP2 passes its 90% coverage gate |
+| `ap2_affected_school_count` | BIGINT | Schools at or above 50 learners per reported room |
+| `ap2_affected_learners` | BIGINT | Learners in those schools |
+| `ap2_affected_learner_share_pct` | DOUBLE | 100 × affected learners / public learners |
+| `ap2_ratio_school_count` | BIGINT | Schools in the AP2 ratio |
+| `ap2_eligible_learners` | BIGINT | Learners in those schools |
+| `ap2_reported_instructional_classrooms` | BIGINT | Reported rooms in those schools |
+| `ap2_not_assessed_reason` | STRING | AP2 `not_assessed_reason` in this scenario |
+| `ap2_benchmark_status` | STRING | AP2 `benchmark_status` in this scenario |
+| `ap3_<level>_learners_per_teacher` | DOUBLE | Learners per teacher at the level |
+| `ap3_assessed` | BOOLEAN | Every offered level passes its coverage gate |
+| `ap3_pressured_level_count` | BIGINT | Levels above their reference |
+| `ap3_affected_learners` | BIGINT | Learners in those levels |
+| `ap3_<level>_eligible_learners` | BIGINT | Learners in the level's ratio |
+| `ap3_<level>_teacher_count` | BIGINT | Teachers in the level's ratio |
+| `ap3_<level>_learner_coverage_pct` | DOUBLE | The level's learner coverage |
+| `ap3_<level>_passes_gate` | BOOLEAN | The level passes its 90% coverage gate |
+| `ap3_<level>_benchmark_status` | STRING | AP3 `<level>_benchmark_status` in this scenario |
+| `ap3_not_assessed_reason` | STRING | AP3 `not_assessed_reason` in this scenario |
+| `ap3_benchmark_status` | STRING | AP3 `benchmark_status` in this scenario |
+| `outlier_school_count` | BIGINT | Schools with a suspected extreme ratio (the same in both rows) |
+| `outlier_sensitivity_status` | STRING | The LGU's D-065 status (the same in both rows) |
 | `rule_version` | STRING | `D-065` |
 | `code_revision` | STRING | Commit that built the row |

@@ -17,6 +17,7 @@ flowchart LR
     ap4[ap4_enrollment_trend] -->|public enrollment growth| matrix[lgu_priority_matrix]
     enroll & rooms & teachers --> flags[school_outlier_flags]
     flags & matrix & ap2 & ap3 --> sens[lgu_priority_sensitivity]
+    sens & matrix & ap2 & ap3 --> scen[lgu_priority_scenarios]
 ```
 
 | Build | Gate | Output | Approved use |
@@ -28,6 +29,7 @@ flowchart LR
 | `05_build_priority_matrix.sql` | `90_validate_priority_matrix.sql` | `lgu_priority_matrix` | D-061 priority categories from separate AP2 and AP3 pressure flags and AP4 public-enrollment growth |
 | `06_flag_school_outliers.sql` | `90_validate_school_outlier_flags.sql` | `school_outlier_flags` | Every AP2 and AP3 school ratio with its Tukey outer fences and suspected-outlier flag (D-065); a quality result, never a correction |
 | `07_build_priority_sensitivity.sql` | `90_validate_priority_sensitivity.sql` | `lgu_priority_sensitivity` | The published D-061 priority beside the same priority without suspected extreme schools, with an outlier-sensitivity status (D-065) |
+| `08_build_priority_scenarios.sql` | `90_validate_priority_scenarios.sql` | `lgu_priority_scenarios` | Both scenarios in the published tables' column names, one row per LGU and scenario, so the planner dashboard's *Suspected outliers* filter reads one row (D-065) |
 
 ## D-061 planning-priority method
 

@@ -153,6 +153,7 @@ checks:
     - boundary_status_allowed
     - ratio_rows_valid
     - scenario_b_category_allowed
+    - scenario_allowed
     - profiled_quarantine_school_year_out_of_scope
     - profiled_quarantine_sector_not_public
     - rows_in_scope
@@ -538,6 +539,7 @@ checks:
     - rows_match_silver
     - rows_match_gold
     - rows_match_regular_lgus
+    - rows_match_regular_lgus_per_scenario
     - map_rows_carried
     - enrollment_join_adds_no_rows
     - enrollment_reconciles_by_school_year
@@ -553,6 +555,10 @@ checks:
     - scenario_a_matches_priority_matrix
     - outlier_counts_match_flags
     - unflagged_lgus_unchanged
+    - unflagged_lgu_measures_unchanged
+    - published_scenario_matches_published_tables
+    - scenario_b_matches_sensitivity
+    - unflagged_lgu_scenarios_identical
     - source_availability_reconciles
     - source_rows_reconcile
     - source_totals_and_nulls_reconcile

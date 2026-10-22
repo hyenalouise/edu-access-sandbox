@@ -34,6 +34,25 @@ SELECT
           OR teacher_pressure_flag_without_suspected_outliers IS DISTINCT FROM teacher_pressure_flag
           OR priority_affected_learners_without_suspected_outliers IS DISTINCT FROM priority_affected_learners
           OR coverage_gate_changed)) AS unflagged_lgu_changed,
+  -- and its recalculated AP2 and AP3 figures are the published ones
+  (SELECT COUNT(*) FROM c
+     JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 USING (city_mun_psgc_code)
+     JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 USING (city_mun_psgc_code)
+   WHERE c.outlier_school_count = 0
+     AND (c.ap2_ratio_school_count_without_suspected_outliers IS DISTINCT FROM a2.ratio_school_count
+          OR c.ap2_eligible_learners_without_suspected_outliers IS DISTINCT FROM a2.eligible_learners
+          OR c.ap2_reported_rooms_without_suspected_outliers IS DISTINCT FROM a2.reported_instructional_classrooms
+          OR c.ap2_affected_school_count_without_suspected_outliers IS DISTINCT FROM a2.congested_school_count
+          OR c.ap2_affected_learners_without_suspected_outliers IS DISTINCT FROM a2.learners_in_congested_schools
+          OR c.ap3_es_eligible_learners_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.es_eligible_learners, 0)
+          OR c.ap3_es_teacher_count_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.es_teacher_count, 0)
+          OR c.ap3_es_passes_gate_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.es_passes_gate, FALSE)
+          OR c.ap3_jhs_eligible_learners_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.jhs_eligible_learners, 0)
+          OR c.ap3_jhs_teacher_count_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.jhs_teacher_count, 0)
+          OR c.ap3_jhs_passes_gate_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.jhs_passes_gate, FALSE)
+          OR c.ap3_shs_eligible_learners_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.shs_eligible_learners, 0)
+          OR c.ap3_shs_teacher_count_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.shs_teacher_count, 0)
+          OR c.ap3_shs_passes_gate_without_suspected_outliers IS DISTINCT FROM COALESCE(a3.shs_passes_gate, FALSE))) AS unflagged_measures_changed,
   (SELECT COUNT(*) FROM c
     WHERE classroom_flag_changed IS DISTINCT FROM (classroom_pressure_flag <> classroom_pressure_flag_without_suspected_outliers)
        OR teacher_flag_changed IS DISTINCT FROM (teacher_pressure_flag <> teacher_pressure_flag_without_suspected_outliers)
@@ -70,6 +89,7 @@ FROM (
   UNION ALL SELECT 'scenario_a_matches_priority_matrix', CASE WHEN scenario_a_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(scenario_a_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'outlier_counts_match_flags', CASE WHEN outlier_count_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(outlier_count_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'unflagged_lgus_unchanged', CASE WHEN unflagged_lgu_changed = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(unflagged_lgu_changed AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
+  UNION ALL SELECT 'unflagged_lgu_measures_unchanged', CASE WHEN unflagged_measures_changed = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(unflagged_measures_changed AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'sensitivity_status_follows_d065', CASE WHEN status_mismatch = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(status_mismatch AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'scenario_b_category_allowed', CASE WHEN invalid_categories = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(invalid_categories AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)
   UNION ALL SELECT 'scenario_b_order_unique', CASE WHEN duplicate_orders = 0 THEN 'PASS' ELSE 'FAIL' END, '0', CAST(duplicate_orders AS STRING) FROM IDENTIFIER(session.analytics_gate_summary)

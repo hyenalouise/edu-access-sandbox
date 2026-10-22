@@ -205,6 +205,7 @@ DOWNSTREAM = {
         "90_validate_fact_school_enrollment", "90_validate_fact_school_classroom_capacity",
         "90_validate_fact_school_teacher_capacity"},
     "07_build_priority_sensitivity": {"90_validate_school_outlier_flags", "90_validate_priority_matrix"},
+    "08_build_priority_scenarios": {"90_validate_priority_sensitivity"},
 }
 
 

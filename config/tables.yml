@@ -289,5 +289,9 @@ analytics_tables:
     build_file: 07_build_priority_sensitivity.sql
     validate_file: 90_validate_priority_sensitivity.sql
     grain: One regular city or municipality, SY 2023-24; the published D-061 priority beside the same priority without suspected extreme schools (D-065).
+  - table: lgu_priority_scenarios
+    build_file: 08_build_priority_scenarios.sql
+    validate_file: 90_validate_priority_scenarios.sql
+    grain: One regular city or municipality and scenario (published, or without suspected outliers), SY 2023-24; the D-061 priority and its AP2 and AP3 evidence in the published tables' column names, for the planner dashboard (D-065).
 
 deferred_layers: []

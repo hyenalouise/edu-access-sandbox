@@ -9,6 +9,7 @@ from test_analytics_priority import ANALYTICS, STEPS, add_public_school, run_all
 OUTLIER_STEPS = STEPS + [
     ("06_flag_school_outliers.sql", "90_validate_school_outlier_flags.sql"),
     ("07_build_priority_sensitivity.sql", "90_validate_priority_sensitivity.sql"),
+    ("08_build_priority_scenarios.sql", "90_validate_priority_scenarios.sql"),
 ]
 
 
@@ -107,14 +108,14 @@ def test_the_published_matrix_is_never_changed(store):
     add_public_school(store, "X", "M2", 400, 1, 4)
     run_all(store)
     before = store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code")
-    run_all(store, OUTLIER_STEPS[-2:])
+    run_all(store, OUTLIER_STEPS[-3:])
     assert store.query(f"SELECT * FROM {ANALYTICS}.lgu_priority_matrix ORDER BY city_mun_psgc_code") == before
     assert store.query(f"""SELECT COUNT(*) FROM {ANALYTICS}.lgu_priority_sensitivity AS s
         JOIN {ANALYTICS}.lgu_priority_matrix AS m USING (city_mun_psgc_code)
         WHERE s.priority_category <> m.priority_category OR s.priority_order <> m.priority_order""") == [(0,)]
 
 
-@pytest.mark.parametrize("table", ["school_outlier_flags", "lgu_priority_sensitivity"])
+@pytest.mark.parametrize("table", ["school_outlier_flags", "lgu_priority_sensitivity", "lgu_priority_scenarios"])
 def test_the_analytics_dictionary_lists_every_column(store, table):
     from test_analytics_priority import documented_columns
     add_ordinary_schools(store)
