@@ -761,7 +761,7 @@
         "       -- every count is out of the same total, all LGUs in view\n",
         "       format_number(joint_review, 0) || ' of ' || format_number(lgus, 0) AS joint_kpi,\n",
         "       format_number(any_pressure, 0) || ' of ' || format_number(lgus, 0) AS any_kpi,\n",
-        "       CASE WHEN learners_above >= 1000000 THEN format_number(learners_above / 1000000.0, 2) || 'M' ELSE format_number(learners_above, 0) END || ' (' || COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '\u2014') || ')' AS learners_kpi,\n",
+        "       CASE WHEN learners_above >= 1000000 THEN format_number(learners_above / 1000000.0, 2) || 'M' ELSE format_number(learners_above, 0) END || ' (' || COALESCE(format_number(100.0 * learners_above / NULLIF(public_learners, 0), 1) || '%', '—') || ')' AS learners_kpi,\n",
         "       format_number(data_review, 0) || ' of ' || format_number(lgus, 0) AS data_review_kpi\n",
         "FROM k"
       ],
@@ -1789,15 +1789,15 @@
         "  FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         ")\n",
         "SELECT p.lgu_label, p.city_mun_name, p.queue_status, p.status_label,\n",
-        "       p.queue_status || ' \u00b7 ' || p.status_label || ': ' || p.status_basis AS status_line,\n",
-        "       p.lgu_type_label || ' \u00b7 '\n",
+        "       p.queue_status || ' · ' || p.status_label || ': ' || p.status_basis AS status_line,\n",
+        "       p.lgu_type_label || ' · '\n",
         "         || CASE WHEN p.province_label = 'Independent cities (no province)' THEN p.region_name ELSE p.province_label END\n",
-        "         || ' \u00b7 National review order: ' || format_number(p.priority_order, 0) || ' of '\n",
+        "         || ' · National review order: ' || format_number(p.priority_order, 0) || ' of '\n",
         "         || format_number((SELECT COUNT(*) FROM pri), 0) || ' LGUs'\n",
-        "         || CASE WHEN (:region <> 'All regions' OR :province <> 'All provinces' OR :lgu_type <> 'All LGU types') THEN ' \u00b7 ' || format_number(s.scope_order, 0) || ' of '\n",
+        "         || CASE WHEN (:region <> 'All regions' OR :province <> 'All provinces' OR :lgu_type <> 'All LGU types') THEN ' · ' || format_number(s.scope_order, 0) || ' of '\n",
         "                 || format_number(s.scope_total, 0) || ' LGUs in current scope' ELSE '' END\n",
-        "         || ' \u00b7 Data readiness: ' || p.data_readiness\n",
-        "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' \u00b7 your choice is outside the filters, so this is the first LGU in them'\n",
+        "         || ' · Data readiness: ' || p.data_readiness\n",
+        "         || CASE WHEN :lgu <> '(Top LGU in the filters)' AND p.lgu_label <> :lgu THEN ' · your choice is outside the filters, so this is the first LGU in them'\n",
         "                 ELSE '' END AS details,\n",
         "       -- each KPI is a short value; what it means is in the card's subtitle and the decision panel\n",
         "       CASE WHEN NOT COALESCE(p.ap2_assessed, FALSE) THEN 'Not assessed'\n",
@@ -1810,11 +1810,11 @@
         "            ELSE CASE WHEN p.ap4_public_enrollment_change_pct / 100 >= 0 THEN '+' ELSE '' END || format_number(100 * p.ap4_public_enrollment_change_pct / 100, 1) || '%' END AS enrollment_kpi,\n",
         "       CASE WHEN p.queue_status = 'Data review' THEN 'Data review'\n",
         "            ELSE COALESCE(format_number(LEAST(p.ap2_learner_coverage_pct, p.teacher_coverage_pct), 0) || '%', 'Not available') END AS readiness_kpi,\n",
-        "       format_number(COALESCE(p.active_public_school_count, 0), 0) || ' public schools \u00b7 '\n",
-        "         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported instructional rooms \u00b7 '\n",
+        "       format_number(COALESCE(p.active_public_school_count, 0), 0) || ' public schools · '\n",
+        "         || COALESCE(format_number(p.reported_instructional_classrooms, 0), 'Not reported') || ' reported instructional rooms · '\n",
         "         || format_number(COALESCE(p.es_teacher_count, 0) + COALESCE(p.jhs_teacher_count, 0)\n",
-        "                          + COALESCE(p.shs_teacher_count, 0), 0) || ' reported teachers \u00b7 '\n",
-        "         || COALESCE(format_number(p.public_school_enrollment, 0), 'Not reported') || ' public learners \u00b7 SY 2023-24' AS facts\n",
+        "                          + COALESCE(p.shs_teacher_count, 0), 0) || ' reported teachers · '\n",
+        "         || COALESCE(format_number(p.public_school_enrollment, 0), 'Not reported') || ' public learners · SY 2023-24' AS facts\n",
         "FROM pri AS p\n",
         "JOIN sel ON sel.city_mun_psgc_code = p.city_mun_psgc_code\n",
         "LEFT JOIN scoped AS s ON s.city_mun_psgc_code = p.city_mun_psgc_code"
@@ -2144,7 +2144,7 @@
         "  LIMIT 1\n",
         "),\n",
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
-        "SELECT 1 AS ord, 'Classroom pressure \u00b7 school screen' AS measure,\n",
+        "SELECT 1 AS ord, 'Classroom pressure · school screen' AS measure,\n",
         "       CASE WHEN NOT COALESCE(ap2_assessed, FALSE) THEN 'Not assessed'\n",
         "            ELSE format_number(COALESCE(congested_school_count, 0), 0) || ' of ' || format_number(COALESCE(ratio_school_count, 0), 0)\n",
         "                 || ' schools, ' || format_number(COALESCE(ap2_affected_learners, 0), 0) || ' learners' END AS this_lgu,\n",
@@ -2154,36 +2154,36 @@
         "       COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'Not available') AS coverage\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 2, 'Classroom pressure \u00b7 all schools pooled', CASE WHEN ap2_learners_per_reported_room IS NULL THEN 'Not reported' ELSE format_number(ap2_learners_per_reported_room, 1) || ' learners per reported room' END,\n",
+        "SELECT 2, 'Classroom pressure · all schools pooled', CASE WHEN ap2_learners_per_reported_room IS NULL THEN 'Not reported' ELSE format_number(ap2_learners_per_reported_room, 1) || ' learners per reported room' END,\n",
         "       'Context: the school screen sets the signal', CASE WHEN ap2_assessed THEN 'Context' ELSE 'Not assessed' END,\n",
         "       COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'Not available')\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 3, 'Teacher pressure \u00b7 Elementary',\n",
-        "       CASE WHEN es_offered_school_count = 0 THEN '\u2014'\n",
+        "SELECT 3, 'Teacher pressure · Elementary',\n",
+        "       CASE WHEN es_offered_school_count = 0 THEN '—'\n",
         "            ELSE CASE WHEN ap3_es_learners_per_teacher IS NULL THEN 'Not reported' ELSE format_number(ap3_es_learners_per_teacher, 1) || ' learners per reported teacher' END END,\n",
         "       'Comparison point ' || COALESCE(format_number(es_benchmark_max_learners_per_teacher, 1), 'Not reported') || ' (historical study reference)',\n",
         "       CASE WHEN es_offered_school_count = 0 THEN 'Not offered' WHEN ap3_es_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_es_learners_per_teacher > es_benchmark_max_learners_per_teacher THEN 'Above comparison point' ELSE 'At or below comparison point' END,\n",
-        "       CASE WHEN es_offered_school_count = 0 THEN '\u2014' ELSE COALESCE(format_number(es_learner_coverage_pct, 0) || '%', 'Not available') END\n",
+        "       CASE WHEN es_offered_school_count = 0 THEN '—' ELSE COALESCE(format_number(es_learner_coverage_pct, 0) || '%', 'Not available') END\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 4, 'Teacher pressure \u00b7 Junior high',\n",
-        "       CASE WHEN jhs_offered_school_count = 0 THEN '\u2014'\n",
+        "SELECT 4, 'Teacher pressure · Junior high',\n",
+        "       CASE WHEN jhs_offered_school_count = 0 THEN '—'\n",
         "            ELSE CASE WHEN ap3_jhs_learners_per_teacher IS NULL THEN 'Not reported' ELSE format_number(ap3_jhs_learners_per_teacher, 1) || ' learners per reported teacher' END END,\n",
         "       'Comparison point ' || COALESCE(format_number(jhs_benchmark_max_learners_per_teacher, 1), 'Not reported') || ' (derived deployment comparison)',\n",
         "       CASE WHEN jhs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_jhs_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_jhs_learners_per_teacher > jhs_benchmark_max_learners_per_teacher THEN 'Above comparison point' ELSE 'At or below comparison point' END,\n",
-        "       CASE WHEN jhs_offered_school_count = 0 THEN '\u2014' ELSE COALESCE(format_number(jhs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
+        "       CASE WHEN jhs_offered_school_count = 0 THEN '—' ELSE COALESCE(format_number(jhs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
         "FROM p\n",
         "UNION ALL\n",
-        "SELECT 5, 'Teacher pressure \u00b7 Senior high',\n",
-        "       CASE WHEN shs_offered_school_count = 0 THEN '\u2014'\n",
+        "SELECT 5, 'Teacher pressure · Senior high',\n",
+        "       CASE WHEN shs_offered_school_count = 0 THEN '—'\n",
         "            ELSE CASE WHEN ap3_shs_learners_per_teacher IS NULL THEN 'Not reported' ELSE format_number(ap3_shs_learners_per_teacher, 1) || ' learners per reported teacher' END END,\n",
         "       'Comparison point ' || COALESCE(format_number(shs_benchmark_max_learners_per_teacher, 1), 'Not reported') || ' (derived deployment comparison)',\n",
         "       CASE WHEN shs_offered_school_count = 0 THEN 'Not offered' WHEN ap3_shs_learners_per_teacher IS NULL THEN 'Not assessed'\n",
         "            WHEN ap3_shs_learners_per_teacher > shs_benchmark_max_learners_per_teacher THEN 'Above comparison point' ELSE 'At or below comparison point' END,\n",
-        "       CASE WHEN shs_offered_school_count = 0 THEN '\u2014' ELSE COALESCE(format_number(shs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
+        "       CASE WHEN shs_offered_school_count = 0 THEN '—' ELSE COALESCE(format_number(shs_learner_coverage_pct, 0) || '%', 'Not available') END\n",
         "FROM p\n",
         "UNION ALL\n",
         "SELECT 6, 'School network context', CASE WHEN ap1_learners_per_public_school IS NULL THEN 'Not reported' ELSE format_number(ap1_learners_per_public_school, 0) || ' learners per public school' END,\n",
@@ -2341,7 +2341,7 @@
         "p AS (SELECT pri.* FROM pri JOIN sel USING (city_mun_psgc_code))\n",
         "SELECT 1 AS ord, 'Public schools' AS measure, COALESCE(format_number(ap1_coverage_pct, 0) || '%', 'Not available') AS coverage,\n",
         "       CASE WHEN ap1_assessed THEN 'Assessed' ELSE 'Not assessed' END AS assessed,\n",
-        "       '\u2014' AS unusual_schools\n",
+        "       '—' AS unusual_schools\n",
         "FROM p\n",
         "UNION ALL SELECT 2, 'Classrooms', COALESCE(format_number(ap2_learner_coverage_pct, 0) || '%', 'Not available'),\n",
         "       CASE WHEN ap2_assessed THEN 'Assessed' ELSE 'Not assessed' END,\n",
@@ -3100,8 +3100,8 @@
         "         ROW_NUMBER() OVER (ORDER BY priority_affected_learners DESC, national_order) AS area_rank, COUNT(*) OVER () AS area_lgus\n",
         "  FROM area\n",
         ")\n",
-        "SELECT city_mun_name || ': ' || queue_status || ' \u00b7 ' || format_number(priority_affected_learners, 0)\n",
-        "       || ' affected learners \u00b7 ranked ' || format_number(area_rank, 0) || ' of ' || format_number(area_lgus, 0)\n",
+        "SELECT city_mun_name || ': ' || queue_status || ' · ' || format_number(priority_affected_learners, 0)\n",
+        "       || ' affected learners · ranked ' || format_number(area_rank, 0) || ' of ' || format_number(area_lgus, 0)\n",
         "       || ' LGUs in its ' || CASE WHEN (SELECT province_label FROM me) = 'Independent cities (no province)' THEN 'region'\n",
         "                                  ELSE 'province' END AS peer_line\n",
         "FROM ranked WHERE is_selected"
@@ -3817,13 +3817,13 @@
         "       'Mapped ' || format_number(COUNT_IF(boundary_status = 'inside'), 0) || ' of ' || format_number(COUNT(*), 0)\n",
         "       || ' public schools in view'\n",
         "       || CASE WHEN COUNT_IF(boundary_status = 'outside') > 0\n",
-        "               THEN ' \u00b7 ' || format_number(COUNT_IF(boundary_status = 'outside'), 0) || ' outside the LGU boundary (locations to verify)'\n",
+        "               THEN ' · ' || format_number(COUNT_IF(boundary_status = 'outside'), 0) || ' outside the LGU boundary (locations to verify)'\n",
         "               ELSE '' END\n",
         "       || CASE WHEN COUNT_IF(boundary_status = 'no_usable_point') > 0\n",
-        "               THEN ' \u00b7 ' || format_number(COUNT_IF(boundary_status = 'no_usable_point'), 0) || ' with no usable coordinates'\n",
+        "               THEN ' · ' || format_number(COUNT_IF(boundary_status = 'no_usable_point'), 0) || ' with no usable coordinates'\n",
         "               ELSE '' END\n",
         "       || CASE WHEN COUNT_IF(boundary_status IN ('no_matched_city', 'no_boundary')) > 0\n",
-        "               THEN ' \u00b7 ' || format_number(COUNT_IF(boundary_status IN ('no_matched_city', 'no_boundary')), 0)\n",
+        "               THEN ' · ' || format_number(COUNT_IF(boundary_status IN ('no_matched_city', 'no_boundary')), 0)\n",
         "                    || ' with a boundary not validated'\n",
         "               ELSE '' END END AS map_line\n",
         "FROM loc"
@@ -4336,14 +4336,14 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT s.school_name, s.school_id, s.verify_header,\n",
-        "       'ID ' || s.school_id || ' \u00b7 ' || s.barangay_name || ' \u00b7 ' || s.school_kind || ' \u00b7 ' || s.levels_offered\n",
-        "         || ' \u00b7 ' || s.learners_txt || ' learners, SY 2023-24 \u00b7 LGU review status: ' || st.queue_status\n",
-        "         || CASE WHEN :school <> '(First school to verify)' AND s.school_name || ' \u00b7 ' || s.school_id <> :school\n",
-        "                 THEN ' \u00b7 your school is outside the filters, so this is the first school to verify' ELSE '' END AS details,\n",
+        "       'ID ' || s.school_id || ' · ' || s.barangay_name || ' · ' || s.school_kind || ' · ' || s.levels_offered\n",
+        "         || ' · ' || s.learners_txt || ' learners, SY 2023-24 · LGU review status: ' || st.queue_status\n",
+        "         || CASE WHEN :school <> '(First school to verify)' AND s.school_name || ' · ' || s.school_id <> :school\n",
+        "                 THEN ' · your school is outside the filters, so this is the first school to verify' ELSE '' END AS details,\n",
         "       CASE WHEN s.learners_per_room IS NULL THEN 'Not assessable' ELSE format_number(s.learners_per_room, 1) || '' END AS room_kpi,\n",
         "       -- the teacher figure carries only the chosen level's comparison point\n",
         "       CASE WHEN s.teacher_ratio IS NULL THEN 'Not assessable'\n",
@@ -4602,7 +4602,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "s AS (SELECT schools.* FROM schools JOIN pick USING (school_id)),\n",
@@ -4877,7 +4877,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         ")\n",
         "SELECT school_name, learners, learners_per_room, teacher_ratio, series FROM (\n",
@@ -5135,7 +5135,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "here AS (\n",
@@ -5400,7 +5400,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "y AS (\n",
@@ -5662,7 +5662,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "s AS (SELECT schools.* FROM schools JOIN pick USING (school_id)),\n",
@@ -5674,7 +5674,7 @@
         "-- rooms are reported for the whole school, so a level row shows a dash, not a count\n",
         "SELECT ord, level, COALESCE(format_number(learners, 0), 'Not reported') AS learners, COALESCE(format_number(teachers, 0), 'Not reported') AS teachers,\n",
         "       COALESCE(format_number(learners / NULLIF(CAST(teachers AS DOUBLE), 0), 1), 'Not assessable') AS learners_per_teacher,\n",
-        "       '\u2014' AS classrooms, '\u2014' AS temporary_rooms, '\u2014' AS makeshift_rooms\n",
+        "       '—' AS classrooms, '—' AS temporary_rooms, '—' AS makeshift_rooms\n",
         "FROM lv WHERE offered = 1\n",
         "UNION ALL\n",
         "SELECT 4, 'Whole school', learners_txt, format_number(teachers, 0), COALESCE(format_number(learners_per_teacher, 1), 'Not assessable'),\n",
@@ -5928,7 +5928,7 @@
         "pick AS (\n",
         "  SELECT school_id FROM schools\n",
         "  WHERE offers_level = 1\n",
-        "  ORDER BY CASE WHEN school_name || ' \u00b7 ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
+        "  ORDER BY CASE WHEN school_name || ' · ' || school_id = :school THEN 0 ELSE 1 END, list_order\n",
         "  LIMIT 1\n",
         "),\n",
         "s AS (SELECT schools.* FROM schools JOIN pick USING (school_id))\n",
@@ -6335,13 +6335,12 @@
         "SELECT COALESCE(CAST(CAST(runs.last_run AS DATE) AS STRING), 'Not available') AS updated,\n",
         "       'Publication status: '\n",
         "         || CASE WHEN checks.checks = 0 THEN 'No checks recorded' WHEN checks.failed > 0 THEN 'Needs attention' ELSE 'Ready' END\n",
-        "         || ' \u00b7 enrollment SY ' || COALESCE(years.first_enrollment, 'not available') || ' to SY '\n",
+        "         || ' · enrollment SY ' || COALESCE(years.first_enrollment, 'not available') || ' to SY '\n",
         "         || COALESCE(years.last_enrollment, 'not available')\n",
-        "         || ' \u00b7 classrooms and teachers SY ' || COALESCE(years.last_capacity, 'not available')\n",
-        "         || ' \u00b7 check counts are on the engineering data-quality dashboard' AS health_line\n",
+        "         || ' · classrooms and teachers SY ' || COALESCE(years.last_capacity, 'not available')\n",
+        "         || ' · check counts are on the engineering data-quality dashboard' AS health_line\n",
         "FROM runs CROSS JOIN years CROSS JOIN checks"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "dm_kpi",
@@ -6501,8 +6500,7 @@
         "  ('Monitor', 'Growth watchlist', 'None', 'Yes'),\n",
         "  ('No current pressure identified', 'No current pressure identified', 'None, both assessed', 'No'),\n",
         "  ('Data review', 'Insufficient data to assess', 'None known', 'Coverage or growth incomplete')) AS r(review_status, planning_status, pressure_signals, enrollment_growing)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "dm_ap4",
@@ -6587,12 +6585,11 @@
       "queryLines": [
         "SELECT * FROM (VALUES\n",
         "  ('Classroom pressure', 'School learners per reported room', '50 or more', 'PIDS-style illustrative reported-room screen', 'Sets the classroom-pressure signal'),\n",
-        "  ('Teacher pressure \u00b7 Elementary', 'Learners per reported teacher', 'More than 35', 'Historical study reference', 'Sets the teacher-pressure signal'),\n",
-        "  ('Teacher pressure \u00b7 Junior high', 'Learners per reported teacher', 'More than 36', 'Derived: 45 maximum learners per class \u00d7 4 classes \u00f7 5 teachers', 'Sets the teacher-pressure signal'),\n",
-        "  ('Teacher pressure \u00b7 Senior high', 'Learners per reported teacher', 'More than 26.7', 'Derived: 40 maximum learners per class \u00d7 6 classes \u00f7 9 teachers', 'Sets the teacher-pressure signal'),\n",
+        "  ('Teacher pressure · Elementary', 'Learners per reported teacher', 'More than 35', 'Historical study reference', 'Sets the teacher-pressure signal'),\n",
+        "  ('Teacher pressure · Junior high', 'Learners per reported teacher', 'More than 36', 'Derived: 45 maximum learners per class × 4 classes ÷ 5 teachers', 'Sets the teacher-pressure signal'),\n",
+        "  ('Teacher pressure · Senior high', 'Learners per reported teacher', 'More than 26.7', 'Derived: 40 maximum learners per class × 6 classes ÷ 9 teachers', 'Sets the teacher-pressure signal'),\n",
         "  ('School network context', 'Learners per public school', 'None', 'No published comparison point', 'Context only')) AS r(measure, unit, comparison_point, basis, use_in_dashboard)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "dm_coverage",
@@ -6673,9 +6670,9 @@
         "c AS (\n",
         "  SELECT 'Public schools' AS measure, ap1_coverage_pct AS coverage FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         "  UNION ALL SELECT 'Classrooms', ap2_learner_coverage_pct FROM pri WHERE (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers \u00b7 Elementary', es_learner_coverage_pct FROM pri WHERE es_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers \u00b7 Junior high', jhs_learner_coverage_pct FROM pri WHERE jhs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
-        "  UNION ALL SELECT 'Teachers \u00b7 Senior high', shs_learner_coverage_pct FROM pri WHERE shs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers · Elementary', es_learner_coverage_pct FROM pri WHERE es_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers · Junior high', jhs_learner_coverage_pct FROM pri WHERE jhs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
+        "  UNION ALL SELECT 'Teachers · Senior high', shs_learner_coverage_pct FROM pri WHERE shs_offered_school_count > 0 AND (:region = 'All regions' OR region_name = :region) AND (:province = 'All provinces' OR province_label = :province) AND (:lgu_type = 'All LGU types' OR lgu_type_label = :lgu_type)\n",
         "),\n",
         "b AS (\n",
         "  SELECT measure,\n",
@@ -7193,8 +7190,7 @@
         ") AS a\n",
         "GROUP BY source\n",
         "ORDER BY source"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_region",
@@ -7204,8 +7200,7 @@
         "  SELECT 'All regions' AS region, 0 AS s\n",
         "  UNION ALL SELECT DISTINCT region_name, 1 FROM edu_access.`05-gold`.dim_city_municipality WHERE member_type = 'regular'\n",
         ") AS r ORDER BY s, region"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_province",
@@ -7241,24 +7236,21 @@
       "displayName": "Filter: LGU type",
       "queryLines": [
         "SELECT * FROM (VALUES ('All LGU types'), ('City'), ('Municipality')) AS v(lgu_type_option)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_queue",
       "displayName": "Filter: priority status",
       "queryLines": [
         "SELECT * FROM (VALUES ('All review statuses'), ('Priority 1'), ('Priority 2'), ('Priority 3'), ('Monitor'), ('No current pressure identified'), ('Data review')) AS v(queue_option)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_coverage",
       "displayName": "Filter: data readiness",
       "queryLines": [
         "SELECT * FROM (VALUES ('All LGUs'), ('Assessed'), ('Insufficient data')) AS v(coverage_option)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_lgu",
@@ -7523,16 +7515,14 @@
       "displayName": "Filter: education level",
       "queryLines": [
         "SELECT * FROM (VALUES ('All levels'), ('Elementary'), ('Junior high'), ('Senior high')) AS v(level_option)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_status",
       "displayName": "Filter: school status",
       "queryLines": [
         "SELECT * FROM (VALUES ('All schools'), ('Verification needed'), ('Above classroom screen'), ('Missing figure'), ('Zero rooms or teachers'), ('No verification flag')) AS v(status_option)"
-      ],
-      "parameters": []
+      ]
     },
     {
       "name": "opt_school",
@@ -7686,7 +7676,7 @@
         ")\n",
         "SELECT school_option FROM (\n",
         "  SELECT '(First school to verify)' AS school_option, 0 AS s\n",
-        "  UNION ALL SELECT school_name || ' \u00b7 ' || school_id, 1 FROM schools WHERE offers_level = 1\n",
+        "  UNION ALL SELECT school_name || ' · ' || school_id, 1 FROM schools WHERE offers_level = 1\n",
         ") AS o ORDER BY s, school_option"
       ],
       "parameters": [
@@ -7772,25 +7762,22 @@
       "displayName": "Filter: measure",
       "queryLines": [
         "SELECT * FROM (VALUES ('All measures'), ('Public schools'), ('Classrooms'), ('Teachers'), ('Enrollment trend')) AS v(measure_option)"
-      ],
-      "parameters": []
+      ]
     }
   ],
   "pages": [
     {
       "name": "overview",
       "displayName": "National Overview",
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
             "name": "text_001",
             "multilineTextboxSpec": {
               "lines": [
-                "# Where should the Local School Board review first?\n",
+                "# National Education Planning Overview\n",
                 "\n",
-                "Prioritizes cities and municipalities for validation using classroom pressure, teacher pressure, enrollment direction, and data completeness. It does not prescribe staffing, construction, or funding."
+                "Compares cities and municipalities using reported classroom pressure, teacher pressure, public-school enrollment growth, and data coverage."
               ]
             }
           },
@@ -8274,23 +8261,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "LGUs for immediate joint review",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Classroom + teacher pressure, with growth",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "joint_kpi",
-                  "displayName": "LGUs requiring immediate joint review",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "LGUs requiring immediate joint review"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "LGUs requiring immediate joint review",
-                "showDescription": true,
-                "description": "Priority 1, of all LGUs in view"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8320,23 +8316,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "LGUs with a current pressure signal",
+                  "fields": []
+                },
+                "description": {
+                  "value": "At least one current pressure signal",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "any_kpi",
-                  "displayName": "LGUs with a current pressure signal",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "LGUs with a current pressure signal"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "LGUs with a current pressure signal",
-                "showDescription": true,
-                "description": "Priority 1 to 3, of all LGUs in view"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8366,23 +8371,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Learners above room reference",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Share of public learners, SY 2023-24",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "learners_kpi",
-                  "displayName": "Learners above classroom screen",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Learners above classroom screen"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Learners above classroom screen",
-                "showDescription": true,
-                "description": "Share of public learners, SY 2023-24"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8412,23 +8426,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "LGUs needing data review",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Insufficient data for assessment",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "data_review_kpi",
-                  "displayName": "LGUs requiring data review",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "LGUs requiring data review"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "LGUs requiring data review",
-                "showDescription": true,
-                "description": "Insufficient data to assess, of all LGUs in view"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8470,15 +8493,27 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Planning priority across the Philippines",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Each city or municipality is colored by its current review status. An unshaded area may have no published boundary and should not be interpreted as having no pressure signal.",
+                  "fields": []
+                }
+              },
               "version": 1,
               "widgetType": "choropleth-map",
               "encodings": {
-                "region": {
-                  "regionType": "custom",
-                  "fieldName": "geo_first(boundary)"
-                },
                 "color": {
                   "fieldName": "queue_status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Review status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -8518,10 +8553,6 @@
                         "color": "#8A96A3"
                       }
                     ]
-                  },
-                  "displayName": "Review status",
-                  "legend": {
-                    "position": "bottom"
                   }
                 },
                 "extra": [
@@ -8537,13 +8568,14 @@
                     "fieldName": "ap2_affected_learners",
                     "displayName": "Learners in screened schools"
                   }
-                ]
+                ],
+                "region": {
+                  "regionType": "custom",
+                  "fieldName": "geo_first(boundary)"
+                }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Planning priority across the Philippines",
-                "showDescription": true,
-                "description": "Each LGU is coloured by its priority category. A missing area has no published boundary, not no pressure."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8627,6 +8659,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "LGUs for priority review",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows the first ten LGUs in the current review order and the number of learners enrolled in flagged schools or education levels. Open LGU Profile to review the evidence for a selected LGU.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -8645,11 +8689,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Top LGUs to review",
-                "showDescription": true,
-                "description": "The first ten LGUs in view, in the published review order."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8670,16 +8711,16 @@
                   "datasetName": "ov_region",
                   "fields": [
                     {
-                      "name": "region_short",
-                      "expression": "`region_short`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
                       "name": "share_of_region",
                       "expression": "`share_of_region`"
                     },
                     {
-                      "name": "queue_status",
-                      "expression": "`queue_status`"
+                      "name": "region_short",
+                      "expression": "`region_short`"
                     }
                   ],
                   "disaggregated": true
@@ -8687,35 +8728,54 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Review status by region",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows how LGUs in each region are distributed across the review statuses. Regions with the most LGUs requiring immediate or high-priority review appear first.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "stack"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "share_of_region",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Share of LGUs",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "displayName": "Share of LGUs",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "region_short",
+                  "displayName": "Region",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "natural-order"
                     }
-                  },
-                  "displayName": "Region"
+                  }
                 },
                 "color": {
                   "fieldName": "queue_status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Review status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -8755,21 +8815,11 @@
                         "color": "#8A96A3"
                       }
                     ]
-                  },
-                  "displayName": "Review status",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Review status by region",
-                "showDescription": true,
-                "description": "Each region's LGUs by review status, regions with the most Priority 1 and 2 first."
-              },
-              "mark": {
-                "layout": "stack"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8815,6 +8865,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "How review status is assigned?",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Combines classroom pressure, teacher pressure, and public-school enrollment growth. A pressure signal supports further review but does not establish an official shortage.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -8841,11 +8903,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "What is driving priority?",
-                "showDescription": true,
-                "description": "LGUs by the two pressure signals, how many also have growing public enrollment, and the review status that results."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8907,6 +8966,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "LGU review list",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Lists cities and municipalities in the recommended review order using current pressure signals, enrollment growth, learners in flagged schools or levels, and data coverage. ",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -8949,11 +9020,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "LGU review queue",
-                "showDescription": true,
-                "description": "Orders LGUs for validation using classroom pressure, teacher pressure, enrollment direction, affected learners, and data readiness. A review order, not a performance rank, shortage, or allocation. Open LGU Profile and choose an LGU to see its evidence."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -8991,6 +9059,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "LGUs needing data review",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Lists LGUs without enough information for a complete assessment. The reason column identifies the figures that require confirmation or completion.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -9009,11 +9089,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "LGUs requiring data review",
-                "showDescription": true,
-                "description": "Insufficient data to assess: no known pressure signal, and coverage or growth could not be checked."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9034,16 +9111,16 @@
                   "datasetName": "ov_type",
                   "fields": [
                     {
-                      "name": "lgu_type_label",
-                      "expression": "`lgu_type_label`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
                       "name": "sum(share_of_type)",
                       "expression": "SUM(`share_of_type`)"
                     },
                     {
-                      "name": "queue_status",
-                      "expression": "`queue_status`"
+                      "name": "lgu_type_label",
+                      "expression": "`lgu_type_label`"
                     }
                   ],
                   "disaggregated": false
@@ -9051,25 +9128,41 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Review status by LGU type",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Compares the share of cities and municipalities in each review status. Use this view to see whether the distribution differs by LGU type.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "stack"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "sum(share_of_type)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Share of LGUs",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "displayName": "Share of LGUs",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "lgu_type_label",
+                  "displayName": "LGU type",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -9079,11 +9172,14 @@
                         "Municipality"
                       ]
                     }
-                  },
-                  "displayName": "LGU type"
+                  }
                 },
                 "color": {
                   "fieldName": "queue_status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Review status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -9123,21 +9219,11 @@
                         "color": "#8A96A3"
                       }
                     ]
-                  },
-                  "displayName": "Review status",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Review status by LGU type",
-                "showDescription": true,
-                "description": "Share of cities and of municipalities in each review status."
-              },
-              "mark": {
-                "layout": "stack"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9158,16 +9244,16 @@
                   "datasetName": "ov_region_pairs",
                   "fields": [
                     {
-                      "name": "region_short",
-                      "expression": "`region_short`"
+                      "name": "series",
+                      "expression": "`series`"
                     },
                     {
                       "name": "people",
                       "expression": "`people`"
                     },
                     {
-                      "name": "series",
-                      "expression": "`series`"
+                      "name": "region_short",
+                      "expression": "`region_short`"
                     }
                   ],
                   "disaggregated": true
@@ -9175,36 +9261,47 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Resident children and local enrollment by region",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Compares resident children ages 5-17 in 2024 with learners enrolled in local schools in SY 2024-25. Population is counted where children live, while enrollment is counted where learners attend, so the difference is not a count of children out of school.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "group"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "people",
+                  "displayName": "People",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "People",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    },
-                    "abbreviation": "compact"
                   }
                 },
                 "y": {
                   "fieldName": "region_short",
+                  "displayName": "Region",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "natural-order"
                     }
-                  },
-                  "displayName": "Region"
+                  }
                 },
                 "color": {
                   "fieldName": "series",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -9224,21 +9321,11 @@
                         "color": "#C9A227"
                       }
                     ]
-                  },
-                  "displayName": "",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Resident children and local enrollment by region",
-                "showDescription": true,
-                "description": "Resident children ages 5-17 (2024) beside learners enrolled in local schools in all sectors (SY 2024-25), largest region first, from the LGUs left after the filters. Children are counted where they live and learners where they attend, so the two differ; the difference is not a count of out-of-school children or of schools needed."
-              },
-              "mark": {
-                "layout": "group"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9267,13 +9354,13 @@
             "height": 2
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     },
     {
       "name": "lgu_profile",
       "displayName": "LGU Profile",
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
@@ -9689,7 +9776,7 @@
                 "showTitle": false,
                 "title": "LGU details",
                 "showDescription": false,
-                "description": "Type \u00b7 province or region \u00b7 national review order \u00b7 data readiness",
+                "description": "Type · province or region · national review order · data readiness",
                 "contentAlignment": "left"
               }
             }
@@ -9766,23 +9853,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Schools above room reference",
+                  "fields": []
+                },
+                "description": {
+                  "value": "At least 50 learners per reported room",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "classroom_kpi",
-                  "displayName": "Schools above classroom screen",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Schools above classroom screen"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Schools above classroom screen",
-                "showDescription": true,
-                "description": "Of schools assessed, at 50+ learners per room"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9812,23 +9908,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Levels above teacher reference",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Of education levels assessed",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Levels above teacher comparison",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Levels above teacher comparison"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Levels above teacher comparison",
-                "showDescription": true,
-                "description": "Of education levels assessed; named in the panel below"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9858,23 +9963,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Public enrollment change",
+                  "fields": []
+                },
+                "description": {
+                  "value": "SY 2020-21 to SY 2025-26",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "enrollment_kpi",
-                  "displayName": "Public enrollment change",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Public enrollment change"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Public enrollment change",
-                "showDescription": true,
-                "description": "SY 2020-21 to SY 2025-26"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9904,23 +10018,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Lowest learner coverage",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Across classroom and teacher measures",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "readiness_kpi",
-                  "displayName": "Lowest learner coverage",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Lowest learner coverage"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Lowest learner coverage",
-                "showDescription": true,
-                "description": "Classrooms and offered teacher levels"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -9967,7 +10090,7 @@
                 "showTitle": false,
                 "title": "Review status",
                 "showDescription": false,
-                "description": "Review status \u00b7 planning status: basis",
+                "description": "Review status · planning status: basis",
                 "contentAlignment": "left"
               }
             }
@@ -10006,6 +10129,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Why this LGU has this status",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows whether classroom pressure, teacher pressure, and public-school enrollment growth are present. These results combine to produce the selected LGU’s review status.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -10024,11 +10159,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Why this LGU has this status",
-                "showDescription": true,
-                "description": "The two pressure signals and enrollment growth, each Yes, No or Not assessed, and the review status they produce."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -10074,6 +10206,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Key measures and references",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Places the selected LGU’s reported measures beside the references used by the dashboard. The references support comparison and review; they do not define staffing or construction requirements.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -10100,11 +10244,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Measures and comparison points",
-                "showDescription": true,
-                "description": "Each measure beside its published comparison point, SY 2023-24. Teacher ratios to one decimal."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -10125,16 +10266,16 @@
                   "datasetName": "pr_teachers",
                   "fields": [
                     {
-                      "name": "level_axis",
-                      "expression": "`level_axis`"
+                      "name": "status",
+                      "expression": "`status`"
                     },
                     {
                       "name": "max(share_of_comparison)",
                       "expression": "MAX(`share_of_comparison`)"
                     },
                     {
-                      "name": "status",
-                      "expression": "`status`"
+                      "name": "level_axis",
+                      "expression": "`level_axis`"
                     }
                   ],
                   "disaggregated": false
@@ -10142,32 +10283,65 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Learners per reported teacher by level",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Compares learners per reported teacher with the reference for each education level. A value above the line indicates a teacher pressure signal for that level, not the number of teachers that should be added.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "annotations": [
+                {
+                  "type": "vertical-line",
+                  "encodings": {
+                    "x": {
+                      "dataValue": "1",
+                      "dataType": "DOUBLE"
+                    },
+                    "label": {
+                      "value": "Comparison point"
+                    },
+                    "color": {
+                      "value": "#A32D2D"
+                    }
+                  }
+                }
+              ],
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "max(share_of_comparison)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Share of the comparison point",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "displayName": "Share of the comparison point",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "level_axis",
+                  "displayName": "Level",
                   "scale": {
                     "type": "categorical"
-                  },
-                  "displayName": "Level"
+                  }
                 },
                 "color": {
                   "fieldName": "status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Against the comparison point",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10192,36 +10366,12 @@
                         "color": "#D9DEE3"
                       }
                     ]
-                  },
-                  "displayName": "Against the comparison point",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Learners per reported teacher by level",
-                "showDescription": true,
-                "description": "Each offered level's learners per reported teacher against its published comparison point, on one scale; past the line is above it. Not a staffing entitlement."
-              },
-              "annotations": [
-                {
-                  "type": "vertical-line",
-                  "encodings": {
-                    "x": {
-                      "dataValue": "1",
-                      "dataType": "DOUBLE"
-                    },
-                    "label": {
-                      "value": "Comparison point"
-                    },
-                    "color": {
-                      "value": "#A32D2D"
-                    }
-                  }
-                }
-              ]
+              "data": {
+                "queryName": "main_query"
+              }
             }
           },
           "position": {
@@ -10241,16 +10391,16 @@
                   "datasetName": "pr_enrollment",
                   "fields": [
                     {
+                      "name": "scope",
+                      "expression": "`scope`"
+                    },
+                    {
                       "name": "school_year_label",
                       "expression": "`school_year_label`"
                     },
                     {
                       "name": "sum(learners)",
                       "expression": "SUM(`learners`)"
-                    },
-                    {
-                      "name": "scope",
-                      "expression": "`scope`"
                     }
                   ],
                   "disaggregated": false
@@ -10258,11 +10408,24 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Enrollment by school year",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows public-school enrollment and enrollment across all school sectors for each available school year. Public-school enrollment forms part of the all-sector total, so the two series should not be added together.",
+                  "fields": []
+                }
+              },
               "version": 3,
               "widgetType": "line",
               "encodings": {
                 "x": {
                   "fieldName": "school_year_label",
+                  "displayName": "School year",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10276,26 +10439,18 @@
                         "SY 2025-26"
                       ]
                     }
-                  },
-                  "displayName": "School year"
+                  }
                 },
                 "y": {
                   "fieldName": "sum(learners)",
+                  "displayName": "Learners",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Learners",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    },
-                    "abbreviation": "compact"
                   }
                 },
                 "color": {
                   "fieldName": "scope",
+                  "displayName": "Scope",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10315,15 +10470,11 @@
                         "color": "#5B6B7A"
                       }
                     ]
-                  },
-                  "displayName": "Scope"
+                  }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Enrollment over time",
-                "showDescription": true,
-                "description": "Public-school and all-sector enrollment by school year. Public is part of all sectors, so the lines are not added."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -10344,16 +10495,16 @@
                   "datasetName": "pr_cohorts",
                   "fields": [
                     {
-                      "name": "age_band",
-                      "expression": "`age_band`"
+                      "name": "direction",
+                      "expression": "`direction`"
                     },
                     {
                       "name": "max(change)",
                       "expression": "MAX(`change`)"
                     },
                     {
-                      "name": "direction",
-                      "expression": "`direction`"
+                      "name": "age_band",
+                      "expression": "`age_band`"
                     }
                   ],
                   "disaggregated": false
@@ -10361,25 +10512,55 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Change in school-age population, 2020–2024",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows the percentage change in resident children from 2020 to 2024 for the age group associated with each education level. Positive and negative values indicate population growth or decline.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "annotations": [
+                {
+                  "type": "vertical-line",
+                  "encodings": {
+                    "x": {
+                      "dataValue": "0",
+                      "dataType": "DOUBLE"
+                    },
+                    "label": {
+                      "value": "No change"
+                    },
+                    "color": {
+                      "value": "#A32D2D"
+                    }
+                  }
+                }
+              ],
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "max(change)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Change, 2020 to 2024",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 1
                     }
+                  },
+                  "displayName": "Change, 2020 to 2024",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "age_band",
+                  "displayName": "Age group",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10391,11 +10572,14 @@
                         "Senior high age (16-17)"
                       ]
                     }
-                  },
-                  "displayName": "Age group"
+                  }
                 },
                 "color": {
                   "fieldName": "direction",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Direction",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10415,36 +10599,12 @@
                         "color": "#C9A227"
                       }
                     ]
-                  },
-                  "displayName": "Direction",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Change in school-age population, 2020\u20132024",
-                "showDescription": true,
-                "description": "Percentage change in resident children by the school level matching their age."
-              },
-              "annotations": [
-                {
-                  "type": "vertical-line",
-                  "encodings": {
-                    "x": {
-                      "dataValue": "0",
-                      "dataType": "DOUBLE"
-                    },
-                    "label": {
-                      "value": "No change"
-                    },
-                    "color": {
-                      "value": "#A32D2D"
-                    }
-                  }
-                }
-              ]
+              "data": {
+                "queryName": "main_query"
+              }
             }
           },
           "position": {
@@ -10464,16 +10624,16 @@
                   "datasetName": "pr_census",
                   "fields": [
                     {
+                      "name": "series",
+                      "expression": "`series`"
+                    },
+                    {
                       "name": "period",
                       "expression": "`period`"
                     },
                     {
                       "name": "sum(people)",
                       "expression": "SUM(`people`)"
-                    },
-                    {
-                      "name": "series",
-                      "expression": "`series`"
                     }
                   ],
                   "disaggregated": false
@@ -10481,11 +10641,27 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Resident children and local enrollment",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Compares resident children ages 5-17 with learners enrolled in schools located in the LGU. Learners may attend schools outside their home LGU, so the difference is not a count of children out of school.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "group"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "period",
+                  "displayName": "Census",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10495,26 +10671,21 @@
                         "2024 census"
                       ]
                     }
-                  },
-                  "displayName": "Census"
+                  }
                 },
                 "y": {
                   "fieldName": "sum(people)",
+                  "displayName": "People",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "People",
-                  "format": {
-                    "type": "number",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 1
-                    },
-                    "abbreviation": "compact"
                   }
                 },
                 "color": {
                   "fieldName": "series",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Series",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10534,21 +10705,11 @@
                         "color": "#C9A227"
                       }
                     ]
-                  },
-                  "displayName": "Series",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Resident children and local enrollment",
-                "showDescription": true,
-                "description": "Children are counted where they live, learners where they attend school. A school hub can enroll more learners than its resident children; the gap is not a count of children out of school."
-              },
-              "mark": {
-                "layout": "group"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -10569,16 +10730,16 @@
                   "datasetName": "pr_peers",
                   "fields": [
                     {
-                      "name": "lgu",
-                      "expression": "`lgu`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     },
                     {
                       "name": "affected_learners",
                       "expression": "`affected_learners`"
                     },
                     {
-                      "name": "queue_status",
-                      "expression": "`queue_status`"
+                      "name": "lgu",
+                      "expression": "`lgu`"
                     }
                   ],
                   "disaggregated": true
@@ -10586,35 +10747,44 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Where does this LGU stand in its province?",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Compares the selected LGU with others in its province, or with its region when the selected LGU is an independent city. Ordering uses the number of learners enrolled in flagged schools or education levels.",
+                  "fields": []
+                }
+              },
               "version": 3,
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "affected_learners",
+                  "displayName": "Affected learners",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Affected learners",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
                   }
                 },
                 "y": {
                   "fieldName": "lgu",
+                  "displayName": "City or municipality",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "natural-order"
                     }
-                  },
-                  "displayName": "City or municipality"
+                  }
                 },
                 "color": {
                   "fieldName": "queue_status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Review status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10654,18 +10824,11 @@
                         "color": "#8A96A3"
                       }
                     ]
-                  },
-                  "displayName": "Review status",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Where does this LGU stand in its province?",
-                "showDescription": true,
-                "description": "The LGUs of the selected LGU's province, or its region for an independent city, ranked by affected learners and coloured by review status; the selected LGU is marked (selected). Affected learners: the larger of the learners in schools above the classroom screen and the learners at levels above the teacher comparison point."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -10732,20 +10895,16 @@
                   "datasetName": "pr_map",
                   "fields": [
                     {
+                      "name": "map_series",
+                      "expression": "`map_series`"
+                    },
+                    {
                       "name": "latitude",
                       "expression": "`latitude`"
                     },
                     {
                       "name": "longitude",
                       "expression": "`longitude`"
-                    },
-                    {
-                      "name": "map_series",
-                      "expression": "`map_series`"
-                    },
-                    {
-                      "name": "learners",
-                      "expression": "`learners`"
                     },
                     {
                       "name": "school_name",
@@ -10790,6 +10949,10 @@
                     {
                       "name": "location_status",
                       "expression": "`location_status`"
+                    },
+                    {
+                      "name": "learners",
+                      "expression": "`learners`"
                     }
                   ],
                   "disaggregated": true
@@ -10797,7 +10960,22 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Public-school locations",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows public schools with usable coordinates, colored by validation status and sized by enrollment. Markers represent reported locations and do not show catchment areas, travel routes, or walking distance.",
+                  "fields": []
+                }
+              },
               "version": 2,
+              "mark": {
+                "opacity": 0.8
+              },
               "widgetType": "symbol-map",
               "encodings": {
                 "coordinates": {
@@ -10810,6 +10988,7 @@
                 },
                 "color": {
                   "fieldName": "map_series",
+                  "displayName": "School status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -10839,8 +11018,14 @@
                         "color": "#A9B4BF"
                       }
                     ]
+                  }
+                },
+                "size": {
+                  "fieldName": "learners",
+                  "scale": {
+                    "type": "quantitative"
                   },
-                  "displayName": "School status"
+                  "displayName": "Public learners"
                 },
                 "extra": [
                   {
@@ -10887,23 +11072,10 @@
                     "fieldName": "location_status",
                     "displayName": "Coordinate validation"
                   }
-                ],
-                "size": {
-                  "fieldName": "learners",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Public learners"
-                }
+                ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "School locations and barangay access",
-                "showDescription": true,
-                "description": "Public schools with validated coordinates in the selected LGU, coloured by school status and sized by public learners, SY 2023-24 published locations. Not catchment areas, routes or walking distance."
-              },
-              "mark": {
-                "opacity": 0.8
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -11103,6 +11275,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Barangays without a matched public elementary school",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Lists barangays where the available records do not match a public elementary school. A school in a nearby barangay may still serve learners across barangay boundaries.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -11129,11 +11313,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Barangays without a matched public elementary school",
-                "showDescription": true,
-                "description": "Listed first, then every other barangay. A nearby school may serve across barangay boundaries."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -11179,6 +11360,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Schools to verify first",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows schools with figures requiring confirmation first, followed by schools with the highest reported classroom pressure. The complete list is available on School Review and Action.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -11205,11 +11398,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Schools to validate first",
-                "showDescription": true,
-                "description": "Schools with a figure to verify first, then the highest classroom pressure. Full list on School Action."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -11251,6 +11441,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Data coverage and checks",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows the share of learner enrollment covered by each measure. It also identifies schools excluded from assessment because of missing or zero reported room or teacher counts.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -11273,11 +11475,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Data coverage and checks",
-                "showDescription": true,
-                "description": "Whether enough data were reported for each measure, and schools left out for a missing or zero count."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -11288,13 +11487,13 @@
             "height": 5
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     },
     {
       "name": "school_action",
       "displayName": "School Action",
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
@@ -12009,7 +12208,7 @@
                 "showTitle": false,
                 "title": "School details",
                 "showDescription": false,
-                "description": "School ID \u00b7 barangay \u00b7 main or annex \u00b7 levels \u00b7 learners \u00b7 LGU review status",
+                "description": "School ID · barangay · main or annex · levels · learners · LGU review status",
                 "contentAlignment": "left"
               }
             }
@@ -12088,23 +12287,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Learners per room",
+                  "fields": []
+                },
+                "description": {
+                  "value": "All levels, reported rooms · screen 50",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "room_kpi",
-                  "displayName": "Learners per room",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Learners per room"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Learners per room",
-                "showDescription": true,
-                "description": "All levels, reported rooms \u00b7 screen 50"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12134,23 +12342,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Learners per teacher",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Selected level · Compared with reference",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Learners per teacher",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Learners per teacher"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Learners per teacher",
-                "showDescription": true,
-                "description": "At the chosen level, vs its comparison point"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12180,23 +12397,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Enrollment change",
+                  "fields": []
+                },
+                "description": {
+                  "value": "SY 2020-21 to SY 2025-26",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "change_kpi",
-                  "displayName": "Enrollment change",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Enrollment change"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Enrollment change",
-                "showDescription": true,
-                "description": "SY 2020-21 to SY 2025-26"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12226,23 +12452,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Figures to verify",
+                  "fields": []
+                },
+                "description": {
+                  "value": "A flag means confirm the figure",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "verify_kpi",
-                  "displayName": "Verification items",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Verification items"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Verification items",
-                "showDescription": true,
-                "description": "A flag means verify, not incorrect"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12263,16 +12498,16 @@
                   "datasetName": "sa_bullet",
                   "fields": [
                     {
-                      "name": "figure",
-                      "expression": "`figure`"
+                      "name": "status",
+                      "expression": "`status`"
                     },
                     {
                       "name": "share_of_reference",
                       "expression": "`share_of_reference`"
                     },
                     {
-                      "name": "status",
-                      "expression": "`status`"
+                      "name": "figure",
+                      "expression": "`figure`"
                     }
                   ],
                   "disaggregated": true
@@ -12280,35 +12515,68 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Classroom and teacher figures against their references",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's teacher comparison point. Past the line is beyond the reference.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "annotations": [
+                {
+                  "type": "vertical-line",
+                  "encodings": {
+                    "x": {
+                      "dataValue": "1",
+                      "dataType": "DOUBLE"
+                    },
+                    "label": {
+                      "value": "Reference"
+                    },
+                    "color": {
+                      "value": "#A32D2D"
+                    }
+                  }
+                }
+              ],
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "share_of_reference",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Share of the reference",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "displayName": "Share of the reference",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "figure",
+                  "displayName": "Figure",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "natural-order"
                     }
-                  },
-                  "displayName": "Figure"
+                  }
                 },
                 "color": {
                   "fieldName": "status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Against the reference",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -12338,36 +12606,12 @@
                         "color": "#EEF1F4"
                       }
                     ]
-                  },
-                  "displayName": "Against the reference",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Classroom and teacher figures against their references",
-                "showDescription": true,
-                "description": "Each figure on one scale, where the line is its reference: the 50-learner room screen or the level's teacher comparison point. Past the line is beyond the reference. Every level has its own row; a level the school does not offer has no bar. Exact figures are in the table below."
-              },
-              "annotations": [
-                {
-                  "type": "vertical-line",
-                  "encodings": {
-                    "x": {
-                      "dataValue": "1",
-                      "dataType": "DOUBLE"
-                    },
-                    "label": {
-                      "value": "Reference"
-                    },
-                    "color": {
-                      "value": "#A32D2D"
-                    }
-                  }
-                }
-              ]
+              "data": {
+                "queryName": "main_query"
+              }
             }
           },
           "position": {
@@ -12404,6 +12648,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "What needs to be verified?",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Explains why each figure was flagged and identifies what the school or Schools Division Office should confirm. A flagged figure requires validation and is not automatically incorrect.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -12422,11 +12678,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "What should be verified?",
-                "showDescription": true,
-                "description": "Each flag turned into a step with the school or the Schools Division Office."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12447,24 +12700,24 @@
                   "datasetName": "sa_peers",
                   "fields": [
                     {
-                      "name": "learners_per_room",
-                      "expression": "`learners_per_room`"
-                    },
-                    {
-                      "name": "teacher_ratio",
-                      "expression": "`teacher_ratio`"
-                    },
-                    {
                       "name": "series",
                       "expression": "`series`"
+                    },
+                    {
+                      "name": "school_name",
+                      "expression": "`school_name`"
                     },
                     {
                       "name": "learners",
                       "expression": "`learners`"
                     },
                     {
-                      "name": "school_name",
-                      "expression": "`school_name`"
+                      "name": "learners_per_room",
+                      "expression": "`learners_per_room`"
+                    },
+                    {
+                      "name": "teacher_ratio",
+                      "expression": "`teacher_ratio`"
                     }
                   ],
                   "disaggregated": true
@@ -12472,25 +12725,55 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Classroom and teacher pressure among schools in this LGU",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Each dot is a public school offering the chosen level, sized by learners and coloured by the pressure it shows: classroom pressure at 50 or more learners per reported room (past the line), teacher pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior high 26.7). ",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "annotations": [
+                {
+                  "type": "vertical-line",
+                  "encodings": {
+                    "x": {
+                      "dataValue": "50",
+                      "dataType": "DOUBLE"
+                    },
+                    "label": {
+                      "value": "Classroom screen"
+                    },
+                    "color": {
+                      "value": "#A32D2D"
+                    }
+                  }
+                }
+              ],
               "widgetType": "scatter",
               "encodings": {
                 "x": {
                   "fieldName": "learners_per_room",
+                  "displayName": "Learners per reported room",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Learners per reported room"
+                  }
                 },
                 "y": {
                   "fieldName": "teacher_ratio",
+                  "displayName": "Learners per reported teacher",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Learners per reported teacher"
+                  }
                 },
                 "color": {
                   "fieldName": "series",
+                  "displayName": "Pressure at this school",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -12525,8 +12808,7 @@
                         "color": "#C9D1D9"
                       }
                     ]
-                  },
-                  "displayName": "Pressure at this school"
+                  }
                 },
                 "size": {
                   "fieldName": "learners",
@@ -12542,29 +12824,9 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Classroom and teacher pressure among schools in this LGU",
-                "showDescription": true,
-                "description": "Each dot is a public school offering the chosen level, sized by learners and coloured by the pressure it shows: classroom pressure at 50 or more learners per reported room (past the line), teacher pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior high 26.7). Schools with no rooms or teachers reported cannot be placed and are listed below."
-              },
-              "annotations": [
-                {
-                  "type": "vertical-line",
-                  "encodings": {
-                    "x": {
-                      "dataValue": "50",
-                      "dataType": "DOUBLE"
-                    },
-                    "label": {
-                      "value": "Classroom screen"
-                    },
-                    "color": {
-                      "value": "#A32D2D"
-                    }
-                  }
-                }
-              ]
+              "data": {
+                "queryName": "main_query"
+              }
             }
           },
           "position": {
@@ -12584,20 +12846,16 @@
                   "datasetName": "sa_location",
                   "fields": [
                     {
+                      "name": "series",
+                      "expression": "`series`"
+                    },
+                    {
                       "name": "latitude",
                       "expression": "`latitude`"
                     },
                     {
                       "name": "longitude",
                       "expression": "`longitude`"
-                    },
-                    {
-                      "name": "series",
-                      "expression": "`series`"
-                    },
-                    {
-                      "name": "learners",
-                      "expression": "`learners`"
                     },
                     {
                       "name": "school_name",
@@ -12614,6 +12872,10 @@
                     {
                       "name": "verification_status",
                       "expression": "`verification_status`"
+                    },
+                    {
+                      "name": "learners",
+                      "expression": "`learners`"
                     }
                   ],
                   "disaggregated": true
@@ -12621,7 +12883,22 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Nearby public schools",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows the selected school and public schools within approximately three kilometers, colored by school type and sized by enrollment. Proximity is based on straight-line distance and does not represent a route or travel time.",
+                  "fields": []
+                }
+              },
               "version": 2,
+              "mark": {
+                "opacity": 0.8
+              },
               "widgetType": "symbol-map",
               "encodings": {
                 "coordinates": {
@@ -12634,6 +12911,7 @@
                 },
                 "color": {
                   "fieldName": "series",
+                  "displayName": "School type",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -12663,8 +12941,14 @@
                         "color": "#8A96A3"
                       }
                     ]
+                  }
+                },
+                "size": {
+                  "fieldName": "learners",
+                  "scale": {
+                    "type": "quantitative"
                   },
-                  "displayName": "School type"
+                  "displayName": "Public learners"
                 },
                 "extra": [
                   {
@@ -12683,23 +12967,10 @@
                     "fieldName": "verification_status",
                     "displayName": "Verification status"
                   }
-                ],
-                "size": {
-                  "fieldName": "learners",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Public learners"
-                }
+                ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "School location",
-                "showDescription": true,
-                "description": "The selected school and public schools within about 3 km, coloured by school type (secondary is junior and/or senior high) and sized by learners. Empty when the school has no validated location; no barangay boundary is drawn."
-              },
-              "mark": {
-                "opacity": 0.8
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12720,16 +12991,16 @@
                   "datasetName": "sa_trend",
                   "fields": [
                     {
+                      "name": "series",
+                      "expression": "`series`"
+                    },
+                    {
                       "name": "school_year_label",
                       "expression": "`school_year_label`"
                     },
                     {
                       "name": "sum(learners)",
                       "expression": "SUM(`learners`)"
-                    },
-                    {
-                      "name": "series",
-                      "expression": "`series`"
                     }
                   ],
                   "disaggregated": false
@@ -12737,11 +13008,24 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "How has enrollment changed in this school?",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows total enrollment and enrollment by offered education level for each available school year. A gap indicates that no comparable figure is available for that year.",
+                  "fields": []
+                }
+              },
               "version": 3,
               "widgetType": "line",
               "encodings": {
                 "x": {
                   "fieldName": "school_year_label",
+                  "displayName": "School year",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -12755,25 +13039,18 @@
                         "SY 2025-26"
                       ]
                     }
-                  },
-                  "displayName": "School year"
+                  }
                 },
                 "y": {
                   "fieldName": "sum(learners)",
+                  "displayName": "Learners",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Learners",
-                  "format": {
-                    "type": "number-plain",
-                    "decimalPlaces": {
-                      "type": "max",
-                      "places": 0
-                    }
                   }
                 },
                 "color": {
                   "fieldName": "series",
+                  "displayName": "Series",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -12803,15 +13080,11 @@
                         "color": "#C9A227"
                       }
                     ]
-                  },
-                  "displayName": "Series"
+                  }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "How has enrollment changed in this school?",
-                "showDescription": true,
-                "description": "Total enrollment, and each offered level when there is more than one. A missing year leaves a gap. Shows whether pressure is persistent, rising or falling."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -12865,6 +13138,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Reported rooms and teachers",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows enrollment and reported teachers by education level, together with instructional rooms for the whole school. Temporary and makeshift rooms appear separately where reported.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -12899,11 +13184,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Reported rooms and teachers",
-                "showDescription": true,
-                "description": "SY 2023-24. Teachers are counted by level; rooms only for the whole school."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13113,6 +13395,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "School validation list",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Lists schools with figures requiring confirmation first, followed by schools with the highest reported classroom pressure. Use the reason and suggested verification columns to prepare follow-up with the school or Schools Division Office.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -13155,11 +13449,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "School validation list",
-                "showDescription": true,
-                "description": "Schools with a figure to verify first, then the highest classroom pressure. Levels: ES elementary, JHS junior high, SHS senior high; the download spells them out and adds the school ID, main or annex, enrollment change, temporary or makeshift rooms and locally funded teachers."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13186,13 +13477,13 @@
             "height": 1
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     },
     {
       "name": "data_and_method",
       "displayName": "Data & Method",
-      "pageType": "PAGE_TYPE_CANVAS",
-      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
@@ -13231,23 +13522,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Classroom data coverage",
+                  "fields": []
+                },
+                "description": {
+                  "value": "LGUs with at least 90% coverage",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "classroom_kpi",
-                  "displayName": "Classrooms assessed",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Classrooms assessed"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Classrooms assessed",
-                "showDescription": true,
-                "description": "LGUs with 90%+ learners in schools with a room count"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13277,23 +13577,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Teacher data coverage",
+                  "fields": []
+                },
+                "description": {
+                  "value": "LGUs with at least 90% coverage",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "teacher_kpi",
-                  "displayName": "Teachers assessed",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Teachers assessed"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Teachers assessed",
-                "showDescription": true,
-                "description": "LGUs where every offered level has 90%+ coverage"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13323,23 +13632,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Comparable enrollment trends",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Complete years and stable boundaries",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "trend_kpi",
-                  "displayName": "Comparable enrollment trends",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Comparable enrollment trends"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Comparable enrollment trends",
-                "showDescription": true,
-                "description": "LGUs with complete years and unchanged boundaries"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13369,23 +13687,32 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Last data update",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Latest successful refresh",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "counter",
               "encodings": {
                 "value": {
                   "fieldName": "updated",
-                  "displayName": "Last refresh",
                   "style": {
                     "fontStyle": "normal",
                     "fontWeight": 700
-                  }
+                  },
+                  "displayName": "Last refresh"
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Last refresh",
-                "showDescription": true,
-                "description": "Latest successful pipeline run"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13473,6 +13800,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "How the review status is assigned",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows how classroom pressure, teacher pressure, and public-school enrollment growth combine to produce each review status. A known pressure signal remains part of the result when another measure cannot be fully assessed.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -13495,11 +13834,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "How the review status is assigned",
-                "showDescription": true,
-                "description": "Two current pressure signals, classroom and teacher, and public-enrollment growth produce each status. A known pressure always counts; where growth cannot be checked, the LGU is placed as if it were not growing."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13541,6 +13877,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Published comparison points",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Lists the references used to identify classroom and teacher pressure signals. These values support consistent comparison across LGUs and are not official staffing ratios, construction standards, or funding entitlements.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -13563,11 +13911,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Published comparison points",
-                "showDescription": true,
-                "description": "The values the Analytics SQL writes. A comparison, never a staffing or construction entitlement."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13695,16 +14040,16 @@
                   "datasetName": "dm_coverage",
                   "fields": [
                     {
-                      "name": "measure",
-                      "expression": "`measure`"
+                      "name": "coverage_status",
+                      "expression": "`coverage_status`"
                     },
                     {
                       "name": "sum(share)",
                       "expression": "SUM(`share`)"
                     },
                     {
-                      "name": "coverage_status",
-                      "expression": "`coverage_status`"
+                      "name": "measure",
+                      "expression": "`measure`"
                     }
                   ],
                   "disaggregated": false
@@ -13712,25 +14057,41 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Data coverage by measure",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows the share of LGUs with sufficient, incomplete, or unavailable information for each measure. Sufficient coverage means that the required learner-coverage rule has been met.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "stack"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "sum(share)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Share of LGUs",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "displayName": "Share of LGUs",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "measure",
+                  "displayName": "Measure",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -13738,16 +14099,19 @@
                       "orderedValues": [
                         "Public schools",
                         "Classrooms",
-                        "Teachers \u00b7 Elementary",
-                        "Teachers \u00b7 Junior high",
-                        "Teachers \u00b7 Senior high"
+                        "Teachers · Elementary",
+                        "Teachers · Junior high",
+                        "Teachers · Senior high"
                       ]
                     }
-                  },
-                  "displayName": "Measure"
+                  }
                 },
                 "color": {
                   "fieldName": "coverage_status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Coverage",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -13772,21 +14136,11 @@
                         "color": "#5B6B7A"
                       }
                     ]
-                  },
-                  "displayName": "Coverage",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Data coverage by measure",
-                "showDescription": true,
-                "description": "Assessed, incomplete, and unavailable shares of LGUs for each measure."
-              },
-              "mark": {
-                "layout": "stack"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13807,16 +14161,16 @@
                   "datasetName": "dm_teacher_levels",
                   "fields": [
                     {
-                      "name": "level",
-                      "expression": "`level`"
+                      "name": "status",
+                      "expression": "`status`"
                     },
                     {
                       "name": "sum(share)",
                       "expression": "SUM(`share`)"
                     },
                     {
-                      "name": "status",
-                      "expression": "`status`"
+                      "name": "level",
+                      "expression": "`level`"
                     }
                   ],
                   "disaggregated": false
@@ -13824,25 +14178,41 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Teacher-pressure assessment by level",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows how LGUs compare with the teacher reference for elementary, junior high, and senior high school. LGUs without enough reported data appear as insufficient data.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "stack"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "sum(share)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Share of LGUs offering the level",
                   "format": {
                     "type": "number-percent",
                     "decimalPlaces": {
                       "type": "max",
                       "places": 0
                     }
+                  },
+                  "displayName": "Share of LGUs offering the level",
+                  "scale": {
+                    "type": "quantitative"
                   }
                 },
                 "y": {
                   "fieldName": "level",
+                  "displayName": "Level",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -13853,11 +14223,14 @@
                         "Senior high"
                       ]
                     }
-                  },
-                  "displayName": "Level"
+                  }
                 },
                 "color": {
                   "fieldName": "status",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Learners per teacher",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -13882,21 +14255,11 @@
                         "color": "#D9DEE3"
                       }
                     ]
-                  },
-                  "displayName": "Learners per teacher",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Teacher-pressure assessment by level",
-                "showDescription": true,
-                "description": "Above, at or below, or not assessed against the comparison point."
-              },
-              "mark": {
-                "layout": "stack"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -13917,16 +14280,16 @@
                   "datasetName": "dm_reasons",
                   "fields": [
                     {
-                      "name": "reason",
-                      "expression": "`reason`"
+                      "name": "measure",
+                      "expression": "`measure`"
                     },
                     {
                       "name": "sum(lgus)",
                       "expression": "SUM(`lgus`)"
                     },
                     {
-                      "name": "measure",
-                      "expression": "`measure`"
+                      "name": "reason",
+                      "expression": "`reason`"
                     }
                   ],
                   "disaggregated": false
@@ -13934,25 +14297,44 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Why some LGUs need data review",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows which required inputs could not be assessed for LGUs needing additional data review. One LGU may have more than one reason and may therefore appear in several categories.",
+                  "fields": []
+                }
+              },
               "version": 3,
+              "mark": {
+                "layout": "stack"
+              },
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "sum(lgus)",
+                  "displayName": "Data review LGUs",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Data review LGUs"
+                  }
                 },
                 "y": {
                   "fieldName": "reason",
+                  "displayName": "",
                   "scale": {
                     "type": "categorical"
-                  },
-                  "displayName": ""
+                  }
                 },
                 "color": {
                   "fieldName": "measure",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Input",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -13977,21 +14359,11 @@
                         "color": "#C9A227"
                       }
                     ]
-                  },
-                  "displayName": "Input",
-                  "legend": {
-                    "position": "bottom"
                   }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Why some LGUs need data review",
-                "showDescription": true,
-                "description": "The Data review LGUs by the input that could not be checked. One LGU may have more than one reason."
-              },
-              "mark": {
-                "layout": "stack"
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -14025,18 +14397,31 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Enrollment trend availability",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows whether each LGU has a complete and comparable enrollment trend. Incomplete school years or geographic-boundary changes may prevent a reliable comparison over time.",
+                  "fields": []
+                }
+              },
               "version": 3,
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "sum(lgus)",
+                  "displayName": "Cities and municipalities",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Cities and municipalities"
+                  }
                 },
                 "y": {
                   "fieldName": "ap4_status",
+                  "displayName": "Status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -14047,11 +14432,11 @@
                         "Boundaries changed 2020 to 2024"
                       ]
                     }
-                  },
-                  "displayName": "Status"
+                  }
                 },
                 "color": {
                   "fieldName": "ap4_status",
+                  "displayName": "Status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -14076,15 +14461,11 @@
                         "color": "#5B6B7A"
                       }
                     ]
-                  },
-                  "displayName": "Status"
+                  }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Enrollment trend availability",
-                "showDescription": true,
-                "description": "Complete and comparable, an incomplete school year, or changed boundaries."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -14105,12 +14486,12 @@
                   "datasetName": "dm_share",
                   "fields": [
                     {
-                      "name": "share_band",
-                      "expression": "`share_band`"
-                    },
-                    {
                       "name": "sum(lgus)",
                       "expression": "SUM(`lgus`)"
+                    },
+                    {
+                      "name": "share_band",
+                      "expression": "`share_band`"
                     }
                   ],
                   "disaggregated": false
@@ -14118,18 +14499,31 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Share of learners above room reference",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Groups assessed LGUs by the share of public-school learners enrolled in schools at or above 50 learners per reported instructional room. This shows how concentrated the classroom signal is within each LGU.",
+                  "fields": []
+                }
+              },
               "version": 3,
               "widgetType": "bar",
               "encodings": {
                 "x": {
                   "fieldName": "sum(lgus)",
+                  "displayName": "Assessed cities and municipalities",
                   "scale": {
                     "type": "quantitative"
-                  },
-                  "displayName": "Assessed cities and municipalities"
+                  }
                 },
                 "y": {
                   "fieldName": "share_band",
+                  "displayName": "Share of learners above the screen",
                   "scale": {
                     "type": "categorical",
                     "sort": {
@@ -14142,15 +14536,11 @@
                         "50% or more"
                       ]
                     }
-                  },
-                  "displayName": "Share of learners above the screen"
+                  }
                 }
               },
-              "frame": {
-                "showTitle": true,
-                "title": "How concentrated classroom pressure is",
-                "showDescription": true,
-                "description": "Assessed LGUs by the share of their learners in schools above the classroom screen."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -14204,6 +14594,18 @@
               }
             ],
             "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Available school years by source",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Shows which school years are available for enrollment, classroom, and teacher measures. Enrollment spans several years, while comparable classroom and teacher figures are currently available only for SY 2023-24.",
+                  "fields": []
+                }
+              },
               "version": 2,
               "widgetType": "table",
               "encodings": {
@@ -14238,11 +14640,8 @@
                   }
                 ]
               },
-              "frame": {
-                "showTitle": true,
-                "title": "Available school years by source",
-                "showDescription": true,
-                "description": "Enrollment spans several years; classroom and teacher data exist only for SY 2023-24."
+              "data": {
+                "queryName": "main_query"
               }
             }
           },
@@ -14258,11 +14657,13 @@
             "name": "text_079",
             "multilineTextboxSpec": {
               "lines": [
-                "## What this dashboard cannot tell you\n\n",
+                "## What this dashboard cannot tell you\n",
+                "\n",
+                "Summarizes decisions that still require local evidence, including the number of resources to add, room condition and use, learner travel, and the appropriate intervention. Confirm these conditions before using the results for planning.\n",
+                "\n",
                 "- **How many resources to add.** The review order is not an official shortage, staffing entitlement, construction need or funding allocation.\n",
                 "- **Room condition or use.** Reported rooms do not show condition, shifts or utilization.\n",
-                "- **Travel or access.** Enrollment is counted at the school, not where learners live.\n\n",
-                "Full methodology: the dashboards README in the project repository."
+                "- **Travel or access.** Enrollment is counted at the school, not where learners live."
               ]
             }
           },
@@ -14319,13 +14720,13 @@
             "height": 1
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
     },
     {
       "name": "global_filters",
       "displayName": "Global filters",
-      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
-      "layoutVersion": "GRID_V1",
       "layout": [
         {
           "widget": {
@@ -16655,7 +17056,9 @@
             "height": 2
           }
         }
-      ]
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
     }
   ],
   "uiSettings": {
@@ -16689,7 +17092,12 @@
         "#8A96A3",
         "#2F6F8F"
       ],
+      "widgetHeaderAlignment": "LEFT",
       "fontFamily": "Inter",
+      "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP",
+      "widgetPadding": 16,
+      "widgetMargin": 8,
+      "widgetCornerRadius": 8,
       "fontSettings": {
         "base": {
           "fontFamily": "Inter"
@@ -16697,12 +17105,7 @@
         "widgetTitle": {
           "fontSize": 16
         }
-      },
-      "widgetHeaderAlignment": "LEFT",
-      "textBoxVerticalAlign": "VERTICAL_ALIGN_TOP",
-      "widgetPadding": 16,
-      "widgetMargin": 8,
-      "widgetCornerRadius": 8
+      }
     },
     "applyModeEnabled": false
   }
