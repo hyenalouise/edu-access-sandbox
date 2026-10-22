@@ -40,6 +40,8 @@ SELECT
        OR b.classroom_pressure_flag IS DISTINCT FROM s.classroom_pressure_flag_without_suspected_outliers
        OR b.teacher_pressure_flag IS DISTINCT FROM s.teacher_pressure_flag_without_suspected_outliers
        OR b.priority_affected_learners IS DISTINCT FROM s.priority_affected_learners_without_suspected_outliers
+       OR b.outlier_sensitivity_status IS DISTINCT FROM s.outlier_sensitivity_status
+       OR b.coverage_gate_changed IS DISTINCT FROM s.coverage_gate_changed
        OR b.ap2_ratio_school_count IS DISTINCT FROM s.ap2_ratio_school_count_without_suspected_outliers
        OR b.ap3_es_learners_per_teacher IS DISTINCT FROM s.ap3_es_learners_per_teacher_without_suspected_outliers
        OR b.ap3_jhs_learners_per_teacher IS DISTINCT FROM s.ap3_jhs_learners_per_teacher_without_suspected_outliers

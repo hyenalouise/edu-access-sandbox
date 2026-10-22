@@ -132,7 +132,8 @@ def overlay(alias, columns):
 
 SCEN = f"""sc AS (SELECT * FROM {A}.lgu_priority_scenarios WHERE scenario = {SCENARIO}),
 mx AS (
-  SELECT {overlay("m", {c: c for c in MX_COLUMNS})}, sc.outlier_sensitivity_status, sc.outlier_school_count
+  SELECT {overlay("m", {c: c for c in MX_COLUMNS})}, sc.outlier_sensitivity_status, sc.outlier_school_count,
+         sc.coverage_gate_changed
   FROM {A}.lgu_priority_matrix AS m JOIN sc ON sc.city_mun_psgc_code = m.city_mun_psgc_code
 ),
 a2x AS (
@@ -147,8 +148,13 @@ a3x AS (
 OUTLIER_CHECK = {"No suspected outliers": "No suspected outliers", "Stable": "Result holds without them",
                  "Magnitude-sensitive": "Affected learners change", "Coverage-sensitive": "Coverage falls below 90%",
                  "Classification-sensitive": "A pressure signal changes", "Priority-sensitive": "Review status changes"}
-OUTLIER_CHECK_SQL = ("CASE {c} " + " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in OUTLIER_CHECK.items())
-                     + " ELSE 'Not checked' END")
+# a status or signal that changes only because the flagged schools leave too few learners covered is not less
+# pressure: the 90% coverage gate cannot be met until those schools' figures are verified
+NEEDS_VERIFYING = "Status needs these schools verified"
+OUTLIER_CHECK_SQL = ("CASE WHEN m.coverage_gate_changed AND {c} IN ('Priority-sensitive', 'Classification-sensitive') "
+                     f"THEN '{NEEDS_VERIFYING}' "
+                     "ELSE CASE {c} " + " ".join(f"WHEN '{k}' THEN '{v}'" for k, v in OUTLIER_CHECK.items())
+                     + " ELSE 'Not checked' END END")
 
 LGU = f"""lgu AS (
   SELECT d.city_mun_psgc_code, d.city_mun_name,

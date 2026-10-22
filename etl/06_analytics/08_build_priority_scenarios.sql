@@ -30,7 +30,7 @@ WITH published AS (
          a3.shs_learner_coverage_pct AS ap3_shs_learner_coverage_pct, a3.shs_passes_gate AS ap3_shs_passes_gate,
          a3.shs_benchmark_status AS ap3_shs_benchmark_status,
          a3.not_assessed_reason AS ap3_not_assessed_reason, a3.benchmark_status AS ap3_benchmark_status,
-         s.outlier_school_count, s.outlier_sensitivity_status
+         s.outlier_school_count, s.outlier_sensitivity_status, s.coverage_gate_changed
   FROM edu_access.`06-analytics`.lgu_priority_matrix AS m
   JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = m.city_mun_psgc_code
   JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = m.city_mun_psgc_code
@@ -82,7 +82,7 @@ WITH published AS (
               WHEN s.teacher_pressure_flag_without_suspected_outliers = 1 THEN 'pressure signal identified'
               WHEN NOT s.ap3_assessed_without_suspected_outliers THEN 'not fully assessed'
               ELSE 'no pressure signal identified' END,
-         s.outlier_school_count, s.outlier_sensitivity_status
+         s.outlier_school_count, s.outlier_sensitivity_status, s.coverage_gate_changed
   FROM edu_access.`06-analytics`.lgu_priority_sensitivity AS s
   JOIN edu_access.`06-analytics`.ap2_classroom_pressure AS a2 ON a2.city_mun_psgc_code = s.city_mun_psgc_code
   JOIN edu_access.`06-analytics`.ap3_teacher_pressure AS a3 ON a3.city_mun_psgc_code = s.city_mun_psgc_code

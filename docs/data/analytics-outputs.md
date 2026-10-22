@@ -335,5 +335,6 @@ Built by `08_build_priority_scenarios.sql`. Two rows per regular city or municip
 | `ap3_benchmark_status` | STRING | AP3 `benchmark_status` in this scenario |
 | `outlier_school_count` | BIGINT | Schools with a suspected extreme ratio (the same in both rows) |
 | `outlier_sensitivity_status` | STRING | The LGU's D-065 status (the same in both rows) |
+| `coverage_gate_changed` | BOOLEAN | Excluding the flagged schools takes an AP2 or AP3 coverage gate below 90% (the same in both rows) |
 | `rule_version` | STRING | `D-065` |
 | `code_revision` | STRING | Commit that built the row |

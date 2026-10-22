@@ -456,12 +456,13 @@ def test_without_suspected_outliers_every_figure_is_recalculated_and_the_publish
         assert (excluded[code]["queue_status"], excluded[code]["national_order"]) == (
             row["priority_category_without_suspected_outliers"], row["priority_order_without_suspected_outliers"])
     assert published["M2"]["queue_status"] != "Data review" and excluded["M2"]["queue_status"] == "Data review"
-    assert published["M2"]["outlier_check"] == excluded["M2"]["outlier_check"] == "Review status changes"
+    # its category changes only because coverage falls below 90% without X: the check says to verify, not "less pressure"
+    assert published["M2"]["outlier_check"] == excluded["M2"]["outlier_check"] == planner.NEEDS_VERIFYING
     assert published["C1"]["outlier_check"] == "No suspected outliers"
     # the LGU Profile says which result it shows, and its classroom figures leave X out
     card = _rows(store, "pr_card", lgu="Town Two, Province")[0]
     card_without = _rows(store, "pr_card", lgu="Town Two, Province", **without)[0]
-    assert "Outlier check: Review status changes" in card["details"]
+    assert f"Outlier check: {planner.NEEDS_VERIFYING}" in card["details"]
     assert "without suspected outliers" not in card["details"] and "Shown without suspected outliers" in card_without["details"]
     screen = {r["measure"]: r for r in _rows(store, "pr_evidence", lgu="Town Two, Province", **without)}
     assert screen["Classroom pressure · school screen"]["status"] != "Signal present"
