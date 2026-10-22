@@ -756,8 +756,9 @@ schools AS (
 BARANGAY = f"(:barangay = '{ALL_BARANGAYS}' OR barangay_name = :barangay)"
 
 PR_BARANGAYS = f"""WITH {school_base(level_param=False)},
--- by PSGC code, since two barangays can share a name; a school counts for ES from its own ES learners, so a
--- missing count at another level never hides it
+-- only the barangays with no matched public elementary school, as the table's title says. Matched by PSGC code, since
+-- two barangays can share a name; a school counts for ES from its own ES learners, so a missing count at another
+-- level never hides it
 bs AS (
   SELECT barangay_psgc_code, COUNT(*) AS public_schools, MAX(CASE WHEN offers_es = 1 AND es_learners > 0 THEN 1 ELSE 0 END) AS has_es,
          SUM(learners) AS learners
@@ -773,8 +774,8 @@ SELECT b.barangay_name,
 FROM {G}.dim_barangay AS b
 JOIN sel ON sel.city_mun_psgc_code = b.city_mun_psgc_code
 LEFT JOIN bs ON bs.barangay_psgc_code = b.barangay_psgc_code
-WHERE b.member_type = 'regular' AND {BARANGAY.replace('barangay_name', 'b.barangay_name')}
-ORDER BY es_sort, learners DESC, b.barangay_name"""
+WHERE b.member_type = 'regular' AND COALESCE(bs.has_es, 0) = 0 AND {BARANGAY.replace('barangay_name', 'b.barangay_name')}
+ORDER BY learners DESC, b.barangay_name"""
 
 # school points: only locations inside the matched city or municipality boundary are plotted
 LOCATIONS = f"""loc AS (
@@ -1441,10 +1442,10 @@ def lgu_profile(b):
         size_label="Public learners")
     map_note = note(b, "pr_map_note", "School map coverage", "map_line", style=LINE_STYLE, show_title=False)
     barangays = table(b, "pr_barangays", "Barangays without a matched public elementary school", [
-        ("barangay_name", "Barangay", None), ("public_es", "Matched public elementary", None),
-        ("public_schools_txt", "Public schools", None), ("learners_txt", "Public learners", None),
-        ("urban_rural", "Urban or rural", None)],
-        "Listed first, then every other barangay. A nearby school may serve across barangay boundaries.")
+        ("barangay_name", "Barangay", None), ("urban_rural", "Urban or rural", None),
+        ("public_schools_txt", "Public schools at other levels", None), ("learners_txt", "Public learners", None)],
+        "Only barangays where the available records match no public elementary school. A school in a nearby barangay "
+        "may still serve learners across barangay boundaries. Empty when every barangay has one.")
     p.columns([(7, [(school_map, 9), (map_note, 1)]), (5, [(barangay, 1), (barangays, 9)])], 10)
     p.row([(table(b, "pr_teaser", "Schools to validate first", [
                ("school_name", "School", None), ("barangay_name", "Barangay", None),

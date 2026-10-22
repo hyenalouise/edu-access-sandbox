@@ -413,7 +413,8 @@ def test_schools_are_coloured_by_the_pressure_they_show(store):
 
 def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(store):
     # review on #224: X1 has ES learners but no JHS count, so its all-level learners are unknown; it still gives
-    # its barangay a public elementary school. Two barangays share a name and are told apart by PSGC code
+    # its barangay a public elementary school. Two barangays share a name and are told apart by PSGC code: only the
+    # Poblacion with no school is listed, because the table lists barangays without a matched public elementary school
     add_public_school(store, "X1", "M1", 300, 4, 10)
     store.sql(f"""UPDATE {GOLD}.fact_school_enrollment SET is_offered = TRUE, learner_count = NULL
         WHERE school_id = 'X1' AND education_level_code = 'JHS'""")
@@ -421,8 +422,7 @@ def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(
     add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1"]), "B2": ("Poblacion", "M1", []),
                               "B3": ("San Roque", "M1", ["S4"])})
     rows = _rows(store, "pr_barangays", lgu="Town One, Province")
-    assert sorted((r["barangay_name"], r["public_schools"], r["public_es"]) for r in rows) == [
-        ("Poblacion", 0, "No"), ("Poblacion", 1, "Yes"), ("San Roque", 1, "Yes")]
+    assert [(r["barangay_name"], r["public_schools"], r["public_es"]) for r in rows] == [("Poblacion", 0, "No")]
 
 
 def test_no_retired_tier_or_check_table_is_read():
