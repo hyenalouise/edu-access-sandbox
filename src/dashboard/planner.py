@@ -72,11 +72,12 @@ DETAIL_STYLE = {"fontSize": 16, "fontStyle": "normal", "fontWeight": 400}  # the
 STATUS_STYLE = {"fontSize": 18, "fontStyle": "normal", "fontWeight": 700}  # the status and its basis
 LINE_STYLE = {"fontSize": 14, "fontStyle": "normal", "fontWeight": 400}  # facts, coverage and status lines
 LEGEND_BOTTOM = {"position": "bottom"}
-# schools coloured by the levels they offer; the selected school has its own colour and is drawn on top
-LEVEL_MIX = ["Selected school", "Elementary", "Junior high", "Senior high", "Elementary + Junior high",
-             "Junior high + Senior high", "Elementary + Junior high + Senior high", "Elementary + Senior high"]
-LEVEL_MIX_COLORS = [{"value": v, "color": c} for v, c in zip(LEVEL_MIX, [
-    "#14212B", "#3C9D9B", "#C9A227", "#D85A30", "#8CC5C4", "#E3A97A", "#5B6B7A", "#A9B4BF"])]
+# schools coloured by the pressure they show, the same two signals that set an LGU's review status; the selected school
+# has its own colour and is drawn on top
+SCHOOL_PRESSURE = ["Selected school", "Classroom and teacher pressure", "Classroom pressure only", "Teacher pressure only",
+                   "Neither"]
+SCHOOL_PRESSURE_COLORS = [{"value": v, "color": c} for v, c in zip(SCHOOL_PRESSURE, [
+    "#14212B", "#712B13", "#D85A30", "#E3A008", "#C9D1D9"])]
 # schools on the LGU map by school status, from most to least pressing
 MAP_STATUS = ["Above classroom screen", "Missing figure", "Zero rooms or teachers", "Within classroom screen"]
 MAP_COLORS = [{"value": v, "color": c} for v, c in zip(MAP_STATUS, ["#C2452D", "#E3A008", "#9C6B3A", "#A9B4BF"])]
@@ -811,6 +812,19 @@ WHERE list_order <= 5
 ORDER BY list_order"""
 
 # ============================================================ 3 School Action
+
+
+def school_pressure(alias):
+    """The selected school, or which pressure a school shows: classroom pressure at or above the room screen, teacher
+    pressure where an offered level's learners per reported teacher is above that level's comparison point."""
+    teacher = " OR ".join(
+        f"({alias}.offers_{c.lower()} = 1 AND {alias}.{c.lower()}_teachers > 0 "
+        f"AND {alias}.{c.lower()}_learners / CAST({alias}.{c.lower()}_teachers AS DOUBLE) > {v!r})"
+        for c, v in TEACHER_REFS.items())
+    return (f"CASE WHEN {alias}.school_id = (SELECT school_id FROM pick) THEN '{SCHOOL_PRESSURE[0]}' "
+            f"WHEN {alias}.f_above = 1 AND ({teacher}) THEN '{SCHOOL_PRESSURE[1]}' "
+            f"WHEN {alias}.f_above = 1 THEN '{SCHOOL_PRESSURE[2]}' "
+            f"WHEN {teacher} THEN '{SCHOOL_PRESSURE[3]}' ELSE '{SCHOOL_PRESSURE[4]}' END")
 PICK = """pick AS (
   SELECT school_id FROM schools
   WHERE offers_level = 1
@@ -843,8 +857,7 @@ SA_PEERS = f"""WITH {school_base()},
 {PICK}
 SELECT school_name, learners, learners_per_room, teacher_ratio, series FROM (
   SELECT s.school_name, s.learners, s.learners_per_room, s.teacher_ratio,
-         CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{LEVEL_MIX[0]}'
-              ELSE COALESCE(NULLIF(s.levels_offered_full, ''), 'No level reported') END AS series,
+         {school_pressure('s')} AS series,
          CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 1 ELSE 0 END AS draw_order
   FROM schools AS s
   WHERE s.offers_level = 1 AND s.learners_per_room IS NOT NULL AND s.teacher_ratio IS NOT NULL
@@ -889,8 +902,7 @@ here AS (
 )
 SELECT s.school_name, s.levels_offered_full, s.learners_txt, s.verification_status, l.latitude, l.longitude,
        COALESCE(s.learners, 0) AS learners,
-       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{LEVEL_MIX[0]}'
-            ELSE COALESCE(NULLIF(s.levels_offered_full, ''), 'No level reported') END AS series
+       {school_pressure('s')} AS series
 FROM schools AS s
 JOIN {G}.dim_school_location AS l ON l.school_id = s.school_id
 CROSS JOIN here
@@ -1284,7 +1296,7 @@ def overview(b):
     queue = param_filter(b, "queue", "Review status", targets, "Show LGUs with the selected review status.")
     coverage = param_filter(b, "coverage", "Data readiness", targets,
                             "Separate assessed LGUs from LGUs with insufficient data.")
-    p.columns([(8, [(intro, 3)]), (4, [(queue, 1), (coverage, 1)])], 3)
+    p.columns([(8, [(intro, 2)]), (4, [(queue, 1), (coverage, 1)])], 2)
     p.row([(kpi(b, "ov_kpi", "LGUs requiring immediate joint review", "joint_kpi", None, desc="Priority 1, of all LGUs in view",
                 style=KPI_STYLE), 3),
            (kpi(b, "ov_kpi", "LGUs with a current pressure signal", "any_kpi", None, desc="Priority 1 to 3, of all LGUs in view",
@@ -1322,7 +1334,7 @@ def overview(b):
         ("data_readiness", "Data readiness", None)],
         "Orders LGUs for validation using classroom pressure, teacher pressure, enrollment direction, affected "
         "learners, and data readiness. A review order, not a performance rank, shortage, or allocation. Open LGU "
-        "Profile and choose an LGU to see its evidence."), 12)], 10)
+        "Profile and choose an LGU to see its evidence."), 12)], 8)
     p.row([(table(b, "ov_insufficient", "LGUs requiring data review", [
                ("city_mun_name", "City or municipality", None), ("region_short", "Region", None),
                ("not_assessed_reason_txt", "Reason data could not be assessed", None)],
@@ -1336,7 +1348,7 @@ def overview(b):
                 desc="Resident children ages 5-17 (2024) beside learners enrolled in local schools in all sectors "
                      "(SY 2024-25), largest region first, from the LGUs left after the filters. Children are counted where "
                      "they live and learners where they attend, so the two differ; the difference is not a count of "
-                     "out-of-school children or of schools needed."), 12)], 10)
+                     "out-of-school children or of schools needed."), 12)], 11)
     p.row([(text(b, "**Next:** open **LGU Profile** and choose a city or municipality from the queue.\n", "\n",
                  "Before acting, validate flagged schools against actual classroom counts, building condition, shifts, "
                  "enrollment projections and planned projects. The queue prioritizes validation, not allocation."), 12)], 2)
@@ -1481,17 +1493,19 @@ def school_action(b):
                ("item", "Figure", None), ("why", "Why", None), ("next_step", "Next step", None)],
                "Each flag turned into a step with the school or the Schools Division Office."), 6)], 5)
     p.row([(scatter(b, "sa_peers", "Classroom and teacher pressure among schools in this LGU", "learners_per_room",
-                    "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series", "School",
-                    LEVEL_MIX_COLORS, LEVEL_MIX, "learners", "Learners", "school_name",
-                    "Each dot is a public school offering the chosen level, coloured by the levels it offers and sized by "
-                    "learners; past the line is above the classroom screen. Schools with no rooms or teachers reported "
-                    "cannot be placed and are listed below.",
+                    "Learners per reported room", "teacher_ratio", "Learners per reported teacher", "series",
+                    "Pressure at this school", SCHOOL_PRESSURE_COLORS, SCHOOL_PRESSURE, "learners", "Learners",
+                    "school_name",
+                    "Each dot is a public school offering the chosen level, sized by learners and coloured by the pressure "
+                    "it shows: classroom pressure at 50 or more learners per reported room (past the line), teacher "
+                    "pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior "
+                    "high 26.7). Schools with no rooms or teachers reported cannot be placed and are listed below.",
                     annotations=[ref_line("x", SCREEN, "Classroom screen")]), 8),
-           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Levels offered",
-                      LEVEL_MIX_COLORS, LEVEL_MIX,
+           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Pressure at each school",
+                      SCHOOL_PRESSURE_COLORS, SCHOOL_PRESSURE,
                       [("school_name", "School"), ("levels_offered_full", "Levels offered"),
                        ("learners_txt", "Public learners"), ("verification_status", "Verification status")],
-                      "The selected school and public schools within about 3 km, coloured by the levels they offer and "
+                      "The selected school and public schools within about 3 km, coloured by the pressure they show and "
                       "sized by learners. Empty when the school has no validated location; no barangay boundary is drawn.",
                       size="learners",
                       size_label="Public learners"), 4)], 8)

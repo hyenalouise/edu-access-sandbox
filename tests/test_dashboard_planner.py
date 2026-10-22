@@ -392,6 +392,18 @@ def test_every_listed_school_says_why_and_what_to_verify(store):
     assert [r["item"] for r in _rows(store, "sa_verify", lgu="Town One, Province")] == ["Classroom pressure"]
 
 
+def test_schools_are_coloured_by_the_pressure_they_show(store):
+    # X1: 300 learners in 4 rooms (75, above the screen of 50) and 30 per elementary teacher (at or below 35): classroom
+    # pressure only. S4: 25 per room and 25 per teacher: neither. With S4 selected, X1 keeps its own category
+    add_public_school(store, "X1", "M1", 300, 4, 10)
+    run_all(store)
+    add_school_detail(store, {"B1": ("Poblacion", "M1", ["X1", "S4"])})
+    series = {r["school_name"]: r["series"] for r in _rows(store, "sa_peers", lgu="Town One, Province", school="S4 · S4")}
+    assert series == {"X1": planner.SCHOOL_PRESSURE[2], "S4": planner.SCHOOL_PRESSURE[0]}
+    series = {r["school_name"]: r["series"] for r in _rows(store, "sa_peers", lgu="Town One, Province")}
+    assert series == {"X1": planner.SCHOOL_PRESSURE[0], "S4": planner.SCHOOL_PRESSURE[4]}
+
+
 def test_a_barangay_has_public_es_from_its_own_es_learners_matched_by_psgc_code(store):
     # review on #224: X1 has ES learners but no JHS count, so its all-level learners are unknown; it still gives
     # its barangay a public elementary school. Two barangays share a name and are told apart by PSGC code
