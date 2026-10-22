@@ -201,6 +201,10 @@ DOWNSTREAM = {
     "03_answer_ap3": {"90_validate_fact_school_enrollment", "90_validate_fact_school_teacher_capacity"},
     "04_answer_ap4": {"90_validate_fact_school_enrollment", "90_validate_fact_city_school_age_population"},
     "05_build_priority_matrix": {"90_validate_ap1", "90_validate_ap2", "90_validate_ap3", "90_validate_ap4"},
+    "06_flag_school_outliers": {
+        "90_validate_fact_school_enrollment", "90_validate_fact_school_classroom_capacity",
+        "90_validate_fact_school_teacher_capacity"},
+    "07_build_priority_sensitivity": {"90_validate_school_outlier_flags", "90_validate_priority_matrix"},
 }
 
 

@@ -281,5 +281,13 @@ analytics_tables:
     build_file: 05_build_priority_matrix.sql
     validate_file: 90_validate_priority_matrix.sql
     grain: One regular city or municipality, SY 2023-24 current pressures plus SY 2020-21 to 2025-26 public-enrollment growth (D-061).
+  - table: school_outlier_flags
+    build_file: 06_flag_school_outliers.sql
+    validate_file: 90_validate_school_outlier_flags.sql
+    grain: One public school and measure in that measure's ratio, SY 2023-24 (the classroom ratio, or the teacher ratio at ES, JHS or SHS), with its Tukey outer fences (D-065).
+  - table: lgu_priority_sensitivity
+    build_file: 07_build_priority_sensitivity.sql
+    validate_file: 90_validate_priority_sensitivity.sql
+    grain: One regular city or municipality, SY 2023-24; the published D-061 priority beside the same priority without suspected extreme schools (D-065).
 
 deferred_layers: []

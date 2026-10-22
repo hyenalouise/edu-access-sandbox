@@ -151,6 +151,8 @@ checks:
     - land_area_one_feature
   Validity:
     - boundary_status_allowed
+    - ratio_rows_valid
+    - scenario_b_category_allowed
     - profiled_quarantine_school_year_out_of_scope
     - profiled_quarantine_sector_not_public
     - rows_in_scope
@@ -357,6 +359,10 @@ checks:
     - priority_inputs_reconcile_to_ap2_ap3_ap4
     - priority_order_recomputed
     - priority_order_unique
+    - outer_fences_recomputed
+    - outlier_flags_follow_fences
+    - sensitivity_status_follows_d065
+    - scenario_b_order_unique
     - ratio_and_coverage_arithmetic
     - arithmetic_holds
     - year_over_year_change_holds
@@ -543,6 +549,10 @@ checks:
     - levels_reconcile_with_gold
     - lgu_membership_reconciles
     - inputs_match_ap_outputs
+    - rows_match_ratio_schools
+    - scenario_a_matches_priority_matrix
+    - outlier_counts_match_flags
+    - unflagged_lgus_unchanged
     - source_availability_reconciles
     - source_rows_reconcile
     - source_totals_and_nulls_reconcile
@@ -629,6 +639,12 @@ recorded_counts:
     - screened_affected_learners
     - priority_1_lgus
     - data_review_lgus
+    - classroom_outlier_schools
+    - lgus_with_outliers
+    - priority_sensitive_lgus
+    - classification_sensitive_lgus
+    - coverage_sensitive_lgus
+    - magnitude_sensitive_lgus
     - no_estimate_rows
     - sub_municipality_rows
     - not_in_source_huc
