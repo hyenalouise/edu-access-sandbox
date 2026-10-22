@@ -151,7 +151,7 @@ def test_population_charts_are_bars_in_the_order_the_sql_gives():
         assert chart["spec"]["widgetType"] == "bar" and chart["queries"][0]["query"]["disaggregated"]
         assert chart["spec"]["encodings"]["y"]["scale"]["sort"] == {"by": "natural-order"}
     assert "ORDER BY size_order DESC" in datasets["ov_region_pairs"]
-    assert "ORDER BY children_per_school DESC" in datasets["pr_peers"] and ":barangay" not in datasets["pr_peers"]
+    assert "ORDER BY a.priority_affected_learners DESC" in datasets["pr_peers"] and ":barangay" not in datasets["pr_peers"]
     assert not any(w.get("spec", {}).get("widgetType") == "scatter" for p in dashboard["pages"][:2] for w in widgets(p))
 
 
@@ -159,13 +159,13 @@ def test_the_selected_lgu_is_ranked_among_its_comparison_area(store):
     add_public_school(store, "X1", "M1", 300, 4, 10)
     run_all(store)
     rows = _rows(store, "pr_peers", lgu="Town One, Province")
-    assert [r["series"] for r in rows].count(planner.PEER_SERIES[0]) == 1
-    assert [r["children_per_school"] for r in rows] == sorted((r["children_per_school"] for r in rows), reverse=True)
+    assert [r["lgu"] for r in rows if r["lgu"].endswith(planner.SELECTED_MARK)] == ["Town One" + planner.SELECTED_MARK]
+    assert [r["affected_learners"] for r in rows] == sorted((r["affected_learners"] for r in rows), reverse=True)
+    assert {r["queue_status"] for r in rows} <= set(planner.QUEUE)
     note = _rows(store, "pr_peer_note", lgu="Town One, Province")[0]["peer_line"]
-    assert note.startswith("Town One: ") and "school-age children per public school" in note
+    assert note == "Town One: Priority 2 · 300 affected learners · ranked 1 of 4 LGUs in its province"
     pairs = _rows(store, "ov_region_pairs")
     assert [r["series"] for r in pairs] == planner.REGION_SERIES
-
 
 def test_no_chart_legend_says_verification_needed():
     # the review on 2026-10-22: schools are coloured by levels offered or school status, never by a data-check flag

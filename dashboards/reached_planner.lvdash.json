@@ -2921,13 +2921,10 @@
         "             ELSE pri.province_label = me.province_label END\n",
         "    AND ((:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type) OR pri.city_mun_psgc_code = me.city_mun_psgc_code)\n",
         ")\n",
-        "SELECT CASE WHEN me.province_label = 'Independent cities (no province)' AND a.province_label <> me.province_label\n",
-        "            THEN a.city_mun_name || ', ' || a.province_label ELSE a.city_mun_name END AS lgu,\n",
-        "       a.ap1_school_age_population_per_public_school AS children_per_school,\n",
-        "       CASE WHEN a.is_selected THEN 'Selected LGU' ELSE 'Other LGUs in the same province or region' END AS series\n",
+        "SELECT CASE WHEN me.province_label = 'Independent cities (no province)' AND a.province_label <> me.province_label THEN a.city_mun_name || ', ' || a.province_label ELSE a.city_mun_name END || CASE WHEN a.is_selected THEN ' (selected)' ELSE '' END AS lgu,\n",
+        "       a.priority_affected_learners AS affected_learners, a.queue_status\n",
         "FROM area AS a CROSS JOIN me\n",
-        "WHERE a.ap1_school_age_population_per_public_school IS NOT NULL\n",
-        "ORDER BY children_per_school DESC, lgu"
+        "ORDER BY a.priority_affected_learners DESC, a.national_order"
       ],
       "parameters": [
         {
@@ -3097,13 +3094,17 @@
         "  WHERE CASE WHEN me.province_label = 'Independent cities (no province)' THEN pri.region_name = me.region_name\n",
         "             ELSE pri.province_label = me.province_label END\n",
         "    AND ((:region = 'All regions' OR pri.region_name = :region) AND (:province = 'All provinces' OR pri.province_label = :province) AND (:lgu_type = 'All LGU types' OR pri.lgu_type_label = :lgu_type) OR pri.city_mun_psgc_code = me.city_mun_psgc_code)\n",
+        "),\n",
+        "ranked AS (\n",
+        "  SELECT city_mun_name, queue_status, priority_affected_learners, is_selected,\n",
+        "         ROW_NUMBER() OVER (ORDER BY priority_affected_learners DESC, national_order) AS area_rank, COUNT(*) OVER () AS area_lgus\n",
+        "  FROM area\n",
         ")\n",
-        "SELECT city_mun_name || ': ' || CASE WHEN ap1_school_age_population_per_public_school IS NULL THEN 'children per public school not reported' ELSE format_number(ap1_school_age_population_per_public_school, 0) || ' school-age children per public school' END\n",
-        "       || ' \u00b7 ' || COALESCE(CASE WHEN population_2024 >= 1000000 THEN format_number(population_2024 / 1000000.0, 1) || 'M' WHEN population_2024 >= 1000 THEN format_number(population_2024 / 1000.0, 0) || 'K' ELSE format_number(population_2024, 0) END || ' resident children', 'resident children not reported')\n",
-        "       || ' \u00b7 ' || COALESCE(CASE WHEN enrolled_2024 >= 1000000 THEN format_number(enrolled_2024 / 1000000.0, 1) || 'M' WHEN enrolled_2024 >= 1000 THEN format_number(enrolled_2024 / 1000.0, 0) || 'K' ELSE format_number(enrolled_2024, 0) END || ' learners enrolled locally', 'enrollment not reported')\n",
-        "       || ' \u00b7 ' || format_number(COALESCE(active_public_school_count, 0), 0) || ' active public schools (SY 2023-24)'\n",
-        "         AS peer_line\n",
-        "FROM area WHERE is_selected"
+        "SELECT city_mun_name || ': ' || queue_status || ' \u00b7 ' || format_number(priority_affected_learners, 0)\n",
+        "       || ' affected learners \u00b7 ranked ' || format_number(area_rank, 0) || ' of ' || format_number(area_lgus, 0)\n",
+        "       || ' LGUs in its ' || CASE WHEN (SELECT province_label FROM me) = 'Independent cities (no province)' THEN 'region'\n",
+        "                                  ELSE 'province' END AS peer_line\n",
+        "FROM ranked WHERE is_selected"
       ],
       "parameters": [
         {
@@ -10571,12 +10572,12 @@
                       "expression": "`lgu`"
                     },
                     {
-                      "name": "children_per_school",
-                      "expression": "`children_per_school`"
+                      "name": "affected_learners",
+                      "expression": "`affected_learners`"
                     },
                     {
-                      "name": "series",
-                      "expression": "`series`"
+                      "name": "queue_status",
+                      "expression": "`queue_status`"
                     }
                   ],
                   "disaggregated": true
@@ -10588,11 +10589,11 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "children_per_school",
+                  "fieldName": "affected_learners",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "School-age children per public school",
+                  "displayName": "Affected learners",
                   "format": {
                     "type": "number-plain",
                     "decimalPlaces": {
@@ -10612,28 +10613,48 @@
                   "displayName": "City or municipality"
                 },
                 "color": {
-                  "fieldName": "series",
+                  "fieldName": "queue_status",
                   "scale": {
                     "type": "categorical",
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "Selected LGU",
-                        "Other LGUs in the same province or region"
+                        "Priority 1",
+                        "Priority 2",
+                        "Priority 3",
+                        "Monitor",
+                        "No current pressure identified",
+                        "Data review"
                       ]
                     },
                     "mappings": [
                       {
-                        "value": "Selected LGU",
-                        "color": "#1F5A8A"
+                        "value": "Priority 1",
+                        "color": "#712B13"
                       },
                       {
-                        "value": "Other LGUs in the same province or region",
-                        "color": "#C9D1D9"
+                        "value": "Priority 2",
+                        "color": "#B85C38"
+                      },
+                      {
+                        "value": "Priority 3",
+                        "color": "#C9A227"
+                      },
+                      {
+                        "value": "Monitor",
+                        "color": "#5B6B7A"
+                      },
+                      {
+                        "value": "No current pressure identified",
+                        "color": "#D9DEE3"
+                      },
+                      {
+                        "value": "Data review",
+                        "color": "#8A96A3"
                       }
                     ]
                   },
-                  "displayName": "",
+                  "displayName": "Review status",
                   "legend": {
                     "position": "bottom"
                   }
@@ -10641,9 +10662,9 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "School-age children per public school in the comparison area",
+                "title": "Where does this LGU stand in its province?",
                 "showDescription": true,
-                "description": "The selected LGU among the other LGUs of its province, or its region for an independent city, highest first. Resident children aged 5-17 (2024) per active public school (SY 2023-24): context on the size of the school network, not a need for new schools."
+                "description": "The LGUs of the selected LGU's province, or its region for an independent city, ranked by affected learners and coloured by review status; the selected LGU is marked (selected). Affected learners: the larger of the learners in schools above the classroom screen and the learners at levels above the teacher comparison point."
               }
             }
           },

@@ -83,8 +83,7 @@ MAP_COLORS = [{"value": v, "color": c} for v, c in zip(MAP_STATUS, ["#C2452D", "
 CHANGE_COLORS = [{"value": "Increase", "color": "#2F6F8F"}, {"value": "Decrease", "color": "#C9A227"}]  # not good or bad
 REGION_SERIES = ["Resident children aged 5-17, 2024", "All-sector enrollment in local schools, SY 2024-25"]
 REGION_COLORS = [{"value": REGION_SERIES[0], "color": "#5B6B7A"}, {"value": REGION_SERIES[1], "color": "#C9A227"}]
-PEER_SERIES = ["Selected LGU", "Other LGUs in the same province or region"]
-PEER_COLORS = [{"value": PEER_SERIES[0], "color": SELECTED}, {"value": PEER_SERIES[1], "color": "#C9D1D9"}]
+SELECTED_MARK = " (selected)"  # appended to the selected LGU's name in the province ranking
 # amber means beyond a reference everywhere; brown is kept for the priority categories
 LEVEL_STATUS = ["Above comparison point", "At or below comparison point", "Not assessed"]
 LEVEL_COLORS = [{"value": LEVEL_STATUS[0], "color": "#E3A008"}, {"value": LEVEL_STATUS[1], "color": "#A9B4BF"},
@@ -589,25 +588,29 @@ area AS (
              ELSE pri.province_label = me.province_label END
     AND ({GEO_PRI} OR pri.city_mun_psgc_code = me.city_mun_psgc_code)
 )"""
-# ranked bars of the published school-age children per public school, highest first (the chart keeps this order); the
-# province is added to each name when the area is a whole region, so two towns with one name stay apart
+# the LGUs of the comparison area ranked by affected learners, most first (the chart keeps this order), coloured by review
+# status; the selected LGU is marked in its name, since colour already carries the status. The province is added to
+# each name when the area is a whole region, so two towns with one name stay apart.
+PEER_NAME = ("CASE WHEN me.province_label = 'Independent cities (no province)' AND a.province_label <> me.province_label "
+             "THEN a.city_mun_name || ', ' || a.province_label ELSE a.city_mun_name END")
 PR_PEERS = f"""WITH {PEER_AREA}
-SELECT CASE WHEN me.province_label = 'Independent cities (no province)' AND a.province_label <> me.province_label
-            THEN a.city_mun_name || ', ' || a.province_label ELSE a.city_mun_name END AS lgu,
-       a.ap1_school_age_population_per_public_school AS children_per_school,
-       CASE WHEN a.is_selected THEN '{PEER_SERIES[0]}' ELSE '{PEER_SERIES[1]}' END AS series
+SELECT {PEER_NAME} || CASE WHEN a.is_selected THEN '{SELECTED_MARK}' ELSE '' END AS lgu,
+       a.priority_affected_learners AS affected_learners, a.queue_status
 FROM area AS a CROSS JOIN me
-WHERE a.ap1_school_age_population_per_public_school IS NOT NULL
-ORDER BY children_per_school DESC, lgu"""
+ORDER BY a.priority_affected_learners DESC, a.national_order"""
 
-# the selected LGU's own figures under the ranked bars, abbreviated
-PR_PEER_NOTE = f"""WITH {PEER_AREA}
-SELECT city_mun_name || ': ' || {measure('ap1_school_age_population_per_public_school', 0, ' school-age children per public school', 'children per public school not reported')}
-       || ' · ' || COALESCE({abbrev('population_2024')} || ' resident children', 'resident children not reported')
-       || ' · ' || COALESCE({abbrev('enrolled_2024')} || ' learners enrolled locally', 'enrollment not reported')
-       || ' · ' || format_number(COALESCE(active_public_school_count, 0), 0) || ' active public schools ({SCHOOL_COUNT_YEAR})'
-         AS peer_line
-FROM area WHERE is_selected"""
+# the selected LGU's status, affected learners and rank in its area, under the ranked bars
+PR_PEER_NOTE = f"""WITH {PEER_AREA},
+ranked AS (
+  SELECT city_mun_name, queue_status, priority_affected_learners, is_selected,
+         ROW_NUMBER() OVER (ORDER BY priority_affected_learners DESC, national_order) AS area_rank, COUNT(*) OVER () AS area_lgus
+  FROM area
+)
+SELECT city_mun_name || ': ' || queue_status || ' · ' || format_number(priority_affected_learners, 0)
+       || ' affected learners · ranked ' || format_number(area_rank, 0) || ' of ' || format_number(area_lgus, 0)
+       || ' LGUs in its ' || CASE WHEN (SELECT province_label FROM me) = 'Independent cities (no province)' THEN 'region'
+                                  ELSE 'province' END AS peer_line
+FROM ranked WHERE is_selected"""
 
 
 def school_base(level_param=True):
@@ -1397,12 +1400,12 @@ def lgu_profile(b):
                 desc="Children are counted where they live, learners where they attend school. A school hub can enroll "
                      "more learners than its resident children; the gap is not a count of children out of school."), 6)], 7)
     peers = bar(
-        b, "pr_peers", "School-age children per public school in the comparison area", "lgu", "City or municipality",
-        "sum", "children_per_school", "School-age children per public school", color="series", color_label="",
-        mappings=PEER_COLORS, color_order=PEER_SERIES, fmt=num(), legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
-        desc="The selected LGU among the other LGUs of its province, or its region for an independent city, highest "
-             "first. Resident children aged 5-17 (2024) per active public school (SY 2023-24): context on the size of the "
-             "school network, not a need for new schools.")
+        b, "pr_peers", "Where does this LGU stand in its province?", "lgu", "City or municipality", "sum",
+        "affected_learners", "Affected learners", color="queue_status", color_label="Review status",
+        mappings=QUEUE_COLORS, color_order=QUEUE, fmt=num(), legend=LEGEND_BOTTOM, raw=True, sort_by="natural-order",
+        desc="The LGUs of the selected LGU's province, or its region for an independent city, ranked by affected learners "
+             "and coloured by review status; the selected LGU is marked (selected). Affected learners: the larger of the "
+             "learners in schools above the classroom screen and the learners at levels above the teacher comparison point.")
     peer_note = note(b, "pr_peer_note", "Selected LGU", "peer_line", style=LINE_STYLE, show_title=False)
     p.columns([(12, [(peers, 10), (peer_note, 1)])], 11)
     barangay = param_filter(b, "barangay", "Barangay", ["pr_barangays", "pr_map", "pr_map_note"],
