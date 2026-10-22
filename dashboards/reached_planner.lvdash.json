@@ -5144,7 +5144,10 @@
         ")\n",
         "SELECT s.school_name, s.levels_offered_full, s.learners_txt, s.verification_status, l.latitude, l.longitude,\n",
         "       COALESCE(s.learners, 0) AS learners,\n",
-        "       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school' WHEN s.f_above = 1 AND ((s.offers_es = 1 AND s.es_teachers > 0 AND s.es_learners / CAST(s.es_teachers AS DOUBLE) > 35.0) OR (s.offers_jhs = 1 AND s.jhs_teachers > 0 AND s.jhs_learners / CAST(s.jhs_teachers AS DOUBLE) > 36.0) OR (s.offers_shs = 1 AND s.shs_teachers > 0 AND s.shs_learners / CAST(s.shs_teachers AS DOUBLE) > 26.666666666666668)) THEN 'Classroom and teacher pressure' WHEN s.f_above = 1 THEN 'Classroom pressure only' WHEN (s.offers_es = 1 AND s.es_teachers > 0 AND s.es_learners / CAST(s.es_teachers AS DOUBLE) > 35.0) OR (s.offers_jhs = 1 AND s.jhs_teachers > 0 AND s.jhs_learners / CAST(s.jhs_teachers AS DOUBLE) > 36.0) OR (s.offers_shs = 1 AND s.shs_teachers > 0 AND s.shs_learners / CAST(s.shs_teachers AS DOUBLE) > 26.666666666666668) THEN 'Teacher pressure only' ELSE 'Neither' END AS series\n",
+        "       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN 'Selected school'\n",
+        "            WHEN s.offers_es = 1 AND (s.offers_jhs = 1 OR s.offers_shs = 1) THEN 'Integrated (elementary and secondary)'\n",
+        "            WHEN s.offers_es = 1 THEN 'Elementary only'\n",
+        "            WHEN s.offers_jhs = 1 OR s.offers_shs = 1 THEN 'Secondary only' ELSE 'No level reported' END AS series\n",
         "FROM schools AS s\n",
         "JOIN edu_access.`05-gold`.dim_school_location AS l ON l.school_id = s.school_id\n",
         "CROSS JOIN here\n",
@@ -12637,10 +12640,9 @@
                       "by": "custom-order",
                       "orderedValues": [
                         "Selected school",
-                        "Classroom and teacher pressure",
-                        "Classroom pressure only",
-                        "Teacher pressure only",
-                        "Neither"
+                        "Elementary only",
+                        "Secondary only",
+                        "Integrated (elementary and secondary)"
                       ]
                     },
                     "mappings": [
@@ -12649,24 +12651,20 @@
                         "color": "#14212B"
                       },
                       {
-                        "value": "Classroom and teacher pressure",
-                        "color": "#712B13"
+                        "value": "Elementary only",
+                        "color": "#3C9D9B"
                       },
                       {
-                        "value": "Classroom pressure only",
-                        "color": "#D85A30"
+                        "value": "Secondary only",
+                        "color": "#C9A227"
                       },
                       {
-                        "value": "Teacher pressure only",
-                        "color": "#E3A008"
-                      },
-                      {
-                        "value": "Neither",
-                        "color": "#C9D1D9"
+                        "value": "Integrated (elementary and secondary)",
+                        "color": "#8A96A3"
                       }
                     ]
                   },
-                  "displayName": "Pressure at each school"
+                  "displayName": "School type"
                 },
                 "extra": [
                   {
@@ -12698,7 +12696,7 @@
                 "showTitle": true,
                 "title": "School location",
                 "showDescription": true,
-                "description": "The selected school and public schools within about 3 km, coloured by the pressure they show and sized by learners. Empty when the school has no validated location; no barangay boundary is drawn."
+                "description": "The selected school and public schools within about 3 km, coloured by school type (secondary is junior and/or senior high) and sized by learners. Empty when the school has no validated location; no barangay boundary is drawn."
               },
               "mark": {
                 "opacity": 0.8

@@ -78,6 +78,9 @@ SCHOOL_PRESSURE = ["Selected school", "Classroom and teacher pressure", "Classro
                    "Neither"]
 SCHOOL_PRESSURE_COLORS = [{"value": v, "color": c} for v, c in zip(SCHOOL_PRESSURE, [
     "#14212B", "#712B13", "#D85A30", "#E3A008", "#C9D1D9"])]
+# the school-location map groups schools by the levels they offer instead
+SCHOOL_TYPE = ["Selected school", "Elementary only", "Secondary only", "Integrated (elementary and secondary)"]
+SCHOOL_TYPE_COLORS = [{"value": v, "color": c} for v, c in zip(SCHOOL_TYPE, ["#14212B", "#3C9D9B", "#C9A227", "#8A96A3"])]
 # schools on the LGU map by school status, from most to least pressing
 MAP_STATUS = ["Above classroom screen", "Missing figure", "Zero rooms or teachers", "Within classroom screen"]
 MAP_COLORS = [{"value": v, "color": c} for v, c in zip(MAP_STATUS, ["#C2452D", "#E3A008", "#9C6B3A", "#A9B4BF"])]
@@ -902,7 +905,10 @@ here AS (
 )
 SELECT s.school_name, s.levels_offered_full, s.learners_txt, s.verification_status, l.latitude, l.longitude,
        COALESCE(s.learners, 0) AS learners,
-       {school_pressure('s')} AS series
+       CASE WHEN s.school_id = (SELECT school_id FROM pick) THEN '{SCHOOL_TYPE[0]}'
+            WHEN s.offers_es = 1 AND (s.offers_jhs = 1 OR s.offers_shs = 1) THEN '{SCHOOL_TYPE[3]}'
+            WHEN s.offers_es = 1 THEN '{SCHOOL_TYPE[1]}'
+            WHEN s.offers_jhs = 1 OR s.offers_shs = 1 THEN '{SCHOOL_TYPE[2]}' ELSE 'No level reported' END AS series
 FROM schools AS s
 JOIN {G}.dim_school_location AS l ON l.school_id = s.school_id
 CROSS JOIN here
@@ -1501,11 +1507,12 @@ def school_action(b):
                     "pressure where an offered level is above its comparison point (elementary 35, junior high 36, senior "
                     "high 26.7). Schools with no rooms or teachers reported cannot be placed and are listed below.",
                     annotations=[ref_line("x", SCREEN, "Classroom screen")]), 8),
-           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "Pressure at each school",
-                      SCHOOL_PRESSURE_COLORS, SCHOOL_PRESSURE,
+           (point_map(b, "sa_location", "School location", "latitude", "longitude", "series", "School type",
+                      SCHOOL_TYPE_COLORS, SCHOOL_TYPE,
                       [("school_name", "School"), ("levels_offered_full", "Levels offered"),
                        ("learners_txt", "Public learners"), ("verification_status", "Verification status")],
-                      "The selected school and public schools within about 3 km, coloured by the pressure they show and "
+                      "The selected school and public schools within about 3 km, coloured by school type (secondary is "
+                      "junior and/or senior high) and "
                       "sized by learners. Empty when the school has no validated location; no barangay boundary is drawn.",
                       size="learners",
                       size_label="Public learners"), 4)], 8)

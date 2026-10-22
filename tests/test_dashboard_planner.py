@@ -176,6 +176,13 @@ def test_no_chart_legend_says_verification_needed():
             assert planner.VERIFY[0] not in values, widget["name"]
 
 
+def test_the_scatter_shows_pressure_and_the_location_map_shows_school_type():
+    charts = {w["queries"][0]["query"]["datasetName"]: w for p in load()["pages"] for w in widgets(p)
+              if w.get("queries") and w["queries"][0]["query"].get("datasetName") in ("sa_peers", "sa_location")}
+    mappings = {name: [m["value"] for m in w["spec"]["encodings"]["color"]["scale"]["mappings"]] for name, w in charts.items()}
+    assert mappings == {"sa_peers": planner.SCHOOL_PRESSURE, "sa_location": planner.SCHOOL_TYPE}
+
+
 def test_no_title_renders_markdown():
     # review of the 2026-10-21 export: asterisks in chart titles rendered literally
     for page in load()["pages"]:
